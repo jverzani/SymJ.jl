@@ -1,0 +1,6 @@
+[deps]
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+SymJ = "73a6d648-42a5-483e-b8b5-fc71c1696ef5"
+
+[sources]
+SymJ = {path = ".."}
