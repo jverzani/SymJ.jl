@@ -443,8 +443,22 @@ into a polynomial plus terms `c/pʲ`, with `p` irreducible and `deg c < deg p`.
 3. For each `i`, `Aᵢ = (r/c)·(d/pᵢ^mᵢ)⁻¹ mod pᵢ^mᵢ`, by extended Euclid over ℚ.
 4. Expanding `Aᵢ` in powers of `pᵢ` splits `Aᵢ/pᵢ^mᵢ` into the terms.
 
-Symbolic coefficients (other symbols) aren't supported yet, since that needs factoring
-over ℚ(y).
+**Symbolic coefficients.** When other symbols or parameters appear, the decomposition
+is over the field `ℚ(a, b, …)`. For example,
+`apart(1/((x - a)(x - b)), x) = 1/((b - a)(x - b)) - 1/((b - a)(x - a))`.
+
+- **Factoring.** By Gauss's lemma, the irreducible factors of the denominator over
+  `ℚ(params)[x]` are its multivariate factors over ℤ that involve `x`; the others are a
+  unit there.
+- **Arithmetic.** The steps above run in `Poly{RatFun}`. `RatFun` (`src/ratfun.jl`) is
+  an exact rational function in the parameters, kept in a canonical form so that
+  equality and zero tests are exact:
+  - a constant denominator becomes 1, with rational numerator coefficients;
+  - otherwise, a coprime integer numerator and denominator (the modular gcd removes the
+    common factor, including integer content) with a positive leading coefficient.
+- **Generic code.** `Poly`'s division, `rem`, powers and modular inverses are generic in
+  the coefficient type, so they work over `RatFun` unchanged.
+- **Display.** Each numerator `c(x)` is written over a factored common denominator.
 
 ### Rational expressions
 
@@ -571,7 +585,6 @@ and a finalizer per operation), which dominates the small benchmarks.
   - A univariate dense representation.
   - Wang's EEZ multivariate factorization, and van Hoeij's lattice recombination for
     univariate polynomials with very many modular factors.
-  - Partial fractions with symbolic coefficients.
   - `cancel` for rational expressions, built on `gcd`.
   - Graded monomial orders.
   - Wider monomials (`UInt128` or exponent vectors) for many generators or high degree.

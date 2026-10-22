@@ -10,18 +10,27 @@
     apart(ex, x)
     apart(ex)
 
-Partial fraction decomposition of a rational function of `x` with exact numeric
-coefficients: a polynomial plus terms `c(x)/p(x)^j`, `p` irreducible over the
-rationals and `deg c < deg p`. With no `x`, `ex` must have one free symbol.
+Partial fraction decomposition of a rational function of `x` with exact
+coefficients: a polynomial plus terms `c(x)/p(x)^j`, `p` irreducible and
+`deg c < deg p`. Coefficients may involve other symbols and parameters (and, as in
+[`cancel`](@ref), function applications): the decomposition is then over the field
+of rational functions in them, `ℚ(a, b, ...)`. With no `x`, `ex` must have one free
+variable.
 
 ```julia
 apart(1/(x^2 - 1))              # 1/(2*(x - 1)) - 1/(2*(x + 1))
 apart((x^3 + 1)/(x^2 - 1))      # x + 1/(x - 1)
+apart(1/((x - a)*(x - b)), x)   # 1/((a - b)*(x - a)) - 1/((a - b)*(x - b))
 ```
 """
 function apart(ex::Sym, x::Sym)
     _isnamed(x) || throw(ArgumentError("apart: $x is not a symbol"))
     n, d = numer_denom(cancel(ex))
+    atoms = Set{Sym}()
+    (_poly_atoms!(atoms, n) && _poly_atoms!(atoms, d)) ||
+        throw(ArgumentError("apart needs exact coefficients"))
+    delete!(atoms, x)
+    isempty(atoms) || return _apart_params(n, d, x, sort!(collect(atoms); lt = _lt))
     N, D = Poly{SymNumber}(n, [x]), Poly{SymNumber}(d, [x])
     q, r = divrem(N, D)
     result = Sym(q)
@@ -51,8 +60,48 @@ function apart(ex::Sym)
 end
 apart(ex::Number, x...) = Sym(ex)
 
-# a^(-1) mod m in Q[x], for coprime univariate a and m
-function _qinvmod(a::Poly{SymNumber}, m::Poly{SymNumber})
+# Over ℚ(params): D factored over ℤ in (x, params); by Gauss's lemma its factors
+# involving x are its irreducible factors over ℚ(params)[x], the rest a unit there.
+# The same steps as above, in Poly{RatFun}.
+function _apart_params(n::Sym, d::Sym, x::Sym, params::Vector{Sym})
+    gs = [x; params]
+    N, D = Poly{SymNumber}(n, gs), Poly{SymNumber}(d, gs)
+    c, facs = factor(D)
+    unit = Poly{SymNumber}(Sym(c), gs)
+    xfacs = Pair{Poly{SymNumber},Int}[]
+    for (p, m) in facs
+        degree(p, x) > 0 ? push!(xfacs, p => m) : (unit *= p^m)
+    end
+    u = _to_ratfun_poly(unit, 1).coefs[1]                    # a constant in x
+    Nx = _scale(_to_ratfun_poly(N, 1), inv(u))
+    Dx = _to_ratfun_poly(foldl((r, pm) -> r * pm.first^pm.second, xfacs; init = one(N)), 1)
+    q, r = divrem(Nx, Dx)
+    result = Sym(q)
+    iszero(r) && return result
+    for (p, m) in xfacs
+        px = _to_ratfun_poly(p, 1)
+        P = px^m
+        A = rem(r * _qinvmod(divexact(Dx, P), P), P)
+        k = 0
+        while !iszero(A)
+            A, ck = divrem(A, px)
+            iszero(ck) || (result += _over_common_den(ck) / Sym(p)^(m - k))
+            k += 1
+        end
+    end
+    result
+end
+
+# c(x) with coefficients in ℚ(params) as (polynomial)/(factored common denominator)
+function _over_common_den(c::Poly{RatFun})
+    L = foldl((l, r) -> lcm(l, r.den), c.coefs; init = one(c.coefs[1].den))
+    num = _add_many(mul(Sym(r.num * divexact(L, _unify(r.den, L)[1])), _monomial(c, m))
+                    for (m, r) in zip(c.monos, c.coefs))
+    L.monos[1] == 0 ? num / Sym(L) : factor(num) / factor(Sym(L))
+end
+
+# a^(-1) mod m in K[x] (K = ℚ or ℚ(params)), for coprime univariate a and m
+function _qinvmod(a::Poly{C}, m::Poly{C}) where {C}
     r0, r1 = m, rem(a, m)
     t0, t1 = zero(a), one(a)
     while !iszero(r1)

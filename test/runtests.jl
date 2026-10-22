@@ -666,8 +666,33 @@ import ForwardDiff
                   (x / 2 + 1) / (3x^2 - 3), (x^5 + 2) / ((x^2 + x + 1)^2 * (x - 2)^3 * x))
             @test cancel(apart(e) - e) == 0
         end
-        @test_throws ArgumentError apart(1 / ((x - y) * (x + 1)), x)   # symbolic coefficients: not yet
+        # symbolic coefficients: over ℚ(params), with variables or parameters
+        @parameters a b c
+        @test apart(1 / (x^2 - a^2), x) == 1 / (2a * (x - a)) - 1 / (2a * (x + a))
+        @test apart(1 / (x^2 + a), x) == 1 / (x^2 + a)                 # irreducible over ℚ(a)
+        for e in (1 / ((x - a) * (x - b)), (x + 1) / ((x - a)^2 * (x + b)), x^3 / ((x - a) * (x - 1)),
+                  1 / (a * x * (x + b)), (x^2 + c) / ((x - a)^2 * (x^2 + b)), 1 / ((x - y) * (x + y)),
+                  (a * x + 1) / ((x - a) * (x^2 - b)), 1 / ((x - a) * (x - 2a) * (x - 3a)))
+            r = apart(e, x)
+            @test cancel(r - e) == 0
+        end
+        @test length(SymJ.arguments(apart(1 / ((x - a) * (x - b) * (x - c)), x))) == 3
         @test_throws ArgumentError apart(x / y)                         # two symbols: give x
+    end
+
+    @testset "RatFun" begin
+        R = SymJ.RatFun
+        P(e) = Poly(e, x, y)
+        r1 = SymJ._ratfun(P(x^2 - y^2), P(2x - 2y))            # reduces to (x + y)/2
+        @test SymJ._ispoly(r1) && r1.num == P(x / 2 + y / 2)
+        r2 = SymJ._ratfun(P(x), P(-2y))                         # integer num/den, positive den
+        @test r2.den == P(2y) && r2.num == P(-x)
+        @test r1 + r2 == R(P(x / 2 + y / 2)) + SymJ._ratfun(P(-x), P(2y))
+        @test iszero(r1 - r1) && isone(r1 / r1) && r1 * inv(r1) == one(R)
+        @test (r2^2) == r2 * r2 && r2^-1 == inv(r2)
+        @test R(SymNumber(3)) + R(P(x)) == R(P(x + 3))           # constants mix with polynomials
+        @test Sym(r2) == -x / (2y) && zero(R) == R(SymNumber(0))
+        @test_throws DivideError inv(zero(R))
     end
 
     @testset "iteration (like Number)" begin
