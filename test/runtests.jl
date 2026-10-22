@@ -651,6 +651,12 @@ import ForwardDiff
             gs = [SymJ._shift_var(g, 2, -4) for g in SymJ._eez_split(qs, us, 1, [2])]
             @test Set(Sym.(gs)) == Set(want)
         end
+        # Wang's leading-coefficient distribution, at the point y = 0 where its test holds
+        @test SymJ._wang_nondivisors(BigInt[2, 5], big(1), big(1)) == BigInt[2, 5]
+        @test SymJ._wang_nondivisors(BigInt[3, 6], big(2), big(1)) === nothing   # 6 shares 2 and 3
+        qw = P2(expand(((y + 2) * x + 1) * ((y + 5) * x^2 + 3)))
+        gw = SymJ._eez_wang(qw, [P2(2x + 1), P2(5x^2 + 3)], 1, [2])
+        @test gw !== nothing && Set(Sym.(gw)) == Set(expand.([(y + 2) * x + 1, (y + 5) * x^2 + 3]))
         # beyond Kronecker substitution's reach (image degree ~ 10*9*6*6)
         big4 = P4(expand((x^5 * y^3 + z^4 * w^2 - 7) * (x^4 - y^5 * z + w^3 + 2) * (x * y * z * w + 1)))
         @test_throws ArgumentError SymJ._factor_kronecker(big4, [1, 2, 3, 4])

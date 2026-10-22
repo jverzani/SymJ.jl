@@ -182,6 +182,90 @@ function _eez_split(qs::_P, us::Vector{_P}, xi::Int, ys::Vector{Int})
     [_positive(qs)]
 end
 
+## Wang's leading-coefficient distribution
+#
+# The true factors' leading coefficients (in x) are products of the irreducible
+# factors t_j of L = lc_x(q). If each t_j(0) has a prime divisor that divides no other
+# t_k(0) nor the contents (Wang's non-divisor test), the t_j dividing each univariate
+# factor's leading coefficient can be read off, and the lift runs on q (times a power
+# of the integer content) instead of L^(r-1) q. Nothing (and the imposition method is
+# used) when the test fails, or when the lift fails because the point split a factor.
+
+_constval(p::_P, ys) = (c = foldl(_eval0, ys; init = p); iszero(c) ? big(0) : big(_numerator(c.coefs[1])))
+
+# Wang's non-divisors: for each E_j, a divisor sharing nothing with cs*ct or earlier ones
+function _wang_nondivisors(E::Vector{BigInt}, cs::BigInt, ct::BigInt)
+    result = BigInt[cs * ct]
+    for q in E
+        q = abs(q)
+        for r in reverse(result)
+            while r != 1
+                r = gcd(r, q)
+                q ÷= r
+            end
+            isone(q) && return nothing
+        end
+        push!(result, q)
+    end
+    result[2:end]
+end
+
+function _eez_wang(qs::_P, H::Vector{_P}, xi::Int, ys::Vector{Int})
+    L = _lcoeff_x(qs, xi)
+    ct, T = factor(L)
+    E = BigInt[_constval(t, ys) for (t, _) in T]
+    s0 = foldl(_eval0, ys; init = qs)
+    cs = _int_content(s0)
+    _wang_nondivisors(E, cs, abs(big(_numerator(ct)))) === nothing && return nothing
+    lcx(h) = big(_numerator(_lcoeff_x(h, xi).coefs[1]))
+    C = _P[]
+    used = falses(length(T))
+    for h in H
+        c = one(L)
+        d = lcx(h) * cs
+        for i in reverse(eachindex(T))
+            k = 0
+            while d % E[i] == 0
+                d ÷= E[i]
+                k += 1
+            end
+            k > 0 && (c *= T[i].first^k; used[i] = true)
+        end
+        push!(C, c)
+    end
+    all(used) || return nothing
+    CC, HH = _P[], _P[]
+    for (c, h) in zip(C, H)
+        d = _constval(c, ys)
+        lh = lcx(h)
+        if isone(cs)
+            lh % d == 0 || return nothing
+            cc = lh ÷ d
+        else
+            g = gcd(lh, d)
+            d, cc = d ÷ g, lh ÷ g
+            h = _scale(h, SymNumber(d))
+            cs % d == 0 || return nothing
+            cs ÷= d
+        end
+        push!(CC, _scale(c, SymNumber(cc)))
+        push!(HH, h)
+    end
+    Q = qs
+    if !isone(cs)
+        CC = [_scale(c, SymNumber(cs)) for c in CC]
+        HH = [_scale(h, SymNumber(cs)) for h in HH]
+        Q = _scale(qs, SymNumber(cs)^(length(H) - 1))
+    end
+    p0 = foldl(*, HH)
+    Q0 = foldl(_eval0, ys; init = Q)
+    if p0 == -Q0                                       # the sign of the univariate content
+        HH[1], CC[1] = -HH[1], -CC[1]
+    end
+    U = _mhensel(Q, HH, CC, xi, ys)
+    U === nothing ? nothing : [_pp_x(u, xi) for u in U]
+end
+
 ## driver
 
 function _factor_eez(q::_P, act::Vector{Int})
@@ -194,15 +278,20 @@ function _factor_eez(q::_P, act::Vector{Int})
     end
     L = _lcoeff_x(q, xi)
     n = length(q.gens)
-    # evaluation points: the one with fewest univariate factors of a few
+    ct, T = factor(L)                                  # for Wang's test at each point
+    # Evaluation points: fewest univariate factors, preferring points that pass Wang's
+    # non-divisor test. The values stay small: the shift y -> y + α densifies q and
+    # grows its coefficients, which costs far more than Wang's test saves.
     rng = _XorShift(0x2545f4914f6cdd1d)
     best = nothing
+    bestok = false
     good = 0
     for t in 1:60
         B = 1 + t ÷ 6
         α = [Int(_next!(rng) % UInt64(2B + 1)) - B for _ in ys]
         val(m) = prod((big(α[j])^_exponent(m, q.bits, n, ys[j]) for j in eachindex(ys)); init = big(1))
-        sum((big(_numerator(c)) * val(m) for (m, c) in zip(L.monos, L.coefs)); init = big(0)) == 0 && continue
+        ev(p) = sum((big(_numerator(c)) * val(m) for (m, c) in zip(p.monos, p.coefs)); init = big(0))
+        ev(L) == 0 && continue
         u = zeros(BigInt, _deg_in_all(q, xi) + 1)
         for (m, c) in zip(q.monos, q.coefs)
             u[_exponent(m, q.bits, n, xi) + 1] += big(_numerator(c)) * val(m)
@@ -212,8 +301,13 @@ function _factor_eez(q::_P, act::Vector{Int})
         gcd(up, diff(up, q.gens[xi])).monos[1] == 0 || continue    # squarefree
         fs = _zassenhaus(_zprimitive(_ztrim!(u)))
         length(fs) == 1 && return [q]                              # irreducible
-        (best === nothing || length(fs) < length(best[2])) && (best = (α, fs))
-        (good += 1) >= 3 && break
+        ok = _wang_nondivisors(BigInt[ev(t) for (t, _) in T], reduce(gcd, u; init = big(0)),
+                               abs(big(_numerator(ct)))) !== nothing
+        if best === nothing || (ok && !bestok) || (ok == bestok && length(fs) < length(best[2]))
+            best, bestok = (α, fs), ok
+        end
+        good += 1
+        (good >= 3 && bestok) || good >= 5 ? break : nothing
     end
     best === nothing && return _factor_kronecker(q, act)
     α, fs = best
@@ -226,7 +320,8 @@ function _factor_eez(q::_P, act::Vector{Int})
         ks = [e for e in length(f):-1:1 if !iszero(f[e])]
         _P(q.gens, q.bits, UInt64[UInt64(e - 1) << s for e in ks], SymNumber[SymNumber(f[e]) for e in ks])
     end
-    gs = _eez_split(qs, us, xi, ys)
+    gs = length(us) > 1 ? _eez_wang(qs, us, xi, ys) : nothing
+    gs === nothing && (gs = _eez_split(qs, us, xi, ys))
     map(gs) do g
         for (j, y) in enumerate(ys)
             g = _shift_var(g, y, -α[j])
