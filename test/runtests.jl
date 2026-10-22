@@ -99,6 +99,89 @@ using Test
         @test string(f(x, 2)) == "f(x, 2)"
     end
 
+    @testset "more elementary functions" begin
+        # reciprocal trig: exact values through cos/sin/tan, poles unevaluated, parity
+        @test sec(Sym(0)) == 1 && sec(PI / 3) == 2 && csc(PI / 6) == 2
+        @test cot(PI / 4) == 1 && cot(PI / 2) == 0
+        @test kind(sec(PI / 2)) == FN && kind(csc(Sym(0))) == FN
+        @test sec(-x) == sec(x) && csc(-x) == -csc(x) && cot(-x) == -cot(x)
+        @test sec(acos(x)) == 1 / x
+        @test kind(sec(x)) == FN && operation(sec(x)) === sec
+        @test asec(Sym(1)) == 0 && acsc(Sym(1)) == PI / 2
+        @test acot(Sym(0)) == PI / 2 && acot(Sym(1)) == PI / 4 && acot(-x) == -acot(x)
+        @test sech(Sym(0)) == 1 && coth(-x) == -coth(x) && csch(-x) == -csch(x)
+        @test asech(Sym(1)) == 0 && acoth(-x) == -acoth(x)
+        # real cube root
+        @test cbrt(Sym(-8)) == -2 && cbrt(Sym(27)) == 3
+        @test cbrt(Sym(2)) == Sym(2)^(1 // 3) && cbrt(Sym(-16)) == -2 * Sym(2)^(1 // 3)
+        @test cbrt(x)(-8.0) == -2.0 && cbrt(-x) == -cbrt(x)
+        # piecewise constant
+        @test sign(Sym(-3)) == -1 && sign(sqrt(Sym(2)) - 1) == 1 && sign(-x) == -sign(x)
+        @test floor(Sym(7 // 2)) == 3 && floor(Sym(-7 // 2)) == -4 && ceil(Sym(π)) == 4
+        @test trunc(Sym(-7 // 2)) == -3 && round(Sym(5 // 2)) == 2 && round(Sym(7 // 2)) == 4
+        @test round(sqrt(Sym(2))) == 1 && kind(floor(x)) == FN && floor(floor(x)) == floor(x)
+        @test round(x)(2.5) == 2.0
+        # rewrites
+        @test log2(x) == log(Sym(2), x) && log10(x) == log(Sym(10), x)
+        @test log1p(x) == log(1 + x) && expm1(x) == exp(x) - 1
+        @test exp2(x) == Sym(2)^x && exp10(x) == Sym(10)^x
+        @test sinpi(Sym(1 // 6)) == Sym(1 // 2) && cospi(Sym(1)) == -1 && tanpi(Sym(1 // 4)) == 1
+        @test sincos(x) == (sin(x), cos(x))
+        @test sind(Sym(30)) == Sym(1 // 2) && cosd(Sym(60)) == Sym(1 // 2) && asind(Sym(1)) == 90
+        @test sincosd(Sym(30)) == (Sym(1 // 2), sqrt(Sym(3)) / 2)
+        @test deg2rad(Sym(180)) == PI && rad2deg(PI) == 180
+        @test hypot(Sym(3), 4) == 5 && hypot(x, y) == sqrt(x^2 + y^2)
+        @test abs2(x) == abs(x)^2 && fourthroot(Sym(16)) == 2
+        @test (2 \ x) == x / 2
+        @test numerator(x / y + 1) == x + y && denominator(x / y + 1) == y
+        @test muladd(x, 2, 1) == 2x + 1 && fma(2, x, y) == 2x + y
+        @test expand(evalpoly(x, (1, 2, 3))) == 3x^2 + 2x + 1
+        # sinc and cosc
+        @test sinc(Sym(0)) == 1 && sinc(Sym(1 // 2)) == 2 / PI && sinc(Sym(3)) == 0
+        @test cosc(Sym(0)) == 0 && sinc(-x) == sinc(x) && cosc(-x) == -cosc(x)
+        # mod, rem, div, fld, cld
+        @test mod(Sym(-7), 3) == 2 && rem(Sym(-7), 3) == -1 && mod(Sym(7 // 2), 1) == Sym(1 // 2)
+        @test mod2pi(Sym(7)) == 7 - 2PI && kind(mod(x, 3)) == FN && mod(x, 3)(7.5) == 1.5
+        @test div(Sym(7), 2) == 3 && fld(Sym(-7), 2) == -4 && cld(Sym(7), 2) == 4
+        @test divrem(Sym(7), Sym(2)) == (3, 1)
+        # max and min
+        @test max(x, 1, 3, x) == max(x, 3) && max(y, x) == max(x, y)
+        @test max(max(x, y), 2) == max(x, y, 2) && min(Sym(2), sqrt(Sym(3))) == sqrt(Sym(3))
+        @test max(Sym(1), 2) == 2 && minmax(Sym(3), 2) == (2, 3) && max(x, 2)(5) == 5
+        @test clamp(x, 0, 1) == min(max(x, 0), 1) && clamp(x, 0, 1)(2.5) == 1
+        # factorial and binomial
+        @test factorial(Sym(20)) == factorial(20) && factorial(Sym(30)) == Sym(factorial(big(30)))
+        @test kind(factorial(x)) == FN && factorial(x)(5) == 120
+        @test binomial(x, 3) == x * (x - 1) * (x - 2) / 6 && binomial(Sym(10), 3) == 120
+        @test kind(binomial(x, y)) == FN && binomial(x, -1) == 0
+
+        # numeric values agree with Base, through evaluation and N
+        for (f, vals) in ((sec, (0.4, -1.2)), (csc, (0.4, -1.2)), (cot, (0.4, 2.0)), (asec, (1.5, -3.0)),
+                          (acsc, (1.5, -3.0)), (acot, (0.4, -2.0)), (sech, (0.4, -1.2)), (csch, (0.4, -1.2)),
+                          (coth, (0.4, -1.2)), (asech, (0.3, 0.9)), (acsch, (0.4, -2.0)), (acoth, (1.5, -3.0)),
+                          (cbrt, (5.0, -5.0)), (sinc, (0.3, -1.7)), (cosc, (0.3, -1.7)), (sind, (30.5, -100.0)),
+                          (cosd, (30.5, -100.0)), (tand, (30.5, -100.0)), (secd, (30.5,)), (cscd, (30.5,)),
+                          (cotd, (30.5,)), (asind, (0.3,)), (acosd, (0.3,)), (atand, (2.0,)), (asecd, (2.0,)),
+                          (acscd, (2.0,)), (acotd, (2.0,)), (tanpi, (0.1,)), (log2, (3.0,)), (log10, (3.0,)),
+                          (log1p, (0.3,)), (exp2, (1.3,)), (exp10, (0.3,)), (expm1, (0.3,)), (deg2rad, (45.0,)),
+                          (rad2deg, (1.0,)), (fourthroot, (5.0,)), (abs2, (-3.0,)), (sign, (-2.5,)),
+                          (floor, (2.5, -2.5)), (ceil, (2.5,)), (trunc, (-2.5,)), (round, (3.5, 2.5)))
+            for v in vals
+                @test f(x)(v) ≈ f(v)
+                @test N(f(Sym(v))) ≈ f(v)
+            end
+        end
+
+        # derivative rules agree with central differences
+        for (f, v) in ((sec, 0.4), (csc, 0.4), (cot, 0.4), (asec, 1.5), (acsc, 1.5), (acot, 0.4), (sech, 0.4),
+                       (csch, 0.4), (coth, 0.4), (asech, 0.3), (acsch, 0.4), (acoth, 1.5), (cbrt, 5.0),
+                       (sinc, 0.3), (cosc, 0.3), (sind, 30.5), (asind, 0.3), (log2, 3.0), (log1p, 0.3), (expm1, 0.3))
+            h = big(1) / 10^20
+            fd = (f(x)(big(v) + h) - f(x)(big(v) - h)) / (2h)
+            @test Float64(diff(f(x), x)(big(v))) ≈ Float64(fd) rtol = 1e-12
+        end
+    end
+
     @testset "diff" begin
         @test diff(x^3, x) == 3x^2
         @test diff(x * y, x) == y

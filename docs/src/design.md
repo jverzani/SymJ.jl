@@ -170,6 +170,25 @@ register_function!(:sin; julia = sin,                 # numeric evaluation, Term
   -sin(x)`), and inverse compositions.
 - **Float arguments** evaluate numerically. Exact arguments stay symbolic: `sin(2)` is
   unevaluated.
+- **Coverage of Base's mathematical functions.**
+  - *Unevaluated functions with rules:*
+    - the reciprocal trig and hyperbolic functions (`sec csc cot sech csch coth`) and
+      their inverses;
+    - `cbrt` (the real cube root), `sinc`/`cosc`;
+    - `sign floor ceil trunc round`, `mod rem`, `max min` (n-ary, flattened,
+      canonically ordered), `factorial`, and `binomial` (a polynomial for a literal `k`).
+    - Exact values come from the function they are defined through, accepted only when
+      that function disappears: `sec(π/3) = 1/cos(π/3) = 2` and `sec(acos(x)) = 1/x`,
+      while poles such as `sec(π/2)` stay unevaluated.
+    - Piecewise constant functions evaluate constant arguments numerically only away
+      from their jumps. Their derivatives are left unevaluated.
+  - *Rewrites into existing forms:* the degree variants (`sind`, `asind`, …), `sinpi`,
+    `cospi`, `tanpi`, `log2`, `log10`, `log1p`, `exp2`, `exp10`, `expm1`, `hypot`,
+    `abs2`, `fourthroot`, `cis`, `cispi`, `deg2rad`, `rad2deg`, `div`/`fld`/`cld`,
+    `mod2pi`, `clamp`, `minmax`, `muladd`/`fma` (so `evalpoly` works), `\`, and
+    `numerator`/`denominator` (via `numer_denom`).
+  - *Not yet:* `real`, `imag`, `conj`, `angle`, `reim`, which need to know whether
+    symbols are real (assumptions), and the bit and integer-representation functions.
 - **`log(b, x)`** is stored unevaluated as a two-argument `FN`, with `log(b, b) = 1`,
   `log(b, 1) = 0` and derivatives in both arguments.
 - **User functions** (`SymFunction(:f)` or `@syms f()`) have no rules. Their derivatives
