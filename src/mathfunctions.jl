@@ -79,7 +79,7 @@ for (f, g) in ((:mod, floor), (:rem, trunc))
         eval = function (args)
             length(args) == 2 || throw(ArgumentError("$f takes two arguments"))
             a, b = args
-            (isempty(free_symbols(a)) && isempty(free_symbols(b)) && !iszero(b)) || return nothing
+            (!_hassymbol(a) && !_hassymbol(b) && !iszero(b)) || return nothing
             q = g(a / b)
             q.kind == NUMBER ? a - b * q : nothing
         end)
@@ -97,7 +97,7 @@ function _extreme_rule(name::Symbol, better)
         best, bestv = nothing, 0.0
         rest = Sym[]
         for a in flat
-            if isempty(free_symbols(a))
+            if !_hassymbol(a)
                 v = a.kind == NUMBER ? a.num : (try N(a) catch; nothing end)
                 (v isa Real || v isa SymNumber) || (push!(rest, a); continue)
                 if best === nothing || better(v, bestv)

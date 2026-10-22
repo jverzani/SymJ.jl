@@ -311,7 +311,7 @@ register_function!(:cbrt; julia = cbrt,
 
 # the value of a constant expression, when safely away from `avoid(v)` (a jump)
 function _constant_float(a::Sym, avoid)
-    (a.kind == NUMBER || isempty(free_symbols(a))) || return nothing
+    (a.kind == NUMBER || !_hassymbol(a)) || return nothing
     v = try
         N(a)
     catch

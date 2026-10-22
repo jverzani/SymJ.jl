@@ -17,7 +17,8 @@
     lambdify(ex)
 
 Compile `ex` into a Julia function of the symbols `vars`, in that order. With no `vars`,
-`ex` may have at most one free symbol. `ex` may also be an array or tuple of
+`ex` may have at most one free variable, and its parameters, if any, follow it in
+the order of [`free_parameters`](@ref): `lambdify(a*x^2)` is `(x, a) -> a*x^2`. `ex` may also be an array or tuple of
 expressions, and the function then returns an array of the same shape (or a tuple),
 with common subexpressions shared between the entries.
 
@@ -33,7 +34,7 @@ function lambdify(ex)
     vars = free_symbols(ex)
     length(vars) <= 1 || throw(ArgumentError(
         "the expression has free symbols $(join(vars, ", ")); give their order, e.g. lambdify(ex, x, y)"))
-    _lambdify(ex, vars)
+    _lambdify(ex, vcat(vars, free_parameters(ex)))
 end
 
 _lambdify(ex, vars::Vector{Sym}) = RuntimeGeneratedFunction(@__MODULE__, @__MODULE__, lambdify_expr(ex, vars))
@@ -45,7 +46,7 @@ The Julia expression (an anonymous function) that [`lambdify`](@ref) compiles.
 """
 function lambdify_expr(ex, vars::Union{Tuple,AbstractVector})
     vars = Sym[Sym(v) for v in vars]
-    all(v -> v.kind == SYMBOL, vars) || throw(ArgumentError("variables must be symbols"))
+    all(_isnamed, vars) || throw(ArgumentError("variables must be symbols or parameters"))
     args = [Symbol(:arg, i) for i in eachindex(vars)]
     cg = _Codegen(Dict{Sym,Symbol}(v => a for (v, a) in zip(vars, args)))
     outs = _outputs(ex)
@@ -104,7 +105,7 @@ _numcode(n::SymNumber) = :($_CNUM(F, $(_jlnum(n))))
 function _code(cg::_Codegen, ex::Sym)
     k = ex.kind
     k == NUMBER && return _numcode(ex.num)
-    if k == SYMBOL
+    if _isnamed(ex)
         a = get(cg.vars, ex, nothing)
         a === nothing && throw(ArgumentError("free symbol $ex is not among the variables"))
         return a

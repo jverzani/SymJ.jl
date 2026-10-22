@@ -4,3 +4,4 @@
 /docs/Manifest*.toml
 /docs/build/
 /bench/Manifest.toml
+/bench/results_*.tsv

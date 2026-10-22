@@ -524,7 +524,7 @@ end
 
 function Sym(p::Poly{C}) where {C}
     n = length(p.gens)
-    if C === SymNumber && all(g -> g.kind == SYMBOL, p.gens)
+    if C === SymNumber && all(_isnamed, p.gens)
         return _sym_fast(p)
     end
     _add_many(mul(Sym(c), _monomial(p, m)) for (m, c) in zip(p.monos, p.coefs))
@@ -569,6 +569,7 @@ end
 
 Base.convert(::Type{Sym}, p::Poly) = Sym(p)
 free_symbols(p::Poly) = free_symbols(Sym(p))
+free_parameters(p::Poly) = free_parameters(Sym(p))
 
 # called like the expression it represents (see calling a `Sym`)
 (p::Poly)(args...) = Sym(p)(args...)

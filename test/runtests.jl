@@ -393,6 +393,36 @@ import ForwardDiff
         @test ForwardDiff.gradient(v -> lambdify(x^2 * y, x, y)(v...), [2.0, 3.0]) ≈ [12.0, 4.0]
     end
 
+    @testset "parameters" begin
+        @parameters a b
+        e = a * x^2 + b * x + 1
+        @test isparameter(a) && !isparameter(x) && !isparameter(e) && kind(a) == SymJ.PARAMETER
+        @test a != Sym(:a) && parameter(:a) == a && hash(a) != hash(Sym(:a))
+        @test free_symbols(e) == [x] && free_parameters(e) == [a, b] && free_parameters(x^2) == Sym[]
+        # calling substitutes the variable and keeps the parameters
+        @test e(3) == 9a + 3b + 1 && e(x => 2) == 4a + 2b + 1 && e(y) == a * y^2 + b * y + 1
+        @test (2a)(3) == 2a && a() === a && e() === e
+        @test (x^2)(3) === 9                                  # no parameters: numeric, as before
+        @test_throws ArgumentError evaluate(e, 2.0)           # parameters have no value
+        @test e(x => 2, a => 1, b => 0)() === 5               # all substituted: a number
+        # calculus and algebra treat parameters as symbols
+        @test diff(e, x) == 2a * x + b && diff(e, a) == x^2 && diff(sin(a * x), a) == x * cos(a * x)
+        @test expand((a + x)^2) == x^2 + 2a * x + a^2
+        @test factor(a^2 * x^2 - b^2) == (a * x + b) * (a * x - b)
+        @test cancel((x^2 - a^2) / (x - a)) == x + a
+        @test gcd(x^2 - a^2, x^2 + 2a * x + a^2) == x + a
+        @test Poly(e, x) isa Poly{Sym} && coefficients(Poly(e, x)) == [a, b, Sym(1)]
+        @test string(a * x^2 + b * x + 1) == "a*x^2 + b*x + 1" && string(x + a) == "x + a"
+        # lambdify: the variable, then the parameters
+        @test lambdify(e)(2.0, 3.0, 4.0) == 21.0 && lambdify(e, x, a, b)(2, 3, 4) == 21
+        @test lambdify(e, (b, a, x))(4, 3, 2) == 21
+        # constant tests see parameters as unknown
+        @test kind(floor(a)) == FN && kind(sign(a)) == FN && kind(max(a, 1)) == FN
+        @test kind(mod(a, 3)) == FN
+        @test sin(a)(x => 1) == sin(a)                        # nothing to substitute
+        @test N(subs(sin(a) + x, a => 1, x => 2)) ≈ sin(1) + 2
+    end
+
     @testset "TermInterface" begin
         ex = 2x + sin(y)
         @test iscall(ex) && isexpr(ex)

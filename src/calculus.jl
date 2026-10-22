@@ -5,7 +5,7 @@ Derivative of `ex` with respect to the symbol `x`. Functions without a registere
 derivative rule give an unevaluated `Derivative(f(...), x)`.
 """
 function Base.diff(ex::Sym, x::Sym, n::Integer = 1)
-    x.kind == SYMBOL || throw(ArgumentError("can only differentiate with respect to a symbol, got $x"))
+    _isnamed(x) || throw(ArgumentError("can only differentiate with respect to a symbol or parameter, got $x"))
     for _ in 1:n
         ex = _diff(ex, x)
     end
@@ -15,7 +15,7 @@ Base.diff(ex::Number, x::Sym, n::Integer = 1) = ZERO
 
 function _diff(ex::Sym, x::Sym)
     k = ex.kind
-    k == SYMBOL && return ex === x || ex.name === x.name ? ONE : ZERO
+    _isnamed(ex) && return _eq(ex, x) ? ONE : ZERO
     (k == NUMBER || k == CONSTANT) && return ZERO
     if k == ADD
         return _add_many(_scale(_diff(ex.args[i], x), ex.coefs[i]) for i in eachindex(ex.args))

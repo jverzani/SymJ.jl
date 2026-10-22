@@ -494,6 +494,35 @@ created it, with no world-age problem.
   and gradients work through both `lambdify` and plain calls (tested).
 - `lambdify_expr` returns the generated code.
 
+## Parameters
+
+`parameter(:a)` or `@parameters a b` makes a symbolic parameter: a named constant of
+unknown value, as opposed to a variable. It is a node kind, `PARAMETER`, beside
+`SYMBOL`, not a new Julia type. Expressions stay one concrete type, so containers
+stay concretely typed and dispatch can't distinguish expressions that contain
+parameters; `isparameter` and `free_parameters` answer that instead. The parameter
+`a` and the variable `a` hash differently and are distinct.
+
+| | variables | parameters |
+|:--|:--|:--|
+| `free_symbols` / `free_parameters` | listed by `free_symbols` | listed by `free_parameters` |
+| `ex(v)` | substituted, or evaluated if no parameters | kept: `(a*x^2)(3) == 9a` |
+| `lambdify(ex)` | first argument | after it, by name: `(x, a, b) -> …` |
+| printing order | by degree | degree 0, so `a*x^2 + b*x + c` |
+| `diff`, `subs`, `expand`, `Poly`, `cancel`, `factor`, `gcd` | as symbols | as symbols |
+| constant tests (`sign`, `floor`, `mod`, `max`) | not constant | not constant |
+
+**Cost.** `bench/parameters.jl` times 22 core workloads, recording the minimum time of
+each. One run of identical code differs from another by up to ±13% per workload on
+this machine, and a baseline recorded earlier drifts with load. So the comparison put
+the previous commit in a git worktree and ran the old and new versions alternately,
+three rounds each, taking each workload's best time.
+
+- The geometric mean ratio over the suite was 0.995.
+- The scan for parameters before a numeric call costs about 4% (0.2 μs) on a 40-node
+  expression.
+- `free_symbols` became 1.8x faster, because loops replaced the closure-based recursion.
+
 ## Assumptions
 
 Assumptions (real, positive, integer) will be passed per call, e.g.

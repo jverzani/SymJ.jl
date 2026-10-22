@@ -32,7 +32,7 @@ function _show(io::IO, x::Sym, p::Int)
     k = x.kind
     if k == NUMBER
         _show_num(io, x.num)
-    elseif k == SYMBOL
+    elseif k == SYMBOL || k == PARAMETER
         print(io, x.name)
     elseif k == CONSTANT
         print(io, x.name === :pi ? "π" : x.name === :E ? "ℯ" : x.name)
@@ -125,6 +125,7 @@ end
 function _degree(x::Sym)::Float64
     k = x.kind
     k == SYMBOL && return 1.0
+    k == PARAMETER && return 0.0      # order terms by the variables: a*x^2 + b*x + c
     (k == NUMBER || k == CONSTANT || k == FN) && return 0.0
     k == ADD && return maximum(_degree, x.args)
     if k == MUL

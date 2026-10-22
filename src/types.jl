@@ -6,7 +6,7 @@
 # instead of dispatching dynamically. The structural hash is computed once at
 # construction, so equality and dictionary lookups are cheap.
 
-@enum Kind::UInt8 NUMBER SYMBOL CONSTANT ADD MUL POW FN
+@enum Kind::UInt8 NUMBER SYMBOL PARAMETER CONSTANT ADD MUL POW FN
 
 """
     AbstractSymbolic <: Function
@@ -32,6 +32,7 @@ Layout by `kind`:
 |:-----------|:-------------------|:---------------------|:---------------|:-----------------------|
 | `NUMBER`   | the value          |                      |                |                        |
 | `SYMBOL`   |                    |                      |                |                        |
+| `PARAMETER`|                    |                      |                |                        |
 | `CONSTANT` |                    |                      |                |                        |
 | `ADD`      | constant term      | terms (sorted)       |                | coefficient of each    |
 | `MUL`      | coefficient        | bases (sorted)       | exponent of each |                      |
@@ -58,6 +59,7 @@ const NONAME = Symbol("")
 const H_NUM   = 0x6a09e667f3bcc908 % UInt
 const H_SYM   = 0xbb67ae8584caa73b % UInt
 const H_CONST = 0x3c6ef372fe94f82b % UInt
+const H_PARAM = 0x5be0cd19137e2179 % UInt
 const H_ADD   = 0xa54ff53a5f1d36f1 % UInt
 const H_MUL   = 0x510e527fade682d1 % UInt
 const H_POW   = 0x9b05688c2b3e6c1f % UInt
@@ -67,6 +69,7 @@ const H_FN    = 0x1f83d9abfb41bd6b % UInt
 
 _mknum(n::SymNumber) = Sym(NUMBER, hash(n, H_NUM + n.tag), NONAME, n, NOSYMS, NOSYMS, NONUMS)
 _mksym(s::Symbol) = Sym(SYMBOL, hash(String(s), H_SYM), s, N0, NOSYMS, NOSYMS, NONUMS)
+_mkparam(s::Symbol) = Sym(PARAMETER, hash(String(s), H_PARAM), s, N0, NOSYMS, NOSYMS, NONUMS)
 _mkconst(s::Symbol) = Sym(CONSTANT, hash(String(s), H_CONST), s, N0, NOSYMS, NOSYMS, NONUMS)
 
 function _mkadd_node(c::SymNumber, terms::Vector{Sym}, coefs::Vector{SymNumber})
@@ -151,7 +154,7 @@ function _cmp(a::Sym, b::Sym)
     k = a.kind
     if k == NUMBER
         return _numcmp(a.num, b.num)
-    elseif k == SYMBOL || k == CONSTANT
+    elseif k == SYMBOL || k == PARAMETER || k == CONSTANT
         return a.name === b.name ? 0 : (isless(a.name, b.name) ? -1 : 1)
     elseif k == ADD
         c = _numcmp(a.num, b.num)
@@ -189,13 +192,36 @@ Base.isequal(a::Sym, b::Sym) = _eq(a, b)
 """
     kind(x::Sym)
 
-The node kind: one of `NUMBER`, `SYMBOL`, `CONSTANT`, `ADD`, `MUL`, `POW`, `FN`
+The node kind: one of `NUMBER`, `SYMBOL`, `PARAMETER`, `CONSTANT`, `ADD`, `MUL`, `POW`, `FN`
 (accessible as `SymJ.ADD`, etc.).
 """
 kind(x::Sym) = x.kind
 
 isnumber(x::Sym) = x.kind == NUMBER
 issymbol(x::Sym) = x.kind == SYMBOL
+
+"""
+    isparameter(x)
+
+Is `x` a symbolic parameter (made with [`parameter`](@ref) or [`@parameters`](@ref))?
+"""
+isparameter(x::Sym) = x.kind == PARAMETER
+isparameter(x) = false
+
+# a variable or a parameter: the leaves with a name
+@inline _isnamed(x::Sym) = x.kind == SYMBOL || x.kind == PARAMETER
+
+"""
+    parameter(name)
+
+A symbolic parameter: a named constant of unknown value, as opposed to a variable.
+Parameters take part in expressions like variables, but `free_symbols` lists only the
+variables, calling an expression with a value substitutes into its variable and keeps
+the parameters (`(a*x^2)(3) == 9a`), and `lambdify` takes them after the variable.
+The parameter `a` and the variable `a` are different symbols.
+"""
+parameter(s::Symbol) = _mkparam(s)
+parameter(s::AbstractString) = parameter(Symbol(s))
 
 @inline _isone(x::Sym) = x.kind == NUMBER && _isN1(x.num)
 

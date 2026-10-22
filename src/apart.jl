@@ -20,7 +20,7 @@ apart((x^3 + 1)/(x^2 - 1))      # x + 1/(x - 1)
 ```
 """
 function apart(ex::Sym, x::Sym)
-    x.kind == SYMBOL || throw(ArgumentError("apart: $x is not a symbol"))
+    _isnamed(x) || throw(ArgumentError("apart: $x is not a symbol"))
     n, d = numer_denom(cancel(ex))
     N, D = Poly{SymNumber}(n, [x]), Poly{SymNumber}(d, [x])
     q, r = divrem(N, D)

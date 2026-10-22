@@ -3,7 +3,8 @@
 """
     free_symbols(ex)
 
-The symbols appearing in `ex`, sorted by name.
+The variables appearing in `ex`, sorted by name. Parameters are not included; see
+[`free_parameters`](@ref).
 """
 function free_symbols(ex::Sym)
     s = Set{Sym}()
@@ -12,10 +13,26 @@ function free_symbols(ex::Sym)
 end
 free_symbols(::Number) = Sym[]
 
-function _free!(s, ex::Sym)
-    ex.kind == SYMBOL && return push!(s, ex)
-    foreach(a -> _free!(s, a), ex.args)
-    foreach(a -> _free!(s, a), ex.exps)
+"""
+    free_parameters(ex)
+
+The parameters appearing in `ex`, sorted by name.
+"""
+function free_parameters(ex::Sym)
+    s = Set{Sym}()
+    _free!(s, ex, PARAMETER)
+    sort!(collect(s); by = x -> x.name)
+end
+free_parameters(::Number) = Sym[]
+
+function _free!(s, ex::Sym, k::Kind = SYMBOL)
+    ex.kind == k && return push!(s, ex)
+    for a in ex.args
+        _free!(s, a, k)
+    end
+    for a in ex.exps
+        _free!(s, a, k)
+    end
     s
 end
 
@@ -71,16 +88,17 @@ end
 #                      non-number as a variable. This must not throw: a throw costs
 #                      ~40 μs (the backtrace), paid for every symbol leaf read.
 #   ex(x => a, ...) -> substitution, returns a Sym
-#   ex(a::Sym)      -> substitution into the only free symbol, returns a Sym
-#   ex(a)           -> numeric evaluation at the only free symbol, returns what Julia
-#                      arithmetic on `a` returns (Int, Float64, BigFloat, a dual number, ...)
+#   ex(a::Sym)      -> substitution into the only variable, returns a Sym
+#   ex(a)           -> numeric evaluation at the only variable, returns what Julia
+#                      arithmetic on `a` returns (Int, Float64, BigFloat, a dual number, ...);
+#                      with parameters present, substitution instead (`(a*x^2)(3) == 9a`)
 function (ex::Sym)(args...)
     isempty(args) && return _constant_value(ex)
     all(a -> a isa Pair, args) && return subs(ex, args...)
     length(args) == 1 || throw(ArgumentError(
         "call an expression with one value (it has at most one free symbol) or with pairs `x => value`"))
     a = only(args)
-    a isa Sym ? _subs1(ex, a) : evaluate(ex, a)
+    a isa Sym || _hasparameter(ex) ? _subs1(ex, Sym(a)) : evaluate(ex, a)
 end
 
 function _constant_value(ex::Sym)
@@ -89,7 +107,20 @@ function _constant_value(ex::Sym)
 end
 
 # does ex contain a symbol? (free_symbols without the allocation)
-_hassymbol(ex::Sym) = ex.kind == SYMBOL || any(_hassymbol, ex.args) || any(_hassymbol, ex.exps)
+# does ex contain a variable or parameter (_hassymbol), or a parameter? Plain loops: these
+# run before every numeric call of an expression.
+_hassymbol(ex::Sym) = _hasleaf(ex, true)
+_hasparameter(ex::Sym) = _hasleaf(ex, false)
+function _hasleaf(ex::Sym, anynamed::Bool)
+    (anynamed ? _isnamed(ex) : ex.kind == PARAMETER) && return true
+    for a in ex.args
+        _hasleaf(a, anynamed) && return true
+    end
+    for a in ex.exps
+        _hasleaf(a, anynamed) && return true
+    end
+    false
+end
 
 function _subs1(ex::Sym, a::Sym)
     vars = free_symbols(ex)
@@ -149,6 +180,8 @@ function _ev(ex::Sym, a, F, var)
             throw(ArgumentError("expression has more than one free symbol; call it with pairs, e.g. ex(x => 1, y => 2)"))
         end
         return a
+    elseif k == PARAMETER
+        throw(ArgumentError("cannot evaluate the parameter $ex numerically; substitute a value for it"))
     elseif k == CONSTANT
         ex.name === :pi && return _constant(π, F)
         ex.name === :E && return _constant(ℯ, F)
@@ -227,7 +260,7 @@ end
 function _numpoly_symbols!(gs::Set{Sym}, ex::Sym)
     k = ex.kind
     k == NUMBER && return true
-    k == SYMBOL && (push!(gs, ex); return true)
+    _isnamed(ex) && (push!(gs, ex); return true)
     k == ADD && return all(t -> _numpoly_symbols!(gs, t), ex.args)
     k == MUL && return all(i -> _nonneg_int(ex.exps[i]) && _numpoly_symbols!(gs, ex.args[i]), eachindex(ex.args))
     k == POW && return _nonneg_int(ex.args[2]) && _numpoly_symbols!(gs, ex.args[1])
@@ -335,7 +368,7 @@ function _evalc(ex::Sym)::ComplexF64
         ex.name === :E && return ℯ
         throw(ArgumentError("no numeric value for constant $ex"))
     end
-    k == SYMBOL && throw(ArgumentError("cannot evaluate free symbol $ex numerically"))
+    _isnamed(ex) && throw(ArgumentError("cannot evaluate free symbol $ex numerically"))
     if k == ADD
         s = complex(Float64(ex.num))
         for i in eachindex(ex.args)
@@ -422,6 +455,21 @@ macro syms(xs...)
         end
     end
     push!(ex.args, Expr(:tuple, map(esc, names)...))
+    ex
+end
+
+"""
+    @parameters a b
+
+Create symbolic parameters (see [`parameter`](@ref)) and bind them to the names.
+"""
+macro parameters(xs...)
+    all(x -> x isa Symbol, xs) || throw(ArgumentError("@parameters: names only"))
+    ex = Expr(:block)
+    for x in xs
+        push!(ex.args, :($(esc(x)) = parameter($(QuoteNode(x)))))
+    end
+    push!(ex.args, Expr(:tuple, map(esc, xs)...))
     ex
 end
 

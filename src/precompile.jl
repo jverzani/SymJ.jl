@@ -30,6 +30,7 @@ using PrecompileTools: @setup_workload, @compile_workload
         expand((x + y + 1)^3); expand(e); diff(e, x); subs(e, x => y + 1)
         cancel((x^2 - 1) / (x + 1)); factor_squarefree(x^3 - x^2 - x + 1)
         factor(x^4 - 1); factor(x^2 * y^2 - 1); apart(1 / (x^2 - 1))
+        a = parameter(:a); (a * x^2 + x)(3); (a * x^2 + x)(x => 2); free_parameters(a * x)
         p = Poly((x + y + 1)^3, x, y)
         p * p; p + p; p - p; divrem(p, Poly(x + 1, x, y)); gcd(p, Poly((x + y + 1) * (x - 1), x, y))
         Sym(p)
