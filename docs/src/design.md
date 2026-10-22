@@ -20,7 +20,9 @@ build on.
     Constants such as `sqrt(2)` and `π` are computed in the argument's floating point
     type.
   - `ex()` gives the value of a constant expression as a Julia number (`Sym(2)() === 2`,
-    `Sym(π)() === π`), and throws if `ex` has a free symbol. This matches what generic
+    `Sym(π)() === π`), and returns `ex` unchanged if it has a free symbol. It
+    deliberately does not throw: a Julia `throw` costs about 40 μs (the backtrace),
+    and generic code reading leaves pays that on every symbol. This matches what generic
     term code expects from a callable numeric leaf; GruntzLimit, for example, reads
     numbers this way.
   - An expression with several free symbols must be called with pairs. A single value

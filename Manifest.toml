@@ -2,7 +2,7 @@
 
 julia_version = "1.13.0"
 manifest_format = "2.1"
-project_hash = "f28f4e4e413ba299f7043ef3af427f3ec4b7a47d"
+project_hash = "527a0a6700fa0c0d3e7f8183f9d95e82326516dc"
 
 [[deps.Dates]]
 deps = ["Printf"]
@@ -50,7 +50,7 @@ uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 version = "1.11.0"
 
 [[deps.SymJ]]
-deps = ["RuntimeGeneratedFunctions", "TermInterface"]
+deps = ["PrecompileTools", "RuntimeGeneratedFunctions", "TermInterface"]
 path = "."
 uuid = "73a6d648-42a5-483e-b8b5-fc71c1696ef5"
 version = "1.0.0-DEV"

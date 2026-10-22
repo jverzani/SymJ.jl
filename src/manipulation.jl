@@ -65,9 +65,11 @@ end
 
 # One method handles every call form, so dispatch has no ambiguities to resolve:
 #   ex()            -> the value of a constant expression as a Julia number
-#                      (`Sym(2)() === 2`, `Sym(π)() === π`); an error if ex has a
-#                      free symbol. Generic code (e.g. GruntzLimit) reads numeric
-#                      leaves this way.
+#                      (`Sym(2)() === 2`, `Sym(π)() === π`); ex itself if it has a
+#                      free symbol (nothing to substitute). Generic code (e.g.
+#                      GruntzLimit) reads numeric leaves this way, and treats a
+#                      non-number as a variable. This must not throw: a throw costs
+#                      ~40 μs (the backtrace), paid for every symbol leaf read.
 #   ex(x => a, ...) -> substitution, returns a Sym
 #   ex(a::Sym)      -> substitution into the only free symbol, returns a Sym
 #   ex(a)           -> numeric evaluation at the only free symbol, returns what Julia
@@ -82,10 +84,12 @@ function (ex::Sym)(args...)
 end
 
 function _constant_value(ex::Sym)
-    isempty(free_symbols(ex)) ||
-        throw(ArgumentError("$ex has free symbols $(join(free_symbols(ex), ", ")); give it a value, e.g. ex(2) or ex(x => 2)"))
+    _hassymbol(ex) && return ex
     evaluate(ex, 0)      # the argument is unused, and an Int keeps exact values exact
 end
+
+# does ex contain a symbol? (free_symbols without the allocation)
+_hassymbol(ex::Sym) = ex.kind == SYMBOL || any(_hassymbol, ex.args) || any(_hassymbol, ex.exps)
 
 function _subs1(ex::Sym, a::Sym)
     vars = free_symbols(ex)

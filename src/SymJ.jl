@@ -35,5 +35,6 @@ include("iteration.jl")
 include("terminterface.jl")
 include("lambdify.jl")
 include("show.jl")
+include("precompile.jl")
 
 end

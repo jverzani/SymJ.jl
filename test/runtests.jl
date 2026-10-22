@@ -294,8 +294,9 @@ import ForwardDiff
         @test u(y) == y^2                       # symbolic argument substitutes
         @test u(Sym(3)) == Sym(9)
         @test u(x => 3) == Sym(9)               # pairs substitute
-        # no arguments: the value of a constant expression, as a Julia number
-        @test_throws ArgumentError u()
+        # no arguments: the value of a constant expression, as a Julia number; an
+        # expression with free symbols is returned as is (nothing to substitute)
+        @test u() === u && x() === x
         @test Sym(2)() === 2 && Sym(-1)() === -1
         @test Sym(3 // 4)() === 3 // 4
         @test Sym(π)() === π && SymJ.E() === ℯ
