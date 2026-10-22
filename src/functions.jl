@@ -52,19 +52,33 @@ Apply the function `name`, simplifying with its registered rule if any.
 function apply_function(name::Symbol, args::Vector{Sym})
     rule = get(FUNCTION_RULES, name, nothing)
     if rule !== nothing
+        # Float arguments are values: evaluate first, before symbolic rules such as
+        # asin(-u) = -asin(u), which do not hold for Julia's principal values on a
+        # branch cut (asin(-17.0 + 0im) is not -asin(17.0 + 0im)).
+        if rule.julia !== nothing && _float_args(args)
+            v = _try_numeric(rule.julia, args)
+            v === nothing && (v = _try_numeric_complex(rule.julia, args))
+            v === nothing || return v
+        end
         if rule.eval !== nothing
             r = rule.eval(args)
             r === nothing || return r::Sym
-        end
-        if rule.julia !== nothing && _float_args(args)
-            v = _try_numeric(rule.julia, args)
-            v === nothing || return v
         end
     end
     _mkfn_node(name, args)
 end
 
 _float_args(args) = all(a -> a.kind == NUMBER, args) && any(a -> isfloat(a.num), args)
+
+# outside the real domain (asin(17.0)): the principal complex value
+function _try_numeric_complex(f, args)
+    try
+        return Sym(f(map(a -> complex(Float64(a.num)), args)...))
+    catch err
+        err isa Union{DomainError,MethodError,InexactError} || rethrow()
+        return nothing
+    end
+end
 
 function _try_numeric(f, args)
     try

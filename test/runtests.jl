@@ -93,6 +93,9 @@ import ForwardDiff
         @test log(x, 1) == 0
         @test kind(sin(Sym(2))) == FN          # exact argument stays symbolic
         @test sin(Sym(2.0)) == Sym(sin(2.0))   # float argument evaluates
+        # floats evaluate before symbolic rules: Julia's principal value on a branch cut
+        @test N(asin(Sym(-17.0))) ≈ asin(complex(-17.0))
+        @test N(acosh(Sym(0.5))) ≈ acosh(complex(0.5))
         @test f(x) == f(x)
         @test f(x) != g(x)
         @test f(x) != f(y)
