@@ -204,7 +204,7 @@ function _add_from_dict(c::SymNumber, d::Dict{Sym,SymNumber})
     for (t, v) in d
         iszero(v) || push!(terms, t)
     end
-    sort!(terms; lt = _lt)
+    permute!(terms, _canonical_perm(terms))
     _mkadd(c, terms, SymNumber[d[t] for t in terms])
 end
 

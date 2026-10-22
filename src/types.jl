@@ -180,6 +180,24 @@ function _cmp(a::Sym, b::Sym)
 end
 
 @inline _lt(a::Sym, b::Sym) = _cmp(a, b) < 0
+
+# The permutation putting xs in canonical (`_cmp`) order: `_cmp` compares the stored
+# hashes first, so sort the hashes as plain integers (fast), then order any run of
+# equal hashes structurally (such runs practically never occur).
+function _canonical_perm(xs::Vector{Sym})
+    h = UInt[x.hash for x in xs]
+    p = sortperm(h)
+    i = 1
+    while i < length(p)
+        j = i
+        while j < length(p) && h[p[j+1]] == h[p[i]]
+            j += 1
+        end
+        j > i && sort!(view(p, i:j); lt = (a, b) -> _lt(xs[a], xs[b]))
+        i = j + 1
+    end
+    p
+end
 @inline _eq(a::Sym, b::Sym) = a === b || (a.hash == b.hash && _cmp(a, b) == 0)
 
 Base.:(==)(a::Sym, b::Sym) = _eq(a, b)

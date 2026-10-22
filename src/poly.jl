@@ -545,26 +545,40 @@ end
 function _sym_fast(p::Poly{SymNumber})
     n = length(p.gens)
     order = sortperm(p.gens; lt = _lt)
-    keys = Sym[]
-    coefs = SymNumber[]
+    shifts = [_shift(p.bits, n, i) for i in order]
+    gens = p.gens[order]
+    mask = _mask(p.bits)
+    keys = Vector{Sym}(undef, length(p.monos))
+    coefs = Vector{SymNumber}(undef, length(p.monos))
     c0 = N0
+    k = 0
     for (m, c) in zip(p.monos, p.coefs)
         if m == 0
             c0 = c
             continue
         end
-        bases, exps = Sym[], Sym[]
-        for i in order
-            e = _exponent(m, p.bits, n, i)
-            e > 0 || continue
-            push!(bases, p.gens[i])
-            push!(exps, Sym(e))
+        cnt = 0                                   # exact sizes: no growing by push!
+        for s in shifts
+            (m >> s) & mask == 0 || (cnt += 1)
         end
-        push!(keys, _mkmul(N1, bases, exps))
-        push!(coefs, c)
+        bases = Vector{Sym}(undef, cnt)
+        exps = Vector{Sym}(undef, cnt)
+        j = 0
+        for (g, s) in zip(gens, shifts)
+            e = Int((m >> s) & mask)
+            e > 0 || continue
+            j += 1
+            bases[j] = g
+            exps[j] = Sym(SymNumber(e))
+        end
+        k += 1
+        keys[k] = _mkmul(N1, bases, exps)
+        coefs[k] = c
     end
-    perm = sortperm(keys; lt = _lt)
-    _mkadd(c0, keys[perm], coefs[perm])
+    resize!(keys, k)
+    resize!(coefs, k)
+    perm = _canonical_perm(keys)
+    _mkadd(c0, permute!(keys, perm), permute!(coefs, perm))
 end
 
 Base.convert(::Type{Sym}, p::Poly) = Sym(p)

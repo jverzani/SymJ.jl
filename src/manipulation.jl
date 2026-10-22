@@ -66,9 +66,11 @@ function _subs(ex::Sym, d::Dict{Sym,Sym})
             (_scale(_subs(ex.args[i], d), ex.coefs[i]) for i in eachindex(ex.args)))))
     elseif k == MUL
         r = Sym(ex.num)
+        powkeys = any(key -> key.kind == POW, keys(d))   # the dictionary is small
         for i in eachindex(ex.args)
-            # a factor b^e is stored as a pair, not a node: match it whole first
-            v = get(d, _mkpow(ex.args[i], ex.exps[i]), nothing)
+            # a factor b^e is stored as a pair, not a node: match it whole first (only
+            # building the node when a power is being substituted)
+            v = powkeys && !_isone(ex.exps[i]) ? get(d, _mkpow(ex.args[i], ex.exps[i]), nothing) : nothing
             r = mul(r, v === nothing ? pow(_subs(ex.args[i], d), _subs(ex.exps[i], d)) : v)
         end
         return r
