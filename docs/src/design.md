@@ -350,23 +350,45 @@ MGCD/PGCD (`src/modgcd.jl`).
 **The recursive primitive PRS** (`_gcd`) remains as the reference implementation. The
 tests check the two against each other.
 
-**Performance.** `bench/gcd.jl` compares against Nemo, which wraps FLINT. The inputs are
-`gcd(g·a, g·b)` with `g = (x+y+z+w+1)^k`:
+**Zippel's sparse interpolation** is opt-in: `gcd(p, q; method = :zippel)`. It changes
+how the images inside Brown's loop over `x_k` are found; everything else is the same.
+- **The skeleton.** The first image comes from the full recursion. Its terms are taken
+  as the gcd's support.
+- **Later images.** The other variables are evaluated at powers `β^j` of a random
+  point. Univariate gcds in the main variable (the first active one) then give equations
+  for the skeleton's coefficients.
+- **Scales.** Each univariate gcd is monic, so it equals the image only up to an unknown
+  scale `m_j`. That scale is an extra unknown per evaluation (the LINZIP form), so the
+  gcd's leading coefficient in the main variable needn't be a single term. One extra
+  evaluation checks the solution.
+- **Fallback.** A degree mismatch, or a singular or inconsistent system, means the
+  support is wrong or the point is bad. That image is then computed densely, and the
+  skeleton refreshed from it. This also covers a content in the other variables, which
+  the scales would absorb. The final division over ℤ still guarantees the result.
 
-| case | modular | PRS | Nemo (FLINT) |
-|:--|--:|--:|--:|
-| `k = 10`, linear cofactors | 3.4 ms | 6.4 ms | 0.61 ms |
-| `k = 4`, degree-4 cofactors | 0.42 ms | 2.1 ms | 0.34 ms |
-| `k = 4`, degree-6 cofactors | 0.64 ms | 18 ms | 0.47 ms |
-| `k = 6`, degree-6 cofactors | 1.4 ms | 66 ms | 0.79 ms |
-| `k = 8`, degree-6 cofactors | 3.4 ms | 803 ms | 1.4–2.3 ms |
-| big coefficients (`3^20`, `5^15`, `7^10`), cubed | 0.85 ms | 33 ms | 0.73 ms |
+It isn't the default because it loses on dense gcds. It needs about as many terms'
+worth of evaluations as the gcd has, plus a linear solve.
 
-The modular algorithm is within 1.2–2.4x of FLINT, except for a high-degree gcd with tiny
-cofactors (first row). That case is where Brown's dense method is weakest: it needs about
-`(deg+1)^(nvars−1)` univariate gcds however sparse the answer is. Zippel's sparse
-interpolation addresses it: it learns the support of the gcd from one dense image, then
-solves for coefficients with far fewer evaluations.
+**Performance.** `bench/gcd.jl` compares against Nemo, which wraps FLINT. The first six
+inputs are `gcd(g·a, g·b)` with `g = (x+y+z+w+1)^k`; the last two have sparse gcds of
+degree 10 in four variables:
+
+| case | modular | Zippel | PRS | Nemo (FLINT) |
+|:--|--:|--:|--:|--:|
+| `k = 10`, linear cofactors | 1.63 ms | 55 ms | 3.0 ms | 0.56 ms |
+| `k = 4`, degree-4 cofactors | 0.23 ms | 0.35 ms | 2.0 ms | 0.31 ms |
+| `k = 4`, degree-6 cofactors | 0.35 ms | 0.43 ms | 15 ms | 0.43 ms |
+| `k = 6`, degree-6 cofactors | 0.86 ms | 2.7 ms | 81 ms | 0.79 ms |
+| `k = 8`, degree-6 cofactors | 1.83 ms | 15 ms | 740 ms | 1.33 ms |
+| big coefficients (`3^20`, `5^15`, `7^10`), cubed | 0.58 ms | 0.44 ms | 27 ms | 0.67 ms |
+| sparse gcd, 5 terms | 1.32 ms | 0.083 ms | 0.24 ms | 0.29 ms |
+| sparse gcd, non-monomial leading coefficient | 0.48 ms | 0.068 ms | 1.4 ms | 0.35 ms |
+
+- **Dense gcds:** the default is faster than FLINT on four of the first six cases and
+  within 1.4x on `k = 8`. The weak case is a high-degree gcd with tiny cofactors (first
+  row), where Brown's method needs about `(deg+1)^(nvars−1)` univariate gcds. There
+  about 18% of the time is the final division check.
+- **Sparse gcds:** Zippel is 6–16x faster than the default and 3.5–5x faster than FLINT.
 
 ### Squarefree factorization
 
@@ -776,7 +798,8 @@ and a finalizer per operation), which dominates the small benchmarks.
   `72^(1/3)` prints as `2*9^(1/3)` rather than `2*3^(2/3)`. Prime-base normalization
   would fix the latter.
 - **Polynomials, next steps.**
-  - Zippel's sparse modular GCD for sparse, high-degree gcds.
+  - Zippel: transposed Vandermonde solves per degree when the leading coefficient is a
+    single term (now one dense solve), and the opt-in through `cancel`/`factor`.
   - Brown recursion: done so far are bivariate images in dense buffers and in-place
     Newton updates. Mod-p reduction is a few percent of the time, so Montgomery or
     Barrett reduction isn't worth it.

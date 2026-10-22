@@ -106,16 +106,22 @@ function _integer_scaled(p::Poly{SymNumber})
 end
 
 """
-    gcd(p::Poly, q::Poly)
+    gcd(p::Poly, q::Poly; method = :dense)
 
 Greatest common divisor of polynomials with numeric (exact) coefficients. For integer
 inputs the result is the integer gcd, including the gcd of the integer contents, with a
 positive leading coefficient. If either input has non-integer rational coefficients,
 the result is monic.
+
+The default `method = :dense` is Brown's modular algorithm. `method = :zippel` adds
+Zippel's sparse interpolation: much faster when the gcd has few terms relative to its
+degrees in three or more variables, slower when the gcd is dense. The result is the
+same either way (it is verified by division).
 """
-function Base.gcd(p::Poly{SymNumber}, q::Poly{SymNumber})
+function Base.gcd(p::Poly{SymNumber}, q::Poly{SymNumber}; method::Symbol = :dense)
+    method in (:dense, :zippel) || throw(ArgumentError("gcd: method must be :dense or :zippel"))
     p, q = _unify(p, q)
-    g = _gcd_modular(_integer_scaled(p), _integer_scaled(q))
+    g = _gcd_modular(_integer_scaled(p), _integer_scaled(q); sparse = method === :zippel)
     rational = !all(_isint, p.coefs) || !all(_isint, q.coefs)
     rational && !iszero(g) ? _scale(g, inv(g.coefs[1])) : g
 end

@@ -705,6 +705,29 @@ import ForwardDiff
         # the first prime used, 2^31 - 1, is unlucky here: the cofactors agree mod p
         @test gcd(P((x + y) * x), P((x + y) * (x + (2^31 - 1)))) == P(x + y)
         @test gcd(P((x + y) * (z + 1) * x), P((x + y) * (z + 1) * (x + (2^31 - 1) * y))) == P((x + y) * (z + 1))
+        # Zippel (opt-in): the same results, sparse or not, falling back when its
+        # interpolation cannot apply (a content in the other variables, a dense gcd)
+        w = Sym(:w)
+        P4(e) = Poly(e, x, y, z, w)
+        for (g, c1, c2) in ((x^10 * y^3 * z + 2y^7 * z^5 * w - x^2 * w^8 + 3y^9 + x * y * z * w,
+                             x^9 * z^4 + y^8 * w^2 + 5, y^10 * w^3 - x^6 * w^5 + 7z),
+                            ((y + z) * x^7 + y^9 * w^4 + z^6 * w^5 + 1, x^4 * w + y^5 + 2, (w^3 - y) * x^5 + z^8),
+                            ((y^2 + 1) * (x^3 + z), x + z * w, x^2 - w),
+                            ((x + y + z + w + 1)^4, (x - y + 2z * w + 1)^2 + y, (y * z - x + 3)^2 + w),
+                            (big(3)^20 * x * y + big(5)^15 * z^4 * w - 7, x - y * z, y^3 + w))
+            G = P4(expand(g))
+            A, B = G * P4(c1), G * P4(c2)
+            @test gcd(A, B; method = :zippel) == gcd(A, B) == G
+        end
+        saved = state[]                  # leave the later random tests unchanged
+        for _ in 1:20
+            a, b, g = randpoly(4, 4), randpoly(4, 3), randpoly(3, 3)
+            @test gcd(a * g, b * g; method = :zippel) == gcd(a * g, b * g)
+        end
+        state[] = saved
+        @test gcd(P(x // 2 + y // 3), P((3x + 2y) * z); method = :zippel) == P(x + 2y // 3)
+        @test_throws ArgumentError gcd(P(x), P(y); method = :sparse)
+
         # univariate, high degree
         u, v = Poly((x + 1)^30 * (x - 2)^20, x), Poly((x + 1)^25 * (x + 3)^20, x)
         @test gcd(u, v) == Poly((x + 1)^25, x)

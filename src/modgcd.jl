@@ -22,7 +22,9 @@ struct _Ctx
     bits::Int
     n::Int
     p::Int
+    sparse::Bool        # images by Zippel's sparse interpolation (opt-in)
 end
+_Ctx(bits::Int, n::Int, p::Int) = _Ctx(bits, n, p, false)
 
 # mod-p polynomial: strictly decreasing packed monomials, coefficients in 1:p-1
 struct _MP
@@ -341,6 +343,7 @@ function _pgcd(a::_MP, b::_MP, ctx::_Ctx)
     db = biv ? Int(ub[1] >> sj) : 0
     A, B = Int[], Int[]
     pw = Int[]
+    skel = nothing                     # Zippel: the support of the images
     α = Int(hash((p, k)) % UInt(p))
     for _ in 1:p
         α = α + 1 == p ? 0 : α + 1
@@ -369,7 +372,14 @@ function _pgcd(a::_MP, b::_MP, ctx::_Ctx)
             end
             _MP(cm, cc)
         else
-            _pgcd(_mp_eval_runs(ua, qa, pw, p), _mp_eval_runs(ub, qb, pw, p), ctx)
+            Aα, Bα = _mp_eval_runs(ua, qa, pw, p), _mp_eval_runs(ub, qb, pw, p)
+            Cs = skel === nothing ? nothing : _sparse_image(Aα, Bα, skel, ctx, npts)
+            if Cs === nothing
+                Cs = _pgcd(Aα, Bα, ctx)
+                # a dense image that is not unlucky gives (or refreshes) the skeleton
+                ctx.sparse && Cs.monos[1] <= lmH && (skel = Cs.monos)
+            end
+            Cs
         end
         lmC = C.monos[1]
         lmC > lmH && continue                       # unlucky point
@@ -408,6 +418,122 @@ end
         h[t] = _addmod(h[t], _mulmod(δ, q[t], p), p)
     end
     _utrim!(h)
+end
+
+## Zippel's sparse interpolation (opt-in; LINZIP form, with a scale per evaluation)
+
+# The image gcd of A, B (monic in lex) assuming its support is `skel`. With x_m the
+# main variable (the first active one), evaluating the others at β^j gives univariate
+# gcds u_j, monic, so H(x_m, β^j) = m_j u_j for unknown scales m_j. Collecting the
+# terms of H by their power of x_m, each coefficient of x_m^e gives an equation
+#     Σ_{t of degree e} c_t v_t^j = m_j u_{j,e},    v_t = (the term's monomial)(β),
+# linear in the c_t and m_j (m_1 = 1). One extra evaluation checks the solution.
+# `nothing` when the support looks wrong or the point is bad: the caller then
+# computes the image densely.
+function _sparse_image(A::_MP, B::_MP, skel::Vector{UInt64}, ctx::_Ctx, seed::Int)
+    p, bits, n = ctx.p, ctx.bits, ctx.n
+    mask = _active(A) | _active(B)
+    m = findfirst(i -> (mask >> _shift(bits, n, i)) & _mask(bits) != 0, 1:n)
+    m === nothing && return nothing
+    others = [i for i in (m + 1):n if (mask >> _shift(bits, n, i)) & _mask(bits) != 0]
+    isempty(others) && return nothing
+    sm = _shift(bits, n, m)
+    deg(u) = Int((u >> sm) & _mask(bits))
+    T = length(skel)
+    D = deg(skel[1])
+    groups = [Int[] for _ in 0:D]                       # terms by power of x_m
+    for t in 1:T
+        push!(groups[deg(skel[t]) + 1], t)
+    end
+    G = count(!isempty, groups)
+    nmax = maximum(length, groups)
+    G == 1 && return T == 1 ? _MP(copy(skel), [1]) : nothing   # a content: not by this route
+    J = max(nmax, cld(T - 1, G - 1)) + 1
+    U = T + J - 1                                       # unknowns: c_1..c_T, m_2..m_J
+    da, db = deg(A.monos[1]), deg(B.monos[1])
+    for attempt in 1:3
+        h = hash((p, seed, attempt))
+        β = Dict{Int,Int}()
+        for i in others
+            h = hash(h)
+            β[i] = Int(h % UInt(p - 2)) + 2
+        end
+        mval(u) = (v = 1; for i in others
+                       e = Int((u >> _shift(bits, n, i)) & _mask(bits))
+                       e == 0 || (v = _mulmod(v, powermod(β[i], e, p), p))
+                   end; v)
+        vs = [mval(u) for u in skel]
+        # distinct nodes within each group, else the system is singular
+        all(g -> allunique(vs[g]), groups) || continue
+        va, vb = [mval(u) for u in A.monos], [mval(u) for u in B.monos]
+        ca, cb = copy(A.coefs), copy(B.coefs)
+        M = zeros(Int, J * (D + 1), U + 1)
+        row = 0
+        ok = true
+        for j in 1:J
+            @inbounds for t in eachindex(ca); ca[t] = _mulmod(ca[t], va[t], p); end
+            @inbounds for t in eachindex(cb); cb[t] = _mulmod(cb[t], vb[t], p); end
+            UA, UB = zeros(Int, da + 1), zeros(Int, db + 1)
+            @inbounds for t in eachindex(ca)
+                e = deg(A.monos[t]) + 1
+                UA[e] = _addmod(UA[e], ca[t], p)
+            end
+            @inbounds for t in eachindex(cb)
+                e = deg(B.monos[t]) + 1
+                UB[e] = _addmod(UB[e], cb[t], p)
+            end
+            (UA[end] == 0 || UB[end] == 0) && (ok = false; break)   # degree drop: bad point
+            u = _ugcd!(UA, UB, p)
+            length(u) == D + 1 || (ok = false; break)                # support or point wrong
+            for e in 0:D
+                row += 1
+                for t in groups[e+1]
+                    M[row, t] = powermod(vs[t], j, p)
+                end
+                if j == 1
+                    M[row, U+1] = u[e+1]
+                else
+                    M[row, T + j - 1] = u[e+1] == 0 ? 0 : p - u[e+1]
+                end
+            end
+        end
+        ok || continue
+        c = _solve_modp!(M, U, p)
+        c === nothing && return nothing
+        all(j -> c[T + j - 1] != 0, 2:J) || return nothing
+        c[1] == 0 && return nothing
+        w = invmod(c[1], p)
+        keep = [t for t in 1:T if c[t] != 0]
+        return _MP(skel[keep], Int[_mulmod(c[t], w, p) for t in keep])
+    end
+    nothing
+end
+
+# Gauss–Jordan on the augmented matrix M (rows × (U+1)) mod p: the unique solution,
+# or `nothing` if it is not unique or the system is inconsistent
+function _solve_modp!(M::Matrix{Int}, U::Int, p::Int)
+    R = size(M, 1)
+    r = 0
+    for col in 1:U
+        piv = findfirst(i -> M[i, col] != 0, (r + 1):R)
+        piv === nothing && return nothing                # not determined
+        piv += r
+        r += 1
+        if piv != r
+            @inbounds for j in 1:(U + 1); M[r, j], M[piv, j] = M[piv, j], M[r, j]; end
+        end
+        w = invmod(M[r, col], p)
+        @inbounds for j in col:(U + 1); M[r, j] = _mulmod(M[r, j], w, p); end
+        for i in 1:R
+            (i == r || M[i, col] == 0) && continue
+            f = M[i, col]
+            @inbounds for j in col:(U + 1)
+                M[i, j] = _submod(M[i, j], _mulmod(f, M[r, j], p), p)
+            end
+        end
+    end
+    any(i -> M[i, U+1] != 0, (r + 1):R) && return nothing  # inconsistent
+    M[1:U, U+1]
 end
 
 function _newton_step(Hu, Hh, C::_MP, s::Int, q::Vector{Int}, α::Int, p::Int, pw::Vector{Int})
@@ -458,7 +584,7 @@ end
 
 _symmetric(r::Integer, m::Integer) = r > m >> 1 ? r - m : r
 
-function _gcd_modular(a::Poly{SymNumber}, b::Poly{SymNumber})
+function _gcd_modular(a::Poly{SymNumber}, b::Poly{SymNumber}; sparse::Bool = false)
     iszero(a) && return _positive(b)
     iszero(b) && return _positive(a)
     gs, bits, n = a.gens, a.bits, length(a.gens)
@@ -477,7 +603,7 @@ function _gcd_modular(a::Poly{SymNumber}, b::Poly{SymNumber})
     while true
         p = _prevprime(p)
         (lca % p == 0 || lcb % p == 0) && continue
-        ctx = _Ctx(bits, n, p)
+        ctx = _Ctx(bits, n, p, sparse)
         C = _pgcd(_mp_from(a, p), _mp_from(b, p), ctx)
         C.monos[1] == 0 && return constant            # lucky images are never too small
         lmC = C.monos[1]

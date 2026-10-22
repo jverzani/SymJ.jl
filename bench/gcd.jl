@@ -1,4 +1,4 @@
-# Polynomial gcd: SymJ modular vs SymJ PRS vs Nemo (FLINT).
+# Polynomial gcd: SymJ modular (dense; Zippel opt-in) vs SymJ PRS vs Nemo (FLINT).
 # Run with: julia --project=bench bench/gcd.jl
 using BenchmarkTools
 import SymJ
@@ -28,17 +28,23 @@ cases = [
     ("g=(x+y+z+w+1)^8, deg-6 cofactors", (x + y + z + w + 1)^8, (x - y + 2z * w + 1)^3 + y, (y * z - x + 3)^3 + w),
     ("big coeffs: g=(3^20 x + 5^15 y z - 7^10 w)^3", (big(3)^20 * x + big(5)^15 * y * z - big(7)^10 * w + 1)^3,
         (x - y + z)^3 + 2, (x * w + y - 1)^2 - z),
+    # sparse gcds, where Zippel pays off
+    ("sparse: g of 5 terms, degree 10", x^10 * y^3 * z + 2y^7 * z^5 * w - x^2 * w^8 + 3y^9 + x * y * z * w,
+        x^9 * z^4 + y^8 * w^2 + 5, y^10 * w^3 - x^6 * w^5 + 7z),
+    ("sparse: non-monomial leading coefficient", (y + z) * x^7 + y^9 * w^4 + z^6 * w^5 + 1,
+        x^4 * w + y^5 + 2, (w^3 - y) * x^5 + z^8),
 ]
 
-println(rpad("case", 48), lpad("modular", 14), lpad("PRS", 14), lpad("Nemo", 14))
+println(rpad("case", 48), lpad("modular", 14), lpad("Zippel", 14), lpad("PRS", 14), lpad("Nemo", 14))
 for (name, g, a, b) in cases
-    G = P(g)
+    G = P(SymJ.expand(g))
     A, B = G * P(a), G * P(b)
     @assert gcd(A, B) == G
     nA, nB = tonemo(A), tonemo(B)
     tm = @belapsed gcd($A, $B)
+    tz = @belapsed gcd($A, $B; method = :zippel)
     tp = @elapsed SymJ._gcd(A, B)
-    tp = min(tp, @elapsed SymJ._gcd(A, B))
+    tp = tp > 5 ? tp : min(tp, @elapsed SymJ._gcd(A, B))
     tn = @belapsed Nemo.gcd($nA, $nB)
-    println(rpad(name, 48), ms(tm), ms(tp), ms(tn))
+    println(rpad(name, 48), ms(tm), ms(tz), ms(tp), ms(tn))
 end
