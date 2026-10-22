@@ -16,12 +16,19 @@
 The solution of a system of linear inequalities in several unknowns, as nested bounds
 (a cylindrical description): the last unknown ranges over an interval, and each
 earlier one lies between bounds in the later ones; unknowns fixed by equations are
-given last. Not exported. Supports `in` for a point given as a `Dict`.
+given last. Not exported.
+
+Calling substitutes into the constraints it was solved from: `C(x => 1, y => 4)` is a
+`Bool` once every unknown has a value; with some unknowns given, `C(y => 1)` is the
+solution set in the others (a `SymSet` for one, a `CylindricalSet` for several).
+`pt in C` for a point given as a `Dict` is the same test.
 """
 struct CylindricalSet
     feasible::Bool
     levels::Vector{Tuple{Sym,Vector{Tuple{Sym,Bool}},Vector{Tuple{Sym,Bool}}}}  # (x, lowers, uppers); (bound, strict)
     equalities::Vector{Pair{Sym,Sym}}
+    vars::Vector{Sym}                  # the unknowns, in the order solved for
+    constraints::Vector{Relation}      # the system it was solved from
 end
 
 Base.isempty(C::CylindricalSet) = !C.feasible
@@ -44,17 +51,18 @@ function _solve_ineq_system(eqs::AbstractVector{<:Relation}, vars::Vector{Sym})
     free = vars
     if !isempty(eqns)
         sol = solve(eqns, vars)
-        sol === nothing && return CylindricalSet(false, [], [])
+        sol === nothing && return CylindricalSet(false, [], [], vars, collect(Relation, eqs))
         equalities = [v => sol[v] for v in vars if haskey(sol, v)]
         free = [v for v in vars if !haskey(sol, v)]
         ineqs = [Relation(r.op, subs(r.lhs, sol), subs(r.rhs, sol)) for r in ineqs]
     end
     cons = [_lincon(r, free) for r in ineqs]
-    _fourier_motzkin(cons, free, equalities)
+    C = _fourier_motzkin(cons, free, equalities)
+    CylindricalSet(C.feasible, C.levels, C.equalities, vars, collect(Relation, eqs))
 end
 
 function _solve_ineq_1(eqs, x::Sym)
-    S = SymSet([SymInterval(nothing, nothing, false, false)])
+    S = SymSet([SymInterval(nothing, nothing, false, false)], x)
     for r in eqs
         T = if r.op === :eq
             pts = _real_roots(solve(r, x))
@@ -64,7 +72,7 @@ function _solve_ineq_1(eqs, x::Sym)
         end
         S = S ∩ T
     end
-    S
+    SymSet(S.intervals, x)
 end
 
 # the relation as a·v + k > 0 or ≥ 0, with numeric coefficients
@@ -106,7 +114,7 @@ end
 function _fourier_motzkin(cons::Vector{_LinCon}, vars::Vector{Sym}, equalities)
     levels = Tuple{Sym,Vector{Tuple{Sym,Bool}},Vector{Tuple{Sym,Bool}}}[]
     cs = _prune(cons)
-    cs === nothing && return CylindricalSet(false, levels, equalities)
+    cs === nothing && return CylindricalSet(false, levels, equalities, vars, Relation[])
     for j in eachindex(vars)
         pos = [c for c in cs if c.a[j] > N0]
         neg = [c for c in cs if c.a[j] < N0]
@@ -121,9 +129,9 @@ function _fourier_motzkin(cons::Vector{_LinCon}, vars::Vector{Sym}, equalities)
             push!(rest, _LinCon(p.a .* sp .+ n.a .* sn, p.k * sp + n.k * sn, p.strict || n.strict))
         end
         cs = _prune(rest)
-        cs === nothing && return CylindricalSet(false, levels, equalities)
+        cs === nothing && return CylindricalSet(false, levels, equalities, vars, Relation[])
     end
-    CylindricalSet(true, levels, equalities)
+    CylindricalSet(true, levels, equalities, vars, Relation[])
 end
 
 _dot(a, vars, skip) = _add_many(Sym(a[i]) * vars[i] for i in eachindex(vars) if i != skip && !iszero(a[i]))
@@ -146,16 +154,29 @@ end
 
 ## membership and printing
 
-function Base.in(pt::AbstractDict, C::CylindricalSet)
-    C.feasible || return false
-    d = Dict{Sym,Sym}(Sym(k) => Sym(v) for (k, v) in pt)
-    ok(e, v, strict, lower) = (w = N(subs(e, d)); lower ? (strict ? v > w : v >= w) : (strict ? v < w : v <= w))
-    for (x, lo, hi) in C.levels
-        v = N(d[x])
-        all(b -> ok(b[1], v, b[2], true), lo) && all(b -> ok(b[1], v, b[2], false), hi) || return false
+# Substitute into the constraints: a Bool when every unknown has a value, else the
+# system in the rest re-solved (exact, rather than slicing the nested bounds).
+function (C::CylindricalSet)(ps::Pair...)
+    d = Dict{Sym,Sym}(Sym(p.first) => Sym(p.second) for p in ps)
+    all(k -> any(v -> _eq(k, v), C.vars), keys(d)) ||
+        throw(ArgumentError("unknowns of this set: $(join(C.vars, ", "))"))
+    rest = [v for v in C.vars if !haskey(d, v)]
+    rels = [Relation(r.op, subs(r.lhs, d), subs(r.rhs, d)) for r in C.constraints]
+    open = Relation[]
+    for r in rels
+        v = _decide(r)
+        v === false && return isempty(rest) ? false : _empty_like(rest)
+        v === true || push!(open, r)
     end
-    all(eq -> abs(N(d[eq.first]) - N(subs(eq.second, d))) < 1e-12, C.equalities)
+    isempty(rest) && return C.feasible && isempty(open)
+    isempty(open) && return _whole_like(rest)
+    solve(open, rest)
 end
+Base.in(pt::AbstractDict, C::CylindricalSet) = C(pt...) === true
+
+_empty_like(rest) = length(rest) == 1 ? SymSet(SymInterval[], only(rest)) : CylindricalSet(false, [], [], rest, Relation[])
+_whole_like(rest) = length(rest) == 1 ? SymSet([SymInterval(nothing, nothing, false, false)], only(rest)) :
+    CylindricalSet(true, [(v, Tuple{Sym,Bool}[], Tuple{Sym,Bool}[]) for v in rest], [], rest, Relation[])
 
 function _show_level(io, x, lo, hi)
     uniform(bs) = isempty(bs) || all(b -> b[2] == bs[1][2], bs)

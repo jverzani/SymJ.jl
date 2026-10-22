@@ -573,6 +573,18 @@ import ForwardDiff
         @test Dict(x => 0.5, y => 0.25, z => 0.25) in S3 && !(Dict(x => 0.5, y => 0.5, z => 0.25) in S3)
         @test string(solve([x ≧ 0, y ≧ 0, z ≧ 0, x + 2y + 3z ≦ 6], [x, y, z])) ==
               "z ∈ [0, 2], y ∈ [0, -3*z/2 + 3], x ∈ [0, -2*y - 3*z + 6]"
+        # calling a set: a Bool with every unknown given, else the slice in the rest
+        @test C2(x => 1, y => 0.5) === true && C2(x => 1, y => 4) === false
+        @test string(C2(y => 1)) == "(-∞, 1)" && C2(y => 1) isa SymJ.SymSet && C2(y => 1)(0)
+        T3 = solve([x ≧ 0, y ≧ 0, z ≧ 0, x + 2y + 3z ≦ 6], [x, y, z])
+        @test string(T3(z => 1)) == "y ∈ [0, 3/2], x ∈ [0, -2*y + 3]"
+        @test string(T3(z => 1, y => 0)) == "[0, 3]" && isempty(T3(x => 7))
+        @test T3(x => 1, y => 1, z => 1) === true && T3(x => 2, y => 1, z => 1) === false
+        @test isempty(solve([x + y ≪ 1, x + y ≫ 2], [x, y])(x => 0))
+        @test_throws ArgumentError C2(z => 1)                                # not an unknown
+        S1 = solve(x^2 ≫ 1, x)
+        @test S1(2) && !S1(0) && S1(x => 2) && S1(Sym(3) // 2) && S1.var == x
+        @test_throws ArgumentError S1(y => 2)
         @test_throws ArgumentError solve([x * y ≪ 1, x ≫ 0], [x, y])        # nonlinear: not yet
         @test_throws ArgumentError solve([x ≶ y, x ≫ 0], [x, y])           # not convex
 

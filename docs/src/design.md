@@ -668,8 +668,17 @@ interface works with SymJ equations.
   - **Result:** a cylindrical description, `CylindricalSet` (not exported). The last
     unknown ranges over an interval; each earlier one lies between bounds in the later
     ones, using `max`/`min` for several bounds; unknowns fixed by equations come last.
-    For example `[x + y ≪ 2, y ≪ 3] → y ∈ (-∞, 3), x ∈ (-∞, -y + 2)`. Supports `in`
-    for a point given as a `Dict`.
+    For example `[x + y ≪ 2, y ≪ 3] → y ∈ (-∞, 3), x ∈ (-∞, -y + 2)`.
+  - **Calling a set.** A set substitutes when called, like expressions and relations.
+    A `CylindricalSet` keeps the constraints it was solved from:
+    - with every unknown given, `C(x => 1, y => 4)` is a `Bool`;
+    - with some given, `C(y => 1)` re-solves exactly in the rest: a `SymSet` for one
+      unknown, a `CylindricalSet` for several. That's simpler and more reliable than
+      slicing the nested bounds;
+    - `pt in C`, for a point given as a `Dict`, is the same test.
+
+    A `SymSet` from `solve(ineq, x)` records `x`, so both `S(2)` and `S(x => 2)` test
+    membership.
   - **Not yet:** nonlinear systems in several unknowns (cylindrical algebraic
     decomposition), `≠` in several unknowns (not convex), and symbolic coefficients.
 - **`<` and friends.** `<`, `≤`, `>`, `≥` compare constant expressions as numbers,

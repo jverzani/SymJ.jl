@@ -25,10 +25,20 @@ end
 
 A finite union of disjoint intervals with exact endpoints, sorted and merged; the
 solutions of an inequality ([`solve`](@ref)). Supports `in`, `∪`, `∩`, `setdiff`,
-`isempty`; the intervals are `S.intervals`.
+`isempty`; the intervals are `S.intervals`. Calling tests membership: `S(2)`, or
+`S(x => 2)` for a set from `solve(ineq, x)` (which records its variable).
 """
 struct SymSet
     intervals::Vector{SymInterval}
+    var::Union{Nothing,Sym}           # the variable it was solved for, if known
+end
+SymSet(ints::Vector{SymInterval}) = SymSet(ints, nothing)
+
+(S::SymSet)(v::Union{Sym,Real}) = v in S
+function (S::SymSet)(p::Pair)
+    S.var !== nothing && _eq(Sym(p.first), S.var) ||
+        throw(ArgumentError("this set is not known to be in $(p.first); call it with a value, S(v)"))
+    p.second in S
 end
 
 _rv(e::Sym) = (v = N(e); v isa Real ? Float64(v) : throw(ArgumentError("$e is not a real number")))
@@ -140,5 +150,5 @@ function _solve_inequality(r::Relation, x::Sym)
         w = v isa Sym ? v : Sym(v)
         val = r(x => w)
         val isa Bool ? val : false
-    end)
+    end) |> S -> SymSet(S.intervals, x)
 end
