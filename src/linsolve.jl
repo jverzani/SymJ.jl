@@ -21,7 +21,7 @@ solve([x + y + z ~ 1, x - z ~ 0], [x, y, z])  # Dict(x => z, y => 1 - 2z)
 function solve(eqs::AbstractVector{<:Relation}, vars::Union{AbstractVector,Tuple})
     vars = Sym[Sym(v) for v in vars]
     all(_isnamed, vars) || throw(ArgumentError("solve: the unknowns must be symbols or parameters"))
-    all(e -> e.op === :eq, eqs) || throw(ArgumentError("solve: systems of inequalities are not supported"))
+    all(e -> e.op === :eq, eqs) || return _solve_ineq_system(eqs, vars)
     A, b = _linear_system(eqs, vars)
     if all(e -> e.kind == NUMBER, Iterators.flatten((A, b)))
         _gauss_jordan(map(e -> e.num, A), map(e -> e.num, b), vars, Sym)

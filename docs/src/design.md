@@ -657,6 +657,24 @@ interface works with SymJ equations.
     SymPy does): `[a·x + y ~ 1, x − y ~ b] → x = (b + 1)/(a + 1)`.
   - **Linearity.** An equation must have no unknown in its denominator, and be of
     degree ≤ 1 in the unknowns.
+- **Systems of inequalities.**
+  - **One unknown:** each relation is solved and the sets intersected; equations
+    contribute their real roots as points: `[x^2 ~ 4, x ≫ 0] → {2}`.
+  - **Several unknowns, linear:** the equations are solved and substituted first. Then
+    exact Fourier–Motzkin elimination removes the unknowns in the given order,
+    recording each one's bounds in terms of the unknowns still to come. Constraints
+    are normalized and deduplicated (the tighter one kept), and bounds beaten by a
+    parallel tighter one are dropped. An infeasible system gives `∅`.
+  - **Result:** a cylindrical description, `CylindricalSet` (not exported). The last
+    unknown ranges over an interval; each earlier one lies between bounds in the later
+    ones, using `max`/`min` for several bounds; unknowns fixed by equations come last.
+    For example `[x + y ≪ 2, y ≪ 3] → y ∈ (-∞, 3), x ∈ (-∞, -y + 2)`. Supports `in`
+    for a point given as a `Dict`.
+  - **Not yet:** nonlinear systems in several unknowns (cylindrical algebraic
+    decomposition), `≠` in several unknowns (not convex), and symbolic coefficients.
+- **`<` and friends.** `<`, `≤`, `>`, `≥` compare constant expressions as numbers,
+  returning a `Bool`. With a symbol, they raise an error naming the symbolic operator
+  to use instead (`≪`, `≦`, `≫`, `≧`).
 - **Not yet:**
   - nonlinear systems;
   - several unrelated functions of `x` (`sin(x) + cos(x) ~ 1`);

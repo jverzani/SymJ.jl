@@ -546,7 +546,35 @@ import ForwardDiff
         @test N(d[x]) ≈ 5 / 6 && N(d[y]) ≈ 7 / 12
         @test_throws ArgumentError solve([x * y ~ 1, x + y ~ 2], [x, y])     # nonlinear: not yet
         @test_throws ArgumentError solve([1 / x ~ 1], [x])
-        @test_throws ArgumentError solve([x ≪ 1], [x])
+        @test string(solve([x ≪ 1], [x])) == "(-∞, 1)"                # a one-unknown system
+
+        # < and friends compare constants as numbers; with symbols, a pointer to ≪
+        @test sqrt(Sym(2)) < 2 && Sym(π) > 3 && !(2 ≥ sqrt(Sym(5))) && Sym(1 // 3) <= 0.5
+        @test sort([Sym(3), sqrt(Sym(2)), Sym(π)]) == [sqrt(Sym(2)), Sym(3), Sym(π)]
+        @test_throws ArgumentError x + y < 2
+        @test_throws ArgumentError x >= 1
+        @test occursin("≪", (try x < 1 catch e; sprint(showerror, e) end))
+        @test occursin("≧", (try x >= 1 catch e; sprint(showerror, e) end))
+
+        # systems of inequalities: one unknown (sets), several (cylindrical, linear)
+        @test string(solve([x ≫ 1, x ≪ 3], [x])) == "(1, 3)"
+        @test string(solve([x^2 ≪ 4, x ≧ 0], [x])) == "[0, 2)"
+        @test string(solve([x^2 ~ 4, x ≫ 0], [x])) == "{2}"
+        @test string(solve([x ≶ 2, x^2 ≦ 9], [x])) == "[-3, 2) ∪ (2, 3]"
+        C2 = solve([x + y ≪ 2, y ≪ 3], [x, y])
+        @test C2 isa SymJ.CylindricalSet && string(C2) == "y ∈ (-∞, 3), x ∈ (-∞, -y + 2)"
+        T2 = solve([x ≧ 0, y ≧ 0, x + y ≦ 1], [x, y])
+        @test string(T2) == "y ∈ [0, 1], x ∈ [0, -y + 1]"
+        @test string(solve([x ≧ 0, y ≧ 0, x + y ≦ 1], [y, x])) == "x ∈ [0, 1], y ∈ [0, -x + 1]"
+        @test Dict(x => 0.2, y => 0.3) in T2 && !(Dict(x => 0.8, y => 0.3) in T2) && Dict(x => 0, y => 1) in T2
+        @test isempty(solve([x + y ≪ 1, x + y ≫ 2], [x, y]))
+        S3 = solve([x + y + z ~ 1, x ≧ 0, y ≧ 0, z ≧ 0], [x, y, z])
+        @test string(S3) == "z ∈ [0, 1], y ∈ [0, -z + 1], x = -y - z + 1"
+        @test Dict(x => 0.5, y => 0.25, z => 0.25) in S3 && !(Dict(x => 0.5, y => 0.5, z => 0.25) in S3)
+        @test string(solve([x ≧ 0, y ≧ 0, z ≧ 0, x + 2y + 3z ≦ 6], [x, y, z])) ==
+              "z ∈ [0, 2], y ∈ [0, -3*z/2 + 3], x ∈ [0, -2*y - 3*z + 6]"
+        @test_throws ArgumentError solve([x * y ≪ 1, x ≫ 0], [x, y])        # nonlinear: not yet
+        @test_throws ArgumentError solve([x ≶ y, x ≫ 0], [x, y])           # not convex
 
         # inequalities: unions of intervals with exact endpoints
         S(r) = string(solve(r, x))

@@ -65,6 +65,28 @@ for (S, T) in ((Sym, Sym), (Sym, Number), (Number, Sym))
     @eval Base.:~(a::$S, b::$T) = Eq(a, b)
 end
 
+# `<`, `≤`, `>`, `≥` compare expressions as numbers (a Bool), so they work for
+# constants; for anything with a symbol, an error pointing to the symbolic operator.
+const _SYMBOLIC_OP = Dict(:< => ("≪", "\\ll", "Lt"), :<= => ("≦", "\\leqq", "Le"),
+                          :> => ("≫", "\\gg", "Gt"), :>= => ("≧", "\\geqq", "Ge"))
+function _compare(op::Symbol, a::Sym, b::Sym)
+    if _hassymbol(a) || _hassymbol(b)
+        infix, tab, f = _SYMBOLIC_OP[op]
+        throw(ArgumentError("`$a $op $b`: `$op` compares numbers and returns a Bool; for a " *
+                            "symbolic inequality use `$infix` (typed $tab) or `$f(a, b)`"))
+    end
+    va, vb = N(a), N(b)
+    (va isa Real && vb isa Real) || throw(ArgumentError("`$a $op $b`: not real numbers"))
+    op === :< ? va < vb : op === :<= ? va <= vb : op === :> ? va > vb : va >= vb
+end
+for (S, T) in ((Sym, Sym), (Sym, Real), (Real, Sym))
+    @eval Base.:<(a::$S, b::$T) = _compare(:<, Sym(a), Sym(b))
+    @eval Base.:<=(a::$S, b::$T) = _compare(:<=, Sym(a), Sym(b))
+    @eval Base.:>(a::$S, b::$T) = _compare(:>, Sym(a), Sym(b))
+    @eval Base.:>=(a::$S, b::$T) = _compare(:>=, Sym(a), Sym(b))
+    @eval Base.isless(a::$S, b::$T) = _compare(:<, Sym(a), Sym(b))
+end
+
 const ⩵ = Eq
 const ≪ = Lt
 const ≦ = Le
