@@ -31,6 +31,7 @@ using PrecompileTools: @setup_workload, @compile_workload
         cancel((x^2 - 1) / (x + 1)); factor_squarefree(x^3 - x^2 - x + 1)
         factor(x^4 - 1); factor(x^2 * y^2 - 1); apart(1 / (x^2 - 1))
         solve(x^2 - 2 ~ 0, x); solve(x^3 - 3x + 1 ~ 0, x); solve(x^2 ≫ 1, x); solve(x * exp(x) ~ 1, x)
+        solve([x + y ~ 3, x - y ~ 1], [x, y]); solve([parameter(:a) * x + y ~ 1, x - y ~ 2], [x, y])
         a = parameter(:a); (a * x^2 + x)(3); (a * x^2 + x)(x => 2); free_parameters(a * x)
         p = Poly((x + y + 1)^3, x, y)
         p * p; p + p; p - p; divrem(p, Poly(x + 1, x, y)); gcd(p, Poly((x + y + 1) * (x - 1), x, y))

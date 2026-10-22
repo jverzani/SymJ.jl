@@ -525,6 +525,29 @@ import ForwardDiff
         end
         @test_throws ArgumentError solve(x * exp(x^2) ~ 1, x)       # not a Lambert form
 
+        # linear systems: a Dict; free variables omitted; nothing when inconsistent
+        holds(eqs, d) = all(eq -> cancel(subs(lhs(eq) - rhs(eq), d)) == 0 ||
+                                  abs(N(subs(lhs(eq) - rhs(eq), d))) < 1e-12, eqs)
+        @test solve([x + y ~ 3, x - y ~ 1], [x, y]) == Dict(x => 2, y => 1)
+        sys3 = [2x + 3y - z ~ 1, x - y + 2z ~ 4, 3x + y + z ~ 6]
+        @test solve(sys3, [x, y, z]) == Dict(x => Sym(11 // 5), y => Sym(-1), z => Sym(2 // 5))
+        @test solve([x + y + z ~ 1, x - z ~ 0], [x, y, z]) == Dict(x => z, y => 1 - 2z)
+        @test solve([x + y ~ 1, x + y ~ 2], [x, y]) === nothing
+        @test solve([x + y ~ 1, 2x + 2y ~ 2], [x, y]) == Dict(x => 1 - y)
+        @test solve((x + y ~ 3, x - y ~ 1), (x, y)) == Dict(x => 2, y => 1)       # tuples
+        for (eqs, vs) in (([a * x + y ~ 1, x - y ~ b], [x, y]), ([a * x + b * y ~ 1, b * x - a * y ~ 0], [x, y]),
+                          ([x / 2 + y / 3 ~ 1, x ~ y], [x, y]), ([x + y ~ sin(a), x - y ~ cos(a)], [x, y]),
+                          ([x + 2y + z ~ a, y - z ~ b, x + z ~ 0], [x, y, z]))
+            d = solve(eqs, vs)
+            @test d !== nothing && length(d) == length(vs) && holds(eqs, d)
+        end
+        @test solve([a * x + b * y ~ 1, b * x - a * y ~ 0], [x, y]) == Dict(x => a / (a^2 + b^2), y => b / (a^2 + b^2))
+        d = solve([0.5x + y ~ 1, x - y ~ 0.25], [x, y])
+        @test N(d[x]) ≈ 5 / 6 && N(d[y]) ≈ 7 / 12
+        @test_throws ArgumentError solve([x * y ~ 1, x + y ~ 2], [x, y])     # nonlinear: not yet
+        @test_throws ArgumentError solve([1 / x ~ 1], [x])
+        @test_throws ArgumentError solve([x ≪ 1], [x])
+
         # inequalities: unions of intervals with exact endpoints
         S(r) = string(solve(r, x))
         @test S(x^2 ≫ 1) == "(-∞, -1) ∪ (1, ∞)" && S(x^2 ≦ 1) == "[-1, 1]"

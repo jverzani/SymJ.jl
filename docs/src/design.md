@@ -645,8 +645,20 @@ interface works with SymJ equations.
     operands' endpoints. `in` compares against the exact endpoints.
   - **Limits.** Numeric coefficients only: with parameters, the order of the endpoints
     depends on their values, which needs assumptions.
+- **Linear systems.** `solve(eqs, vars)` returns a `Dict` from variables to values.
+  - **Underdetermined systems** give the pivot variables in terms of the free ones,
+    which are not keys: `solve([x + y + z ~ 1, x - z ~ 0], [x, y, z]) ==
+    Dict(x => z, y => 1 − 2z)`.
+  - **Inconsistent systems** give `nothing`.
+  - **Method.** Gauss–Jordan elimination over an exact field: `SymNumber` when the
+    coefficients are numeric, otherwise `RatFun` in the other symbols and parameters.
+    Its canonical form makes the pivot zero tests exact.
+  - **Parameters.** The result is the generic solution, assuming nonzero pivots (as
+    SymPy does): `[a·x + y ~ 1, x − y ~ b] → x = (b + 1)/(a + 1)`.
+  - **Linearity.** An equation must have no unknown in its denominator, and be of
+    degree ≤ 1 in the unknowns.
 - **Not yet:**
-  - systems;
+  - nonlinear systems;
   - several unrelated functions of `x` (`sin(x) + cos(x) ~ 1`);
   - exponents that aren't rational multiples of one another (`9^x ~ 3^(x+2)`);
   - Lambert-type equations beyond the linear form (`x·e^(x²) ~ 1`).
