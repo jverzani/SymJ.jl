@@ -86,6 +86,25 @@ function _ueval(a::Vector{Int}, α::Int, p::Int)
     v
 end
 
+# the powers 1, α, α², ... (mod p), at least n of them, shared by the evaluations at α
+function _upowers!(pw::Vector{Int}, α::Int, n::Int, p::Int)
+    isempty(pw) && push!(pw, 1)
+    while length(pw) < n
+        push!(pw, _mulmod(pw[end], α, p))
+    end
+    pw
+end
+
+# a(α) from the powers of α: a dot product accumulated in 128 bits, one reduction
+# (products are below 2^62; runs are far shorter than 2^60 terms)
+function _ueval_tab(a::Vector{Int}, pw::Vector{Int}, p::Int)
+    acc = UInt128(0)
+    @inbounds for i in eachindex(a)
+        acc += UInt128(a[i] * pw[i])
+    end
+    Int(acc % UInt128(p))
+end
+
 _uscale(a::Vector{Int}, c::Int, p::Int) = c == 1 ? a : _utrim!(Int[_mulmod(x, c, p) for x in a])
 _umonic(a::Vector{Int}, p::Int) = isempty(a) ? a : _uscale(a, invmod(a[end], p), p)
 
@@ -144,6 +163,29 @@ function _ugcd(a::Vector{Int}, b::Vector{Int}, p::Int)
 end
 
 # gcd of a list, stopping early at 1
+# gcd in place: destroys a and b, returns the one holding the monic gcd
+function _ugcd!(a::Vector{Int}, b::Vector{Int}, p::Int)
+    _utrim!(a); _utrim!(b)
+    while !isempty(b)
+        _urem!(a, b, p)
+        a, b = b, a
+    end
+    isempty(a) && return a
+    c = invmod(a[end], p)
+    c == 1 || (@inbounds for i in eachindex(a); a[i] = _mulmod(a[i], c, p); end)
+    a
+end
+
+# q ← q·(x - α), in place
+function _umul_lin!(q::Vector{Int}, α::Int, p::Int)
+    push!(q, 0)
+    @inbounds for i in length(q):-1:2
+        q[i] = _submod(q[i-1], _mulmod(α, q[i], p), p)
+    end
+    @inbounds q[1] = _submod(0, _mulmod(α, q[1], p), p)
+    q
+end
+
 function _ugcd_all(qs::Vector{Vector{Int}}, p::Int)
     g = Int[]
     for q in qs
@@ -235,12 +277,12 @@ end
 
 # a at x_k = α from its runs (the split already computed): each run's dense
 # polynomial in x_k evaluated by Horner, no monomial decoding
-function _mp_eval_runs(us::Vector{UInt64}, qs::Vector{Vector{Int}}, α::Int, p::Int)
+function _mp_eval_runs(us::Vector{UInt64}, qs::Vector{Vector{Int}}, pw::Vector{Int}, p::Int)
     monos, coefs = UInt64[], Int[]
     sizehint!(monos, length(us))
     sizehint!(coefs, length(us))
     @inbounds for i in eachindex(us)
-        v = _ueval(qs[i], α, p)
+        v = _ueval_tab(qs[i], pw, p)
         if v != 0
             push!(monos, us[i])
             push!(coefs, v)
@@ -250,6 +292,8 @@ function _mp_eval_runs(us::Vector{UInt64}, qs::Vector{Vector{Int}}, α::Int, p::
 end
 
 ## gcd over Z_p, monic in lex order
+
+_isconstrun(u::Vector{UInt64}) = length(u) == 1 && u[1] == 0
 
 function _pgcd(a::_MP, b::_MP, ctx::_Ctx)
     p = ctx.p
@@ -262,13 +306,13 @@ function _pgcd(a::_MP, b::_MP, ctx::_Ctx)
 
     # contents in Z_p[x_k] and primitive parts
     # univariate in x_k: Euclid directly
-    if ua == [0] && ub == [0]
+    if _isconstrun(ua) && _isconstrun(ub)
         return _mp_join(UInt64[0], [_ugcd(qa[1], qb[1], p)], k, ctx)
     end
     conta, contb = _ugcd_all(qa, p), _ugcd_all(qb, p)
     c = _ugcd(conta, contb, p)
     # a primitive part free of the other variables is a unit
-    (ua == [0] || ub == [0]) && return _mp_join(UInt64[0], [c], k, ctx)
+    (_isconstrun(ua) || _isconstrun(ub)) && return _mp_join(UInt64[0], [c], k, ctx)
     if length(conta) > 1
         qa = [_udivrem(q, conta, p)[1] for q in qa]
         a = _mp_join(ua, qa, k, ctx)
@@ -287,19 +331,54 @@ function _pgcd(a::_MP, b::_MP, ctx::_Ctx)
     q = Int[1]                         # product of (x_k - α) over the points used
     lmH = typemax(UInt64)
     npts = 0
+    # bivariate: the images are univariate in one variable x_j; evaluate straight into
+    # dense buffers and take the gcd in place (no intermediate _MP, split or join)
+    rest = reduce(|, ua) | reduce(|, ub)
+    j = _lastactive(rest, ctx)
+    sj = _shift(ctx.bits, ctx.n, j)
+    biv = j > 0 && rest & ~(_mask(ctx.bits) << sj) == 0
+    da = biv ? Int(ua[1] >> sj) : 0
+    db = biv ? Int(ub[1] >> sj) : 0
+    A, B = Int[], Int[]
+    pw = Int[]
     α = Int(hash((p, k)) % UInt(p))
     for _ in 1:p
         α = α + 1 == p ? 0 : α + 1
         (_ueval(lca, α, p) == 0 || _ueval(lcb, α, p) == 0) && continue
-        C = _pgcd(_mp_eval_runs(ua, qa, α, p), _mp_eval_runs(ub, qb, α, p), ctx)
+        dmax = max(maximum(length, qa), maximum(length, qb), length(q))
+        empty!(pw)
+        _upowers!(pw, α, dmax, p)
+        C = if biv
+            resize!(A, da + 1); fill!(A, 0)
+            resize!(B, db + 1); fill!(B, 0)
+            @inbounds for i in eachindex(ua)
+                A[Int(ua[i] >> sj) + 1] = _ueval_tab(qa[i], pw, p)
+            end
+            @inbounds for i in eachindex(ub)
+                B[Int(ub[i] >> sj) + 1] = _ueval_tab(qb[i], pw, p)
+            end
+            G = _ugcd!(A, B, p)
+            nz = count(!iszero, G)
+            cm, cc = Vector{UInt64}(undef, nz), Vector{Int}(undef, nz)
+            t = 0
+            @inbounds for e in length(G):-1:1
+                G[e] == 0 && continue
+                t += 1
+                cm[t] = UInt64(e - 1) << sj
+                cc[t] = G[e]
+            end
+            _MP(cm, cc)
+        else
+            _pgcd(_mp_eval_runs(ua, qa, pw, p), _mp_eval_runs(ub, qb, pw, p), ctx)
+        end
         lmC = C.monos[1]
         lmC > lmH && continue                       # unlucky point
         if lmC < lmH                                 # all earlier points were unlucky
             Hu, Hh = UInt64[], Vector{Int}[]
             q, lmH, npts = Int[1], lmC, 0
         end
-        Hu, Hh = _newton_step(Hu, Hh, C, _ueval(g, α, p), q, α, p)
-        q = _umul(q, Int[p - α, 1], p)
+        Hu, Hh = _newton_step(Hu, Hh, C, _ueval(g, α, p), q, α, p, pw)
+        q = _umul_lin!(q, α, p)
         npts += 1
         if npts > bound
             keep = findall(!isempty, Hh)
@@ -314,8 +393,31 @@ function _pgcd(a::_MP, b::_MP, ctx::_Ctx)
 end
 
 # H += (s*C - H(α)) / q(α) * q, merging the sorted monomials of H and C
-function _newton_step(Hu, Hh, C::_MP, s::Int, q::Vector{Int}, α::Int, p::Int)
-    w = invmod(_ueval(q, α, p), p)
+# h ← h + (v - h(α))/q(α) · q, with w = 1/q(α)
+@inline function _newton_update!(h::Vector{Int}, v::Int, q::Vector{Int}, w::Int, pw::Vector{Int}, p::Int)
+    δ = _mulmod(_submod(v, _ueval_tab(h, pw, p), p), w, p)
+    δ == 0 && return h
+    n0 = length(h)
+    if n0 < length(q)
+        resize!(h, length(q))
+        @inbounds for t in (n0 + 1):length(q)
+            h[t] = 0
+        end
+    end
+    @inbounds for t in eachindex(q)
+        h[t] = _addmod(h[t], _mulmod(δ, q[t], p), p)
+    end
+    _utrim!(h)
+end
+
+function _newton_step(Hu, Hh, C::_MP, s::Int, q::Vector{Int}, α::Int, p::Int, pw::Vector{Int})
+    w = invmod(_ueval_tab(q, pw, p), p)
+    if Hu == C.monos                    # the usual case: the same monomials, in place
+        @inbounds for i in eachindex(Hu)
+            _newton_update!(Hh[i], _mulmod(C.coefs[i], s, p), q, w, pw, p)
+        end
+        return Hu, Hh
+    end
     nu, nh = UInt64[], Vector{Int}[]
     sizehint!(nu, length(Hu) + length(C.monos))
     sizehint!(nh, length(Hu) + length(C.monos))
@@ -331,14 +433,7 @@ function _newton_step(Hu, Hh, C::_MP, s::Int, q::Vector{Int}, α::Int, p::Int)
             u, h, v = Hu[i], Hh[i], _mulmod(C.coefs[j], s, p)
             i += 1; j += 1
         end
-        δ = _mulmod(_submod(v, _ueval(h, α, p), p), w, p)
-        if δ != 0
-            length(h) < length(q) && append!(h, zeros(Int, length(q) - length(h)))
-            for t in eachindex(q)
-                h[t] = _addmod(h[t], _mulmod(δ, q[t], p), p)
-            end
-            _utrim!(h)
-        end
+        _newton_update!(h, v, q, w, pw, p)
         push!(nu, u)
         push!(nh, h)
     end
