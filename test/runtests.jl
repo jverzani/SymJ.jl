@@ -484,7 +484,24 @@ import ForwardDiff
         @test_throws ArgumentError solve(x^2 + 1, x)          # an equation is required
         @test_throws ArgumentError solve(x ≪ 1, x)
         @test_throws ArgumentError solve(x ~ x, x)
-        @test_throws ArgumentError solve(sin(x) ~ 0, x)       # not polynomial: not yet
+        # through one function of x: substitute, solve, invert; extraneous roots dropped
+        @test solve(sin(x) ~ 1 // 2, x) == [PI / 6, 5PI / 6]
+        @test solve(cos(x) ~ 0, x) == [-PI / 2, PI / 2] && solve(tan(x) ~ 1, x) == [PI / 4]
+        @test solve(sin(2x) ~ 1, x) == [PI / 4]
+        @test solve(sin(x)^2 ~ 1 // 4, x) == [-PI / 6, PI / 6, 5PI / 6, 7PI / 6]
+        @test solve(exp(x) ~ 2, x) == [log(Sym(2))] && solve(log(x) ~ 2, x) == [exp(Sym(2))]
+        @test solve(exp(x) ~ a, x) == [log(a)]
+        @test solve(sqrt(x) ~ 3, x) == [Sym(9)] && solve(sqrt(x) ~ -1, x) == Sym[]
+        @test solve(2^x ~ 8, x) == [log(Sym(8)) / log(Sym(2))]
+        # powers of one exponential, also with integer bases that are powers of one integer
+        @test solve(exp(2x) - 3exp(x) + 2 ~ 0, x) == [Sym(0), log(Sym(2))]
+        @test solve(exp(x) + exp(-x) ~ 2, x) == [Sym(0)]
+        @test solve(4^x - 3 * 2^x + 2 ~ 0, x) == [Sym(0), Sym(1)] && solve(8^x ~ 2 * 4^x, x) == [Sym(1)]
+        # a square root mixed with x: squared, extraneous roots dropped
+        @test solve(sqrt(x + 1) ~ x - 1, x) == [Sym(3)]                # 0 is extraneous
+        @test solve(sqrt(x) + x ~ 6, x) == [Sym(4)] && solve(x - sqrt(x) ~ 0, x) == [Sym(0), Sym(1)]
+        @test_throws ArgumentError solve(sin(x) + cos(x) ~ 1, x)     # two functions: not yet
+        @test_throws ArgumentError solve(x * exp(x) ~ 1, x)          # Lambert W
         @test_throws ArgumentError solve(x^5 + a * x + 1 ~ 0, x)  # degree 5, symbolic
     end
 

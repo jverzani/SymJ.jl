@@ -39,14 +39,148 @@ function solve(eq::Relation, x::Sym)
     atoms = Set{Sym}()
     exact = _poly_atoms!(atoms, n)
     bad = [a for a in atoms if !_eq(a, x) && has(a, x)]
-    isempty(bad) || throw(ArgumentError(
-        "solve: $eq is not polynomial in $x (it involves $(join(bad, ", "))); not supported yet"))
+    isempty(bad) || return _sort_roots!(unique(_solve_through(eq, n, x, bad)))
     roots = exact ? _solve_exact(n, x, atoms) : _solve_inexact(n, x)
     _sort_roots!(unique(roots))
 end
 solve(eq::Relation, x::Sym, rest...) = throw(ArgumentError("solve: systems are not supported yet"))
 solve(ex::Sym, x::Sym) = throw(ArgumentError(
     "solve needs an equation, e.g. solve($ex ~ 0, $x); an expression is not taken to mean \"= 0\""))
+
+## equations in one function of x: f(g(x)) with f polynomial
+#
+# u stands for g(x); the polynomial in u is solved, then g(x) = r is inverted into an
+# equation for g's argument and solved recursively. Inverting a power or a periodic
+# function can introduce extraneous roots (sqrt(x) = -1), so candidates are checked
+# by substitution. Trig equations give the principal solutions in one period.
+
+function _solve_through(eq::Relation, n::Sym, x::Sym, bad::Vector{Sym})
+    common = _common_power(bad)                     # exp(2x), exp(x): powers of one exp
+    if common === nothing
+        length(bad) == 1 || throw(ArgumentError(
+            "solve: $eq involves $x through several functions ($(join(bad, ", "))); not supported yet"))
+        g = only(bad)
+        u = Sym(Symbol("_u", objectid(g)))
+        nu = subs(n, g => u)
+    else
+        g, ks = common
+        u = Sym(Symbol("_u", objectid(g)))
+        nu = subs(n, (a => u^k for (a, k) in zip(bad, ks))...)
+    end
+    if has(nu, x)
+        _issqrt(g) && return _solve_radical(eq, nu, u, g, x)
+        throw(ArgumentError("solve: $eq involves both $x and $g; not supported (it may need, e.g., Lambert W)"))
+    end
+    out = Sym[]
+    for r in solve(nu ~ 0, u), (arg, val) in _invert(g, r, x)
+        append!(out, solve(arg ~ val, x))
+    end
+    filter(r -> _satisfies(eq, x, r), out)
+end
+
+# atoms b^(e_i) with one base b free of x and exponents rational multiples of one
+# another: (b^g, k_i) with b^(e_i) = (b^g)^(k_i), k_i integers; else nothing
+function _common_power(atoms::Vector{Sym})
+    length(atoms) > 1 || return nothing
+    all(a -> a.kind == POW, atoms) || return nothing
+    b = atoms[1].args[1]
+    es = [a.args[2] for a in atoms]
+    if !all(a -> _eq(a.args[1], b), atoms)
+        # integer bases that are powers of one integer: 4^x = 2^(2x)
+        bases = [a.args[1] for a in atoms]
+        all(c -> c.kind == NUMBER && _isint(c.num) && c.num > SymNumber(1), bases) || return nothing
+        r = _common_integer_base([big(_numerator(c.num)) for c in bases])
+        r === nothing && return nothing
+        b = Sym(SymNumber(r))
+        es = [e * Sym(SymNumber(_ilog(big(_numerator(c.num)), r))) for (e, c) in zip(es, bases)]
+    end
+    e1 = es[1]
+    ratios = [cancel(e / e1) for e in es]
+    all(r -> r.kind == NUMBER && isexact(r.num), ratios) || return nothing
+    q = reduce(lcm, (big(_denominator(r.num)) for r in ratios); init = big(1))
+    g = e1 / Sym(SymNumber(q))
+    ks = [Int(_numerator(r.num) * (q ÷ _denominator(r.num))) for r in ratios]
+    (pow(b, g), ks)
+end
+
+# the least integer r > 1 of which every base is a power, or nothing
+function _common_integer_base(bs::Vector{BigInt})
+    m = minimum(bs)
+    for k in 64:-1:1
+        r = _perfect_root(m, k)
+        r === nothing && continue
+        all(c -> _ilog(c, r) !== nothing, bs) && return r
+    end
+    nothing
+end
+function _ilog(c::BigInt, r::BigInt)                 # k with r^k == c, or nothing
+    k = 0
+    while c > 1 && c % r == 0
+        c ÷= r
+        k += 1
+    end
+    c == 1 ? k : nothing
+end
+
+_issqrt(g::Sym) = g.kind == POW && g.args[2] == HALF
+
+# an equation in x and R = sqrt(t): reduced with R^2 = t to A + B R = 0, squared to
+# A^2 = B^2 t (polynomial), solved, and the extraneous roots of squaring dropped
+function _solve_radical(eq::Relation, nu::Sym, u::Sym, R::Sym, x::Sym)
+    t = R.args[1]
+    atoms = Set{Sym}()
+    _poly_atoms!(atoms, nu)
+    P = Poly{Sym}(nu, [u])                               # coefficients in x
+    A, B = ZERO, ZERO
+    for (ev, c) in zip(exponent_vectors(P), coefficients(P))
+        k = ev[1]
+        iseven(k) ? (A += c * t^(k ÷ 2)) : (B += c * t^((k - 1) ÷ 2))
+    end
+    cands = solve(expand(A^2 - B^2 * t) ~ 0, x)
+    filter(r -> _satisfies(eq, x, r), cands)
+end
+
+# g(x) = r as equations arg ~ value for an argument of g
+function _invert(g::Sym, r::Sym, x::Sym)
+    k = g.kind
+    if k == FN && length(g.args) == 1
+        t = g.args[1]
+        name = g.name
+        name === :sin && return [(t, asin(r)), (t, PI - asin(r))]
+        name === :cos && return [(t, acos(r)), (t, -acos(r))]
+        name === :tan && return [(t, atan(r))]
+        name === :log && return [(t, exp(r))]
+        name === :asin && return [(t, sin(r))]
+        name === :acos && return [(t, cos(r))]
+        name === :atan && return [(t, tan(r))]
+        name === :sinh && return [(t, asinh(r))]
+        name === :cosh && return [(t, acosh(r)), (t, -acosh(r))]
+        name === :tanh && return [(t, atanh(r))]
+    elseif k == POW
+        b, e = g.args
+        if !has(b, x)                                       # b^t = r: t = log(r)/log(b)
+            iszero(r) && return Tuple{Sym,Sym}[]
+            return [(e, b === E ? log(r) : log(r) / log(b))]
+        elseif !has(e, x) && e.kind == NUMBER && isexact(e.num)   # t^(p/q) = r
+            return [(b, r^inv(e))]
+        end
+    end
+    throw(ArgumentError("solve: cannot invert $g for $x"))
+end
+
+# does r satisfy eq? (exactly, or numerically for constants; kept when undecidable)
+function _satisfies(eq::Relation, x::Sym, r::Sym)
+    d = try
+        subs(eq.lhs - eq.rhs, x => r)
+    catch err
+        err isa DivideError && return false
+        rethrow()
+    end
+    (iszero(d) || iszero(cancel(d))) && return true
+    _hassymbol(d) && return true
+    v = try N(d) catch; return true end
+    abs(v) <= 1e-9 * max(1, abs(N(r)))
+end
 
 function _solve_exact(n::Sym, x::Sym, atoms)
     gens = [x; sort!([a for a in atoms if !_eq(a, x)]; lt = _lt)]

@@ -611,8 +611,25 @@ interface works with SymJ equations.
   - degree ≥ 5 with numeric coefficients: numeric roots by Aberth's iteration, with no
     dependency; with symbolic coefficients, an error.
 - **Output.** A vector of distinct roots. Numeric roots are sorted, real ones first.
-- **Not yet:** inequalities, systems, and equations in functions of `x`
-  (`sin(x) ~ 1/2`).
+- **Equations in one function of `x`.** When `x` appears only through one function
+  application `g` (`sin(2x)`, `exp(x)`, `sqrt(x + 1)`, `2^x`), `u` replaces `g`, the
+  polynomial in `u` is solved, and `g(t) = r` is inverted into equations for its
+  argument, solved recursively.
+  - Inversions: `sin(t) = r` gives `t = asin(r)` and `π − asin(r)` (principal solutions
+    in one period); `cos` gives `±acos(r)`; `bᵗ = r` gives `log(r)/log(b)`;
+    `t^(p/q) = r` gives `r^(q/p)`.
+  - Candidates are checked by substitution, which drops extraneous roots
+    (`sqrt(x) ~ −1` has none).
+  - Several powers of one base count as one function: `exp(2x)` and `exp(x)` are
+    powers of `u = exp(x)`, and `4^x` and `2^x` are powers of `2^x`.
+  - A square root mixed with `x` is reduced to `A + B·sqrt(t) = 0` using `R² = t`,
+    squared to the polynomial `A² = B²t`, and extraneous roots dropped:
+    `sqrt(x + 1) ~ x − 1` gives `[3]`.
+- **Not yet:**
+  - inequalities and systems;
+  - several unrelated functions of `x` (`sin(x) + cos(x) ~ 1`);
+  - exponents that aren't rational multiples of one another (`9^x ~ 3^(x+2)`);
+  - equations needing Lambert W (`x·eˣ ~ 1`).
 
 Two canonical-form additions came with it:
 
