@@ -418,7 +418,13 @@ then by degree. The input is first reduced to squarefree primitive parts.
     is Fujiwara's root bound. Cauchy's bound was far too loose for polynomials with
     large coefficients and small roots, and inflated every number in the lattice.
   - **Lattice.** Rows `[eᵢ | tᵢⱼ/Dⱼ]` and `[0 | pᵃ/Dⱼ]`, with the trace columns scaled
-    down so that true factors give short vectors. LLL uses exact rational Gram–Schmidt.
+    down so that true factors give short vectors. LLL is exact and all-integer (Cohen,
+    Algorithm 2.6.7): it keeps the integers d_i and λ_ij in place of the rational
+    Gram–Schmidt data, so every division is exact and there are no gcd normalizations.
+    Exactness matters because a single short vector is taken as proof of irreducibility.
+    Compared with exact rationals this is 13x faster on S₅ (0.98 s → 74 ms) and 8x on
+    S₆ (6.1 s → 0.76 s). FLINT is still about 60x faster on S₅; closing that gap needs
+    floating-point LLL and traces truncated to their leading bits (van Hoeij–Novocin).
   - **Reading off factors.** Basis vectors whose Gram–Schmidt norm exceeds the proven
     bound are dropped. If one vector is left, `f` is irreducible. Otherwise the reduced
     echelon form should be a 0/1 partition, each part confirmed by trial division.
@@ -771,10 +777,12 @@ and a finalizer per operation), which dominates the small benchmarks.
   would fix the latter.
 - **Polynomials, next steps.**
   - Zippel's sparse modular GCD for sparse, high-degree gcds.
-  - Faster mod-p arithmetic (Montgomery or Barrett reduction) and fewer small allocations in the Brown recursion.
+  - Brown recursion: done so far are bivariate images in dense buffers and in-place
+    Newton updates. Mod-p reduction is a few percent of the time, so Montgomery or
+    Barrett reduction isn't worth it.
   - A univariate dense representation.
-  - Faster LLL for van Hoeij: floating-point Gram–Schmidt, and adding traces one at a
-    time. Exact rationals are most of S₆'s 6.1 s.
+  - Faster LLL for van Hoeij: floating-point LLL on truncated traces (van
+    Hoeij–Novocin). The integer LLL is now the main cost of S₆'s 0.76 s.
   - Graded monomial orders.
   - Wider monomials (`UInt128` or exponent vectors) for many generators or high degree.
   - Evaluation by Horner's scheme.
