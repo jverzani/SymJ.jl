@@ -118,8 +118,11 @@ Zippel's sparse interpolation: much faster when the gcd has few terms relative t
 degrees in three or more variables, slower when the gcd is dense. The result is the
 same either way (it is verified by division).
 """
+_check_gcd_method(m::Symbol) = m in (:dense, :zippel) ? m :
+    throw(ArgumentError("the gcd method must be :dense or :zippel, not :$m"))
+
 function Base.gcd(p::Poly{SymNumber}, q::Poly{SymNumber}; method::Symbol = :dense)
-    method in (:dense, :zippel) || throw(ArgumentError("gcd: method must be :dense or :zippel"))
+    _check_gcd_method(method)
     p, q = _unify(p, q)
     g = _gcd_modular(_integer_scaled(p), _integer_scaled(q); sparse = method === :zippel)
     rational = !all(_isint, p.coefs) || !all(_isint, q.coefs)
@@ -127,25 +130,25 @@ function Base.gcd(p::Poly{SymNumber}, q::Poly{SymNumber}; method::Symbol = :dens
 end
 
 """
-    lcm(p::Poly, q::Poly)
+    lcm(p::Poly, q::Poly; method = :dense)
 
-Least common multiple, normalized like [`gcd`](@ref).
+Least common multiple, normalized like [`gcd`](@ref), whose `method` it takes.
 """
-function Base.lcm(p::Poly{SymNumber}, q::Poly{SymNumber})
+function Base.lcm(p::Poly{SymNumber}, q::Poly{SymNumber}; method::Symbol = :dense)
     p, q = _unify(p, q)
     (iszero(p) || iszero(q)) && return zero(p)
-    _positive(divexact(p * q, gcd(p, q)))
+    _positive(divexact(p * q, gcd(p, q; method)))
 end
 
 """
-    gcd(a::Sym, b::Sym)
-    lcm(a::Sym, b::Sym)
+    gcd(a::Sym, b::Sym; method = :dense)
+    lcm(a::Sym, b::Sym; method = :dense)
 
 GCD and LCM of expressions that are polynomials with numeric coefficients in their
-symbols, computed through [`Poly`](@ref).
+symbols, computed through [`Poly`](@ref); `method = :zippel` as for polynomials.
 """
-Base.gcd(a::Sym, b::Sym) = Sym(gcd(_poly_pair(a, b)...))
-Base.lcm(a::Sym, b::Sym) = Sym(lcm(_poly_pair(a, b)...))
+Base.gcd(a::Sym, b::Sym; method::Symbol = :dense) = Sym(gcd(_poly_pair(a, b)...; method))
+Base.lcm(a::Sym, b::Sym; method::Symbol = :dense) = Sym(lcm(_poly_pair(a, b)...; method))
 
 function _poly_pair(a::Sym, b::Sym)
     gs = Set{Sym}()

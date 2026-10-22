@@ -350,7 +350,15 @@ MGCD/PGCD (`src/modgcd.jl`).
 **The recursive primitive PRS** (`_gcd`) remains as the reference implementation. The
 tests check the two against each other.
 
-**Zippel's sparse interpolation** is opt-in: `gcd(p, q; method = :zippel)`. It changes
+**Zippel's sparse interpolation** is opt-in, per call, with no global setting:
+- `gcd` and `lcm`, on polynomials and expressions, take `method = :zippel`.
+- The functions built on gcds take `gcd_method = :zippel`: `cancel`, `factor`,
+  `factor_squarefree`, `squarefree_part`, `apart`. A different name, because
+  `factor(ex; method = :zippel)` would suggest a factoring method.
+- Gcds inside `RatFun` arithmetic (linear systems, `apart` with parameters) and inside
+  EEZ always use the default.
+
+It changes
 how the images inside Brown's loop over `x_k` are found; everything else is the same.
 - **The skeleton.** The first image comes from the full recursion. Its terms are taken
   as the gcd's support.
@@ -799,7 +807,7 @@ and a finalizer per operation), which dominates the small benchmarks.
   would fix the latter.
 - **Polynomials, next steps.**
   - Zippel: transposed Vandermonde solves per degree when the leading coefficient is a
-    single term (now one dense solve), and the opt-in through `cancel`/`factor`.
+    single term (now one dense solve).
   - Brown recursion: done so far are bivariate images in dense buffers and in-place
     Newton updates. Mod-p reduction is a few percent of the time, so Montgomery or
     Barrett reduction isn't worth it.

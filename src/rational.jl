@@ -74,7 +74,7 @@ function _poly_atoms!(s::Set{Sym}, ex::Sym)
 end
 
 """
-    cancel(ex)
+    cancel(ex; gcd_method = :dense)
 
 Write `ex` as `p/q` with `p` and `q` expanded polynomials that have no common factor.
 `q` has a positive leading coefficient and the integer content is shared out, so a
@@ -84,6 +84,7 @@ Symbols, function applications such as `sin(x)`, and non-integer powers such as
 `sqrt(x)` are treated as independent variables. This is always valid, but relations
 among them are not used: `(x - 1)/(sqrt(x) - 1)` is not reduced to `sqrt(x) + 1`.
 Expressions with floating point coefficients are returned unchanged.
+`gcd_method = :zippel` uses Zippel's sparse gcd (see [`gcd`](@ref)).
 
 ```julia
 cancel((x^2 - 1)/(x + 1))                  # x - 1
@@ -91,7 +92,8 @@ cancel(1/x + 1/x^2)                        # (x + 1)/x^2
 cancel((sin(x)^2 - 1)/(sin(x) + 1))        # sin(x) - 1
 ```
 """
-function cancel(ex::Sym)
+function cancel(ex::Sym; gcd_method::Symbol = :dense)
+    _check_gcd_method(gcd_method)
     n, d = numer_denom(ex)
     atoms = Set{Sym}()
     (_poly_atoms!(atoms, n) && _poly_atoms!(atoms, d)) || return ex
@@ -103,7 +105,7 @@ function cancel(ex::Sym)
         err isa OverflowError || rethrow()
         return ex                                      # degree too large to pack
     end
-    g = gcd(P, Q)
+    g = gcd(P, Q; method = gcd_method)
     P, Q = divexact(P, g), divexact(Q, g)
     if sign(Q.coefs[1]) < 0
         P, Q = -P, -Q
@@ -113,4 +115,4 @@ function cancel(ex::Sym)
     end
     Sym(P) / Sym(Q)
 end
-cancel(x::Number) = Sym(x)
+cancel(x::Number; gcd_method::Symbol = :dense) = Sym(x)

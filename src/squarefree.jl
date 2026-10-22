@@ -25,13 +25,14 @@ factor_squarefree(x^3 - x^2 - x + 1)               # (x + 1)*(x - 1)^2
 factor_squarefree((x^2 - 1)/(x^2 + 2x + 1)^2)      # (x - 1)/(x + 1)^3
 ```
 """
-function factor_squarefree(p::Poly{SymNumber})
+function factor_squarefree(p::Poly{SymNumber}; gcd_method::Symbol = :dense)
+    _check_gcd_method(gcd_method)
     iszero(p) && throw(ArgumentError("the zero polynomial has no squarefree factorization"))
     f = _integer_scaled(p)
     c = _int_content(f)
     f = _scale(f, inv(SymNumber(c)))
     sign(f.coefs[1]) < 0 && (f = -f)
-    facs = _sqf(f)
+    facs = _sqf(f, gcd_method)
     # the unit makes the product exact: p = unit * Π fᵢ^mᵢ
     lcprod = prod((g.coefs[1]^m for (g, m) in facs); init = N1)
     p.coefs[1] / lcprod, facs
@@ -43,27 +44,27 @@ end
 The product of the distinct irreducible factors of `p` (its radical), with positive
 leading coefficient and integer content 1. Also for expressions.
 """
-function squarefree_part(p::Poly{SymNumber})
-    _, facs = factor_squarefree(p)
+function squarefree_part(p::Poly{SymNumber}; gcd_method::Symbol = :dense)
+    _, facs = factor_squarefree(p; gcd_method)
     foldl((r, fm) -> r * fm.first, facs; init = one(p))
 end
 
 # f primitive with positive lc; returns its nonconstant factors by multiplicity
-function _sqf(f::Poly{SymNumber})
+function _sqf(f::Poly{SymNumber}, method::Symbol = :dense)
     i = _mainvar(f, f)
     i == 0 && return Pair{Poly{SymNumber},Int}[]
-    c = _content_mod(f, i)
+    c = _content_mod(f, i, method)
     pp = _isunit(c) ? f : divexact(f, c)
-    facs = _yun(pp, i)
+    facs = _yun(pp, i, method)
     _isunit(c) && return facs
-    _merge_factors(facs, _sqf(_positive(c)))
+    _merge_factors(facs, _sqf(_positive(c), method))
 end
 
 # gcd of the coefficients with respect to x_i, with the modular gcd
-function _content_mod(p::Poly{SymNumber}, i::Int)
+function _content_mod(p::Poly{SymNumber}, i::Int, method::Symbol = :dense)
     g = zero(p)
     for c in _coeffs_in(p, i)
-        g = gcd(g, c)
+        g = gcd(g, c; method)
         _isunit(g) && break
     end
     g
@@ -83,15 +84,15 @@ function _diff_in(p::Poly{C}, i::Int) where {C}
 end
 
 # Yun's algorithm for f primitive in x_i (every factor involves x_i)
-function _yun(f::Poly{SymNumber}, i::Int)
+function _yun(f::Poly{SymNumber}, i::Int, method::Symbol = :dense)
     out = Pair{Poly{SymNumber},Int}[]
     fp = _diff_in(f, i)
-    a = gcd(f, fp)
+    a = gcd(f, fp; method)
     b, c = divexact(f, a), divexact(fp, a)
     d = c - _diff_in(b, i)
     k = 1
     while b.monos[1] != 0                    # b is not yet a constant
-        a = gcd(b, d)
+        a = gcd(b, d; method)
         a.monos[1] == 0 || push!(out, _positive(a) => k)
         b, c = divexact(b, a), divexact(d, a)
         d = c - _diff_in(b, i)
@@ -110,27 +111,27 @@ end
 
 ## expressions
 
-function factor_squarefree(ex::Sym)
-    r = _sqf_parts(ex)
+function factor_squarefree(ex::Sym; gcd_method::Symbol = :dense)
+    r = _sqf_parts(ex, gcd_method)
     r === nothing && return ex
     (un, fn), (ud, fd) = r
     _sqf_sym(un, fn) / _sqf_sym(ud, fd)
 end
 
-function squarefree_part(ex::Sym)
-    r = _sqf_parts(ex)
+function squarefree_part(ex::Sym; gcd_method::Symbol = :dense)
+    r = _sqf_parts(ex, gcd_method)
     r === nothing && throw(ArgumentError("squarefree_part needs exact coefficients"))
     (_, fn), _ = r
     _sqf_sym(N1, [fm.first => 1 for fm in fn])
 end
 
 # factorizations of the numerator and denominator, or nothing for inexact coefficients
-function _sqf_parts(ex::Sym)
-    n, d = numer_denom(cancel(ex))
+function _sqf_parts(ex::Sym, gcd_method::Symbol = :dense)
+    n, d = numer_denom(cancel(ex; gcd_method))
     atoms = Set{Sym}()
     (_poly_atoms!(atoms, n) && _poly_atoms!(atoms, d)) || return nothing
     gs = sort!(collect(atoms); lt = _lt)
-    factor_squarefree(Poly{SymNumber}(n, gs)), factor_squarefree(Poly{SymNumber}(d, gs))
+    factor_squarefree(Poly{SymNumber}(n, gs); gcd_method), factor_squarefree(Poly{SymNumber}(d, gs); gcd_method)
 end
 
 _sqf_sym(u::SymNumber, facs) = foldl((r, fm) -> r * Sym(fm.first)^fm.second, facs; init = Sym(u))

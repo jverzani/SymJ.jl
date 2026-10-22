@@ -727,6 +727,25 @@ import ForwardDiff
         state[] = saved
         @test gcd(P(x // 2 + y // 3), P((3x + 2y) * z); method = :zippel) == P(x + 2y // 3)
         @test_throws ArgumentError gcd(P(x), P(y); method = :sparse)
+        # the keyword through the functions built on gcd (the same results)
+        zg = x^10 * y^3 * z + 2y^7 * z^5 * w - x^2 * w^8 + 3y^9 + x * y * z * w
+        za, zb = expand(zg * (x^9 * z^4 + y^8 * w^2 + 5)), expand(zg * (y^10 * w^3 - x^6 * w^5 + 7z))
+        @test gcd(za, zb; method = :zippel) == gcd(za, zb) && iszero(expand(gcd(za, zb) + zg))
+        @test lcm(za, zb; method = :zippel) == lcm(za, zb)
+        @test lcm(P4(za), P4(zb); method = :zippel) == lcm(P4(za), P4(zb))
+        @test cancel(za / zb; gcd_method = :zippel) == cancel(za / zb)
+        zs = expand(zg^2 * (x * y - z))
+        @test factor_squarefree(zs; gcd_method = :zippel) == factor_squarefree(zs)
+        @test factor_squarefree(P4(zs); gcd_method = :zippel) == factor_squarefree(P4(zs))
+        @test squarefree_part(zs; gcd_method = :zippel) == squarefree_part(zs)
+        zf = expand((x * y + z^2 + 1)^2 * (x - y * w))
+        @test factor(zf; gcd_method = :zippel) == factor(zf)
+        @test factor(P4(zf); gcd_method = :zippel) == factor(P4(zf))
+        @test apart(1 / ((x - y) * (x + y * z)), x; gcd_method = :zippel) == apart(1 / ((x - y) * (x + y * z)), x)
+        @test apart(1 / (x^2 - 1); gcd_method = :zippel) == apart(1 / (x^2 - 1))
+        @test cancel(Sym(3); gcd_method = :zippel) == 3 && factor(6; gcd_method = :zippel) == 6
+        @test_throws ArgumentError cancel(za / zb; gcd_method = :sparse)
+        @test_throws ArgumentError factor(zf; gcd_method = :sparse)
 
         # univariate, high degree
         u, v = Poly((x + 1)^30 * (x - 2)^20, x), Poly((x + 1)^25 * (x + 3)^20, x)

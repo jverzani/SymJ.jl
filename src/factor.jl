@@ -20,8 +20,8 @@
 # (evaluation and multivariate Hensel lifting) is the fast method.
 
 """
-    factor(p::Poly) -> (unit, [f₁ => m₁, f₂ => m₂, ...])
-    factor(ex::Sym)
+    factor(p::Poly; gcd_method = :dense) -> (unit, [f₁ => m₁, f₂ => m₂, ...])
+    factor(ex::Sym; gcd_method = :dense)
 
 Factorization into irreducibles over the rationals: `p == unit * Π fᵢ^mᵢ` with each
 `fᵢ` irreducible, primitive, of positive leading coefficient. Factors are sorted by
@@ -36,12 +36,15 @@ factor(x^4 - 1)                 # (x - 1)*(x + 1)*(x^2 + 1)
 factor(x^2*y^2 - 1)             # (x*y - 1)*(x*y + 1)
 ```
 
+`gcd_method = :zippel` uses Zippel's sparse gcd (see [`gcd`](@ref)) for the gcds of the
+squarefree decomposition and, for expressions, of `cancel`.
+
 Multivariate inputs are factored through Kronecker substitution, whose cost grows
 with the product of the degrees in each variable; very large inputs throw an
 `ArgumentError` rather than run for a long time.
 """
-function factor(p::Poly{SymNumber})
-    unit, sqf = factor_squarefree(p)
+function factor(p::Poly{SymNumber}; gcd_method::Symbol = :dense)
+    unit, sqf = factor_squarefree(p; gcd_method)
     out = Pair{Poly{SymNumber},Int}[]
     for (q, m) in sqf, g in _factor_sqfree(q)
         push!(out, g => m)
@@ -50,15 +53,15 @@ function factor(p::Poly{SymNumber})
     unit, out
 end
 
-function factor(ex::Sym)
-    n, d = numer_denom(cancel(ex))
+function factor(ex::Sym; gcd_method::Symbol = :dense)
+    n, d = numer_denom(cancel(ex; gcd_method))
     atoms = Set{Sym}()
     (_poly_atoms!(atoms, n) && _poly_atoms!(atoms, d)) || return ex
     gs = sort!(collect(atoms); lt = _lt)
-    num, den = factor(Poly{SymNumber}(n, gs)), factor(Poly{SymNumber}(d, gs))
+    num, den = factor(Poly{SymNumber}(n, gs); gcd_method), factor(Poly{SymNumber}(d, gs); gcd_method)
     _sqf_sym(num...) / _sqf_sym(den...)
 end
-factor(x::Number) = Sym(x)
+factor(x::Number; gcd_method::Symbol = :dense) = Sym(x)
 
 # irreducible factors of a squarefree, primitive, positive polynomial
 function _factor_sqfree(q::Poly{SymNumber})

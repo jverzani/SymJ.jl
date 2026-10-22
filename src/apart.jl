@@ -7,15 +7,16 @@
 # Σ c_k / p_i^j with deg c_k < deg p_i.
 
 """
-    apart(ex, x)
-    apart(ex)
+    apart(ex, x; gcd_method = :dense)
+    apart(ex; gcd_method = :dense)
 
 Partial fraction decomposition of a rational function of `x` with exact
 coefficients: a polynomial plus terms `c(x)/p(x)^j`, `p` irreducible and
 `deg c < deg p`. Coefficients may involve other symbols and parameters (and, as in
 [`cancel`](@ref), function applications): the decomposition is then over the field
 of rational functions in them, `ℚ(a, b, ...)`. With no `x`, `ex` must have one free
-variable.
+variable. `gcd_method = :zippel` uses Zippel's sparse gcd (see [`gcd`](@ref)) in the
+initial [`cancel`](@ref) and in factoring the denominator.
 
 ```julia
 apart(1/(x^2 - 1))              # 1/(2*(x - 1)) - 1/(2*(x + 1))
@@ -23,14 +24,14 @@ apart((x^3 + 1)/(x^2 - 1))      # x + 1/(x - 1)
 apart(1/((x - a)*(x - b)), x)   # 1/((a - b)*(x - a)) - 1/((a - b)*(x - b))
 ```
 """
-function apart(ex::Sym, x::Sym)
+function apart(ex::Sym, x::Sym; gcd_method::Symbol = :dense)
     _isnamed(x) || throw(ArgumentError("apart: $x is not a symbol"))
-    n, d = numer_denom(cancel(ex))
+    n, d = numer_denom(cancel(ex; gcd_method))
     atoms = Set{Sym}()
     (_poly_atoms!(atoms, n) && _poly_atoms!(atoms, d)) ||
         throw(ArgumentError("apart needs exact coefficients"))
     delete!(atoms, x)
-    isempty(atoms) || return _apart_params(n, d, x, sort!(collect(atoms); lt = _lt))
+    isempty(atoms) || return _apart_params(n, d, x, sort!(collect(atoms); lt = _lt), gcd_method)
     N, D = Poly{SymNumber}(n, [x]), Poly{SymNumber}(d, [x])
     q, r = divrem(N, D)
     result = Sym(q)
@@ -53,20 +54,20 @@ function apart(ex::Sym, x::Sym)
     result
 end
 
-function apart(ex::Sym)
+function apart(ex::Sym; gcd_method::Symbol = :dense)
     vars = free_symbols(ex)
     length(vars) == 1 || throw(ArgumentError("apart: give the variable, e.g. apart(ex, x)"))
-    apart(ex, only(vars))
+    apart(ex, only(vars); gcd_method)
 end
-apart(ex::Number, x...) = Sym(ex)
+apart(ex::Number, x...; gcd_method::Symbol = :dense) = Sym(ex)
 
 # Over ℚ(params): D factored over ℤ in (x, params); by Gauss's lemma its factors
 # involving x are its irreducible factors over ℚ(params)[x], the rest a unit there.
 # The same steps as above, in Poly{RatFun}.
-function _apart_params(n::Sym, d::Sym, x::Sym, params::Vector{Sym})
+function _apart_params(n::Sym, d::Sym, x::Sym, params::Vector{Sym}, gcd_method::Symbol = :dense)
     gs = [x; params]
     N, D = Poly{SymNumber}(n, gs), Poly{SymNumber}(d, gs)
-    c, facs = factor(D)
+    c, facs = factor(D; gcd_method)
     unit = Poly{SymNumber}(Sym(c), gs)
     xfacs = Pair{Poly{SymNumber},Int}[]
     for (p, m) in facs
