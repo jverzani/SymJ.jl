@@ -151,6 +151,16 @@ using Test
         end
         @test coefficients(Poly((x + 2^40)^4, x))[end] == SymNumber(big(2)^160)
 
+        # powers: multinomial theorem (sparse bases) and repeated multiplication (dense)
+        rep(p, k) = foldl(*, fill(p, k))
+        for (b, k) in ((Poly(x + y, x, y), 100), (Poly(x - 3y, x, y), 7), (Poly(x / 2 + y - 1, x, y), 9),
+                       (Poly(big(2)^70 * x + 1, x), 5), (Poly(sum(x^i for i in 0:9), x), 20),
+                       (Poly(x * y + z + 1, x, y, z), 12))
+            @test b^k == rep(b, k)
+        end
+        @test coefficients(Poly(x + y, x, y)^100)[51] == SymNumber(binomial(big(100), 50))
+        @test Poly(Sym(:a) * x + 1, x)^3 == rep(Poly(Sym(:a) * x + 1, x), 3)   # Sym coefficients
+
         # differing generators are unified
         @test Poly(x + 1, x) * Poly(y - 1, y) == Poly(x * y - x + y - 1, x, y)
 

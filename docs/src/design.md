@@ -229,6 +229,16 @@ end
   - `Poly → Sym` builds canonical nodes directly when the generators are symbols: bases
     visited in `_cmp` order are already sorted, and distinct monomials give distinct
     keys.
+- **Powers.** `p^k` uses the multinomial theorem when the base is sparse: each
+  composition of `k` is computed once, its monomial is `Σ aᵢ·mᵢ` in packed integer
+  arithmetic, and the multinomial coefficients are updated incrementally. Integer
+  coefficients are computed in `Int128` when `(Σ|cᵢ|)^k < 2^125` guarantees no
+  overflow, or else in `BigInt`, and converted to `SymNumber` once per term. (Doing
+  the arithmetic in `SymNumber`, whose big values are rationals, re-normalized a gcd
+  on every operation.) When the number of compositions is far above the degree bound
+  on the result size, many compositions share a monomial, as in a dense univariate
+  base, and repeated multiplication is cheaper. `(a+x)^100` went from 867 μs and 56k
+  allocations to 26 μs.
 - **`expand` uses `Poly`** whenever the expression is a polynomial with numeric
   coefficients in at most 16 symbols. Anything else (functions, radicals, symbolic
   exponents, or an exponent overflow) goes through the generic tree expansion. The
@@ -349,7 +359,8 @@ Run with `julia --project=bench bench/bench.jl` (Apple Silicon, Julia 1.13, SymE
 | `x + y` | 32 ns | 98 ns | 0.33 |
 | build Σ i·xⁱ·y²⁰⁰⁻ⁱ term by term | 216 μs | 593 μs | 0.36 |
 | build Π (x+i)ⁱ, i ≤ 30 | 5.1 μs | 14.7 μs | 0.35 |
-| `expand((x+y+z+1)^15)` | 240 μs | 433 μs | 0.56 |
+| `expand((x+y+z+1)^15)` | 135 μs | 534 μs | 0.25 |
+| `expand((a+x)^100)` | 26 μs | 29 μs | 0.91 |
 | `diff` of expanded poly · sin | 38 μs | 52 μs | 0.72 |
 | `subs` into 286-term poly | 152 μs | 170 μs | 0.89 |
 | `expand(e*(e+w))`, `e=(x+y+z+w)^15` | 5.1 ms | 415 ms | 0.01 |
@@ -380,7 +391,6 @@ and a finalizer per operation), which dominates the small benchmarks.
   - `cancel` for rational expressions, built on `gcd`.
   - Graded monomial orders.
   - Wider monomials (`UInt128` or exponent vectors) for many generators or high degree.
-  - `Poly^k` by the multinomial theorem rather than repeated multiplication.
   - Evaluation by Horner's scheme.
   - Threads for large products.
 - **Hash-consing.** Interning nodes would make equality pointer comparison and save

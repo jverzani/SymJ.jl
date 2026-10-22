@@ -322,17 +322,68 @@ end
 function Base.:^(p::Poly{C}, k::Integer) where {C}
     k < 0 && throw(DomainError(k, "negative powers of polynomials are not polynomials"))
     k == 0 && return one(p)
-    if length(p.monos) == 1
-        emax = _maxexp(p.bits)
-        any(d -> d * k > emax, _maxdegs(p)) && throw(OverflowError("exponent exceeds $emax"))
-        return Poly{C}(p.gens, p.bits, [p.monos[1] * UInt64(k)], [p.coefs[1]^k])
-    end
-    # Repeated multiplication by the (small) base beats squaring for sparse inputs.
+    k == 1 && return p
+    emax = _maxexp(p.bits)
+    degs = _maxdegs(p)
+    any(d -> d * k > emax, degs) && throw(OverflowError("exponent exceeds $emax"))
+    t = length(p.monos)
+    t == 1 && return Poly{C}(p.gens, p.bits, [p.monos[1] * UInt64(k)], [p.coefs[1]^k])
+    # The multinomial theorem computes each composition of k once, which is the result
+    # size when few compositions share a monomial. Many collide when the base is dense
+    # (e.g. 1 + x + ... + x^9), and then repeated multiplication by the small base is
+    # cheaper: compare the number of compositions with the degree bound on the size.
+    ncomp = binomial(big(k + t - 1), t - 1)
+    sizebound = prod(big(k * d + 1) for d in degs)
+    ncomp <= 4 * sizebound && return _multinomial_pow(p, Int(k))
     r = p
     for _ in 2:k
         r = r * p
     end
     r
+end
+
+# (c_1 m_1 + ... + c_t m_t)^k = Σ k!/(a_1!...a_t!) Π c_i^a_i m_i^a_i. Packed monomials
+# make m_i^a_i a multiplication and the product a sum (degrees checked by the caller).
+# Integer coefficients are computed in Int128 when (Σ|c_i|)^k bounds every coefficient
+# below 2^125, else in BigInt, and converted once per term: SymNumber's big values are
+# rationals, and normalizing them on every multiply-add dominated the cost.
+function _multinomial_pow(p::Poly{C}, k::Int) where {C}
+    if C === SymNumber && all(_isint, p.coefs)
+        T = sum(c -> abs(big(_numerator(c))), p.coefs)^k < big(2)^125 ? Int128 : BigInt
+        monos, coefs = _multinomial_terms(p.monos, T[T(_numerator(c)) for c in p.coefs], k, one(T))
+        return _sorted_poly(p.gens, p.bits, monos, SymNumber[SymNumber(c) for c in coefs])
+    end
+    monos, coefs = _multinomial_terms(p.monos, p.coefs, k, N1)
+    _sorted_poly(p.gens, p.bits, monos, coefs)
+end
+
+function _multinomial_terms(ms::Vector{UInt64}, cs::Vector{T}, k::Int, b1) where {T}
+    cpow = [T[a == 0 ? one(T) : c^a for a in 0:k] for c in cs]   # exact 1, even for floats
+    table = _MonoTable{T}(min(binomial(k + length(ms) - 1, length(ms) - 1), 1 << 20))
+    _multinomial!(table, ms, cpow, 1, k, one(T), UInt64(0), b1)
+    _contents(table)
+end
+
+# binomial(rem, a) from binomial(rem, a - 1)
+_binstep(b::Integer, rem::Int, a::Int) = div(b * (rem - a + 1), a)
+_binstep(b::SymNumber, rem::Int, a::Int) = b * SymNumber(rem - a + 1) / SymNumber(a)
+_bincoef(::Type{T}, b::Integer) where {T<:Integer} = T(b)
+_bincoef(::Type{C}, b::SymNumber) where {C} = _tocoef(C, b)
+
+function _multinomial!(table::_MonoTable{T}, ms, cpow, i::Int, rem::Int, coef::T, mono::UInt64, b1) where {T}
+    if rem == 0
+        _addto!(table, mono, coef)
+    elseif i == length(ms)
+        _addto!(table, mono + UInt64(rem) * ms[i], coef * cpow[i][rem+1])
+    else
+        b = b1                                    # binomial(rem, a), updated in the loop
+        for a in 0:rem
+            a > 0 && (b = _binstep(b, rem, a))
+            ca = coef * _bincoef(T, b) * cpow[i][a+1]
+            _multinomial!(table, ms, cpow, i + 1, rem - a, ca, mono + UInt64(a) * ms[i], b1)
+        end
+    end
+    table
 end
 
 # scalars and expressions lift into the polynomial's ring
