@@ -567,6 +567,76 @@ import ForwardDiff
         @test cancel((1 / x - 1 / y) / (x - y)) == -1 / (x * y)
     end
 
+    @testset "factor and apart" begin
+        P1(e) = Poly(e, x)
+        P3(e) = Poly(e, x, y, z)
+        prodf(p, (u, fs)) = foldl((r, fm) -> r * fm.first^fm.second, fs; init = Poly(Sym(u), gens(p)...))
+        @test factor(P1(x^4 - 1)) == (SymNumber(1), [P1(x + 1) => 1, P1(x - 1) => 1, P1(x^2 + 1) => 1])
+        @test factor(P1(6x^2 + 5x + 1)) == (SymNumber(1), [P1(2x + 1) => 1, P1(3x + 1) => 1])
+        @test factor(P1(2x^3 - 6x)) == (SymNumber(2), [P1(x) => 1, P1(x^2 - 3) => 1])
+        @test factor(P1(-(x^2 + 1)^2 * (x - 3) / 4)) == (SymNumber(-1 // 4), [P1(x - 3) => 1, P1(x^2 + 1) => 2])
+        @test length(factor(P1(x^5 - x - 1))[2]) == 1                 # irreducible
+        @test length(factor(P1(x^4 + 1))[2]) == 1                     # irreducible over Q, splits mod every p
+        @test Set(factor(P1(x^4 + 4))[2]) == Set([P1(x^2 - 2x + 2) => 1, P1(x^2 + 2x + 2) => 1])
+        @test [degree(g) for (g, _) in factor(P1(x^60 - 1))[2]] == [1, 1, 2, 2, 2, 4, 4, 4, 8, 8, 8, 16]
+        @test length(factor(P1(prod(x - i for i in -15:15)))[2]) == 31
+        big2 = P1((big(10)^20 * x^3 + 7x + big(3)^40) * (x^4 - big(2)^60 * x + 1))
+        @test prodf(big2, factor(big2)) == big2 && length(factor(big2)[2]) == 2
+        # Swinnerton-Dyer: irreducible of degree 16, many factors mod every prime
+        s2, s3, s5, s7 = sqrt(Sym(2)), sqrt(Sym(3)), sqrt(Sym(5)), sqrt(Sym(7))
+        sd = expand(prod(x + a + b + c + d for a in (s2, -s2), b in (s3, -s3), c in (s5, -s5), d in (s7, -s7)))
+        @test length(factor(P1(sd))[2]) == 1
+        # multivariate
+        @test Set(factor(P3(x^2 * y^2 - 1))[2]) == Set([P3(x * y - 1) => 1, P3(x * y + 1) => 1])
+        @test factor(P3(x^3 + y^3))[2] == [P3(x + y) => 1, P3(x^2 - x * y + y^2) => 1]
+        @test factor(P3(x * y + x + y + 1))[2] == [P3(x + 1) => 1, P3(y + 1) => 1]
+        @test length(factor(P3(x^6 - y^6))[2]) == 4
+        @test factor(P3((x + y + z + 1)^2 * (x - y) * (x * y * z - 1)))[2] ==
+              [P3(x - y) => 1, P3(x * y * z - 1) => 1, P3(x + y + z + 1) => 2]
+        @test_throws ArgumentError factor(zero(P1(x)))
+
+        # random products: exact product, irreducible factors, right multiplicities
+        state = Ref(UInt64(2024))
+        rnd(k) = (state[] = state[] * 6364136223846793005 + 1442695040888963407; Int((state[] >> 33) % k))
+        rp() = P3(sum((rnd(5) - 2) * x^rnd(3) * y^rnd(2) for _ in 1:3) + rnd(4) + 1)
+        for _ in 1:12
+            p = rp() * rp()^2 * rp()
+            iszero(p) && continue
+            u, fs = factor(p)
+            @test prodf(p, (u, fs)) == p
+            @test all(fm -> length(factor(fm.first)[2]) == 1 && sign(fm.first.coefs[1]) > 0, fs)
+        end
+        for _ in 1:12
+            p = P1(sum((rnd(9) - 4) * x^i for i in 0:rnd(6)) + 1) * P1(sum((rnd(9) - 4) * x^i for i in 0:rnd(6)) + 1)
+            iszero(p) && continue
+            u, fs = factor(p)
+            @test prodf(p, (u, fs)) == p
+            @test all(fm -> length(factor(fm.first)[2]) == 1, fs)
+        end
+
+        # expressions
+        @test factor(x^4 - 1) == (x + 1) * (x - 1) * (x^2 + 1)
+        @test factor(x^2 * y^2 - 1) == (x * y + 1) * (x * y - 1)
+        @test factor((x^2 - 1) / (x^2 + 2x + 1)) == (x - 1) / (x + 1)
+        @test factor(sin(x)^2 - 1) == (sin(x) - 1) * (sin(x) + 1)
+        @test factor(x / (x + 0.5)) == x / (x + 0.5)
+        @test factor(12) == 12
+
+        # partial fractions
+        @test apart(1 / (x^2 - 1)) == (1 // 2) / (x - 1) - (1 // 2) / (x + 1)
+        @test apart((x^3 + 1) / (x^2 - 1)) == x + 1 / (x - 1)
+        @test apart(1 / (x^3 + x)) == 1 / x - x / (x^2 + 1)
+        @test apart((3x + 5) / (x + 1)^2) == 3 / (x + 1) + 2 / (x + 1)^2
+        @test apart((2x^2 + 3) / (x^3 - 2)) == (2x^2 + 3) / (x^3 - 2)   # irreducible denominator
+        @test apart(x^2 + 1) == x^2 + 1
+        for e in (1 / ((x - 1)^2 * (x + 1)), (x^4 + 1) / (x^2 * (x^2 + 1)^2), 1 / (x^4 - 1),
+                  (x / 2 + 1) / (3x^2 - 3), (x^5 + 2) / ((x^2 + x + 1)^2 * (x - 2)^3 * x))
+            @test cancel(apart(e) - e) == 0
+        end
+        @test_throws ArgumentError apart(1 / ((x - y) * (x + 1)), x)   # symbolic coefficients: not yet
+        @test_throws ArgumentError apart(x / y)                         # two symbols: give x
+    end
+
     @testset "iteration (like Number)" begin
         for ex in (x, x + y, sin(x), Sym(2), Poly(x + 1, x))
             @test collect(ex) == fill(ex)

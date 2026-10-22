@@ -369,6 +369,60 @@ solves for coefficients with far fewer evaluations.
   `cancel` does. Rational expressions are cancelled first, then numerator and
   denominator are factored: `(x^2 - 1)/(x^2 + 2x + 1)^2 → (x - 1)/(x + 1)^3`.
 
+### Factorization
+
+`factor(p)` returns `(unit, [f₁ => m₁, …])`. The factors are irreducible over ℚ,
+primitive, and have positive leading coefficients. They're sorted by multiplicity,
+then by degree. The input is first reduced to squarefree primitive parts.
+
+**Univariate: Zassenhaus.**
+- **Choosing a prime.** Pick a small odd prime that keeps the polynomial squarefree and
+  doesn't divide the leading coefficient. Of up to five candidates, keep the one with
+  the fewest modular factors, since that keeps recombination cheap.
+- **Factoring mod p.** Distinct-degree factorization, then Cantor–Zassenhaus to split
+  equal-degree parts, with a fixed xorshift generator so results are reproducible.
+- **Hensel lifting.** The two-factor lift is linear, one power of `p` per step; several
+  factors are lifted through a balanced split. It runs to `p^k > 2|lc|·2ⁿ‖f‖₂`, past
+  the Landau–Mignotte bound.
+- **Recombination.** Try subsets of the lifted factors, smallest first. Each candidate
+  `lc·Π mod p^k`, taken in the symmetric range, is tested by exact division over ℤ.
+
+**Multivariate: Kronecker substitution.**
+- Map `xᵢ → t^(wᵢ)`, with mixed-radix weights above each variable's degree. This is a
+  ring map, injective on the monomials of any factor.
+- Factor the univariate image, with multiplicities, since the image need not be
+  squarefree.
+- Test decoded products of subsets of those factors by multivariate division.
+- The image has degree about `Π (degᵢ + 1)`, so above 4000 an `ArgumentError` is thrown
+  rather than running for a very long time. Wang's EEZ algorithm (evaluation plus
+  multivariate Hensel lifting) is the fast method for large multivariate inputs.
+
+**Timings.**
+
+| polynomial | time |
+|:--|--:|
+| 31 linear factors | 3.3 ms |
+| `x^60 - 1` | 5.6 ms |
+| `x^105 - 1` | 45 ms |
+| the degree-16 Swinnerton-Dyer polynomial, shown irreducible | 2.2 ms |
+| small multivariate inputs | under 2 ms |
+
+**Expressions.** `factor(ex)` treats atoms the way `cancel` does, and factors the
+numerator and denominator of rational expressions.
+
+### Partial fractions
+
+`apart(ex, x)` decomposes a rational function of `x` with exact numeric coefficients
+into a polynomial plus terms `c/pʲ`, with `p` irreducible and `deg c < deg p`.
+
+1. Division gives the polynomial part and a proper remainder `r`.
+2. `factor` gives `d = c·Π pᵢ^mᵢ`.
+3. For each `i`, `Aᵢ = (r/c)·(d/pᵢ^mᵢ)⁻¹ mod pᵢ^mᵢ`, by extended Euclid over ℚ.
+4. Expanding `Aᵢ` in powers of `pᵢ` splits `Aᵢ/pᵢ^mᵢ` into the terms.
+
+Symbolic coefficients (other symbols) aren't supported yet, since that needs factoring
+over ℚ(y).
+
 ### Rational expressions
 
 `numer_denom(ex)` writes `ex` as a single fraction without expanding anything.
@@ -463,8 +517,9 @@ and a finalizer per operation), which dominates the small benchmarks.
   - Zippel's sparse modular GCD for sparse, high-degree gcds.
   - Faster mod-p arithmetic (Montgomery or Barrett reduction) and fewer small allocations in the Brown recursion.
   - A univariate dense representation.
-  - Full factorization over ℤ (Zassenhaus or van Hoeij, starting from the squarefree
-    decomposition), then partial fractions.
+  - Wang's EEZ multivariate factorization, and van Hoeij's lattice recombination for
+    univariate polynomials with very many modular factors.
+  - Partial fractions with symbolic coefficients.
   - `cancel` for rational expressions, built on `gcd`.
   - Graded monomial orders.
   - Wider monomials (`UInt128` or exponent vectors) for many generators or high degree.
