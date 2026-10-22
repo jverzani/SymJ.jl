@@ -410,15 +410,34 @@ then by degree. The input is first reduced to squarefree primitive parts.
 - **Recombination.** Try subsets of the lifted factors, smallest first. Each candidate
   `lc·Π mod p^k`, taken in the symmetric range, is tested by exact division over ℤ.
 
-**Multivariate: Kronecker substitution.**
-- Map `xᵢ → t^(wᵢ)`, with mixed-radix weights above each variable's degree. This is a
-  ring map, injective on the monomials of any factor.
-- Factor the univariate image, with multiplicities, since the image need not be
-  squarefree.
-- Test decoded products of subsets of those factors by multivariate division.
-- The image has degree about `Π (degᵢ + 1)`, so above 4000 an `ArgumentError` is thrown
-  rather than running for a very long time. Wang's EEZ algorithm (evaluation plus
-  multivariate Hensel lifting) is the fast method for large multivariate inputs.
+**Multivariate: Wang's EEZ approach** (`src/eez.jl`).
+- **Setup.** The main variable `x` is the active variable of least degree. The content
+  in `x`, a polynomial in the other variables, is factored on its own.
+- **Evaluation point.** An integer point `α` for the other variables, with
+  `lc_x(q)(α) ≠ 0` and `q(x, α)` squarefree. Of a few such points, keep the one with
+  fewest univariate factors. A point with one factor proves `q` irreducible.
+- **Shift.** `y → y + α` moves the point to 0, so Taylor coefficients are plain
+  coefficients and evaluating means dropping terms.
+- **Leading coefficients.** Instead of Wang's leading-coefficient distribution,
+  `L = lc_x(q)` is imposed on every factor of `L^(r-1)·q`, and primitive parts are taken
+  at the end.
+- **Lifting.** Multivariate Hensel lifting, one variable at a time, with multivariate
+  Diophantine equations (Geddes–Czapor–Labahn 6.2–6.4), over ℚ. Working over ℚ needs no
+  p-adic coefficient bound, and an exact product check decides success.
+- **Spurious factors.** If `α` split a true factor, the full lift fails. Then two-factor
+  lifts of subsets of the univariate factors, smallest first, find each irreducible
+  factor.
+- **Fallback.** Kronecker substitution (`x_i → t^(w_i)`, factoring the univariate image,
+  decoding subset products) is the fallback if packed exponents would overflow, and the
+  reference in the tests. Its image has degree about `Π (deg_i + 1)` and is capped at
+  4000.
+- **Speed.** Against Kronecker:
+
+  | polynomial | Kronecker | EEZ |
+  |:--|--:|--:|
+  | `(wy + x + 1)(xz − y² + 3w)(x²y + z³ + w)` | 14.2 s | 2.5 ms |
+  | `x⁶ − y⁶z⁶` | 3.6 s | 1.7 ms |
+  | `(x⁵y³ + z⁴w² − 7)(x⁴ − y⁵z + w³ + 2)(xyzw + 1)` | beyond its cap | 38 ms |
 
 **Timings.**
 
@@ -583,8 +602,9 @@ and a finalizer per operation), which dominates the small benchmarks.
   - Zippel's sparse modular GCD for sparse, high-degree gcds.
   - Faster mod-p arithmetic (Montgomery or Barrett reduction) and fewer small allocations in the Brown recursion.
   - A univariate dense representation.
-  - Wang's EEZ multivariate factorization, and van Hoeij's lattice recombination for
-    univariate polynomials with very many modular factors.
+  - van Hoeij's lattice recombination for univariate polynomials with very many
+    modular factors; Wang's leading-coefficient distribution in EEZ (smaller lifts than
+    imposing `L^(r-1)`).
   - `cancel` for rational expressions, built on `gcd`.
   - Graded monomial orders.
   - Wider monomials (`UInt128` or exponent vectors) for many generators or high degree.

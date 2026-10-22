@@ -628,6 +628,37 @@ import ForwardDiff
               [P3(x - y) => 1, P3(x * y * z - 1) => 1, P3(x + y + z + 1) => 2]
         @test_throws ArgumentError factor(zero(P1(x)))
 
+        # EEZ: against Kronecker substitution (the reference) on random products
+        w = Sym(:w)
+        P4(e) = Poly(e, x, y, z, w)
+        state4 = Ref(UInt64(77))
+        rnd4(k) = (state4[] = state4[] * 6364136223846793005 + 1442695040888963407; Int((state4[] >> 33) % k))
+        rp4() = P4(sum((rnd4(5) - 2) * x^rnd4(3) * y^rnd4(2) * z^rnd4(2) for _ in 1:3) + rnd4(3) + 1)
+        for _ in 1:12
+            p = rp4() * rp4() * rp4()
+            _, sq = factor_squarefree(p)
+            for (q, _) in sq
+                act = [i for i in 1:4 if SymJ._deg_in_all(q, i) > 0]
+                length(act) > 1 || continue
+                @test Set(SymJ._factor_eez(q, act)) == Set(SymJ._factor_kronecker(q, act))
+            end
+        end
+        # a point that splits an irreducible factor: recombination recovers the factors
+        P2(e) = Poly(e, x, y)
+        for (e, us, want) in ((x^2 - y, [P2(x - 2), P2(x + 2)], [x^2 - y]),
+                              ((x^2 - y) * (x + y), [P2(x - 2), P2(x + 2), P2(x + 4)], [x + y, x^2 - y]))
+            qs = SymJ._shift_var(P2(expand(e)), 2, 4)
+            gs = [SymJ._shift_var(g, 2, -4) for g in SymJ._eez_split(qs, us, 1, [2])]
+            @test Set(Sym.(gs)) == Set(want)
+        end
+        # beyond Kronecker substitution's reach (image degree ~ 10*9*6*6)
+        big4 = P4(expand((x^5 * y^3 + z^4 * w^2 - 7) * (x^4 - y^5 * z + w^3 + 2) * (x * y * z * w + 1)))
+        @test_throws ArgumentError SymJ._factor_kronecker(big4, [1, 2, 3, 4])
+        u4, f4 = factor(big4)
+        @test prodf(big4, (u4, f4)) == big4 && length(f4) == 3
+        # content in the main variable is factored separately
+        @test Set(factor(P4((y^2 - 1) * (x * y + z)))[2]) == Set([P4(y - 1) => 1, P4(y + 1) => 1, P4(x * y + z) => 1])
+
         # random products: exact product, irreducible factors, right multiplicities
         state = Ref(UInt64(2024))
         rnd(k) = (state[] = state[] * 6364136223846793005 + 1442695040888963407; Int((state[] >> 33) % k))

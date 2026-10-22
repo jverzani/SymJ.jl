@@ -67,7 +67,12 @@ function _factor_sqfree(q::Poly{SymNumber})
     total = degree(q)
     total == 1 && return [q]
     length(act) == 1 && return _factor_univariate(q, only(act))
-    _factor_kronecker(q, act)
+    try
+        return _factor_eez(q, act)
+    catch err
+        err isa OverflowError || rethrow()       # packed exponents of L^(r-1) q
+        return _factor_kronecker(q, act)
+    end
 end
 
 _deg_in_all(p::Poly, i::Int) = maximum((_exponent(m, p.bits, length(p.gens), i) for m in p.monos); init = 0)
