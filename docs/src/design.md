@@ -343,6 +343,30 @@ cofactors (first row). That case is where Brown's dense method is weakest: it ne
 interpolation addresses it: it learns the support of the gcd from one dense image, then
 solves for coefficients with far fewer evaluations.
 
+### Squarefree factorization
+
+`factor_squarefree(p)` returns `(unit, [f₁ => m₁, f₂ => m₂, …])` with
+`p = unit·Π fᵢ^mᵢ`. The guarantees:
+- each `fᵢ` is squarefree, primitive, and has a positive leading coefficient;
+- the `fᵢ` are pairwise coprime;
+- the multiplicities are distinct and increasing.
+
+`squarefree_part(p)` is `Π fᵢ`.
+
+- **Algorithm.** A primitive `f` splits into its content with respect to its most
+  significant generator `xᵢ` (a polynomial in the later generators) and its primitive
+  part, all of whose irreducible factors involve `xᵢ`.
+  - **Primitive part:** decomposed by Yun's algorithm, a few gcds with `∂f/∂xᵢ`
+    using the modular gcd.
+  - **Content:** decomposed recursively in the remaining generators.
+  - **Merging:** the two sets of factors are coprime, so factors of equal multiplicity
+    are multiplied.
+- **Speed.** 1.5 ms for a 612-term polynomial in 4 variables, 0.09 ms for a degree-55
+  univariate one.
+- **Expressions.** `factor_squarefree(ex)` and `squarefree_part(ex)` treat atoms the way
+  `cancel` does. Rational expressions are cancelled first, then numerator and
+  denominator are factored: `(x^2 - 1)/(x^2 + 2x + 1)^2 → (x - 1)/(x + 1)^3`.
+
 ### Rational expressions
 
 `numer_denom(ex)` writes `ex` as a single fraction without expanding anything.
@@ -437,7 +461,8 @@ and a finalizer per operation), which dominates the small benchmarks.
   - Zippel's sparse modular GCD for sparse, high-degree gcds.
   - Faster mod-p arithmetic (Montgomery or Barrett reduction) and fewer small allocations in the Brown recursion.
   - A univariate dense representation.
-  - Squarefree decomposition and factorization.
+  - Full factorization over ℤ (Zassenhaus or van Hoeij, starting from the squarefree
+    decomposition), then partial fractions.
   - `cancel` for rational expressions, built on `gcd`.
   - Graded monomial orders.
   - Wider monomials (`UInt128` or exponent vectors) for many generators or high degree.

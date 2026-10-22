@@ -492,6 +492,39 @@ import ForwardDiff
         u, v = Poly((x + 1)^30 * (x - 2)^20, x), Poly((x + 1)^25 * (x + 3)^20, x)
         @test gcd(u, v) == Poly((x + 1)^25, x)
 
+        # squarefree factorization
+        prodf(u, fs) = foldl((r, fm) -> r * fm.first^fm.second, fs; init = P(Sym(u)))
+        u, fs = factor_squarefree(P((x - 1)^3 * (x + 2)^2 * (x + 3)))
+        @test u == 1 && fs == [P(x + 3) => 1, P(x + 2) => 2, P(x - 1) => 3]
+        @test factor_squarefree(P(6 * (x + 1)^2)) == (SymNumber(6), [P(x + 1) => 2])
+        @test factor_squarefree(P(-(x - 1)^2)) == (SymNumber(-1), [P(x - 1) => 2])
+        @test factor_squarefree(P((x / 2 + 1 // 2)^2)) == (SymNumber(1 // 4), [P(x + 1) => 2])
+        @test factor_squarefree(P(x * (y + 1)^2)) == (SymNumber(1), [P(x) => 1, P(y + 1) => 2])
+        @test factor_squarefree(P(Sym(5))) == (SymNumber(5), Pair{Poly{SymNumber},Int}[])
+        @test_throws ArgumentError factor_squarefree(zero(P(x)))
+        @test squarefree_part(P((x + y)^2 * (x - y) * (y + 1)^3)) == P((x + y) * (x - y) * (y + 1))
+        for _ in 1:15
+            fs0 = [randpoly(2, 2) for _ in 1:3]
+            p = P(Sym(rnd(5) + 1)) * fs0[1] * fs0[2]^2 * fs0[3]^3
+            u, fs = factor_squarefree(p)
+            @test prodf(u, fs) == p
+            @test issorted(last.(fs)) && allunique(last.(fs))
+            for (f, _) in fs                     # squarefree: gcd(f, ∂f/∂x, ∂f/∂y, ∂f/∂z) = 1
+                @test isone(foldl(gcd, (diff(f, v) for v in (x, y, z)); init = f))
+                @test sign(f.coefs[1]) > 0
+            end
+            for i in eachindex(fs), j in (i + 1):length(fs)   # pairwise coprime
+                @test isone(gcd(fs[i].first, fs[j].first))
+            end
+        end
+        # expressions
+        @test factor_squarefree(x^3 - x^2 - x + 1) == (x + 1) * (x - 1)^2
+        @test factor_squarefree(2x^2 + 4x + 2) == 2 * (x + 1)^2
+        @test factor_squarefree((x^2 - 1) / (x^2 + 2x + 1)^2) == (x - 1) / (x + 1)^3
+        @test factor_squarefree(sin(x)^2 + 2sin(x) + 1) == (sin(x) + 1)^2
+        @test factor_squarefree(x / (x + 0.5)) == x / (x + 0.5)   # inexact: unchanged
+        @test squarefree_part(x^3 - x^2 - x + 1) == (x + 1) * (x - 1)
+
         # on expressions
         @test gcd(x^2 - 1, x^2 + 2x + 1) == x + 1
         @test gcd(x^2 * y - y, x * y + y) == x * y + y

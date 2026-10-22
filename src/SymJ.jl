@@ -15,7 +15,7 @@ import TermInterface: isexpr, iscall, head, children, operation, arguments, make
 export AbstractSymbolic, Sym, SymNumber, SymFunction
 export @syms, symbols, subs, evaluate, lambdify, lambdify_expr, expand, free_symbols, has, N
 export register_function!
-export numer_denom, cancel
+export numer_denom, cancel, factor_squarefree, squarefree_part
 export Poly, gens, nterms, coefficients, exponent_vectors, degree, divides, divexact
 
 include("numbers.jl")
@@ -30,6 +30,7 @@ include("polydiv.jl")
 include("polygcd.jl")
 include("modgcd.jl")
 include("rational.jl")
+include("squarefree.jl")
 include("iteration.jl")
 include("terminterface.jl")
 include("lambdify.jl")
