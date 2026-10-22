@@ -423,6 +423,27 @@ import ForwardDiff
         @test N(subs(sin(a) + x, a => 1, x => 2)) ≈ sin(1) + 2
     end
 
+    @testset "relations" begin
+        @parameters a
+        r = x^2 + 1 ~ 3
+        @test r isa Relation && lhs(r) == x^2 + 1 && rhs(r) == 3 && (2 ~ x) == Eq(2, x)
+        @test (x ⩵ y) == Eq(x, y) && (x ≪ 1) == Lt(x, 1) && (x ≦ 1) == Le(x, 1)
+        @test (x ≫ 1) == Gt(x, 1) && (x ≧ 1) == Ge(x, 1) && (x ≶ 1) == Ne(x, 1) && (x ≷ 1) == Ne(x, 1)
+        @test (x ~ 1) != (x ~ 2) && (x ~ 1) != (x ≪ 1) && hash(x ~ 1) == hash(x ~ 1)
+        @test string(r) == "x^2 + 1 ~ 3" && string(x ≪ 1) == "x ≪ 1" && string(x ≧ a) == "x ≧ a"
+        @test (x + 1 ≪ y) == Lt(x + 1, y)                   # comparison precedence
+        @test (x == y) === false && (x ~ x) isa Relation    # == stays structural
+        # calling: substitute; decided when no symbols remain
+        @test (x^2 ~ 4)(2) === true && (x^2 ~ 4)(3) === false && (x^2 ~ 4)(x => y) == (y^2 ~ 4)
+        @test (x ≪ 1)(0.5) === true && (x ≧ 1)(1) === true && (x ≶ 1)(1) === false
+        @test (sqrt(Sym(2)) ≪ Sym(3) // 2)() === true && (Sym(π) ~ 22 // 7)() === false
+        @test (x ~ a)(x => a) === true && (x ≪ a)(x => a) === false   # identical sides
+        @test (x ≪ 1)(x => a) == Lt(a, 1)
+        # TermInterface
+        @test iscall(r) && operation(r) === (~) && arguments(r) == [x^2 + 1, Sym(3)]
+        @test operation(x ≦ 1) === Le && maketerm(Relation, Le, [x, 1], nothing) == (x ≦ 1)
+    end
+
     @testset "TermInterface" begin
         ex = 2x + sin(y)
         @test iscall(ex) && isexpr(ex)

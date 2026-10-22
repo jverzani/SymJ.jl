@@ -556,6 +556,37 @@ created it, with no world-age problem.
   and gradients work through both `lambdify` and plain calls (tested).
 - `lambdify_expr` returns the generated code.
 
+## Relations
+
+`==`, `<` and `≤` keep returning `Bool`. Structural equality is what `Dict`s, `in` and
+generic code need, and a symbolic result in `if x < 0` fails confusingly. Equations and
+inequalities use other operators:
+
+- **Equations:** `lhs ~ rhs`, the convention of Symbolics.jl, ModelingToolkit and
+  SimpleExpressions. Binary `~` is free in Base, and its low precedence means
+  `x^2 + 1 ~ 3` needs no parentheses.
+- **Everything else** uses CommonEq.jl's operators and names, defined in SymJ without
+  depending on that package:
+
+  | relation | infix | typed as | function |
+  |:--|:--|:--|:--|
+  | `=` | `~`, `⩵` | `\Equal` | `Eq` |
+  | `<` | `≪` | `\ll` | `Lt` |
+  | `≤` | `≦` | `\leqq` | `Le` |
+  | `>` | `≫` | `\gg` | `Gt` |
+  | `≥` | `≧` | `\geqq` | `Ge` |
+  | `≠` | `≶`, `≷` | `\lessgtr`, `\gtrless` | `Ne` |
+
+- **Representation.** A `Relation` (an operation plus `lhs` and `rhs`) is its own small
+  type, not a `Sym` node, because relations aren't algebraic quantities.
+- **TermInterface.** `operation` is `~`, `Lt`, …
+- **Calling.** It substitutes into both sides, like calling an expression. When no
+  symbols remain, the result is a `Bool`: exact numbers compare exactly, other values
+  numerically. A relation whose two sides are identical is decided outright.
+- **Precedence caveat.** The infix inequalities have comparison precedence, so Julia
+  chains them like `<`: `a ≪ b == c` means `(a ≪ b) && (b == c)`. Parenthesize:
+  `(a ≪ b) == c`. `~` has the lowest precedence and doesn't chain.
+
 ## Parameters
 
 `parameter(:a)` or `@parameters a b` makes a symbolic parameter: a named constant of
