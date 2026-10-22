@@ -233,6 +233,22 @@ function _mp_eval(a::_MP, k::Int, α::Int, ctx::_Ctx)
     _MP(monos, coefs)
 end
 
+# a at x_k = α from its runs (the split already computed): each run's dense
+# polynomial in x_k evaluated by Horner, no monomial decoding
+function _mp_eval_runs(us::Vector{UInt64}, qs::Vector{Vector{Int}}, α::Int, p::Int)
+    monos, coefs = UInt64[], Int[]
+    sizehint!(monos, length(us))
+    sizehint!(coefs, length(us))
+    @inbounds for i in eachindex(us)
+        v = _ueval(qs[i], α, p)
+        if v != 0
+            push!(monos, us[i])
+            push!(coefs, v)
+        end
+    end
+    _MP(monos, coefs)
+end
+
 ## gcd over Z_p, monic in lex order
 
 function _pgcd(a::_MP, b::_MP, ctx::_Ctx)
@@ -275,7 +291,7 @@ function _pgcd(a::_MP, b::_MP, ctx::_Ctx)
     for _ in 1:p
         α = α + 1 == p ? 0 : α + 1
         (_ueval(lca, α, p) == 0 || _ueval(lcb, α, p) == 0) && continue
-        C = _pgcd(_mp_eval(a, k, α, ctx), _mp_eval(b, k, α, ctx), ctx)
+        C = _pgcd(_mp_eval_runs(ua, qa, α, p), _mp_eval_runs(ub, qb, α, p), ctx)
         lmC = C.monos[1]
         lmC > lmH && continue                       # unlucky point
         if lmC < lmH                                 # all earlier points were unlucky
