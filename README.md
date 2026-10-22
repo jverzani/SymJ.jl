@@ -25,4 +25,5 @@ f = lambdify(sin(x) * y, x, y)   # compiled: as fast as hand-written Julia
 f(1.0, 2.0)
 f(x, log(Sym(2), x))             # f(x, log(2, x))
 cancel((x^2 - 1)/(x^2 + 2x + 1))  # (x - 1)/(x + 1)
+solve(x^2 - 2 ~ 0, x)            # [-sqrt(2), sqrt(2)]
 ```

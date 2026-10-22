@@ -186,6 +186,16 @@ import ForwardDiff
         end
     end
 
+    @testset "inverse trig values" begin
+        @test asin(Sym(1 // 2)) == PI / 6 && asin(-sqrt(Sym(2)) / 2) == -PI / 4 && asin(sqrt(Sym(3)) / 2) == PI / 3
+        @test acos(Sym(-1 // 2)) == 2PI / 3 && acos(sqrt(Sym(2)) / 2) == PI / 4 && acos(Sym(-1)) == PI
+        @test atan(sqrt(Sym(3))) == PI / 3 && atan(-sqrt(Sym(3)) / 3) == -PI / 6 && atan(Sym(-1)) == -PI / 4
+        @test kind(asin(Sym(1 // 3))) == FN && asin(-x) == -asin(x)
+        # positive constants come out of radicals
+        @test sqrt(4x) == 2sqrt(x) && sqrt(2x + 2y) == sqrt(Sym(2)) * sqrt(x + y)
+        @test sqrt(-8x) == 2sqrt(Sym(2)) * sqrt(-x)
+    end
+
     @testset "diff" begin
         @test diff(x^3, x) == 3x^2
         @test diff(x * y, x) == y
@@ -442,6 +452,40 @@ import ForwardDiff
         # TermInterface
         @test iscall(r) && operation(r) === (~) && arguments(r) == [x^2 + 1, Sym(3)]
         @test operation(x ≦ 1) === Le && maketerm(Relation, Le, [x, 1], nothing) == (x ≦ 1)
+    end
+
+    @testset "solve" begin
+        @parameters a b c
+        satisfies(eq, rs) = all(r -> abs(N(subs(lhs(eq) - rhs(eq), x => r))) < 1e-8 * max(1, abs(N(r))), rs)
+        cases = [(2x + 3 ~ 0, 1), (x^2 - 2 ~ 0, 2), (x^2 ~ -1, 2), (x^2 + x + 1 ~ 0, 2), (x^4 ~ 1, 4),
+                 (x^5 ~ 2, 5), (x^3 - 2x - 5 ~ 0, 3), (x^3 - 3x + 1 ~ 0, 3), (x^4 + x + 1 ~ 0, 4),
+                 (x^4 - 4x^3 + x + 7 ~ 0, 4), (x^4 + 1 ~ 0, 4), (x^4 - 10x^2 + 1 ~ 0, 4), (x^5 - x - 1 ~ 0, 5),
+                 ((x^2 - 1) / (x - 1) ~ 0, 1), (1 / x ~ 0, 0), (x^6 - 1 ~ 0, 6), (0.5x^2 - 1 ~ 0, 2),
+                 ((x - 1)^3 * (x + 2) ~ 0, 2), (x^3 ~ x, 3), (2x^2 ~ x + 1, 2)]
+        for (eq, nroots) in cases
+            r = solve(eq, x)
+            @test length(r) == nroots
+            @test satisfies(eq, r)
+        end
+        @test solve(x^2 - 2 ~ 0, x) == [-sqrt(Sym(2)), sqrt(Sym(2))]      # exact, sorted
+        @test solve(x^2 ~ -1, x) == [-IM, IM]
+        @test solve(2x^2 ~ x + 1, x) == [Sym(-1 // 2), Sym(1)]
+        @test solve(x^3 - 3x + 1 ~ 0, x) == [2cos(10PI / 9), 2cos(4PI / 9), 2cos(2PI / 9)]  # real form
+        @test all(r -> imag(N(r)) == 0, solve(x^3 - 3x + 1 ~ 0, x))
+        @test all(r -> !SymJ._hassymbol(r) && N(r) isa Number, solve(x^5 - x - 1 ~ 0, x))  # numeric (a + b*im)
+        # symbolic coefficients
+        @test solve(a * x + b ~ 0, x) == [-b / a]
+        @test solve(x^2 ~ a, x) == [-sqrt(a), sqrt(a)]
+        q = solve(a * x^2 + b * x + c ~ 0, x)
+        @test length(q) == 2 && all(r -> cancel(subs(a * x^2 + b * x + c, x => r)) == 0 ||
+                                     abs(N(subs(a * x^2 + b * x + c, x => r, a => 2, b => 3, c => -5))) < 1e-12, q)
+        @test solve(x^2 - a^2 ~ 0, x) == [-a, a] || Set(solve(x^2 - a^2 ~ 0, x)) == Set([-a, a])
+        # errors
+        @test_throws ArgumentError solve(x^2 + 1, x)          # an equation is required
+        @test_throws ArgumentError solve(x ≪ 1, x)
+        @test_throws ArgumentError solve(x ~ x, x)
+        @test_throws ArgumentError solve(sin(x) ~ 0, x)       # not polynomial: not yet
+        @test_throws ArgumentError solve(x^5 + a * x + 1 ~ 0, x)  # degree 5, symbolic
     end
 
     @testset "TermInterface" begin

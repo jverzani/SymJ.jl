@@ -336,6 +336,12 @@ function pow(b::Sym, e::Sym)
         if _isint(en)
             bk == MUL && return _mulpow_int(b, e)
             bk == POW && return pow(b.args[1], mul(b.args[2], e))
+        elseif isexact(en)
+            # a positive constant factor comes out: (c m)^e = c^e m^e for c > 0 on the
+            # principal branch (scaling by c > 0 leaves the argument unchanged), so
+            # sqrt(4a) = 2 sqrt(a) and sqrt(2a + 2b) = sqrt(2) sqrt(a + b)
+            c = _positive_content(b)
+            c === nothing || return mul(_numpow(c, en), pow(_scale(b, inv(c)), e))
         end
         return _mkpow_node(b, e)
     end
@@ -345,6 +351,25 @@ function pow(b::Sym, e::Sym)
         return e.args[1]                        # exp(log(z)) == z
     end
     _mkpow_node(b, e)
+end
+
+# the positive rational content of a product's coefficient or of a sum's coefficients
+# (gcd of numerators over lcm of denominators), when it is not 1; else nothing
+function _positive_content(b::Sym)
+    k = b.kind
+    if k == MUL
+        isexact(b.num) || return nothing
+        c = abs(b.num)
+        return _isN1(c) ? nothing : c
+    elseif k == ADD
+        cs = iszero(b.num) ? b.coefs : vcat(b.coefs, b.num)
+        all(isexact, cs) || return nothing
+        num = reduce(gcd, (big(_numerator(c)) for c in cs); init = big(0))
+        den = reduce(lcm, (big(_denominator(c)) for c in cs); init = big(1))
+        c = SymNumber(num // den)
+        return _isN1(c) ? nothing : c
+    end
+    nothing
 end
 
 function _mulpow_int(M::Sym, e::Sym)

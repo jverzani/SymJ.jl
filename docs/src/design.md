@@ -587,6 +587,41 @@ inequalities use other operators:
   chains them like `<`: `a ≪ b == c` means `(a ≪ b) && (b == c)`. Parenthesize:
   `(a ≪ b) == c`. `~` has the lowest precedence and doesn't chain.
 
+## Solving
+
+`solve(eq, x)` extends `CommonSolve.solve`, so code written against CommonSolve's
+interface works with SymJ equations.
+
+- **Input.** The equation must be a `Relation` such as `x^2 ~ 4`. A bare expression is
+  never taken to mean "= 0", on pedagogical grounds, and gives an error suggesting
+  `ex ~ 0`.
+- **Method.**
+  - `lhs − rhs` is brought to lowest terms with `cancel`, and the numerator's roots are
+    the solutions. Numerator and denominator share no factor, so no root is a pole:
+    `(x² − 1)/(x − 1) ~ 0` gives `[-1]`.
+  - The numerator is factored; other symbols and parameters may appear in the
+    coefficients.
+- **Each irreducible factor in `x`:**
+  - degree 1 and 2: the usual formulas;
+  - `a·xⁿ + b`: all `n` roots exactly, `(−b/a)^(1/n)·(−1)^(2k/n)`;
+  - degree 3: Cardano. With numeric coefficients and three real roots it uses the
+    trigonometric form instead, which is exact and real (Cardano's radicals would need
+    complex numbers, the *casus irreducibilis*): `x³ − 3x + 1 → 2cos(2π/9), …`;
+  - degree 4: Ferrari, with biquadratics solved as quadratics in `x²`;
+  - degree ≥ 5 with numeric coefficients: numeric roots by Aberth's iteration, with no
+    dependency; with symbolic coefficients, an error.
+- **Output.** A vector of distinct roots. Numeric roots are sorted, real ones first.
+- **Not yet:** inequalities, systems, and equations in functions of `x`
+  (`sin(x) ~ 1/2`).
+
+Two canonical-form additions came with it:
+
+- **Positive constants come out of radicals.** `(c·m)^e = c^e·m^e` for `c > 0` on the
+  principal branch, so `sqrt(4a) = 2sqrt(a)` and `sqrt(2a + 2b) = sqrt(2)·sqrt(a + b)`,
+  where the content of a sum is the gcd of its coefficients.
+- **Inverse trig functions have exact values** at the standard points (±1/2, ±√2/2,
+  ±√3/2, and √3, √3/3 for `atan`).
+
 ## Parameters
 
 `parameter(:a)` or `@parameters a b` makes a symbolic parameter: a named constant of

@@ -169,16 +169,30 @@ register_function!(:tan; julia = tan,
     end),
     diff = (args, i) -> 1 + tan(args[1])^2)
 
+# exact values of asin and atan at the standard points (odd: the negatives follow);
+# acos(v) = π/2 - asin(v)
+const _ASIN_VALUES = Pair{Sym,Sym}[ZERO => ZERO, HALF => PI / 6, sqrt(Sym(2)) / 2 => PI / 4,
+                                   sqrt(Sym(3)) / 2 => PI / 3, ONE => PI / 2]
+const _ATAN_VALUES = Pair{Sym,Sym}[ZERO => ZERO, sqrt(Sym(3)) / 3 => PI / 6, ONE => PI / 4,
+                                   sqrt(Sym(3)) => PI / 3]
+function _table_value(table, a::Sym)
+    for (v, θ) in table
+        _eq(a, v) && return θ
+        _eq(a, -v) && return -θ
+    end
+    nothing
+end
+
 register_function!(:asin; julia = asin,
-    eval = _unary(a -> iszero(a) ? ZERO : isone(a) ? PI / 2 : _odd(:asin, a)),
+    eval = _unary(a -> something(_table_value(_ASIN_VALUES, a), _odd(:asin, a), Some(nothing))),
     diff = (args, i) -> inv(sqrt(1 - args[1]^2)))
 
 register_function!(:acos; julia = acos,
-    eval = _unary(a -> isone(a) ? ZERO : iszero(a) ? PI / 2 : nothing),
+    eval = _unary(a -> (θ = _table_value(_ASIN_VALUES, a); θ === nothing ? nothing : PI / 2 - θ)),
     diff = (args, i) -> -inv(sqrt(1 - args[1]^2)))
 
 register_function!(:atan; julia = atan,
-    eval = _unary(a -> iszero(a) ? ZERO : isone(a) ? PI / 4 : _odd(:atan, a)),
+    eval = _unary(a -> something(_table_value(_ATAN_VALUES, a), _odd(:atan, a), Some(nothing))),
     diff = (args, i) -> inv(1 + args[1]^2))
 
 register_function!(:sinh; julia = sinh,

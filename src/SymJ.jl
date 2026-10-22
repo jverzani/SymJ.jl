@@ -16,6 +16,7 @@ export AbstractSymbolic, Sym, SymNumber, SymFunction
 export @syms, @parameters, symbols, parameter, isparameter, free_parameters, subs, evaluate, lambdify, lambdify_expr, expand, free_symbols, has, N
 export register_function!
 export numer_denom, cancel, factor_squarefree, squarefree_part, factor, apart
+export solve
 export Relation, lhs, rhs, Eq, Lt, Le, Gt, Ge, Ne, ⩵, ≪, ≦, ≫, ≧, ≶, ≷
 export Poly, gens, nterms, coefficients, exponent_vectors, degree, divides, divexact
 
@@ -40,6 +41,7 @@ include("apart.jl")
 include("iteration.jl")
 include("terminterface.jl")
 include("relations.jl")
+include("solve.jl")
 include("lambdify.jl")
 include("show.jl")
 include("precompile.jl")
