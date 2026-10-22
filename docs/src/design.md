@@ -19,6 +19,10 @@ build on.
     Because the arithmetic is generic, dual numbers, intervals and `BigFloat` work.
     Constants such as `sqrt(2)` and `π` are computed in the argument's floating point
     type.
+  - `ex()` gives the value of a constant expression as a Julia number (`Sym(2)() === 2`,
+    `Sym(π)() === π`), and throws if `ex` has a free symbol. This matches what generic
+    term code expects from a callable numeric leaf; GruntzLimit, for example, reads
+    numbers this way.
   - An expression with several free symbols must be called with pairs. A single value
     would leave implicit which symbol receives it.
   - A `SymFunction` called on arguments builds an unevaluated application (`f(x)`).
@@ -310,6 +314,22 @@ cofactors (first row). That case is where Brown's dense method is weakest: it ne
 `(deg+1)^(nvars−1)` univariate gcds however sparse the answer is. Zippel's sparse
 interpolation addresses it: it learns the support of the gcd from one dense image, then
 solves for coefficients with far fewer evaluations.
+
+### Rational expressions
+
+`numer_denom(ex)` writes `ex` as a single fraction without expanding anything.
+`cancel(ex)` then reduces it to `p/q`:
+
+- **Polynomials.** The numerator and denominator are converted to `Poly`, and their gcd
+  is divided out. The denominator gets a positive leading coefficient, and the integer
+  content is shared out.
+- **Generators.** These are the expression's polynomial atoms: symbols, constants,
+  function applications, and non-integer powers.
+  - Treating them as independent variables is always sound, because a polynomial
+    identity in them still holds after substituting them back. So
+    `cancel((sin(x)^2 - 1)/(sin(x) + 1)) == sin(x) - 1`.
+  - Relations among atoms are not used: `(x - 1)/(sqrt(x) - 1)` stays as it is.
+- **Floats.** Expressions with floating point coefficients are returned unchanged.
 
 ## Assumptions
 

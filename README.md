@@ -22,4 +22,5 @@ diff(sin(x)^2, x)                # 2*cos(x)*sin(x)
 u = x^2 - 2
 u(3), u(1.5), u(big(2.0))        # (7, 0.25, 2.0) -- callable like a function
 f(x, log(Sym(2), x))             # f(x, log(2, x))
+cancel((x^2 - 1)/(x^2 + 2x + 1))  # (x - 1)/(x + 1)
 ```

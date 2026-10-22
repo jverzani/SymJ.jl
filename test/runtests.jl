@@ -200,7 +200,15 @@ using Test
         @test u(y) == y^2                       # symbolic argument substitutes
         @test u(Sym(3)) == Sym(9)
         @test u(x => 3) == Sym(9)               # pairs substitute
-        @test u() === u
+        # no arguments: the value of a constant expression, as a Julia number
+        @test_throws ArgumentError u()
+        @test Sym(2)() === 2 && Sym(-1)() === -1
+        @test Sym(3 // 4)() === 3 // 4
+        @test Sym(π)() === π && SymJ.E() === ℯ
+        @test sqrt(Sym(2))() ≈ sqrt(2)
+        @test (Sym(π) / 2)() ≈ π / 2
+        @test IM() == im
+        @test Poly(Sym(5), x)() === 5
         @test (1 / x)(2) === 0.5
         @test (x^-2)(2 // 1) === 1 // 4
         @test (x / 3)(3) == 1 && (x / 3)(3.0) === 1.0
@@ -355,6 +363,40 @@ using Test
         @test gcd(x^2 * y - y, x * y + y) == x * y + y
         @test lcm(x^2 - 1, x + 1) == x^2 - 1
         @test_throws ArgumentError gcd(sin(x), x)
+    end
+
+    @testset "numer_denom and cancel" begin
+        @test numer_denom(x / y + 1) == (x + y, y)
+        @test numer_denom(3x / 4) == (3x, Sym(4))
+        @test numer_denom(1 / sqrt(x)) == (Sym(1), sqrt(x))
+        @test numer_denom(x) == (x, Sym(1))
+        @test numer_denom(Sym(2) / 3) == (Sym(2), Sym(3))
+
+        @test cancel((x^2 - 1) / (x + 1)) == x - 1
+        @test cancel((x^2 - 1) / (x^2 + 2x + 1)) == (x - 1) / (x + 1)
+        @test cancel(1 / x + 1 / x^2) == (x + 1) / x^2
+        @test cancel((2x + 2) / (4x)) == (x + 1) / (2x)
+        @test cancel((x * y + x) / (y^2 - 1)) == x / (y - 1)
+        @test cancel((x - 1) / (1 - x)) == -1
+        @test cancel(1 / (x + 1) - 1 / (x - 1)) == -2 / (x^2 - 1)
+        @test cancel((x / 2 + 1) / (x + 2)) == Sym(1 // 2)
+        @test cancel(x * (x + 1)) == x^2 + x                   # polynomials come back expanded
+        @test cancel((sin(x)^2 - 1) / (sin(x) + 1)) == sin(x) - 1
+        @test cancel((x - 1) / (sqrt(x) - 1)) == (x - 1) / (sqrt(x) - 1)  # radicals are independent
+        @test cancel(x / (x + 0.5)) == x / (x + 0.5)           # floats: unchanged
+        @test cancel(Sym(3) / 6) == Sym(1 // 2)
+        @test cancel(2) == Sym(2)
+
+        # cancel never changes the value
+        for e in ((x^3 - y^3) / (x - y) + 1 / (x + y), (x^2 * y - y) / (x * y + y) - x / (y + 1),
+                  (1 / x - 1 / y) / (x - y), ((x + 1)^3 - 1) / x)
+            c = cancel(e)
+            for (a, b) in ((2, 3), (-1 // 2, 5), (7, -4))
+                @test e(x => a, y => b) == c(x => a, y => b)
+            end
+        end
+        @test cancel((x^3 - y^3) / (x - y)) == x^2 + x * y + y^2
+        @test cancel((1 / x - 1 / y) / (x - y)) == -1 / (x * y)
     end
 
     @testset "iteration (like Number)" begin

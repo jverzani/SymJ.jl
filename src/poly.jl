@@ -519,7 +519,7 @@ end
 Base.convert(::Type{Sym}, p::Poly) = Sym(p)
 
 # called like the expression it represents (see calling a `Sym`)
-(p::Poly)(args...) = isempty(args) ? p : Sym(p)(args...)
+(p::Poly)(args...) = Sym(p)(args...)
 
 function Base.show(io::IO, p::Poly)
     print(io, "Poly(")

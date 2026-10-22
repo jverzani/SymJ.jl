@@ -64,18 +64,27 @@ end
 ## calling
 
 # One method handles every call form, so dispatch has no ambiguities to resolve:
-#   ex()            -> ex
+#   ex()            -> the value of a constant expression as a Julia number
+#                      (`Sym(2)() === 2`, `Sym(π)() === π`); an error if ex has a
+#                      free symbol. Generic code (e.g. GruntzLimit) reads numeric
+#                      leaves this way.
 #   ex(x => a, ...) -> substitution, returns a Sym
 #   ex(a::Sym)      -> substitution into the only free symbol, returns a Sym
 #   ex(a)           -> numeric evaluation at the only free symbol, returns what Julia
 #                      arithmetic on `a` returns (Int, Float64, BigFloat, a dual number, ...)
 function (ex::Sym)(args...)
-    isempty(args) && return ex
+    isempty(args) && return _constant_value(ex)
     all(a -> a isa Pair, args) && return subs(ex, args...)
     length(args) == 1 || throw(ArgumentError(
         "call an expression with one value (it has at most one free symbol) or with pairs `x => value`"))
     a = only(args)
     a isa Sym ? _subs1(ex, a) : evaluate(ex, a)
+end
+
+function _constant_value(ex::Sym)
+    isempty(free_symbols(ex)) ||
+        throw(ArgumentError("$ex has free symbols $(join(free_symbols(ex), ", ")); give it a value, e.g. ex(2) or ex(x => 2)"))
+    evaluate(ex, 0)      # the argument is unused, and an Int keeps exact values exact
 end
 
 function _subs1(ex::Sym, a::Sym)
