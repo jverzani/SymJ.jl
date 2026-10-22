@@ -100,6 +100,10 @@ function _zassenhaus(f::Vector{BigInt})
     n <= 1 && return [f]
     p, modfacs = _choose_prime(f)
     length(modfacs) == 1 && return [f]
+    if length(modfacs) >= _VANHOEIJ_MIN_FACTORS          # many modular factors: lattices
+        fs = _vanhoeij(f, modfacs, p)
+        fs === nothing || return fs
+    end
     # p^k > 2 |lc| B, with B = 2^n ‖f‖₂ bounding the coefficients of any factor
     B = big(2)^n * (isqrt(sum(c -> c^2, f)) + 1)
     bound = 2 * abs(f[end]) * B
