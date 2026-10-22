@@ -651,6 +651,41 @@ import ForwardDiff
             gs = [SymJ._shift_var(g, 2, -4) for g in SymJ._eez_split(qs, us, 1, [2])]
             @test Set(Sym.(gs)) == Set(want)
         end
+        # van Hoeij recombination: the same factors as subset search, and the
+        # Swinnerton-Dyer polynomials (irreducible, many factors mod every prime)
+        densez(S) = (v = zeros(BigInt, degree(S) + 1);
+                     for (e, c) in zip(exponent_vectors(S), coefficients(S)); v[e[1]+1] = big(SymJ._numerator(c)); end; v)
+        function vh_vs_subsets(e)
+            f = densez(P1(expand(e)))
+            p, mf = SymJ._choose_prime(f)
+            vh = SymJ._vanhoeij(f, mf, p)
+            B = big(2)^(length(f) - 1) * (isqrt(sum(c -> c^2, f)) + 1)
+            k, pk = 1, big(p)
+            while pk <= 2 * abs(f[end]) * B; k += 1; pk *= p; end
+            zs = SymJ._recombine(f, SymJ._hensel_lift(SymJ._zmod(f, pk), mf, p, k), pk)
+            length(mf), vh, zs
+        end
+        for e in (prod(x - i for i in 1:12), prod(x^2 + i for i in 1:6), x^30 - 1,
+                  (x^4 - 10x^2 + 1) * (x^2 - 2) * (x - 1) * (x^3 - 2))
+            nmod, vh, zs = vh_vs_subsets(e)
+            @test vh !== nothing && Set(vh) == Set(zs)
+        end
+        function swinnerton_dyer(k)
+            S = x
+            for q in (2, 3, 5, 7, 11)[1:k]
+                r = sqrt(Sym(q))
+                S = expand(expand(S(x => x + r)) * expand(S(x => x - r)))
+            end
+            P1(S)
+        end
+        for k in (4, 5)
+            f = densez(swinnerton_dyer(k))
+            p, mf = SymJ._choose_prime(f)
+            k == 5 && @test length(mf) >= SymJ._VANHOEIJ_MIN_FACTORS  # the lattice path
+            @test SymJ._vanhoeij(f, mf, p) == [f]                     # irreducible
+        end
+        @test length(factor(swinnerton_dyer(5))[2]) == 1
+
         # Wang's leading-coefficient distribution, at the point y = 0 where its test holds
         @test SymJ._wang_nondivisors(BigInt[2, 5], big(1), big(1)) == BigInt[2, 5]
         @test SymJ._wang_nondivisors(BigInt[3, 6], big(2), big(1)) === nothing   # 6 shares 2 and 3

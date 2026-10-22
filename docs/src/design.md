@@ -409,6 +409,29 @@ then by degree. The input is first reduced to squarefree primitive parts.
   the Landau–Mignotte bound.
 - **Recombination.** Try subsets of the lifted factors, smallest first. Each candidate
   `lc·Π mod p^k`, taken in the symmetric range, is tested by exact division over ℤ.
+- **van Hoeij recombination** (`src/vanhoeij.jl`). The number of subsets grows
+  exponentially with the number of modular factors, so from 9 factors up a lattice
+  replaces the search:
+  - **Traces.** For each lifted factor `gᵢ`, the power sums of its roots,
+    `tᵢⱼ = ℓʲ·Pⱼ(gᵢ) mod pᵃ` (Newton's identities, `ℓ` the leading coefficient). For a
+    true factor, the sum over its pieces is an integer bounded by `n(|ℓ|R)ʲ`, where `R`
+    is Fujiwara's root bound. Cauchy's bound was far too loose for polynomials with
+    large coefficients and small roots, and inflated every number in the lattice.
+  - **Lattice.** Rows `[eᵢ | tᵢⱼ/Dⱼ]` and `[0 | pᵃ/Dⱼ]`, with the trace columns scaled
+    down so that true factors give short vectors. LLL uses exact rational Gram–Schmidt.
+  - **Reading off factors.** Basis vectors whose Gram–Schmidt norm exceeds the proven
+    bound are dropped. If one vector is left, `f` is irreducible. Otherwise the reduced
+    echelon form should be a 0/1 partition, each part confirmed by trial division.
+    Until it is, the number of traces doubles, and the precision grows with it.
+  - **Fallback.** Subset search remains the fallback.
+  - **Speed.**
+
+    | Swinnerton-Dyer polynomial | modular factors | subset search | van Hoeij |
+    |:--|--:|--:|--:|
+    | S₅, degree 32 | 16 | 3.2 s | 0.85 s |
+    | S₆, degree 64 | 32 | out of reach | 6.1 s |
+
+    These are irreducible, but split into many factors modulo every prime.
 
 **Multivariate: Wang's EEZ approach** (`src/eez.jl`).
 - **Setup.** The main variable `x` is the active variable of least degree. The content
@@ -418,9 +441,15 @@ then by degree. The input is first reduced to squarefree primitive parts.
   fewest univariate factors. A point with one factor proves `q` irreducible.
 - **Shift.** `y → y + α` moves the point to 0, so Taylor coefficients are plain
   coefficients and evaluating means dropping terms.
-- **Leading coefficients.** Instead of Wang's leading-coefficient distribution,
-  `L = lc_x(q)` is imposed on every factor of `L^(r-1)·q`, and primitive parts are taken
-  at the end.
+- **Leading coefficients.**
+  - **Wang's distribution.** Factor `L = lc_x(q)` into irreducibles `tⱼ`. When each
+    `tⱼ(α)` has a prime divisor shared with no other and not with the contents (Wang's
+    non-divisor test), the `tⱼ` dividing each univariate factor's leading coefficient
+    can be read off, and the lift runs on `q` itself. Points passing the test are
+    preferred, but the values stay small, since a larger range densified the shifted
+    polynomial and cost far more.
+  - **Imposition.** Otherwise `L` is imposed on every factor of `L^(r-1)·q`, and
+    primitive parts are taken at the end.
 - **Lifting.** Multivariate Hensel lifting, one variable at a time, with multivariate
   Diophantine equations (Geddes–Czapor–Labahn 6.2–6.4), over ℚ. Working over ℚ needs no
   p-adic coefficient bound, and an exact product check decides success.
@@ -602,10 +631,8 @@ and a finalizer per operation), which dominates the small benchmarks.
   - Zippel's sparse modular GCD for sparse, high-degree gcds.
   - Faster mod-p arithmetic (Montgomery or Barrett reduction) and fewer small allocations in the Brown recursion.
   - A univariate dense representation.
-  - van Hoeij's lattice recombination for univariate polynomials with very many
-    modular factors; Wang's leading-coefficient distribution in EEZ (smaller lifts than
-    imposing `L^(r-1)`).
-  - `cancel` for rational expressions, built on `gcd`.
+  - Faster LLL for van Hoeij: floating-point Gram–Schmidt, and adding traces one at a
+    time. Exact rationals are most of S₆'s 6.1 s.
   - Graded monomial orders.
   - Wider monomials (`UInt128` or exponent vectors) for many generators or high degree.
   - Evaluation by Horner's scheme.
