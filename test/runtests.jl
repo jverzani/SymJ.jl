@@ -196,6 +196,20 @@ import ForwardDiff
         @test sqrt(-8x) == 2sqrt(Sym(2)) * sqrt(-x)
     end
 
+    @testset "lambertw" begin
+        @test lambertw(Sym(0)) == 0 && lambertw(SymJ.E) == 1 && lambertw(-1 / SymJ.E) == -1
+        @test lambertw(-1 / SymJ.E, -1) == -1 && kind(lambertw(x)) == FN
+        @test diff(lambertw(x), x) == lambertw(x) / (x * (1 + lambertw(x)))
+        @test N(lambertw(Sym(1))) ≈ 0.5671432904097838 && lambertw(x)(1.0) ≈ 0.5671432904097838
+        @test lambdify(lambertw(x))(1.0) ≈ 0.5671432904097838
+        @test N(lambertw(Sym(-1 // 5), -1)) ≈ -2.542641357773527
+    end
+
+    @testset "subs inside products" begin
+        @test subs(x * exp(x), exp(x) => y) == x * y
+        @test subs(3x^2 * y, x^2 => z) == 3y * z
+    end
+
     @testset "diff" begin
         @test diff(x^3, x) == 3x^2
         @test diff(x * y, x) == y
@@ -482,7 +496,7 @@ import ForwardDiff
         @test solve(x^2 - a^2 ~ 0, x) == [-a, a] || Set(solve(x^2 - a^2 ~ 0, x)) == Set([-a, a])
         # errors
         @test_throws ArgumentError solve(x^2 + 1, x)          # an equation is required
-        @test_throws ArgumentError solve(x ≪ 1, x)
+        @test string(solve(x ≪ 1, x)) == "(-∞, 1)"            # inequalities: sets
         @test_throws ArgumentError solve(x ~ x, x)
         # through one function of x: substitute, solve, invert; extraneous roots dropped
         @test solve(sin(x) ~ 1 // 2, x) == [PI / 6, 5PI / 6]
@@ -501,7 +515,31 @@ import ForwardDiff
         @test solve(sqrt(x + 1) ~ x - 1, x) == [Sym(3)]                # 0 is extraneous
         @test solve(sqrt(x) + x ~ 6, x) == [Sym(4)] && solve(x - sqrt(x) ~ 0, x) == [Sym(0), Sym(1)]
         @test_throws ArgumentError solve(sin(x) + cos(x) ~ 1, x)     # two functions: not yet
-        @test_throws ArgumentError solve(x * exp(x) ~ 1, x)          # Lambert W
+        # Lambert W: (αx + β) e^(γx + δ) = K, both real branches when there are two
+        @test solve(x * exp(x) ~ 1, x) == [lambertw(Sym(1))] && solve(x ~ exp(-x), x) == [lambertw(Sym(1))]
+        @test Set(solve(x * exp(x) ~ -1 // 5, x)) == Set([lambertw(Sym(-1 // 5)), lambertw(Sym(-1 // 5), -1)])
+        @test solve(x * exp(x) ~ 0, x) == [Sym(0)]
+        for eq in (2^x ~ 3x, exp(x) ~ x + 2, (2x + 1) * exp(3x) ~ 4)
+            rs = solve(eq, x)
+            @test !isempty(rs) && satisfies(eq, rs)
+        end
+        @test_throws ArgumentError solve(x * exp(x^2) ~ 1, x)       # not a Lambert form
+
+        # inequalities: unions of intervals with exact endpoints
+        S(r) = string(solve(r, x))
+        @test S(x^2 ≫ 1) == "(-∞, -1) ∪ (1, ∞)" && S(x^2 ≦ 1) == "[-1, 1]"
+        @test S(x^2 ≦ 0) == "{0}" && S(x^2 ≪ 0) == "∅" && S(x^2 + 1 ≫ 0) == "(-∞, ∞)"
+        @test S((x - 1) / (x + 2) ≧ 0) == "(-∞, -2) ∪ [1, ∞)" && S(1 / x ≪ 0) == "(-∞, 0)"
+        @test S(x^3 - x ≧ 0) == "[-1, 0] ∪ [1, ∞)" && S(x^2 - 2 ≪ 0) == "(-sqrt(2), sqrt(2))"
+        @test S(x ≶ 3) == "(-∞, 3) ∪ (3, ∞)" && S((x - 1)^2 ≫ 0) == "(-∞, 1) ∪ (1, ∞)"
+        @test S(x^2 ≧ x) == "(-∞, 0] ∪ [1, ∞)"
+        P2s, T = solve(x^2 ≫ 1, x), solve(x ≦ 3, x)
+        @test P2s isa SymJ.SymSet && !(0 in P2s) && 2 in P2s && -1.5 in P2s && !(-1 in P2s)
+        @test string(P2s ∪ T) == "(-∞, ∞)" && string(P2s ∩ T) == "(-∞, -1) ∪ (1, 3]"
+        @test string(setdiff(T, P2s)) == "[-1, 1]" && isempty(setdiff(T, T))
+        @test sqrt(Sym(2)) in solve(x^2 ≦ 2, x) && !(sqrt(Sym(2)) in solve(x^2 ≪ 2, x))
+        @test_throws ArgumentError solve(a * x ≫ 1, x)               # parameters: not yet
+        @test_throws ArgumentError solve(sin(x) ≫ 0, x)
         @test_throws ArgumentError solve(x^5 + a * x + 1 ~ 0, x)  # degree 5, symbolic
     end
 

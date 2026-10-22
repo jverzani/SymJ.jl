@@ -29,7 +29,8 @@ solve(a*x + b ~ 0, x)          # [-b/a]
 ```
 """
 function solve(eq::Relation, x::Sym)
-    eq.op === :eq || throw(ArgumentError("solve: inequalities are not supported yet"))
+    _isnamed(x) || throw(ArgumentError("solve: $x is not a symbol"))
+    eq.op === :eq || return _solve_inequality(eq, x)
     _isnamed(x) || throw(ArgumentError("solve: $x is not a symbol"))
     n, _ = numer_denom(cancel(eq.lhs - eq.rhs))
     if !has(n, x)
@@ -69,6 +70,8 @@ function _solve_through(eq::Relation, n::Sym, x::Sym, bad::Vector{Sym})
     end
     if has(nu, x)
         _issqrt(g) && return _solve_radical(eq, nu, u, g, x)
+        r = _solve_lambert(eq, nu, u, g, x)
+        r === nothing || return r
         throw(ArgumentError("solve: $eq involves both $x and $g; not supported (it may need, e.g., Lambert W)"))
     end
     out = Sym[]
@@ -139,6 +142,46 @@ function _solve_radical(eq::Relation, nu::Sym, u::Sym, R::Sym, x::Sym)
     cands = solve(expand(A^2 - B^2 * t) ~ 0, x)
     filter(r -> _satisfies(eq, x, r), cands)
 end
+
+# x both directly and in an exponential g = b^(γx + δ), the equation linear in g:
+# c1(x) g + c0(x) = 0 with one of c1, c0 linear and the other constant. As
+# (αx + β) e^(γ'x + δ') = K (γ' = γ log b): y = γ'(x + β/α) satisfies y e^y =
+# K γ'/α e^(γ'β/α - δ'), so x = W(K γ'/α e^(γ'β/α - δ'))/γ' - β/α. The other branch
+# W₋₁ is added when the argument is real in (-1/e, 0) (two real solutions).
+function _solve_lambert(eq::Relation, nu::Sym, u::Sym, g::Sym, x::Sym)
+    g.kind == POW || return nothing
+    b, e = g.args
+    has(b, x) && return nothing
+    γ = cancel(diff(e, x))
+    has(γ, x) && return nothing                               # exponent linear in x
+    δ = cancel(e - γ * x)
+    lb = b === E ? ONE : log(b)
+    γ, δ = γ * lb, δ * lb
+    P = Poly{Sym}(nu, [u])
+    degree(P, u) == 1 || return nothing
+    cs = coefficients(P)
+    c1, c0 = cs[1], length(cs) == 2 ? cs[2] : ZERO
+    lin(c) = (Q = Poly{Sym}(c, [x]); degree(Q, x) <= 1 ? Q : nothing)
+    L1, L0 = lin(c1), lin(c0)
+    (L1 === nothing || L0 === nothing) && return nothing
+    if degree(L1, x) == 1 && degree(L0, x) <= 0              # (αx + β) e^(γx+δ) = -c0
+        α, β, K = _lin_coeffs(c1, x)..., -c0
+    elseif degree(L1, x) <= 0 && degree(L0, x) == 1          # c1 e^(γx+δ) = -(αx + β)
+        (α, β), K = _lin_coeffs(c0, x), -c1
+        γ, δ = -γ, -δ
+    else
+        return nothing
+    end
+    iszero(K) && return filter(r -> _satisfies(eq, x, r), [-β / α])
+    arg = K * γ / α * exp(γ * β / α - δ)
+    ws = [lambertw(arg)]
+    if !_hassymbol(arg)
+        v = try N(arg) catch; nothing end
+        v isa Real && -exp(-1) < v < 0 && push!(ws, lambertw(arg, -1))
+    end
+    filter(r -> _satisfies(eq, x, r), [w / γ - β / α for w in ws])
+end
+_lin_coeffs(c::Sym, x::Sym) = (α = cancel(diff(c, x)); (α, cancel(c - α * x)))
 
 # g(x) = r as equations arg ~ value for an argument of g
 function _invert(g::Sym, r::Sym, x::Sym)

@@ -67,7 +67,9 @@ function _subs(ex::Sym, d::Dict{Sym,Sym})
     elseif k == MUL
         r = Sym(ex.num)
         for i in eachindex(ex.args)
-            r = mul(r, pow(_subs(ex.args[i], d), _subs(ex.exps[i], d)))
+            # a factor b^e is stored as a pair, not a node: match it whole first
+            v = get(d, _mkpow(ex.args[i], ex.exps[i]), nothing)
+            r = mul(r, v === nothing ? pow(_subs(ex.args[i], d), _subs(ex.exps[i], d)) : v)
         end
         return r
     elseif k == POW

@@ -625,11 +625,31 @@ interface works with SymJ equations.
   - A square root mixed with `x` is reduced to `A + B·sqrt(t) = 0` using `R² = t`,
     squared to the polynomial `A² = B²t`, and extraneous roots dropped:
     `sqrt(x + 1) ~ x − 1` gives `[3]`.
+- **Lambert W.** When `x` appears both directly and inside an exponential
+  `b^(γx + δ)`, with the equation linear in that exponential, it reduces to
+  `(αx + β)·e^(γ′x + δ′) = K`. Its solution is
+  `x = W(K·γ′/α·e^(γ′β/α − δ′))/γ′ − β/α`, using `lambertw` from LambertW.jl (a
+  dependency, re-exported). The branch `W₋₁` is added when the argument is real in
+  `(−1/ℯ, 0)`, where there are two real solutions. Examples: `x·eˣ ~ 1 → W(1)`,
+  `2^x ~ 3x`, `eˣ ~ x + 2`.
+- **Inequalities.** `solve(x^2 ≫ 1, x)` returns a `SymSet`, a union of disjoint
+  intervals with exact endpoints: `(-∞, -1) ∪ (1, ∞)`.
+  - **Types.** `SymSet` and `SymInterval` are deliberately not exported. An interval
+    has `Sym` endpoints, with `nothing` for ±∞, and open/closed flags; a point is
+    `[a, a]`, printed `{a}`.
+  - **Method.** The critical points are the real roots of the numerator and
+    denominator of `lhs − rhs`. Between consecutive ones the sign is constant, so one
+    sample decides each open piece. Each critical point is decided exactly, and poles
+    are excluded. Adjacent included pieces merge.
+  - **Set operations.** `∪`, `∩` and `setdiff` reuse that construction over the
+    operands' endpoints. `in` compares against the exact endpoints.
+  - **Limits.** Numeric coefficients only: with parameters, the order of the endpoints
+    depends on their values, which needs assumptions.
 - **Not yet:**
-  - inequalities and systems;
+  - systems;
   - several unrelated functions of `x` (`sin(x) + cos(x) ~ 1`);
   - exponents that aren't rational multiples of one another (`9^x ~ 3^(x+2)`);
-  - equations needing Lambert W (`x·eˣ ~ 1`).
+  - Lambert-type equations beyond the linear form (`x·e^(x²) ~ 1`).
 
 Two canonical-form additions came with it:
 
