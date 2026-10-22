@@ -2,6 +2,7 @@ using SymJ
 using SymJ: PI, E, IM, ADD, MUL, POW, FN, NUMBER, kind
 using TermInterface
 using Test
+import ForwardDiff
 
 @syms x y z f() g()
 
@@ -346,6 +347,46 @@ using Test
         @test (x * y)(x => 2) == 2y
         @test_throws ArgumentError f(x)(2)      # no numeric method for f
         @test f(x)(Sym(2)) == f(Sym(2))
+    end
+
+    @testset "lambdify" begin
+        w = sin(x)^2 + 3x^5 - 2x + exp(-x / 2) + sqrt(Sym(2)) * x / 3
+        fw = lambdify(w)
+        for v in (1.5, -0.25, 2)
+            @test fw(v) ≈ w(v)
+        end
+        @test fw(1.5) == w(1.5)
+        @test @inferred(fw(1.5)) isa Float64
+        @test lambdify(x^2 + 1)(3) === 10                  # same semantics as calling
+        @test lambdify(x / 3)(3) == 1 // 1 && lambdify(x / 3)(3.0) === 1.0
+        @test lambdify(1 / x)(2) === 0.5 && lambdify(x^-2)(2 // 1) === 1 // 4
+        @test lambdify(sqrt(x))(-4.0) == 2im && lambdify(x^(1 // 3))(8.0) ≈ 2
+        @test lambdify(IM * x)(2) == 2im
+        @test lambdify(sqrt(Sym(2)) * x)(big(1.0)) == sqrt(big(2.0))
+        @test lambdify(Sym(π) * x)(1.0f0) isa Float32
+        @test lambdify(x^y, x, y)(2, 10) === 1024
+        @test lambdify(log(Sym(2), x))(8.0) ≈ 3
+        @test lambdify(Sym(7))() === 7                     # no variables
+        @test lambdify(Poly(x^2 + 1, x))(2) === 5
+
+        # variable order is explicit; several outputs share subexpressions
+        h = lambdify(x - 2y, y, x)
+        @test h(1, 10) == 8 && lambdify(x - 2y, (x, y))(1, 10) == -19
+        J = lambdify([diff(w, x) x * y; y 1], x, y)
+        @test J(1.0, 2.0) ≈ [diff(w, x)(1.0) 2.0; 2.0 1.0] && size(J(1.0, 2.0)) == (2, 2)
+        @test lambdify((x + 1, x * y), (x, y))(1, 2) == (2, 2)
+        code = string(lambdify_expr(sin(x) * y + sin(x)^2 + cos(sin(x)), (x, y)))
+        @test count("Base.sin(arg1)", code) == 1           # computed once
+
+        # errors
+        @test_throws ArgumentError lambdify(x * y)          # order needed
+        @test_throws ArgumentError lambdify(x * y, x)       # y not a variable
+        @test_throws ArgumentError lambdify(f(x), x)        # no numeric method for f
+
+        # generic arithmetic: automatic differentiation through both paths
+        @test ForwardDiff.derivative(fw, 1.5) ≈ diff(w, x)(1.5)
+        @test ForwardDiff.derivative(w, 1.5) ≈ diff(w, x)(1.5)
+        @test ForwardDiff.gradient(v -> lambdify(x^2 * y, x, y)(v...), [2.0, 3.0]) ≈ [12.0, 4.0]
     end
 
     @testset "TermInterface" begin

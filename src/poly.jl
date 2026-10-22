@@ -568,6 +568,7 @@ function _sym_fast(p::Poly{SymNumber})
 end
 
 Base.convert(::Type{Sym}, p::Poly) = Sym(p)
+free_symbols(p::Poly) = free_symbols(Sym(p))
 
 # called like the expression it represents (see calling a `Sym`)
 (p::Poly)(args...) = Sym(p)(args...)

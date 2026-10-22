@@ -28,8 +28,7 @@ build on.
   - A `SymFunction` called on arguments builds an unevaluated application (`f(x)`).
 
   Evaluation interprets the tree: about 25 ns for `x^2` and 2.4 μs for
-  `sin(x)^2 + 3x^5 - 2x + exp(-x/2)`. A future `lambdify` will compile expressions for
-  speed.
+  `sin(x)^2 + 3x^5 - 2x + exp(-x/2)`. For speed, use `lambdify` (below).
 - **Scalar-like collections.** Like `Number`, a `Sym` or `Poly` iterates once (yielding
   itself), has `length` 1 and `size` `()`, and supports `x[]` and `x[1]`. Generic code
   that iterates or indexes a scalar therefore works unchanged.
@@ -360,6 +359,38 @@ solves for coefficients with far fewer evaluations.
   - Relations among atoms are not used: `(x - 1)/(sqrt(x) - 1)` stays as it is.
 - **Floats.** Expressions with floating point coefficients are returned unchanged.
 
+## Compiled evaluation: `lambdify`
+
+`lambdify(ex, x, y)` compiles `ex` into a Julia function of `x` and `y`, in that order.
+Without variables, `ex` may have at most one free symbol. The result is a
+RuntimeGeneratedFunction, so it can be called right away, from the same function that
+created it, with no world-age problem.
+
+- **Same semantics as calling.**
+  - Exact constants are Julia integers and rationals, converted to the arguments'
+    float type when there is one: `F = _liftfloat(promote_type(...))` is a compile-time
+    constant, so for `Float64` the constants fold and `BigFloat` keeps its precision.
+  - Integer powers are literal powers (`x^5`), and negative ones use `inv`.
+  - `ℯ^u` is emitted as `exp(u)`.
+  - A negative base with a fractional power gives the principal complex value.
+- **Shared subexpressions.** Nodes used more than once become local variables. Nodes
+  carry hashes, so counting uses is one pass over the DAG. Arrays and tuples of
+  expressions compile to one function returning the same shape, sharing work between
+  entries, which suits gradients and Jacobians.
+- **Speed.** `sin(x)^2 + 3x^5 - 2x + exp(-x/2) + sqrt(2)x/3` takes 9.3 ns per call,
+  against 9.2 ns hand-written, and is inferred as `Float64`. Evaluating it at 1,000
+  points takes 7.49 μs against 7.48 μs.
+- **When it pays.** `bench/newton.jl` runs Newton's method on `x^5 - x - 1` from 1,
+  which takes 7 iterations and 14 evaluations. Calling the expressions takes 3.6 μs per
+  solve, the `lambdify`'d functions 86 ns (42x faster; hand-written: 89 ns).
+  Compiling costs about 2.9 ms per new expression, the first call compiling the
+  generated method, so it pays off after roughly 800 solves or 11,600 evaluations. The
+  compiled code is cached by expression, so compiling the same expression again is
+  free.
+- **Generic arithmetic.** Arguments may be any number type: `ForwardDiff` derivatives
+  and gradients work through both `lambdify` and plain calls (tested).
+- `lambdify_expr` returns the generated code.
+
 ## Assumptions
 
 Assumptions (real, positive, integer) will be passed per call, e.g.
@@ -414,5 +445,5 @@ and a finalizer per operation), which dominates the small benchmarks.
   - Threads for large products.
 - **Hash-consing.** Interning nodes would make equality pointer comparison and save
   memory, at the cost of a global, thread-safe table.
-- **Further features:** `lambdify`/code generation, series, `simplify`, `solve`,
+- **Further features:** series, `simplify`, `solve`,
   and symbolic matrices (noncommutative `MUL`).

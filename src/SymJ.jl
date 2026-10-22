@@ -8,10 +8,12 @@ TermInterface v2 contract. See `docs/src/design.md` for the design.
 module SymJ
 
 using TermInterface
+using RuntimeGeneratedFunctions
+RuntimeGeneratedFunctions.init(@__MODULE__)
 import TermInterface: isexpr, iscall, head, children, operation, arguments, maketerm
 
 export AbstractSymbolic, Sym, SymNumber, SymFunction
-export @syms, symbols, subs, evaluate, expand, free_symbols, has, N
+export @syms, symbols, subs, evaluate, lambdify, lambdify_expr, expand, free_symbols, has, N
 export register_function!
 export numer_denom, cancel
 export Poly, gens, nterms, coefficients, exponent_vectors, degree, divides, divexact
@@ -30,6 +32,7 @@ include("modgcd.jl")
 include("rational.jl")
 include("iteration.jl")
 include("terminterface.jl")
+include("lambdify.jl")
 include("show.jl")
 
 end

@@ -21,6 +21,8 @@ diff(sin(x)^2, x)                # 2*cos(x)*sin(x)
 (x^2 + y)(x => 2)                # y + 4
 u = x^2 - 2
 u(3), u(1.5), u(big(2.0))        # (7, 0.25, 2.0) -- callable like a function
+f = lambdify(sin(x) * y, x, y)   # compiled: as fast as hand-written Julia
+f(1.0, 2.0)
 f(x, log(Sym(2), x))             # f(x, log(2, x))
 cancel((x^2 - 1)/(x^2 + 2x + 1))  # (x - 1)/(x + 1)
 ```

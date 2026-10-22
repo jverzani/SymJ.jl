@@ -2,12 +2,18 @@
 
 julia_version = "1.13.0"
 manifest_format = "2.1"
-project_hash = "8683584602551270e9d103f9c1376e51e5ef2076"
+project_hash = "f28f4e4e413ba299f7043ef3af427f3ec4b7a47d"
 
 [[deps.Dates]]
 deps = ["Printf"]
 uuid = "ade2ca70-3891-5945-98fb-dc099432e06a"
 version = "1.11.0"
+
+[[deps.ExprTools]]
+git-tree-sha1 = "d2e49e7efd29719d6f28b891b0e0e159daa9d2b4"
+registries = "General"
+uuid = "e2ba6199-217a-4e67-a87a-7c52f15ade04"
+version = "0.1.11"
 
 [[deps.PrecompileTools]]
 deps = ["Preferences"]
@@ -28,8 +34,23 @@ deps = ["Unicode"]
 uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 version = "1.11.0"
 
+[[deps.RuntimeGeneratedFunctions]]
+deps = ["ExprTools", "PrecompileTools", "SHA", "Serialization"]
+git-tree-sha1 = "9bb075002b40849582905394bb3031fb77aa102d"
+registries = "General"
+uuid = "7e49a35a-f44a-4d26-94aa-eba1b4ca6b47"
+version = "0.5.27"
+
+[[deps.SHA]]
+uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
+version = "1.0.0"
+
+[[deps.Serialization]]
+uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
+version = "1.11.0"
+
 [[deps.SymJ]]
-deps = ["TermInterface"]
+deps = ["RuntimeGeneratedFunctions", "TermInterface"]
 path = "."
 uuid = "73a6d648-42a5-483e-b8b5-fc71c1696ef5"
 version = "1.0.0-DEV"

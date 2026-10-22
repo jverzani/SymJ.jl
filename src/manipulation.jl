@@ -172,6 +172,7 @@ function _ev(ex::Sym, a, F, var)
 end
 
 function _evpow(b::Sym, e::Sym, a, F, var)
+    b === E && return exp(_ev(e, a, F, var))      # exp(x) is stored as ℯ^x
     bv = _ev(b, a, F, var)
     if e.kind == NUMBER && isexact(e.num)
         if _isint(e.num)
