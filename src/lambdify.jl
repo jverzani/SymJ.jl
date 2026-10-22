@@ -126,7 +126,7 @@ function _code(cg::_Codegen, ex::Sym)
     rule = get(FUNCTION_RULES, ex.name, nothing)
     (rule === nothing || rule.julia === nothing) &&
         throw(ArgumentError("$(ex.name) has no numeric method; register one with `register_function!`"))
-    Expr(:call, _fnref(rule.julia), Any[_gen(cg, a) for a in ex.args]...)
+    Expr(:call, _fnref(rule.julia), Any[_intarg(a) ? _toint(a.num) : _gen(cg, a) for a in ex.args]...)   # see _intarg
 end
 
 _scaled(c::SymNumber, t) = _isN1(c) ? t : c == NM1 && isexact(c) ? :(-$t) : :($(_numcode(c)) * $t)

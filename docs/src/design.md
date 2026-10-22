@@ -190,6 +190,29 @@ register_function!(:sin; julia = sin,                 # numeric evaluation, Term
     `numerator`/`denominator` (via `numer_denom`).
   - *Not yet:* `real`, `imag`, `conj`, `angle`, `reim`, which need to know whether
     symbols are real (assumptions), and the bit and integer-representation functions.
+- **Package extensions.** These load automatically when the package is loaded with
+  SymJ: **SpecialFunctions**, **HypergeometricFunctions** (`_₁F₁`, `_₂F₁`, `_₃F₂`,
+  and `pFq` of those sizes) and **PolyLog** (`li0`–`li6`, `li(n, z)`, `reli…`).
+  - Calling a package function with a `Sym` argument, in any position, builds the
+    unevaluated function: `sinint(x)`, `besselj(n, x)`.
+  - The package's own function is registered as the numeric method. It runs only when
+    asked for (`N`, calling with numbers, `lambdify`) or when an argument is a float.
+  - Exact special values are given where standard: `gamma(7/2) = 15√π/8`,
+    `zeta(2) = π²/6`, `li2(1) = π²/6`.
+  - Derivative rules are given where standard: Bessel recurrences,
+    `d/dz ₂F₁ = ab/c ₂F₁(a+1, b+1, c+1, z)`, `d/dz Li_n = Li_{n-1}/z`.
+  - A partial derivative with no closed form, such as with respect to an order or a
+    parameter, is left as an unevaluated `Derivative`. A derivative rule may return
+    `nothing` for this.
+  - The symbolic methods are defined at the extension's top level, so they're
+    precompiled. The rules are registered in its `__init__`, because SymJ's rule table
+    can't be modified during the extension's precompilation.
+- **Integer arguments stay integers.** An exact integer passed directly to a function
+  stays an `Int` when evaluated, as in Julia (`besselj(2, x)`). Some parameters must be
+  integers: `polygamma`'s order, `besselh`'s kind.
+- **`N` uses real methods for real arguments.** Many special functions have no complex
+  method, so `N` evaluates with real numbers when all arguments are real. It falls back
+  to complex only when the real call raises a `DomainError`.
 - **`log(b, x)`** is stored unevaluated as a two-argument `FN`, with `log(b, b) = 1`,
   `log(b, 1) = 0` and derivatives in both arguments.
 - **User functions** (`SymFunction(:f)` or `@syms f()`) have no rules. Their derivatives

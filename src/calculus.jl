@@ -43,7 +43,9 @@ function _diff(ex::Sym, x::Sym)
             da = _diff(ex.args[i], x)
             iszero(da) && continue
             (rule === nothing || rule.diff === nothing) && return _mkfn_node(:Derivative, Sym[ex, x])
-            push!(terms, mul(rule.diff(ex.args, i)::Sym, da))
+            d = rule.diff(ex.args, i)
+            d === nothing && return _mkfn_node(:Derivative, Sym[ex, x])   # no closed form
+            push!(terms, mul(d::Sym, da))
         end
         return _add_many(terms)
     end

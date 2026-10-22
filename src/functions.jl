@@ -36,7 +36,8 @@ const FUNCTION_RULES = Dict{Symbol,FunctionRule}()
 
 Attach behaviour to the function `name`: a Julia function used for numeric evaluation,
 a simplification rule `args -> Union{Nothing,Sym}`, and a partial-derivative rule
-`(args, i) -> Sym`.
+`(args, i) -> Union{Nothing,Sym}` (`nothing` for a derivative with no closed form,
+which is left unevaluated).
 """
 function register_function!(name::Symbol; julia = nothing, eval = nothing, diff = nothing)
     FUNCTION_RULES[name] = FunctionRule(julia, eval, diff)
@@ -324,6 +325,11 @@ for (f, g, jump) in ((:floor, floor, round), (:ceil, ceil, round), (:trunc, trun
             v === nothing ? nothing : Sym(SymNumber(g(BigInt, v)))
         end))
 end
+
+# Signatures for extending a function of `n` arguments to expressions: each argument
+# a `Sym` or a `Number`, at least one a `Sym`. Used by the package extensions.
+_symbolic_signatures(n::Int) =
+    [Tuple(T) for T in Iterators.product(ntuple(_ -> (Sym, Number), n)...) if any(==(Sym), T)]
 
 for f in (:sin, :cos, :tan, :asin, :acos, :atan, :sinh, :cosh, :tanh, :asinh, :acosh, :atanh, :abs, :log,
           :sec, :csc, :cot, :asec, :acsc, :acot, :sech, :csch, :coth, :asech, :acsch, :acoth,

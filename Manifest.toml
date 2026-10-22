@@ -2,7 +2,7 @@
 
 julia_version = "1.13.0"
 manifest_format = "2.1"
-project_hash = "527a0a6700fa0c0d3e7f8183f9d95e82326516dc"
+project_hash = "7bd273545cdef65f8c6d9e8a57d01c1890b8e810"
 
 [[deps.Dates]]
 deps = ["Printf"]
@@ -54,6 +54,16 @@ deps = ["PrecompileTools", "RuntimeGeneratedFunctions", "TermInterface"]
 path = "."
 uuid = "73a6d648-42a5-483e-b8b5-fc71c1696ef5"
 version = "1.0.0-DEV"
+
+    [deps.SymJ.extensions]
+    SymJHypergeometricFunctionsExt = "HypergeometricFunctions"
+    SymJPolyLogExt = "PolyLog"
+    SymJSpecialFunctionsExt = "SpecialFunctions"
+
+    [deps.SymJ.weakdeps]
+    HypergeometricFunctions = "34004b35-14d8-5ef3-9330-4cdb6864b03a"
+    PolyLog = "85e3b03c-9856-11eb-0374-4dc1f8670e7f"
+    SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 
 [[deps.TOML]]
 deps = ["Dates"]

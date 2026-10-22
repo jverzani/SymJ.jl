@@ -172,7 +172,7 @@ function _ev(ex::Sym, a, F, var)
     rule = get(FUNCTION_RULES, ex.name, nothing)
     (rule === nothing || rule.julia === nothing) &&
         throw(ArgumentError("$(ex.name) has no numeric method; register one with `register_function!`"))
-    rule.julia(map(x -> _ev(x, a, F, var), ex.args)...)
+    rule.julia(map(x -> _intarg(x) ? _toint(x.num) : _ev(x, a, F, var), ex.args)...)
 end
 
 function _evpow(b::Sym, e::Sym, a, F, var)
@@ -353,7 +353,36 @@ function _evalc(ex::Sym)::ComplexF64
     end
     rule = get(FUNCTION_RULES, ex.name, nothing)
     (rule === nothing || rule.julia === nothing) && throw(ArgumentError("no numeric method for $(ex.name)"))
-    rule.julia(map(_evalc, ex.args)...)
+    # an exact integer argument stays an Int (an order, a kind: besselh(ν, 1, x))
+    any(_intarg, ex.args) && return _fn_with_ints(rule.julia, ex.args)
+    vals = map(_evalc, ex.args)
+    # real arguments: call the real method (special functions often have no complex
+    # one); fall back to complex for a value outside the real domain (log(-1.0))
+    if all(v -> iszero(imag(v)), vals)
+        try
+            return rule.julia(map(real, vals)...)
+        catch err
+            err isa DomainError || rethrow()
+        end
+    end
+    rule.julia(vals...)
+end
+
+# An exact integer given directly to a function stays an Int when evaluated, as in
+# Julia: besselj(2, x) passes 2, and some parameters must be integers (polygamma's
+# order, besselh's kind).
+_intarg(a::Sym) = a.kind == NUMBER && _isint(a.num) && isexact(a.num) && a.num.tag == T_SMALL
+
+function _fn_with_ints(f, args)
+    vals = Any[_intarg(a) ? _toint(a.num) : _evalc(a) for a in args]
+    if all(v -> v isa Int || iszero(imag(v)), vals)
+        try
+            return f(map(v -> v isa Int ? v : real(v), vals)...)
+        catch err
+            err isa DomainError || rethrow()
+        end
+    end
+    f(vals...)
 end
 
 function _cpow(b::Sym, e::Sym)

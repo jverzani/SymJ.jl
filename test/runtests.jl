@@ -658,4 +658,6 @@ import ForwardDiff
     @testset "ambiguities" begin
         @test isempty(Test.detect_ambiguities(SymJ; recursive = true))
     end
+
+    include("extensions.jl")
 end
