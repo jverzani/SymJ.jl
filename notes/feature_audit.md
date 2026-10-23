@@ -57,7 +57,7 @@ against its source and by running it.
 | Factor over ℚ, any number of variables | `factor`, `factor_list` | `factor` | ✅ Zassenhaus, van Hoeij, Wang's EEZ |
 | Squarefree decomposition | `sqf_list` | `sqrfree` | ✅ `factor_squarefree`, `squarefree_part` |
 | Factor over extensions, ℤ[i], ℤ/p | `factor(…; extension, gaussian, modulus)` | `cfactor`, factor mod p | ❌ |
-| Resultant, discriminant | `resultant`, `discriminant` | `resultant`, `discriminant` | ❌ |
+| Resultant, discriminant | `resultant`, `discriminant` | `resultant`, `discriminant` | ✅ modular or subresultant, chosen per input |
 | Gröbner bases | `groebner` | `gbasis` | ❌ |
 | Roots: exact to degree 4, numeric beyond | `roots`, `nroots` | `solve`, `proot` | ✅ through `solve` (cubics with three real roots in trigonometric form) |
 | Real root isolation and counting | `real_roots`, `count_roots`, `sturm` | `realroot`, `sturm` | ◐ numeric roots only |
@@ -88,7 +88,7 @@ against its source and by running it.
 |:--|:--|:--|:--|
 | Derivatives, higher and mixed | `diff` | `diff` | ✅ `diff(f, x, n)`, `diff(f, x, y, …)` |
 | Limits, one-sided, at ∞ | `limit` (Gruntz) | `limit` | ✅ GruntzLimit (66/66 of its benchmark; answers by case of a parameter, which neither offers) |
-| Series, Taylor, asymptotic, `O` | `series`, `fps`, `O` | `series`, `taylor` | ❌ ★ |
+| Series, Taylor, asymptotic, `O` | `series`, `fps`, `O` | `series`, `taylor` | ✅ Taylor, Laurent, Puiseux, at ∞, log terms (no `fps`, no `O` in expressions) |
 | Padé approximants | — | `pade` | ❌ |
 | Indefinite integrals | `integrate` | `integrate` | ✅ RischIntegrate (175/175 of the Apostol set, more than either) |
 | Definite and improper integrals | `integrate(f, (x, a, b))` | `integrate(f, x, a, b)` | ◐ by evaluating an antiderivative; no improper integrals or check for singularities |

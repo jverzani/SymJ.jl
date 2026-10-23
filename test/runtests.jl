@@ -206,6 +206,57 @@ import ForwardDiff
         @test N(lambertw(Sym(-1 // 5), -1)) ≈ -2.542641357773527
     end
 
+    @testset "resultants" begin
+        @syms ra rb rc rd re rf rg rh ry rz
+        for m in (:auto, :modular, :subresultant)
+            R(p, q) = resultant(p, q, x; method = m)
+            @test R(x^2 - 2, x^2 - 3) == 1
+            @test R(x^2 + ry^2 - 1, x - ry) == 2ry^2 - 1
+            @test R(ra * x^2 + rb * x + rc, 2ra * x + rb) == 4ra^2 * rc - ra * rb^2
+            # res(Π(x - aᵢ), Π(x - cⱼ)) = Π(aᵢ - cⱼ)
+            @test iszero(expand(R((x - ra) * (x - rb), (x - rc) * (x - rd)) - (ra - rc) * (ra - rd) * (rb - rc) * (rb - rd)))
+            @test R((x - 1) * (x + 2), (x - 1) * (x^2 + 5)) == 0                  # a common root
+            @test R(x^2 / 2 - 1 // 3, x / 5 + 1) == Sym(73 // 150)
+            @test R(x^3 + ry, x^2 * ry - rz) == ry^5 - rz^3
+            @test R(Sym(3), x^2 + 1) == 9 && R(x^2 + 1, Sym(3)) == 9 && R(Sym(2), Sym(3)) == 1
+            @test R(ry * x^2 + x + 1, x - ry) == ry^3 + ry + 1                     # lc vanishes at ry = 0
+            @test R(x - ry^100, x^3 - 2) == ry^300 - 2
+            @test R(Sym(0), x + 1) == 0
+            # res(B, A) = (-1)^(mn) res(A, B)
+            @test R(x^2 + x + 1, x^3 - ry) == R(x^3 - ry, x^2 + x + 1)          # mn even
+            @test R(x + ry, x^3 - 2) == -R(x^3 - 2, x + ry)
+        end
+        # the methods agree on random dense and sparse inputs
+        st = Ref(UInt64(7))                       # a small LCG: no Random dependency
+        rnd(r) = (st[] = st[] * 6364136223846793005 + 1442695040888963407; first(r) + Int((st[] >> 33) % length(r)))
+        rp(vs, d, k) = sum(rnd(-9:9) * prod(v^rnd(0:d) for v in vs) for _ in 1:k)
+        for (vs, d, k) in (([x], 12, 10), ([x, ry], 5, 10), ([x, ry, rz], 3, 8))
+            for _ in 1:3
+                p, q = rp(vs, d, k), rp(vs, d, k)
+                has(p, x) && has(q, x) || continue
+                r1 = resultant(p, q, x; method = :modular)
+                @test iszero(expand(r1 - resultant(p, q, x; method = :subresultant)))
+            end
+        end
+        @test nterms(Poly(resultant(ra*x^3 + rb*x^2 + rc*x + rd, re*x^3 + rf*x^2 + rg*x + rh, x),
+                          ra, rb, rc, rd, re, rf, rg, rh)) == 34                  # the known 34 terms
+        # polynomials, coefficients in functions, floats
+        P = resultant(Poly(x^2 + ry^2 - 1, x, ry), Poly(x - ry, x, ry), x)
+        @test P isa Poly && Sym(P) == 2ry^2 - 1
+        @test Sym(resultant(Poly(x^2 - 2, x), Poly(x - 3, x))) == 7
+        @test resultant(x^2 - sin(ry), x - cos(ry), x) == cos(ry)^2 - sin(ry)
+        @test N(resultant(x^2 - 2.0, x - 1.5, x)) ≈ 0.25
+        @test_throws ArgumentError resultant(sin(x), x - 1, x)
+        @test_throws ArgumentError resultant(x, x, x; method = :fast)
+        # discriminants
+        @test discriminant(ra * x^2 + rb * x + rc, x) == rb^2 - 4ra * rc
+        @test discriminant(x^3 + ra * x + rb, x) == -4ra^3 - 27rb^2
+        @test discriminant((x - 1)^2 * (x + 1), x) == 0
+        @test discriminant(3x + 1, x) == 1
+        @test Sym(discriminant(Poly(x^2 - 5, x))) == 20
+        @test_throws ArgumentError discriminant(Sym(4), x)
+    end
+
     @testset "series" begin
         @syms sa
         S(e, args...) = Sym(series(e, args...))
