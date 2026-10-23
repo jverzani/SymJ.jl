@@ -155,21 +155,21 @@ table.grid { border-collapse: separate; border-spacing: 2px; font-variant-numeri
     <p><b>SymPy misses fifteen.</b></p>
     <ul>
       <li>One limit, <code>lim x→a (xˣ − aᵃ)/(x − a)</code>: it raises an error, because it cannot decide the sign of <code>aᵃ − exp(a log a)</code>.</li>
-      <li>Eleven integrals unevaluated, among them ∫ 1/(a sin x + b cos x)², ∫ √((a + x)/(a − x)), ∫ eᵗ log(1 + t) and the exponential integrals of Apostol 162–174.</li>
-      <li>One integral timed out: Apostol 55, ∫ √(1 + 3cos² x) sin 2x, over 60 s.</li>
+      <li>Ten integrals unevaluated, among them ∫ √((a + x)/(a − x)), ∫ eᵗ log(1 + t) and the exponential integrals of Apostol 162–174.</li>
+      <li>Two integrals timed out at 60 s: Apostol 55, ∫ √(1 + 3cos² x) sin 2x, and Apostol 146, ∫ 1/(a sin x + b cos x)². In an earlier run, 146 came back unevaluated after 12 s.</li>
       <li>One answer marked wrong: its <code>Piecewise</code> answer to ∫ log t/(1 + t). On the branch used for t > 0 it is <code>−iπ log(1/(t+1)) − polylog(2, t+1)</code>. With the principal value of <code>polylog</code> on its cut, which is how SymPy evaluates it, the two imaginary parts add instead of cancelling, so the derivative is not the integrand.</li>
     </ul>
     <p>It also leaves the √2 fraction uncancelled, like SymJ.</p>
-    <p><b>Times, first calls.</b> Giac takes 1.7 s in all and SymPy 126 s. SymJ takes 61.5 s, nearly all of it compilation: the first gcd (6.4 s), the first equation and the first linear system (4.0 and 3.5 s), the first limit (6.8 s) and the first integrals. Load times are 0.4 s for SymJ and 2.5 s for SymPy and Giac.</p>
-    <p><b>Times, repeated calls.</b> SymJ takes 1.4 s in all, Giac 0.8 s and SymPy 126 s.</p>
+    <p><b>Times, first calls.</b> Giac takes 1.2 s in all, SymJ 8.2 s and SymPy 172 s. SymJ's first calls are almost all compilation in integration: 7.5 s for the integrals, against 0.75 s for everything else (0.5 s of it limits). PrecompileTools workloads cover the common operations: SymJ's own, plus two package extensions that run limits and integrals on SymJ terms when GruntzLimit or RischIntegrate is installed. Integrands of kinds outside the integration workload still compile on first use; the slowest are ∫ 1/(5 + 2 sin x − cos x) (1.6 s) and ∫ √(3 − x²) (1.3 s). Load times are 0.7 s for SymJ with its extensions, and 2.5 s for SymPy and for Giac.</p>
+    <p><b>Times, repeated calls.</b> SymJ takes 1.4 s in all, Giac 0.8 s and SymPy 173 s.</p>
     <ul>
       <li>SymJ is fastest on expansion: 0.6 ms for the twelve, against 25 ms for Giac and 1.8 s for SymPy.</li>
-      <li>On factorization and gcds SymJ and Giac are about even (3 and 8–9 ms).</li>
-      <li>On limits SymJ is faster than Giac (556 against 669 ms; SymPy 4.7 s).</li>
-      <li>On integrals Giac is about 7x faster (122 ms against 849 ms; SymPy 119 s).</li>
+      <li>On factorization and gcds SymJ and Giac are about even (2.8 and 3.0 ms; 7.9 and 8.8 ms).</li>
+      <li>On limits SymJ is faster than Giac (573 against 667 ms; SymPy 4.7 s).</li>
+      <li>On integrals Giac is about 7x faster (123 ms against 815 ms; SymPy 166 s).</li>
     </ul>
     <p>SymPy's repeat times equal its first: there is no compilation, and its cache is cleared before the repeat.</p>
-    <p><b>Where SymJ could gain.</b> The largest cost is first-call compilation, most of it in gcds, equations, limits and integration. A PrecompileTools workload exercising these would cut much of it. Beyond that: cancellation over algebraic numbers (√2 as an algebraic number, not a variable), and equations through several functions of x (here by combining logarithms).</p>
+    <p><b>Where SymJ could gain.</b> Speed of integration once compiled (about 7x behind Giac). The integrals still compiling on first use. Cancellation over algebraic numbers (√2 as an algebraic number, not a variable). Equations through several functions of x (here by combining logarithms).</p>
   </section>
 
   <section class="notes">

@@ -12,30 +12,23 @@ This has been deprecated since SymPy version 1.9. It
 will be removed in a future version of SymPy.
 
 
-[98029] signal 15: Terminated: 15
-in expression starting at /Users/jverzani/julia/SymJ/bench/cas/core.jl:269
+[14606] signal 15: Terminated: 15
+in expression starting at /Users/jverzani/julia/SymJ/bench/cas/core.jl:271
 __psynch_cvwait at /usr/lib/system/libsystem_kernel.dylib (unknown line)
 unknown function (ip: 0x0) at (unknown file)
-PyObject_GetOptionalAttr at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
-dict_update_common at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
-wrap_init at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
-wrapperdescr_call at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
-_TAIL_CALL_CALL_NON_PY_GENERAL at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
-_PyFunction_Vectorcall at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
-slot_tp_init at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
-type_call at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
-_TAIL_CALL_CALL_NON_PY_GENERAL at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
-_PyFunction_Vectorcall at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
-vectorcall_maybe at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
-slot_nb_add at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
-PyNumber_Add at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
-_TAIL_CALL_BINARY_OP at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
-_PyFunction_Vectorcall at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
-vectorcall_maybe at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
-slot_nb_multiply at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
-PyNumber_Multiply at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
-_functools_reduce at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+dict_dealloc at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+subtype_dealloc at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+_Py_Dealloc at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+dict_dealloc at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+subtype_dealloc at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+list_dealloc at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+_Py_Dealloc at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
 _TAIL_CALL_CALL_BUILTIN_FAST_WITH_KEYWORDS at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+_PyFunction_Vectorcall at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+map_next at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+_list_extend at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+list_vectorcall at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+_TAIL_CALL_CALL_BUILTIN_CLASS at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
 _PyFunction_Vectorcall at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
 map_next at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
 _list_extend at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
@@ -51,7 +44,7 @@ _PyFunction_Vectorcall at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaP
 PyObject_CallObject at /Users/jverzani/.julia/packages/PythonCall/trYos/src/C/pointers.jl:302 [inlined]
 macro expansion at /Users/jverzani/.julia/packages/PythonCall/trYos/src/Core/Py.jl:107 [inlined]
 pycallargs at /Users/jverzani/.julia/packages/PythonCall/trYos/src/Core/builtins.jl:194
-unknown function (ip: 0x116d5412b) at (unknown file)
+unknown function (ip: 0x116c2012b) at (unknown file)
 #pycall#25 at /Users/jverzani/.julia/packages/PythonCall/trYos/src/Core/builtins.jl:213
 jl_apply at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/julia.h:2318 [inlined]
 jl_f__apply_iterate at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/builtins.c:876
@@ -66,13 +59,13 @@ jl_apply at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f60
 jl_f__apply_iterate at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/builtins.c:876
 #integrate#71 at /Users/jverzani/.julia/packages/SymPyCore/l4Bbg/src/SymPy/gen_methods_sympy.jl:33
 integrate at /Users/jverzani/.julia/packages/SymPyCore/l4Bbg/src/SymPy/gen_methods_sympy.jl:33 [inlined]
-INTEGRATE at /Users/jverzani/julia/SymJ/bench/cas/worker_sympy.jl:22 [inlined]
-operate at /Users/jverzani/julia/SymJ/bench/cas/core.jl:219
-unknown function (ip: 0x13587c28b) at (unknown file)
-run_one at /Users/jverzani/julia/SymJ/bench/cas/core.jl:251
-#43 at /Users/jverzani/julia/SymJ/bench/cas/core.jl:275 [inlined]
+INTEGRATE at /Users/jverzani/julia/SymJ/bench/cas/worker_sympy.jl:22
+unknown function (ip: 0x13836805f) at (unknown file)
+operate at /Users/jverzani/julia/SymJ/bench/cas/core.jl:221
+run_one at /Users/jverzani/julia/SymJ/bench/cas/core.jl:253
+#43 at /Users/jverzani/julia/SymJ/bench/cas/core.jl:277 [inlined]
 foreach at ./abstractarray.jl:3212 [inlined]
-#39 at /Users/jverzani/julia/SymJ/bench/cas/core.jl:275
+#39 at /Users/jverzani/julia/SymJ/bench/cas/core.jl:277
 #open#324 at ./io.jl:429
 open at ./io.jl:426
 jl_apply at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/julia.h:2318 [inlined]
@@ -112,4 +105,97 @@ jl_apply at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f60
 true_main at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/jlapi.c:985
 jl_repl_entrypoint at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/jlapi.c:1152
 unknown function (ip: 0x0) at (unknown file)
-Allocations: 29127012 (Pool: 29126680; Big: 332); GC: 21
+Allocations: 28479554 (Pool: 28479222; Big: 332); GC: 19
+
+[14668] signal 15: Terminated: 15
+in expression starting at /Users/jverzani/julia/SymJ/bench/cas/core.jl:271
+__psynch_cvwait at /usr/lib/system/libsystem_kernel.dylib (unknown line)
+unknown function (ip: 0x0) at (unknown file)
+_TAIL_CALL_LOAD_ATTR_NONDESCRIPTOR_WITH_VALUES at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+vectorcall_maybe at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+slot_nb_multiply at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+PyNumber_Multiply at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+_TAIL_CALL_BINARY_OP at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+_PyFunction_Vectorcall at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+vectorcall_maybe at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+slot_nb_multiply at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+PyNumber_Multiply at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+_functools_reduce at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+_TAIL_CALL_CALL_BUILTIN_FAST_WITH_KEYWORDS at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+_PyFunction_Vectorcall at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+map_next at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+_list_extend at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+list_vectorcall at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+_TAIL_CALL_CALL_BUILTIN_CLASS at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+_PyFunction_Vectorcall at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+method_vectorcall at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+_TAIL_CALL_CALL_EX_NON_PY_GENERAL at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+_PyFunction_Vectorcall at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+method_vectorcall at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+_TAIL_CALL_CALL_EX_NON_PY_GENERAL at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+_PyFunction_Vectorcall at /Users/jverzani/julia/SymJ/bench/cas/env_sympy/.CondaPkg/.pixi/envs/default/lib/libpython3.15.dylib (unknown line)
+PyObject_CallObject at /Users/jverzani/.julia/packages/PythonCall/trYos/src/C/pointers.jl:302 [inlined]
+macro expansion at /Users/jverzani/.julia/packages/PythonCall/trYos/src/Core/Py.jl:107 [inlined]
+pycallargs at /Users/jverzani/.julia/packages/PythonCall/trYos/src/Core/builtins.jl:194
+unknown function (ip: 0x11a83012b) at (unknown file)
+#pycall#25 at /Users/jverzani/.julia/packages/PythonCall/trYos/src/Core/builtins.jl:213
+jl_apply at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/julia.h:2318 [inlined]
+jl_f__apply_iterate at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/builtins.c:876
+pycall at /Users/jverzani/.julia/packages/PythonCall/trYos/src/Core/builtins.jl:203
+jl_apply at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/julia.h:2318 [inlined]
+jl_f__apply_iterate at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/builtins.c:876
+#_#12 at /Users/jverzani/.julia/packages/PythonCall/trYos/src/Core/Py.jl:357
+jl_apply at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/julia.h:2318 [inlined]
+jl_f__apply_iterate at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/builtins.c:876
+Py at /Users/jverzani/.julia/packages/PythonCall/trYos/src/Core/Py.jl:357
+jl_apply at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/julia.h:2318 [inlined]
+jl_f__apply_iterate at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/builtins.c:876
+#integrate#71 at /Users/jverzani/.julia/packages/SymPyCore/l4Bbg/src/SymPy/gen_methods_sympy.jl:33
+integrate at /Users/jverzani/.julia/packages/SymPyCore/l4Bbg/src/SymPy/gen_methods_sympy.jl:33 [inlined]
+INTEGRATE at /Users/jverzani/julia/SymJ/bench/cas/worker_sympy.jl:22
+unknown function (ip: 0x11b18805f) at (unknown file)
+operate at /Users/jverzani/julia/SymJ/bench/cas/core.jl:221
+run_one at /Users/jverzani/julia/SymJ/bench/cas/core.jl:253
+#43 at /Users/jverzani/julia/SymJ/bench/cas/core.jl:277 [inlined]
+foreach at ./abstractarray.jl:3212 [inlined]
+#39 at /Users/jverzani/julia/SymJ/bench/cas/core.jl:277
+#open#324 at ./io.jl:429
+open at ./io.jl:426
+jl_apply at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/julia.h:2318 [inlined]
+do_call at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/interpreter.c:123
+eval_stmt_value at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/interpreter.c:194 [inlined]
+eval_body at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/interpreter.c:675
+jl_interpret_toplevel_thunk at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/interpreter.c:884
+jl_toplevel_eval_flex at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/toplevel.c:742
+jl_eval_toplevel_stmts at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/toplevel.c:585
+jl_toplevel_eval_flex at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/toplevel.c:683
+ijl_toplevel_eval at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/toplevel.c:754 [inlined]
+ijl_toplevel_eval_in at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/toplevel.c:799
+eval at ./boot.jl:489
+include_string at ./loading.jl:3016
+_include at ./loading.jl:3076
+include at ./Base.jl:310
+IncludeInto at ./Base.jl:311
+jfptr_IncludeInto_69662.1 at /Users/jverzani/.julia/juliaup/julia-1.13.0+0.aarch64.apple.darwin14/Julia-1.13.app/Contents/Resources/julia/lib/julia/sys.dylib (unknown line)
+jl_apply at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/julia.h:2318 [inlined]
+do_call at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/interpreter.c:123
+eval_stmt_value at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/interpreter.c:194 [inlined]
+eval_body at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/interpreter.c:675
+jl_interpret_toplevel_thunk at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/interpreter.c:884
+jl_toplevel_eval_flex at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/toplevel.c:742
+jl_eval_toplevel_stmts at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/toplevel.c:585
+jl_toplevel_eval_flex at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/toplevel.c:683
+ijl_toplevel_eval at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/toplevel.c:754 [inlined]
+ijl_toplevel_eval_in at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/toplevel.c:799
+eval at ./boot.jl:489
+include_string at ./loading.jl:3016
+_include at ./loading.jl:3076
+include at ./Base.jl:309
+exec_options at ./client.jl:344
+_start at ./client.jl:577
+jfptr__start_37735.1 at /Users/jverzani/.julia/juliaup/julia-1.13.0+0.aarch64.apple.darwin14/Julia-1.13.app/Contents/Resources/julia/lib/julia/sys.dylib (unknown line)
+jl_apply at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/julia.h:2318 [inlined]
+true_main at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/jlapi.c:985
+jl_repl_entrypoint at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/builder-honeycrisp-P2C257CXGN.1/019ebd63-635e-4155-b60a-9d2815900786/trusted/build/builder-honeycrisp-P2C257CXGN-1/julialang/julia-ci/src/jlapi.c:1152
+unknown function (ip: 0x0) at (unknown file)
+Allocations: 20477501 (Pool: 20477240; Big: 261); GC: 15
