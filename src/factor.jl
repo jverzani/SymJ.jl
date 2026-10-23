@@ -20,8 +20,8 @@
 # (evaluation and multivariate Hensel lifting) is the fast method.
 
 """
-    factor(p::Poly; gcd_method = :dense) -> (unit, [f₁ => m₁, f₂ => m₂, ...])
-    factor(ex::Sym; gcd_method = :dense)
+    factor(p::Poly; gcd_method = :auto) -> (unit, [f₁ => m₁, f₂ => m₂, ...])
+    factor(ex::Sym; gcd_method = :auto)
 
 Factorization into irreducibles over the rationals: `p == unit * Π fᵢ^mᵢ` with each
 `fᵢ` irreducible, primitive, of positive leading coefficient. Factors are sorted by
@@ -36,15 +36,15 @@ factor(x^4 - 1)                 # (x - 1)*(x + 1)*(x^2 + 1)
 factor(x^2*y^2 - 1)             # (x*y - 1)*(x*y + 1)
 ```
 
-`gcd_method = :zippel` uses Zippel's sparse gcd (see [`gcd`](@ref)) for the gcds of the
+`gcd_method` (`:auto`, `:dense` or `:zippel`; see [`gcd`](@ref)) chooses the method for the gcds of the
 squarefree decomposition and, for expressions, of `cancel`.
 
 Multivariate inputs are factored through Kronecker substitution, whose cost grows
 with the product of the degrees in each variable; very large inputs throw an
 `ArgumentError` rather than run for a long time.
 """
-factor(p::Poly{SymNumber}; gcd_method::Symbol = :dense) = _with_widening(_factor_poly, p; gcd_method)
-function _factor_poly(p::Poly{SymNumber}; gcd_method::Symbol = :dense)
+factor(p::Poly{SymNumber}; gcd_method::Symbol = :auto) = _with_widening(_factor_poly, p; gcd_method)
+function _factor_poly(p::Poly{SymNumber}; gcd_method::Symbol = :auto)
     unit, sqf = _factor_squarefree_poly(p; gcd_method)
     out = Pair{Poly{SymNumber},Int}[]
     for (q, m) in sqf, g in _factor_sqfree(q)
@@ -54,8 +54,8 @@ function _factor_poly(p::Poly{SymNumber}; gcd_method::Symbol = :dense)
     unit, out
 end
 
-factor(ex::Sym; gcd_method::Symbol = :dense) = _with_widening(_factor_sym, ex; gcd_method)
-function _factor_sym(ex::Sym; gcd_method::Symbol = :dense)
+factor(ex::Sym; gcd_method::Symbol = :auto) = _with_widening(_factor_sym, ex; gcd_method)
+function _factor_sym(ex::Sym; gcd_method::Symbol = :auto)
     n, d = numer_denom(_cancel(ex; gcd_method))
     atoms = Set{Sym}()
     (_poly_atoms!(atoms, n) && _poly_atoms!(atoms, d)) || return ex
@@ -63,7 +63,7 @@ function _factor_sym(ex::Sym; gcd_method::Symbol = :dense)
     num, den = _factor_poly(Poly{SymNumber}(n, gs); gcd_method), _factor_poly(Poly{SymNumber}(d, gs); gcd_method)
     _sqf_sym(num...) / _sqf_sym(den...)
 end
-factor(x::Number; gcd_method::Symbol = :dense) = Sym(x)
+factor(x::Number; gcd_method::Symbol = :auto) = Sym(x)
 
 # irreducible factors of a squarefree, primitive, positive polynomial
 function _factor_sqfree(q::Poly{SymNumber})

@@ -25,9 +25,9 @@ factor_squarefree(x^3 - x^2 - x + 1)               # (x + 1)*(x - 1)^2
 factor_squarefree((x^2 - 1)/(x^2 + 2x + 1)^2)      # (x - 1)/(x + 1)^3
 ```
 """
-factor_squarefree(p::Poly{SymNumber}; gcd_method::Symbol = :dense) =
+factor_squarefree(p::Poly{SymNumber}; gcd_method::Symbol = :auto) =
     _with_widening(_factor_squarefree_poly, p; gcd_method)
-function _factor_squarefree_poly(p::Poly{SymNumber}; gcd_method::Symbol = :dense)
+function _factor_squarefree_poly(p::Poly{SymNumber}; gcd_method::Symbol = :auto)
     _check_gcd_method(gcd_method)
     iszero(p) && throw(ArgumentError("the zero polynomial has no squarefree factorization"))
     f = _integer_scaled(p)
@@ -46,15 +46,15 @@ end
 The product of the distinct irreducible factors of `p` (its radical), with positive
 leading coefficient and integer content 1. Also for expressions.
 """
-squarefree_part(p::Poly{SymNumber}; gcd_method::Symbol = :dense) =
+squarefree_part(p::Poly{SymNumber}; gcd_method::Symbol = :auto) =
     _with_widening(_squarefree_part_poly, p; gcd_method)
-function _squarefree_part_poly(p::Poly{SymNumber}; gcd_method::Symbol = :dense)
+function _squarefree_part_poly(p::Poly{SymNumber}; gcd_method::Symbol = :auto)
     _, facs = _factor_squarefree_poly(p; gcd_method)
     foldl((r, fm) -> r * fm.first, facs; init = one(p))
 end
 
 # f primitive with positive lc; returns its nonconstant factors by multiplicity
-function _sqf(f::Poly{SymNumber}, method::Symbol = :dense)
+function _sqf(f::Poly{SymNumber}, method::Symbol = :auto)
     i = _mainvar(f, f)
     i == 0 && return Pair{Poly{SymNumber},Int}[]
     c = _content_mod(f, i, method)
@@ -65,7 +65,7 @@ function _sqf(f::Poly{SymNumber}, method::Symbol = :dense)
 end
 
 # gcd of the coefficients with respect to x_i, with the modular gcd
-function _content_mod(p::Poly{SymNumber}, i::Int, method::Symbol = :dense)
+function _content_mod(p::Poly{SymNumber}, i::Int, method::Symbol = :auto)
     g = zero(p)
     for c in _coeffs_in(p, i)
         g = _gcd_poly(g, c; method)
@@ -89,7 +89,7 @@ function _diff_in(p::Poly{C}, i::Int) where {C}
 end
 
 # Yun's algorithm for f primitive in x_i (every factor involves x_i)
-function _yun(f::Poly{SymNumber}, i::Int, method::Symbol = :dense)
+function _yun(f::Poly{SymNumber}, i::Int, method::Symbol = :auto)
     out = Pair{Poly{SymNumber},Int}[]
     fp = _diff_in(f, i)
     a = _gcd_poly(f, fp; method)
@@ -116,18 +116,18 @@ end
 
 ## expressions
 
-factor_squarefree(ex::Sym; gcd_method::Symbol = :dense) =
+factor_squarefree(ex::Sym; gcd_method::Symbol = :auto) =
     _with_widening(_factor_squarefree_sym, ex; gcd_method)
-function _factor_squarefree_sym(ex::Sym; gcd_method::Symbol = :dense)
+function _factor_squarefree_sym(ex::Sym; gcd_method::Symbol = :auto)
     r = _sqf_parts(ex, gcd_method)
     r === nothing && return ex
     (un, fn), (ud, fd) = r
     _sqf_sym(un, fn) / _sqf_sym(ud, fd)
 end
 
-squarefree_part(ex::Sym; gcd_method::Symbol = :dense) =
+squarefree_part(ex::Sym; gcd_method::Symbol = :auto) =
     _with_widening(_squarefree_part_sym, ex; gcd_method)
-function _squarefree_part_sym(ex::Sym; gcd_method::Symbol = :dense)
+function _squarefree_part_sym(ex::Sym; gcd_method::Symbol = :auto)
     r = _sqf_parts(ex, gcd_method)
     r === nothing && throw(ArgumentError("squarefree_part needs exact coefficients"))
     (_, fn), _ = r
@@ -135,7 +135,7 @@ function _squarefree_part_sym(ex::Sym; gcd_method::Symbol = :dense)
 end
 
 # factorizations of the numerator and denominator, or nothing for inexact coefficients
-function _sqf_parts(ex::Sym, gcd_method::Symbol = :dense)
+function _sqf_parts(ex::Sym, gcd_method::Symbol = :auto)
     n, d = numer_denom(_cancel(ex; gcd_method))
     atoms = Set{Sym}()
     (_poly_atoms!(atoms, n) && _poly_atoms!(atoms, d)) || return nothing

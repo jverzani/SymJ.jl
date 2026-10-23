@@ -7,15 +7,15 @@
 # Σ c_k / p_i^j with deg c_k < deg p_i.
 
 """
-    apart(ex, x; gcd_method = :dense)
-    apart(ex; gcd_method = :dense)
+    apart(ex, x; gcd_method = :auto)
+    apart(ex; gcd_method = :auto)
 
 Partial fraction decomposition of a rational function of `x` with exact
 coefficients: a polynomial plus terms `c(x)/p(x)^j`, `p` irreducible and
 `deg c < deg p`. Coefficients may involve other symbols and parameters (and, as in
 [`cancel`](@ref), function applications): the decomposition is then over the field
 of rational functions in them, `ℚ(a, b, ...)`. With no `x`, `ex` must have one free
-variable. `gcd_method = :zippel` uses Zippel's sparse gcd (see [`gcd`](@ref)) in the
+variable. `gcd_method` (`:auto`, `:dense` or `:zippel`; see [`gcd`](@ref)) chooses the gcd method in the
 initial [`cancel`](@ref) and in factoring the denominator.
 
 ```julia
@@ -24,8 +24,8 @@ apart((x^3 + 1)/(x^2 - 1))      # x + 1/(x - 1)
 apart(1/((x - a)*(x - b)), x)   # 1/((a - b)*(x - a)) - 1/((a - b)*(x - b))
 ```
 """
-apart(ex::Sym, x::Sym; gcd_method::Symbol = :dense) = _with_widening(_apart, ex, x; gcd_method)
-function _apart(ex::Sym, x::Sym; gcd_method::Symbol = :dense)
+apart(ex::Sym, x::Sym; gcd_method::Symbol = :auto) = _with_widening(_apart, ex, x; gcd_method)
+function _apart(ex::Sym, x::Sym; gcd_method::Symbol = :auto)
     _isnamed(x) || throw(ArgumentError("apart: $x is not a symbol"))
     n, d = numer_denom(_cancel(ex; gcd_method))
     atoms = Set{Sym}()
@@ -55,17 +55,17 @@ function _apart(ex::Sym, x::Sym; gcd_method::Symbol = :dense)
     result
 end
 
-function apart(ex::Sym; gcd_method::Symbol = :dense)
+function apart(ex::Sym; gcd_method::Symbol = :auto)
     vars = free_symbols(ex)
     length(vars) == 1 || throw(ArgumentError("apart: give the variable, e.g. apart(ex, x)"))
     apart(ex, only(vars); gcd_method)
 end
-apart(ex::Number, x...; gcd_method::Symbol = :dense) = Sym(ex)
+apart(ex::Number, x...; gcd_method::Symbol = :auto) = Sym(ex)
 
 # Over ℚ(params): D factored over ℤ in (x, params); by Gauss's lemma its factors
 # involving x are its irreducible factors over ℚ(params)[x], the rest a unit there.
 # The same steps as above, in Poly{RatFun}.
-function _apart_params(n::Sym, d::Sym, x::Sym, params::Vector{Sym}, gcd_method::Symbol = :dense)
+function _apart_params(n::Sym, d::Sym, x::Sym, params::Vector{Sym}, gcd_method::Symbol = :auto)
     gs = [x; params]
     N, D = Poly{SymNumber}(n, gs), Poly{SymNumber}(d, gs)
     c, facs = _factor_poly(D; gcd_method)

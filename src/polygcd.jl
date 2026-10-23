@@ -108,59 +108,73 @@ function _integer_scaled(p::Poly{SymNumber})
 end
 
 """
-    gcd(p::Poly, q::Poly; method = :dense)
+    gcd(p::Poly, q::Poly; method = :auto)
 
 Greatest common divisor of polynomials with numeric (exact) coefficients. For integer
 inputs the result is the integer gcd, including the gcd of the integer contents, with a
 positive leading coefficient. If either input has non-integer rational coefficients,
 the result is monic.
 
-The default `method = :dense` is Brown's modular algorithm. `method = :zippel` adds
-Zippel's sparse interpolation: much faster when the gcd has few terms relative to its
-degrees in three or more variables, slower when the gcd is dense. The result is the
-same either way (it is verified by division).
+The method is Brown's modular algorithm (`method = :dense`), or that with Zippel's
+sparse interpolation (`method = :zippel`): much faster when the inputs have few terms
+relative to their degrees, as with many variables, and slower when they are dense. The
+default `method = :auto` chooses between them by estimating the dense cost. The result
+is the same either way (it is verified by division).
 """
-_check_gcd_method(m::Symbol) = m in (:dense, :zippel) ? m :
-    throw(ArgumentError("the gcd method must be :dense or :zippel, not :$m"))
+_check_gcd_method(m::Symbol) = m in (:auto, :dense, :zippel) ? m :
+    throw(ArgumentError("the gcd method must be :auto, :dense or :zippel, not :$m"))
 
-Base.gcd(p::Poly{SymNumber}, q::Poly{SymNumber}; method::Symbol = :dense) =
+# :auto chooses Zippel when the dense method's work, about Π (deg_i + 1) univariate
+# gcds over all but the main variable, is large against the size of the inputs: that
+# measures sparsity. Measured: dense inputs have ratios near 1 (where Brown is up to 30x
+# faster), sparse or many-variable ones 4 and up (where Zippel is 3-100x faster).
+function _use_zippel(p::Poly, q::Poly)
+    dp, dq = _maxdegs(p), _maxdegs(q)
+    act = [i for i in eachindex(dp) if dp[i] > 0 || dq[i] > 0]
+    length(act) >= 3 || return false              # bivariate images are dense anyway
+    est = prod(Float64(min(dp[i], dq[i]) + 1) for i in act[2:end]; init = 1.0)
+    est > 256 && est > 3 * max(length(p.monos), length(q.monos))
+end
+
+Base.gcd(p::Poly{SymNumber}, q::Poly{SymNumber}; method::Symbol = :auto) =
     _with_widening(_gcd_poly, p, q; method)
 
 # the gcd within the packing of p and q (internal callers: type-stable)
-function _gcd_poly(p::Poly{SymNumber}, q::Poly{SymNumber}; method::Symbol = :dense)
+function _gcd_poly(p::Poly{SymNumber}, q::Poly{SymNumber}; method::Symbol = :auto)
     _check_gcd_method(method)
     p, q = _unify(p, q)
     # the modular gcd works on UInt64 and UInt128 words; BigInt ones take the PRS
     g = _monotype(p) !== BigInt ?
-        _gcd_modular(_integer_scaled(p), _integer_scaled(q); sparse = method === :zippel) :
+        _gcd_modular(_integer_scaled(p), _integer_scaled(q);
+                     sparse = method === :zippel || (method === :auto && _use_zippel(p, q))) :
         _gcd(_integer_scaled(p), _integer_scaled(q))
     rational = !all(_isint, p.coefs) || !all(_isint, q.coefs)
     rational && !iszero(g) ? _scale(g, inv(g.coefs[1])) : g
 end
 
 """
-    lcm(p::Poly, q::Poly; method = :dense)
+    lcm(p::Poly, q::Poly; method = :auto)
 
 Least common multiple, normalized like [`gcd`](@ref), whose `method` it takes.
 """
-Base.lcm(p::Poly{SymNumber}, q::Poly{SymNumber}; method::Symbol = :dense) =
+Base.lcm(p::Poly{SymNumber}, q::Poly{SymNumber}; method::Symbol = :auto) =
     _with_widening(_lcm_poly, p, q; method)
-function _lcm_poly(p::Poly{SymNumber}, q::Poly{SymNumber}; method::Symbol = :dense)
+function _lcm_poly(p::Poly{SymNumber}, q::Poly{SymNumber}; method::Symbol = :auto)
     p, q = _unify(p, q)
     (iszero(p) || iszero(q)) && return zero(p)
     _positive(divexact(p * q, _gcd_poly(p, q; method)))
 end
 
 """
-    gcd(a::Sym, b::Sym; method = :dense)
-    lcm(a::Sym, b::Sym; method = :dense)
+    gcd(a::Sym, b::Sym; method = :auto)
+    lcm(a::Sym, b::Sym; method = :auto)
 
 GCD and LCM of expressions that are polynomials with numeric coefficients in their
 symbols, computed through [`Poly`](@ref); `method = :zippel` as for polynomials.
 """
-Base.gcd(a::Sym, b::Sym; method::Symbol = :dense) =
+Base.gcd(a::Sym, b::Sym; method::Symbol = :auto) =
     _with_widening(() -> Sym(_gcd_poly(_poly_pair(a, b)...; method)))
-Base.lcm(a::Sym, b::Sym; method::Symbol = :dense) =
+Base.lcm(a::Sym, b::Sym; method::Symbol = :auto) =
     _with_widening(() -> Sym(_lcm_poly(_poly_pair(a, b)...; method)))
 
 function _poly_pair(a::Sym, b::Sym)

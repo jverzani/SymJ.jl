@@ -759,6 +759,18 @@ import ForwardDiff
         state[] = saved
         @test gcd(P(x // 2 + y // 3), P((3x + 2y) * z); method = :zippel) == P(x + 2y // 3)
         @test_throws ArgumentError gcd(P(x), P(y); method = :sparse)
+        # :auto (the default): dense gcds stay with Brown, sparse or many-variable ones
+        # take Zippel; the results agree
+        Gd = P4(expand((x + y + z + w + 1)^6))
+        Ad, Bd = Gd * P4(x - y + 2z + 1), Gd * P4(y * z - x + 3)
+        @test !SymJ._use_zippel(Ad, Bd)
+        vs = [Sym(Symbol(:v, i)) for i in 1:12]
+        gv = expand(sum(vs)^2 + vs[1] * vs[2])
+        Av, Bv = Poly(expand(gv * (vs[1] - vs[3])), vs...), Poly(expand(gv * (vs[2] + vs[4] - 1)), vs...)
+        @test SymJ._use_zippel(Av, Bv)
+        @test gcd(Av, Bv) == gcd(Av, Bv; method = :zippel) == Poly(gv, vs...)
+        @test !SymJ._use_zippel(P(x^2 * y * z - 1), P(x * y * z^2 + 1))      # tiny: dense
+        @test occursin(":auto", sprint(showerror, try gcd(P(x), P(y); method = :sparse) catch e; e end))
         # the keyword through the functions built on gcd (the same results)
         zg = x^10 * y^3 * z + 2y^7 * z^5 * w - x^2 * w^8 + 3y^9 + x * y * z * w
         za, zb = expand(zg * (x^9 * z^4 + y^8 * w^2 + 5)), expand(zg * (y^10 * w^3 - x^6 * w^5 + 7z))

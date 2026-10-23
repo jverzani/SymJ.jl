@@ -1,4 +1,4 @@
-# Polynomial gcd: SymJ modular (dense; Zippel opt-in) vs SymJ PRS vs Nemo (FLINT).
+# Polynomial gcd: SymJ modular (the default :auto choice, dense, Zippel) vs SymJ PRS vs Nemo (FLINT).
 # Run with: julia --project=bench bench/gcd.jl
 using BenchmarkTools
 import SymJ
@@ -35,16 +35,17 @@ cases = [
         x^4 * w + y^5 + 2, (w^3 - y) * x^5 + z^8),
 ]
 
-println(rpad("case", 48), lpad("modular", 14), lpad("Zippel", 14), lpad("PRS", 14), lpad("Nemo", 14))
+println(rpad("case", 48), lpad("auto", 14), lpad("dense", 14), lpad("Zippel", 14), lpad("PRS", 14), lpad("Nemo", 14))
 for (name, g, a, b) in cases
     G = P(SymJ.expand(g))
     A, B = G * P(a), G * P(b)
     @assert gcd(A, B) == G
     nA, nB = tonemo(A), tonemo(B)
-    tm = @belapsed gcd($A, $B)
+    ta = @belapsed gcd($A, $B)
+    tm = @belapsed gcd($A, $B; method = :dense)
     tz = @belapsed gcd($A, $B; method = :zippel)
     tp = @elapsed SymJ._gcd(A, B)
     tp = tp > 5 ? tp : min(tp, @elapsed SymJ._gcd(A, B))
     tn = @belapsed Nemo.gcd($nA, $nB)
-    println(rpad(name, 48), ms(tm), ms(tz), ms(tp), ms(tn))
+    println(rpad(name, 48), ms(ta), ms(tm), ms(tz), ms(tp), ms(tn))
 end

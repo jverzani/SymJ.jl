@@ -387,13 +387,24 @@ MGCD/PGCD (`src/modgcd.jl`).
 **The recursive primitive PRS** (`_gcd`) remains as the reference implementation. The
 tests check the two against each other.
 
-**Zippel's sparse interpolation** is opt-in, per call, with no global setting:
-- `gcd` and `lcm`, on polynomials and expressions, take `method = :zippel`.
-- The functions built on gcds take `gcd_method = :zippel`: `cancel`, `factor`,
-  `factor_squarefree`, `squarefree_part`, `apart`. A different name, because
-  `factor(ex; method = :zippel)` would suggest a factoring method.
-- Gcds inside `RatFun` arithmetic (linear systems, `apart` with parameters) and inside
-  EEZ always use the default.
+**Zippel's sparse interpolation** is chosen per call, with no global setting:
+- **The keywords.** `gcd` and `lcm`, on polynomials and expressions, take
+  `method = :auto | :dense | :zippel`. The functions built on gcds take the same values
+  as `gcd_method`: `cancel`, `factor`, `factor_squarefree`, `squarefree_part`, `apart`.
+  A different name, because `factor(ex; method = :zippel)` would suggest a factoring
+  method.
+- **The default, `:auto`,** estimates the dense method's work as about
+  `Π (deg_i + 1)` univariate gcds over all but the main variable, and compares it with
+  the inputs' term counts, a measure of sparsity. Zippel is chosen when the estimate
+  exceeds both 256 and 3 times the larger term count.
+  - Measured: dense inputs have ratios near 1, and there Brown is up to 30x faster.
+    Sparse or many-variable inputs have ratios of 4 and up, and there Zippel is
+    3–100x faster.
+  - This removed a cliff in Brown's method, which is exponential in the number of
+    variables. A 14-variable low-degree gcd took 1.1 s and now takes 0.05 s; 20
+    variables took more than a minute and now take 0.18 s.
+- **Internal gcds.** Gcds inside `RatFun` arithmetic (linear systems, `apart` with
+  parameters) and inside EEZ use `:auto`.
 
 It changes
 how the images inside Brown's loop over `x_k` are found; everything else is the same.
@@ -411,29 +422,31 @@ how the images inside Brown's loop over `x_k` are found; everything else is the 
   skeleton refreshed from it. This also covers a content in the other variables, which
   the scales would absorb. The final division over ℤ still guarantees the result.
 
-It isn't the default because it loses on dense gcds. It needs about as many terms'
-worth of evaluations as the gcd has, plus a linear solve.
+It loses on dense gcds, hence the automatic choice. It needs about as many terms' worth
+of evaluations as the gcd has, plus a linear solve.
 
 **Performance.** `bench/gcd.jl` compares against Nemo, which wraps FLINT. The first six
 inputs are `gcd(g·a, g·b)` with `g = (x+y+z+w+1)^k`; the last two have sparse gcds of
 degree 10 in four variables:
 
-| case | modular | Zippel | PRS | Nemo (FLINT) |
-|:--|--:|--:|--:|--:|
-| `k = 10`, linear cofactors | 1.63 ms | 55 ms | 3.0 ms | 0.56 ms |
-| `k = 4`, degree-4 cofactors | 0.23 ms | 0.35 ms | 2.0 ms | 0.31 ms |
-| `k = 4`, degree-6 cofactors | 0.35 ms | 0.43 ms | 15 ms | 0.43 ms |
-| `k = 6`, degree-6 cofactors | 0.86 ms | 2.7 ms | 81 ms | 0.79 ms |
-| `k = 8`, degree-6 cofactors | 1.83 ms | 15 ms | 740 ms | 1.33 ms |
-| big coefficients (`3^20`, `5^15`, `7^10`), cubed | 0.58 ms | 0.44 ms | 27 ms | 0.67 ms |
-| sparse gcd, 5 terms | 1.32 ms | 0.083 ms | 0.24 ms | 0.29 ms |
-| sparse gcd, non-monomial leading coefficient | 0.48 ms | 0.068 ms | 1.4 ms | 0.35 ms |
+| case | auto (default) | dense | Zippel | PRS | Nemo (FLINT) |
+|:--|--:|--:|--:|--:|--:|
+| `k = 10`, linear cofactors | 1.64 ms | 1.64 ms | 54 ms | 4.6 ms | 0.55 ms |
+| `k = 4`, degree-4 cofactors | 0.23 ms | 0.23 ms | 0.34 ms | 2.1 ms | 0.31 ms |
+| `k = 4`, degree-6 cofactors | 0.36 ms | 0.35 ms | 0.43 ms | 16 ms | 0.44 ms |
+| `k = 6`, degree-6 cofactors | 0.87 ms | 0.87 ms | 2.8 ms | 80 ms | 0.79 ms |
+| `k = 8`, degree-6 cofactors | 1.85 ms | 1.85 ms | 15 ms | 720 ms | 1.35 ms |
+| big coefficients (`3^20`, `5^15`, `7^10`), cubed | 0.60 ms | 0.59 ms | 0.45 ms | 36 ms | 0.69 ms |
+| sparse gcd, 5 terms | 0.086 ms | 1.31 ms | 0.085 ms | 0.28 ms | 0.30 ms |
+| sparse gcd, non-monomial leading coefficient | 0.068 ms | 0.48 ms | 0.068 ms | 1.8 ms | 0.34 ms |
 
-- **Dense gcds:** the default is faster than FLINT on four of the first six cases and
-  within 1.4x on `k = 8`. The weak case is a high-degree gcd with tiny cofactors (first
-  row), where Brown's method needs about `(deg+1)^(nvars−1)` univariate gcds. There
-  about 18% of the time is the final division check.
-- **Sparse gcds:** Zippel is 6–16x faster than the default and 3.5–5x faster than FLINT.
+- **The automatic choice** picks the faster method in every case except big
+  coefficients, where the two are close.
+- **Dense gcds:** faster than FLINT on four of the first six cases and within 1.4x on
+  `k = 8`. The weak case is a high-degree gcd with tiny cofactors (first row), where
+  Brown's method needs about `(deg+1)^(nvars−1)` univariate gcds. There about 18% of the
+  time is the final division check.
+- **Sparse gcds:** Zippel is 6–16x faster than dense and 3.5–5x faster than FLINT.
 
 ### Squarefree factorization
 
@@ -853,11 +866,6 @@ and a finalizer per operation), which dominates the small benchmarks.
   - Faster LLL for van Hoeij: floating-point LLL on truncated traces (van
     Hoeij–Novocin). The integer LLL is now the main cost of S₆'s 0.76 s.
   - Graded monomial orders.
-  - Many variables in the dense modular gcd. Brown's method needs about
-    `Π (deg_i + 1)` evaluations, exponential in the number of variables: 14 low-degree
-    variables take 1.1 s, and 18 more than a minute. Zippel (`method = :zippel`) takes
-    0.04 s and 0.15 s for 14 and 20. Choosing it automatically when that product is
-    large would remove the cliff.
   - Evaluation by Horner's scheme.
   - Threads for large products.
 - **Hash-consing.** Interning nodes would make equality pointer comparison and save
