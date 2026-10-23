@@ -449,7 +449,13 @@ function _fn_with_ints(f, args)
             err isa DomainError || rethrow()
         end
     end
-    f(vals...)
+    try
+        return f(vals...)
+    catch err
+        err isa DomainError || rethrow()
+    end
+    # outside the real domain with the integers kept (log(-3)): complex values throughout
+    f(map(v -> v isa Int ? complex(float(v)) : v, vals)...)
 end
 
 function _cpow(b::Sym, e::Sym)

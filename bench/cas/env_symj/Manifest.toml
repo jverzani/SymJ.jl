@@ -208,7 +208,7 @@ version = "2.9.0"
 deps = ["CommonSolve", "LambertW", "PrecompileTools", "RuntimeGeneratedFunctions", "TermInterface"]
 path = "../../.."
 uuid = "73a6d648-42a5-483e-b8b5-fc71c1696ef5"
-version = "1.0.0-DEV"
+version = "0.1.0"
 weakdeps = ["GruntzLimit", "HypergeometricFunctions", "PolyLog", "RischIntegrate", "SpecialFunctions"]
 
     [deps.SymJ.extensions]

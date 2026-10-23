@@ -82,7 +82,10 @@ polynomial input comes back expanded.
 
 Symbols, function applications such as `sin(x)`, and non-integer powers such as
 `sqrt(x)` are treated as independent variables. This is always valid, but relations
-among them are not used: `(x - 1)/(sqrt(x) - 1)` is not reduced to `sqrt(x) + 1`.
+among them are not used: `(x - 1)/(sqrt(x) - 1)` is not reduced to `sqrt(x) + 1`. The
+exception is square roots of rational numbers, whose squares are known: a common factor
+through them is cancelled, as in `cancel((x^2 + 2sqrt(2)x + 2)/(x + sqrt(2))) ==
+x + sqrt(2)`.
 Expressions with floating point coefficients are returned unchanged.
 `gcd_method` (`:auto`, `:dense` or `:zippel`; see [`gcd`](@ref)) chooses the gcd method.
 
@@ -98,10 +101,14 @@ function _cancel(ex::Sym; gcd_method::Symbol = :auto)
     n, d = numer_denom(ex)
     atoms = Set{Sym}()
     (_poly_atoms!(atoms, n) && _poly_atoms!(atoms, d)) || return ex
-    gs = sort!(collect(atoms); lt = _lt)
+    # square roots of rationals last: the leading coefficient, and so the sign
+    # normalization, is then decided by the other atoms
+    gs = sort!(collect(atoms); lt = (a, b) -> _isrationalsqrt(a) == _isrationalsqrt(b) ? _lt(a, b) : _isrationalsqrt(b))
     P, Q = Poly{SymNumber}(n, gs), Poly{SymNumber}(d, gs)
     g = _gcd_poly(P, Q; method = gcd_method)
     P, Q = divexact(P, g), divexact(Q, g)
+    r = _cancel_radicals(P, Q, gs, gcd_method)
+    r === nothing || ((P, Q) = r)
     if sign(Q.coefs[1]) < 0
         P, Q = -P, -Q
     end
@@ -111,3 +118,65 @@ function _cancel(ex::Sym; gcd_method::Symbol = :auto)
     Sym(P) / Sym(Q)
 end
 cancel(x::Number; gcd_method::Symbol = :auto) = Sym(x)
+
+# Square roots of rational numbers are generators like any other atom, so the gcd above
+# does not use sqrt(2)^2 = 2: (x^2 + 2sqrt(2)x + 2)/(x + sqrt(2)) stays as it is. So when
+# the denominator Q involves such roots s_i, both sides are multiplied by Q's other
+# conjugates (each s_i -> ±s_i), which makes the denominator rational; the gcd of that
+# denominator and every coefficient of the numerator (grouped by its s-monomial) is a
+# common factor. When only the numerator P involves them, the same with the roles
+# swapped: (x + sqrt(2)y)/(x^2 - 2y^2) -> 1/(x - sqrt(2)y). The result is kept only when
+# the denominator's degree goes down, so 1/(x - sqrt(2)) is not turned into
+# (x + sqrt(2))/(x^2 - 2). nothing if there is no gain.
+function _cancel_radicals(P::Poly{SymNumber}, Q::Poly{SymNumber}, gs::Vector{Sym}, gcd_method::Symbol)
+    rad = [i for i in eachindex(gs) if _isrationalsqrt(gs[i])]
+    isempty(rad) && return nothing
+    inQ = [i for i in rad if _maxdegs(Q)[i] > 0]
+    inP = [i for i in rad if _maxdegs(P)[i] > 0]
+    if !isempty(inQ)
+        r = _conj_cancel(Q, P, gs, inQ, gcd_method)       # Q rationalized
+        r === nothing && return nothing
+        Q2, P2 = r
+    elseif !isempty(inP)
+        r = _conj_cancel(P, Q, gs, inP, gcd_method)       # P rationalized
+        r === nothing && return nothing
+        P2, Q2 = r
+    else
+        return nothing
+    end
+    _degree_without(Q2, rad) < _degree_without(Q, rad) ? (P2, Q2) : nothing
+end
+
+# total degree, not counting the generators gs[rad]
+_degree_without(p::Poly, rad) =
+    maximum((sum(e for (i, e) in enumerate(ev) if !(i in rad); init = 0) for ev in exponent_vectors(p)); init = -1)
+
+# R and S times R's other conjugates in the roots gs[rad] (so R becomes free of them),
+# then divided by the gcd of the new R and every s-monomial coefficient of the new S
+function _conj_cancel(R::Poly{SymNumber}, S::Poly{SymNumber}, gs::Vector{Sym}, rad::Vector{Int}, gcd_method::Symbol)
+    length(rad) > 3 && return nothing                      # 2^k - 1 conjugates
+    Rs = Sym(R)
+    conjs = Sym[]
+    for mask in 1:(2^length(rad) - 1)
+        push!(conjs, subs(Rs, (gs[rad[j]] => -gs[rad[j]] for j in eachindex(rad) if (mask >> (j - 1)) & 1 == 1)...))
+    end
+    c = prod(conjs)
+    rn, sn = expand(Rs * c), expand(Sym(S) * c)
+    any(i -> has(rn, gs[i]), rad) && return nothing
+    Rn, Sn = Poly{SymNumber}(rn, gs), Poly{SymNumber}(sn, gs)
+    n = length(gs)
+    groups = Dict{Vector{Int},Vector{Tuple{Vector{Int},SymNumber}}}()
+    for (ev, cf) in zip(exponent_vectors(Sn), coefficients(Sn))
+        push!(get!(groups, ev[rad], Tuple{Vector{Int},SymNumber}[]), (ev, cf))
+    end
+    g = Rn
+    for terms in values(groups)
+        A = Poly{SymNumber}(_add_many(Sym(cf) * prod((gs[i]^ev[i] for i in 1:n if !(i in rad) && ev[i] > 0); init = ONE)
+                                       for (ev, cf) in terms), gs)
+        g = _gcd_poly(g, A; method = gcd_method)
+        g.monos[1] == 0 && return nothing
+    end
+    divexact(Rn, g), divexact(Sn, g)
+end
+_isrationalsqrt(a::Sym) = a.kind == POW && a.args[2] == HALF && a.args[1].kind == NUMBER &&
+    isexact(a.args[1].num) && a.args[1].num > N0
