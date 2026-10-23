@@ -73,6 +73,13 @@ ex = x^2 * y + sin(x)
 ex(x => 2), subs(ex, x => y + 1)
 ```
 
+Called with keywords, it gives the variables (and parameters) values by name. With all
+of them numeric the result is a Julia number, and otherwise an expression:
+
+```@example usage
+ex(; x = 2, y = 3), ex(; x = 2)
+```
+
 A constant expression called with no arguments gives its value, and `N` gives a float:
 
 ```@example usage

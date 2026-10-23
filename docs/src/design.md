@@ -25,8 +25,13 @@ build on.
     and generic code reading leaves pays that on every symbol. This matches what generic
     term code expects from a callable numeric leaf; GruntzLimit, for example, reads
     numbers this way.
-  - An expression with several free symbols must be called with pairs. A single value
-    would leave implicit which symbol receives it.
+  - An expression with several free symbols must be called with pairs or keywords. A
+    single value would leave implicit which symbol receives it.
+  - `ex(; x = 2, y = 3)` matches keywords to variables and parameters by name. When all
+    of them get non-symbolic values it evaluates with Julia arithmetic, returning a Julia
+    number; otherwise it substitutes. Names not in `ex` are ignored (one set of keywords
+    can serve several expressions), and keywords aren't mixed with pairs or a positional
+    value. A name shared by a variable and a parameter is an error.
   - A `SymFunction` called on arguments builds an unevaluated application (`f(x)`).
 
   Evaluation interprets the tree: about 25 ns for `x^2` and 2.4 μs for

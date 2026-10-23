@@ -158,6 +158,23 @@ through it. An expression can also be broadcast over a collection:
 u.(0:4)
 ```
 
+With several variables, or parameters, keywords give the values by name. When every
+variable and parameter has a numeric value the result is a Julia number, and otherwise
+the expression with the given values substituted:
+
+```@example tut
+ex = a * x^2 + b * x + c
+ex(; x = 2, a = 1, b = -3, c = 2), ex(; x = 2)
+```
+
+Names that don't appear are ignored, so one set of values can be used for several
+expressions:
+
+```@example tut
+vals = (; x = 1.5, y = 2.0)
+[e(; vals...) for e in (x + y, x * y, x^y)]
+```
+
 `N` gives the floating point value of a constant expression, and calling it with no
 arguments gives a Julia number:
 

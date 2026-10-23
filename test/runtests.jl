@@ -352,6 +352,26 @@ import ForwardDiff
         @test N((x^2)(x => 2.5)) == 6.25
     end
 
+    @testset "calling with keywords" begin
+        @parameters pa
+        e = x^2 + y
+        @test e(; x = 2, y = 3) === 7                    # all given: a Julia number
+        @test e(; x = 2.0, y = 3) === 7.0 && (x / 3 + y)(; x = 1, y = 2) === 7 // 3
+        @test e(; x = 2) == y + 4                        # something left: substitution
+        @test e(; x = y, y = 3) == y^2 + 3               # simultaneous, like subs
+        @test (x + 1)(; z = 3, x = 1) === 2              # names not in ex are ignored
+        @test (x + 1)(; z = 3) == x + 1 && Sym(5)(; z = 1) === 5
+        @test (pa * x^2)(; x = 2, pa = 3) === 12         # parameters by name too
+        @test (pa * x^2)(; x = 2) == 4pa
+        @test (sin(x) + y)(; x = big(1.0), y = 2) isa BigFloat
+        @test (sqrt(Sym(2)) * x)(; x = 1.0) ≈ sqrt(2)
+        @test (x^2 ~ 4)(; x = 2) === true && (x + y ≫ 1)(; x = 0) == (y ≫ 1)
+        @test Poly(x^2 + y, x, y)(; x = 1, y = 1) === 2
+        @test_throws ArgumentError e(x => 1; y = 2)      # not mixed with other forms
+        @test_throws ArgumentError e(1; y = 2)
+        @test_throws ArgumentError (pa * x + parameter(:x))(; x = 1)   # x names both
+    end
+
     @testset "calling evaluates numerically" begin
         u = x^2
         @test u(3) === 9

@@ -96,7 +96,12 @@ end
 #   ex(a)           -> numeric evaluation at the only variable, returns what Julia
 #                      arithmetic on `a` returns (Int, Float64, BigFloat, a dual number, ...);
 #                      with parameters present, substitution instead (`(a*x^2)(3) == 9a`)
-function (ex::Sym)(args...)
+#   ex(; x = a, ...) -> values for variables and parameters by name: numeric evaluation
+#                      when every one is given a non-symbolic value, else substitution.
+#                      Names not in ex are ignored; not mixed with the other forms.
+function (ex::Sym)(args...; kws...)
+    isempty(kws) || (isempty(args) ? (return _call_named(ex, values(kws))) : throw(ArgumentError(
+        "call an expression with keywords (`ex(; x = 1)`) or with pairs or a value, not both")))
     isempty(args) && return _constant_value(ex)
     all(a -> a isa Pair, args) && return subs(ex, args...)
     length(args) == 1 || throw(ArgumentError(
@@ -104,6 +109,31 @@ function (ex::Sym)(args...)
     a = only(args)
     a isa Sym || _hasparameter(ex) ? _subs1(ex, Sym(a)) : evaluate(ex, a)
 end
+
+# ex(; x = 1, a = 2): the expression's variables and parameters matched by name
+function _call_named(ex::Sym, kw::NamedTuple)
+    leaves = Dict{Symbol,Sym}()
+    for s in Iterators.flatten((free_symbols(ex), free_parameters(ex)))
+        s.name in keys(kw) || continue
+        haskey(leaves, s.name) && throw(ArgumentError(
+            "$(s.name) names both a variable and a parameter of $ex; call it with pairs instead"))
+        leaves[s.name] = s
+    end
+    nleaves = length(free_symbols(ex)) + length(free_parameters(ex))
+    vals = [kw[n] for n in keys(leaves)]
+    if length(leaves) == nleaves && !any(v -> v isa Sym, vals)
+        nt = NamedTuple{Tuple(keys(leaves))}(Tuple(vals))
+        T = isempty(vals) ? Int : mapreduce(typeof, promote_type, vals)
+        return _ev(ex, _Named(nt), _liftfloat(T), Ref{Union{Nothing,Sym}}(nothing))
+    end
+    subs(ex, (s => kw[n] for (n, s) in leaves)...)
+end
+
+# values for named leaves, for _ev
+struct _Named{NT<:NamedTuple}
+    vals::NT
+end
+_namedval(a::_Named, ex::Sym) = getfield(a.vals, ex.name)
 
 function _constant_value(ex::Sym)
     _hassymbol(ex) && return ex
@@ -178,6 +208,7 @@ function _ev(ex::Sym, a, F, var)
     k = ex.kind
     k == NUMBER && return _leaf(ex.num, F)
     if k == SYMBOL
+        a isa _Named && return _namedval(a, ex)
         if var[] === nothing
             var[] = ex
         elseif !_eq(var[]::Sym, ex)
@@ -185,6 +216,7 @@ function _ev(ex::Sym, a, F, var)
         end
         return a
     elseif k == PARAMETER
+        a isa _Named && return _namedval(a, ex)
         throw(ArgumentError("cannot evaluate the parameter $ex numerically; substitute a value for it"))
     elseif k == CONSTANT
         ex.name === :pi && return _constant(π, F)

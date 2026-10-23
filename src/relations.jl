@@ -125,7 +125,7 @@ TermInterface.maketerm(::Type{Relation}, head, args, metadata) = head(args...)
 ## calling: substitute into both sides; a relation between constants is decided
 
 # (a side called with numbers evaluates to a plain number: wrapped back as a Sym)
-(r::Relation)(args...) = _decide(Relation(r.op, Sym(r.lhs(args...)), Sym(r.rhs(args...))))
+(r::Relation)(args...; kws...) = _decide(Relation(r.op, Sym(r.lhs(args...; kws...)), Sym(r.rhs(args...; kws...))))
 (r::Relation)() = _decide(r)
 
 # Bool when both sides are constants, else the relation. Exact numbers compare exactly;

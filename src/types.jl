@@ -11,9 +11,23 @@
 """
     AbstractSymbolic <: Function
 
-Supertype of SymJ's symbolic objects. Symbolic objects are callable: calling an
-expression substitutes into it (see [`subs`](@ref)) and calling a [`SymFunction`](@ref)
-builds an unevaluated function application.
+Supertype of SymJ's symbolic objects. Symbolic objects are callable, and calling a
+[`SymFunction`](@ref) builds an unevaluated function application. An expression `ex` can
+be called in these ways:
+
+- `ex(a)` with a number `a`: evaluates `ex`, which may have one free variable, with
+  Julia's arithmetic on `a` (see [`evaluate`](@ref)), so `(x^2)(3) === 9`. With a
+  symbolic `a`, or with parameters present, it substitutes instead.
+- `ex(x => a, y => b)`: substitutes (see [`subs`](@ref)) and returns an expression.
+- `ex(; x = a, y = b)`: gives values to the variables and parameters named `x` and `y`.
+  If every one of `ex`'s variables and parameters gets a non-symbolic value, `ex` is
+  evaluated with Julia arithmetic and the result is a Julia number:
+  `(x^2 + y)(; x = 2, y = 3) === 7`. Otherwise this substitutes and returns an expression:
+  `(x^2 + y)(; x = 2) == y + 4`. Names that are not in `ex` are ignored, so one set of
+  keywords can be used for several expressions. Keywords can't be combined with the
+  other forms.
+- `ex()`: the value of a constant expression as a Julia number, or `ex` itself if it has
+  a free variable.
 """
 abstract type AbstractSymbolic <: Function end
 

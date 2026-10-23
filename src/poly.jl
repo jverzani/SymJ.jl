@@ -852,7 +852,7 @@ free_symbols(p::Poly) = free_symbols(Sym(p))
 free_parameters(p::Poly) = free_parameters(Sym(p))
 
 # called like the expression it represents (see calling a `Sym`)
-(p::Poly)(args...) = Sym(p)(args...)
+(p::Poly)(args...; kws...) = Sym(p)(args...; kws...)
 
 function Base.show(io::IO, p::Poly)
     print(io, "Poly(")

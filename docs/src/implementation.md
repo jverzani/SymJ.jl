@@ -91,6 +91,11 @@ for functions in numeric code:
   generic, dual numbers (automatic differentiation), intervals and `BigFloat` work.
 - **Calling with pairs substitutes.** A single value is accepted only when there is one
   free variable; with several, an implicit order would be confusing.
+- **Calling with keywords names the values**: `ex(; x = 2, y = 3)`. It evaluates with
+  Julia arithmetic when every variable and parameter gets a number, and substitutes
+  otherwise. Names that don't appear are ignored, so one set of keywords can serve
+  several expressions. The keywords are matched to the expression's variables by
+  name, which is possible because a variable is identified by its name.
 - **Calling with no arguments** gives the value of a constant expression, and returns the
   expression unchanged if it has a free variable. It does not throw, deliberately: a
   Julia exception costs about 40 μs (the backtrace), and generic code that reads numeric
