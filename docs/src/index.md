@@ -1,5 +1,9 @@
 # SymJ
 
+!!! warning "Work in progress"
+    SymJ is under active development. Its interface may change, including in ways that
+    break existing code, before a stable release.
+
 SymJ is a symbolic manipulation kernel written in pure Julia. It builds expressions in a
 canonical form as you go, keeps numbers exact, and is fast: construction, expansion,
 differentiation and substitution are within a small factor of SymEngine, and usually

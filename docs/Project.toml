@@ -12,4 +12,4 @@ SymJ = {path = ".."}
 Documenter = "1.19.0"
 GruntzLimit = "1"
 MaterialDocs = "0.2.1"
-RischIntegrate = "1"
+RischIntegrate = "1.1"

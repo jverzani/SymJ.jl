@@ -446,6 +446,10 @@ integrate(x^2 * exp(x), x)
 ```
 
 ```@example tut
+integrate(1 / (x^3 + 1), x)
+```
+
+```@example tut
 integrate(1 / (x^3 - x), x), integrate((2x + 3) / (x^2 + 1), x)
 ```
 
