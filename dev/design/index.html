@@ -1,5 +1,93 @@
-<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Design · SymJ.jl</title><meta name="title" content="Design · SymJ.jl"/><meta property="og:title" content="Design · SymJ.jl"/><meta property="twitter:title" content="Design · SymJ.jl"/><meta name="description" content="Documentation for SymJ.jl."/><meta property="og:description" content="Documentation for SymJ.jl."/><meta property="twitter:description" content="Documentation for SymJ.jl."/><meta property="og:url" content="https://jverzani.github.io/SymJ.jl/design/"/><meta property="twitter:url" content="https://jverzani.github.io/SymJ.jl/design/"/><link rel="canonical" href="https://jverzani.github.io/SymJ.jl/design/"/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.63.2/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">SymJ.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li class="is-active"><a class="tocitem" href>Design</a><ul class="internal"><li><a class="tocitem" href="#Goals"><span>Goals</span></a></li><li><a class="tocitem" href="#One-concrete-node-type"><span>One concrete node type</span></a></li><li><a class="tocitem" href="#Numbers:-SymNumber"><span>Numbers: <code>SymNumber</code></span></a></li><li><a class="tocitem" href="#Functions"><span>Functions</span></a></li><li><a class="tocitem" href="#TermInterface"><span>TermInterface</span></a></li><li><a class="tocitem" href="#Polynomials:-Poly{C}"><span>Polynomials: <code>Poly{C}</code></span></a></li><li><a class="tocitem" href="#Compiled-evaluation:-lambdify"><span>Compiled evaluation: <code>lambdify</code></span></a></li><li><a class="tocitem" href="#Relations"><span>Relations</span></a></li><li><a class="tocitem" href="#Solving"><span>Solving</span></a></li><li><a class="tocitem" href="#Parameters"><span>Parameters</span></a></li><li><a class="tocitem" href="#Assumptions"><span>Assumptions</span></a></li><li><a class="tocitem" href="#Performance-snapshot"><span>Performance snapshot</span></a></li><li><a class="tocitem" href="#Not-yet-done-/-open-questions"><span>Not yet done / open questions</span></a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Design</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Design</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/jverzani/SymJ.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/jverzani/SymJ.jl/blob/main/docs/src/design.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Design"><a class="docs-heading-anchor" href="#Design">Design</a><a id="Design-1"></a><a class="docs-heading-anchor-permalink" href="#Design" title="Permalink"></a></h1><p>SymJ is a symbolic manipulation kernel written in pure Julia. It aims for SymEngine-class speed with a small, explicit core that later layers (simplification, solving, matrices) build on.</p><h2 id="Goals"><a class="docs-heading-anchor" href="#Goals">Goals</a><a id="Goals-1"></a><a class="docs-heading-anchor-permalink" href="#Goals" title="Permalink"></a></h2><ul><li><p><strong>Speed comparable to SymEngine.</strong> Construction, canonicalization, expansion, differentiation and substitution should be within a small factor of SymEngine, and ideally faster.</p></li><li><p><strong>Callable objects.</strong> Symbolic objects subtype <code>Function</code> (via <code>AbstractSymbolic</code>). Calling is meant to make expressions drop-in replacements for functions in numeric code:</p><ul><li><code>ex(x =&gt; 1, y =&gt; 2)</code> substitutes and returns a <code>Sym</code>.</li><li><code>ex(a)</code> with a symbolic <code>a</code> substitutes into the expression&#39;s single free symbol.</li><li><code>ex(a)</code> with any other <code>a</code> evaluates with Julia arithmetic on <code>a</code>, returning a Julia value: if <code>u = x^2</code> then <code>u(3) === 9</code>, <code>u(3.0) === 9.0</code> and <code>u(1//2) === 1//4</code>. Because the arithmetic is generic, dual numbers, intervals and <code>BigFloat</code> work. Constants such as <code>sqrt(2)</code> and <code>π</code> are computed in the argument&#39;s floating point type.</li><li><code>ex()</code> gives the value of a constant expression as a Julia number (<code>Sym(2)() === 2</code>, <code>Sym(π)() === π</code>), and returns <code>ex</code> unchanged if it has a free symbol. It deliberately does not throw: a Julia <code>throw</code> costs about 40 μs (the backtrace), and generic code reading leaves pays that on every symbol. This matches what generic term code expects from a callable numeric leaf; GruntzLimit, for example, reads numbers this way.</li><li>An expression with several free symbols must be called with pairs. A single value would leave implicit which symbol receives it.</li><li>A <code>SymFunction</code> called on arguments builds an unevaluated application (<code>f(x)</code>).</li></ul><p>Evaluation interprets the tree: about 25 ns for <code>x^2</code> and 2.4 μs for <code>sin(x)^2 + 3x^5 - 2x + exp(-x/2)</code>. For speed, use <code>lambdify</code> (below).</p></li><li><p><strong>Scalar-like collections.</strong> Like <code>Number</code>, a <code>Sym</code> or <code>Poly</code> iterates once (yielding itself), has <code>length</code> 1 and <code>size</code> <code>()</code>, and supports <code>x[]</code> and <code>x[1]</code>. Generic code that iterates or indexes a scalar therefore works unchanged.</p></li><li><p><strong>Exact numbers.</strong> <code>sqrt(Sym(8))</code> is <code>2*sqrt(2)</code>, <code>sin(Sym(π)/3)</code> is <code>sqrt(3)/2</code>, and <code>Sym(2)^100</code> is exact.</p></li><li><p><strong>Canonical form as you go.</strong> Sums collect like terms and products collect like bases at construction time. No separate <code>simplify</code> pass is needed for those identities.</p></li><li><p><strong>TermInterface v2.</strong> SymJ implements the contract so that generic rewriting tools work on its expressions.</p></li><li><p><strong>Commutative scalars.</strong> <code>+</code> and <code>*</code> are commutative. Noncommutative objects such as symbolic matrices are future work and will need their own node kinds.</p></li><li><p><strong>Independent of SymbolicUtils.</strong> The representation choices below are SymJ&#39;s own.</p></li></ul><h2 id="One-concrete-node-type"><a class="docs-heading-anchor" href="#One-concrete-node-type">One concrete node type</a><a id="One-concrete-node-type-1"></a><a class="docs-heading-anchor-permalink" href="#One-concrete-node-type" title="Permalink"></a></h2><pre><code class="language-julia hljs">abstract type AbstractSymbolic &lt;: Function end
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Design — SymJ.jl</title>
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=11314de1">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <meta name="title" content="Design — SymJ.jl">
+  <meta property="og:title" content="Design — SymJ.jl">
+  <meta property="twitter:title" content="Design — SymJ.jl">
+  <meta name="description" content="Documentation for SymJ.jl.">
+  <meta property="og:description" content="Documentation for SymJ.jl.">
+  <meta property="twitter:description" content="Documentation for SymJ.jl.">
+  <script>
+    (function(){
+      document.documentElement.classList.add('no-transition');
+      var t=localStorage.getItem('md-theme');if(t)document.documentElement.setAttribute('data-theme',t);
+      window.addEventListener('load',function(){setTimeout(function(){document.documentElement.classList.remove('no-transition');},50);});
+    })()
+  </script>
+</head>
+<body data-warn-outdated>
+  <header class="md-navbar">
+    <button id="md-hamburger" class="md-icon-btn md-hamburger" aria-label="Toggle navigation" aria-expanded="false"><svg class="md-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg></button>
+    <span class="md-navbar-title">SymJ.jl</span>
+    <span class="md-navbar-spacer"></span>
+    <button id="md-search-btn" class="md-search-bar" aria-label="Search documentation" aria-expanded="false">
+      <svg class="md-icon md-search-bar-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+      <span class="md-search-bar-label">Search docs</span>
+      <kbd class="md-search-bar-kbd">Ctrl K</kbd>
+    </button>
+    <div id="md-version" class="md-version" hidden>
+      <button id="md-version-btn" class="md-version-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="Select documentation version">
+        <span id="md-version-current" class="md-version-current"></span>
+        <svg class="md-icon md-version-caret" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M7 10l5 5 5-5z"/></svg>
+      </button>
+      <ul id="md-version-menu" class="md-version-menu" role="listbox" hidden></ul>
+    </div>
+    <a class="md-icon-btn md-repo-link" href="https://github.com/jverzani/SymJ.jl" title="View the repository on GitHub" aria-label="View the repository on GitHub" rel="noopener" target="_blank"><svg class="md-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 .3a12 12 0 00-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.4-1.8-1.4-1.8-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 0-.8.4-1.3.7-1.6-2.7-.3-5.5-1.3-5.5-6 0-1.2.5-2.3 1.3-3.1-.2-.4-.6-1.6.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 016 0c2.3-1.5 3.3-1.2 3.3-1.2.7 1.6.2 2.8.1 3.2.8.8 1.3 1.9 1.3 3.2 0 4.6-2.8 5.6-5.5 5.9.5.4.9 1.1.9 2.2v3.3c0 .3.1.7.8.6A12 12 0 0012 .3z"/></svg><span class="md-repo-label">GitHub</span></a>
+    <button id="md-theme-toggle" class="md-icon-btn" title="Toggle dark mode" aria-label="Toggle dark mode"><svg class="md-icon md-icon-light" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0a.996.996 0 000-1.41l-1.06-1.06zm1.06-10.96a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/></svg><svg class="md-icon md-icon-dark" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg></button>
+  </header>
+  <div class="md-layout">
+    <nav class="md-sidebar">
+      <a href="../">Home</a>
+      <a href="../design/" class="md-nav-active">Design</a>
+    </nav>
+    <main class="md-content">
+      <article class="md-article">
+      <div class="md-article-actions"><a class="md-icon-btn md-edit-link" href="https://github.com/jverzani/SymJ.jl/blob/main/docs/src/design.md" title="Edit source on GitHub" aria-label="Edit source on GitHub"><svg class="md-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 000-1.41l-2.34-2.34a.996.996 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></a></div>
+<h1 id="Design" class="md-heading">Design<a href="#Design" class="md-heading-anchor" aria-label="Link to this section">#</a></h1>
+<p>SymJ is a symbolic manipulation kernel written in pure Julia. It aims for SymEngine-class speed with a small, explicit core that later layers (simplification, solving, matrices) build on.</p>
+<h2 id="Goals" class="md-heading">Goals<a href="#Goals" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><p><strong>Speed comparable to SymEngine.</strong> Construction, canonicalization, expansion, differentiation and substitution should be within a small factor of SymEngine, and ideally faster.</p>
+</li>
+<li><p><strong>Callable objects.</strong> Symbolic objects subtype <code class="md-code-inline">Function</code> (via <code class="md-code-inline">AbstractSymbolic</code>). Calling is meant to make expressions drop-in replacements for functions in numeric code:</p>
+<ul class="md-list-tight">
+<li><p><code class="md-code-inline">ex(x =&gt; 1, y =&gt; 2)</code> substitutes and returns a <code class="md-code-inline">Sym</code>.</p>
+</li>
+<li><p><code class="md-code-inline">ex(a)</code> with a symbolic <code class="md-code-inline">a</code> substitutes into the expression&#39;s single free symbol.</p>
+</li>
+<li><p><code class="md-code-inline">ex(a)</code> with any other <code class="md-code-inline">a</code> evaluates with Julia arithmetic on <code class="md-code-inline">a</code>, returning a Julia value: if <code class="md-code-inline">u = x^2</code> then <code class="md-code-inline">u(3) === 9</code>, <code class="md-code-inline">u(3.0) === 9.0</code> and <code class="md-code-inline">u(1//2) === 1//4</code>. Because the arithmetic is generic, dual numbers, intervals and <code class="md-code-inline">BigFloat</code> work. Constants such as <code class="md-code-inline">sqrt(2)</code> and <code class="md-code-inline">π</code> are computed in the argument&#39;s floating point type.</p>
+</li>
+<li><p><code class="md-code-inline">ex()</code> gives the value of a constant expression as a Julia number (<code class="md-code-inline">Sym(2)() === 2</code>, <code class="md-code-inline">Sym(π)() === π</code>), and returns <code class="md-code-inline">ex</code> unchanged if it has a free symbol. It deliberately does not throw: a Julia <code class="md-code-inline">throw</code> costs about 40 μs (the backtrace), and generic code reading leaves pays that on every symbol. This matches what generic term code expects from a callable numeric leaf; GruntzLimit, for example, reads numbers this way.</p>
+</li>
+<li><p>An expression with several free symbols must be called with pairs. A single value would leave implicit which symbol receives it.</p>
+</li>
+<li><p>A <code class="md-code-inline">SymFunction</code> called on arguments builds an unevaluated application (<code class="md-code-inline">f(x)</code>).</p>
+</li>
+</ul>
+<p>Evaluation interprets the tree: about 25 ns for <code class="md-code-inline">x^2</code> and 2.4 μs for <code class="md-code-inline">sin(x)^2 + 3x^5 - 2x + exp(-x/2)</code>. For speed, use <code class="md-code-inline">lambdify</code> (below).</p>
+</li>
+<li><p><strong>Scalar-like collections.</strong> Like <code class="md-code-inline">Number</code>, a <code class="md-code-inline">Sym</code> or <code class="md-code-inline">Poly</code> iterates once (yielding itself), has <code class="md-code-inline">length</code> 1 and <code class="md-code-inline">size</code> <code class="md-code-inline">()</code>, and supports <code class="md-code-inline">x[]</code> and <code class="md-code-inline">x[1]</code>. Generic code that iterates or indexes a scalar therefore works unchanged.</p>
+</li>
+<li><p><strong>Exact numbers.</strong> <code class="md-code-inline">sqrt(Sym(8))</code> is <code class="md-code-inline">2*sqrt(2)</code>, <code class="md-code-inline">sin(Sym(π)/3)</code> is <code class="md-code-inline">sqrt(3)/2</code>, and <code class="md-code-inline">Sym(2)^100</code> is exact.</p>
+</li>
+<li><p><strong>Canonical form as you go.</strong> Sums collect like terms and products collect like bases at construction time. No separate <code class="md-code-inline">simplify</code> pass is needed for those identities.</p>
+</li>
+<li><p><strong>TermInterface v2.</strong> SymJ implements the contract so that generic rewriting tools work on its expressions.</p>
+</li>
+<li><p><strong>Commutative scalars.</strong> <code class="md-code-inline">+</code> and <code class="md-code-inline">*</code> are commutative. Noncommutative objects such as symbolic matrices are future work and will need their own node kinds.</p>
+</li>
+<li><p><strong>Independent of SymbolicUtils.</strong> The representation choices below are SymJ&#39;s own.</p>
+</li>
+</ul>
+<h2 id="One-concrete-node-type" class="md-heading">One concrete node type<a href="#One-concrete-node-type" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">abstract type AbstractSymbolic &lt;: Function end
 
 mutable struct Sym &lt;: AbstractSymbolic
     const kind::Kind              # NUMBER SYMBOL CONSTANT ADD MUL POW FN
@@ -9,15 +97,1058 @@ mutable struct Sym &lt;: AbstractSymbolic
     const args::Vector{Sym}       # terms / bases / [base, exp] / fn args
     const exps::Vector{Sym}       # MUL: exponent of each base
     const coefs::Vector{SymNumber}# ADD: coefficient of each term
-end</code></pre><p>This follows the same idea as SymEngine&#39;s <code>TypeID</code>: one concrete type with a tag, rather than a Julia type per node kind. As a result:</p><ul><li>Child containers are concretely typed (<code>Vector{Sym}</code>), so traversals never box and the compiler can infer everything.</li><li>Hot paths such as <code>add</code>, <code>mul</code> and <code>pow</code> branch on a byte instead of dispatching dynamically.</li><li><code>===</code> is pointer identity (the struct is <code>mutable</code> with all-<code>const</code> fields). That gives an O(1) fast path for equality and avoids copying a wide struct when vectors are stored or passed.</li><li>Every node stores its structural hash. <code>==</code> compares hashes first, and <code>Dict{Sym,…}</code> never rehashes a subtree.</li></ul><p>Empty child vectors are shared constants (<code>NOSYMS</code>, <code>NONUMS</code>), so leaves do not allocate them. Integers in −64:64 are cached nodes.</p><p><strong>Nodes are immutable by convention.</strong> Child vectors are shared between nodes, for example when an <code>ADD</code> changes one coefficient and reuses its <code>args</code>. Nothing may mutate them after construction.</p><h3 id="Representation-by-kind"><a class="docs-heading-anchor" href="#Representation-by-kind">Representation by kind</a><a id="Representation-by-kind-1"></a><a class="docs-heading-anchor-permalink" href="#Representation-by-kind" title="Permalink"></a></h3><table><tr><th style="text-align: left">kind</th><th style="text-align: left">meaning</th><th style="text-align: left"><code>num</code></th><th style="text-align: left">children</th></tr><tr><td style="text-align: left"><code>NUMBER</code></td><td style="text-align: left">exact or float scalar</td><td style="text-align: left">value</td><td style="text-align: left">—</td></tr><tr><td style="text-align: left"><code>SYMBOL</code></td><td style="text-align: left">variable <code>x</code></td><td style="text-align: left">—</td><td style="text-align: left">—</td></tr><tr><td style="text-align: left"><code>CONSTANT</code></td><td style="text-align: left"><code>π</code>, <code>ℯ</code></td><td style="text-align: left">—</td><td style="text-align: left">—</td></tr><tr><td style="text-align: left"><code>ADD</code></td><td style="text-align: left"><code>c + Σ cᵢ tᵢ</code></td><td style="text-align: left"><code>c</code></td><td style="text-align: left"><code>args = tᵢ</code>, <code>coefs = cᵢ</code></td></tr><tr><td style="text-align: left"><code>MUL</code></td><td style="text-align: left"><code>c · Π bᵢ^eᵢ</code></td><td style="text-align: left"><code>c</code></td><td style="text-align: left"><code>args = bᵢ</code>, <code>exps = eᵢ</code> (symbolic)</td></tr><tr><td style="text-align: left"><code>POW</code></td><td style="text-align: left"><code>b^e</code></td><td style="text-align: left">—</td><td style="text-align: left"><code>args = [b, e]</code></td></tr><tr><td style="text-align: left"><code>FN</code></td><td style="text-align: left"><code>f(a₁,…,aₙ)</code> unevaluated</td><td style="text-align: left">—</td><td style="text-align: left"><code>args</code>, <code>name = f</code></td></tr></table><p>This is SymEngine&#39;s dictionary representation (<code>Add</code>: term → coefficient, <code>Mul</code>: base → exponent) laid out as sorted parallel vectors instead of hash maps:</p><ul><li><strong>Canonical storage order</strong> is <code>_cmp</code>. It compares hashes first and falls back to structure on a collision. The order is total and deterministic across sessions, because symbol hashes come from the name string. It has no mathematical meaning.</li><li>Combining two sums or two products is a <strong>linear merge</strong> of sorted vectors. Adding a single term is a binary search plus one copy. Sums of many terms (<code>sum</code>, <code>expand</code>, <code>diff</code>, <code>subs</code>) collect into a <code>Dict</code> and sort once.</li><li>Equality is elementwise comparison of the vectors.</li></ul><p>Display order (higher degree first, then lexical) is computed only by the printer and by <code>sorted_arguments</code>.</p><h3 id="Canonical-form-invariants"><a class="docs-heading-anchor" href="#Canonical-form-invariants">Canonical-form invariants</a><a id="Canonical-form-invariants-1"></a><a class="docs-heading-anchor-permalink" href="#Canonical-form-invariants" title="Permalink"></a></h3><ul><li><strong>ADD.</strong> No numeric or <code>ADD</code> terms. Terms carry no coefficient (the coefficient lives in <code>coefs</code>). Coefficients are nonzero. The node has at least two terms, or one term plus a nonzero constant.</li><li><strong>MUL.</strong> No <code>MUL</code> bases. Bases are distinct and exponents are nonzero. A <code>NUMBER</code> base appears only with a non-integer exponent, as in <code>2^(1/2)</code>. The node is never coefficient 1 times a single factor (that is a <code>POW</code> or the base itself). It is never a number times a single sum, because numbers distribute: <code>2(x+y) → 2x+2y</code>. This keeps <code>a - a == 0</code> true for sums.</li><li><strong>POW.</strong> The exponent is never 0 or 1. Integer powers distribute over products (<code>(xy)² → x²y²</code>) and multiply through powers (<code>(x^a)^n → x^(an)</code>). Non-integer outer powers are left alone, because <code>(x²)^(1/2) ≠ x</code> in general.</li><li><strong><code>exp(x)</code> is <code>ℯ^x</code></strong> (as in SymEngine), so <code>exp(x)·exp(y) → exp(x+y)</code> comes free from the product rules. <code>exp(log(z)) → z</code>.</li></ul><p>The canonicalizing constructors are <code>add</code>, <code>mul</code> and <code>pow</code>. The <code>_mk*_node</code> functions build raw nodes. The <code>_mk*</code> helpers (<code>_mkadd</code>, <code>_mkmul</code>, <code>_mkpow</code>) assemble nodes from parts that are already canonical and handle the degenerate cases.</p><h2 id="Numbers:-SymNumber"><a class="docs-heading-anchor" href="#Numbers:-SymNumber">Numbers: <code>SymNumber</code></a><a id="Numbers:-SymNumber-1"></a><a class="docs-heading-anchor-permalink" href="#Numbers:-SymNumber" title="Permalink"></a></h2><pre><code class="language-julia hljs">struct SymNumber &lt;: Real
+end</code></pre>
+</div>
+<p>This follows the same idea as SymEngine&#39;s <code class="md-code-inline">TypeID</code>: one concrete type with a tag, rather than a Julia type per node kind. As a result:</p>
+<ul class="md-list-tight">
+<li><p>Child containers are concretely typed (<code class="md-code-inline">Vector{Sym}</code>), so traversals never box and the compiler can infer everything.</p>
+</li>
+<li><p>Hot paths such as <code class="md-code-inline">add</code>, <code class="md-code-inline">mul</code> and <code class="md-code-inline">pow</code> branch on a byte instead of dispatching dynamically.</p>
+</li>
+<li><p><code class="md-code-inline">===</code> is pointer identity (the struct is <code class="md-code-inline">mutable</code> with all-<code class="md-code-inline">const</code> fields). That gives an O(1) fast path for equality and avoids copying a wide struct when vectors are stored or passed.</p>
+</li>
+<li><p>Every node stores its structural hash. <code class="md-code-inline">==</code> compares hashes first, and <code class="md-code-inline">Dict{Sym,…}</code> never rehashes a subtree.</p>
+</li>
+</ul>
+<p>Empty child vectors are shared constants (<code class="md-code-inline">NOSYMS</code>, <code class="md-code-inline">NONUMS</code>), so leaves do not allocate them. Integers in −64:64 are cached nodes.</p>
+<p><strong>Nodes are immutable by convention.</strong> Child vectors are shared between nodes, for example when an <code class="md-code-inline">ADD</code> changes one coefficient and reuses its <code class="md-code-inline">args</code>. Nothing may mutate them after construction.</p>
+<h3 id="Representation-by-kind" class="md-heading">Representation by kind<a href="#Representation-by-kind" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:left">kind</th>
+<th style="text-align:left">meaning</th>
+<th style="text-align:left"><code class="md-code-inline">num</code></th>
+<th style="text-align:left">children</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">NUMBER</code></td>
+<td style="text-align:left">exact or float scalar</td>
+<td style="text-align:left">value</td>
+<td style="text-align:left">—</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">SYMBOL</code></td>
+<td style="text-align:left">variable <code class="md-code-inline">x</code></td>
+<td style="text-align:left">—</td>
+<td style="text-align:left">—</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">CONSTANT</code></td>
+<td style="text-align:left"><code class="md-code-inline">π</code>, <code class="md-code-inline">ℯ</code></td>
+<td style="text-align:left">—</td>
+<td style="text-align:left">—</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">ADD</code></td>
+<td style="text-align:left"><code class="md-code-inline">c + Σ cᵢ tᵢ</code></td>
+<td style="text-align:left"><code class="md-code-inline">c</code></td>
+<td style="text-align:left"><code class="md-code-inline">args = tᵢ</code>, <code class="md-code-inline">coefs = cᵢ</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">MUL</code></td>
+<td style="text-align:left"><code class="md-code-inline">c · Π bᵢ^eᵢ</code></td>
+<td style="text-align:left"><code class="md-code-inline">c</code></td>
+<td style="text-align:left"><code class="md-code-inline">args = bᵢ</code>, <code class="md-code-inline">exps = eᵢ</code> (symbolic)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">POW</code></td>
+<td style="text-align:left"><code class="md-code-inline">b^e</code></td>
+<td style="text-align:left">—</td>
+<td style="text-align:left"><code class="md-code-inline">args = [b, e]</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">FN</code></td>
+<td style="text-align:left"><code class="md-code-inline">f(a₁,…,aₙ)</code> unevaluated</td>
+<td style="text-align:left">—</td>
+<td style="text-align:left"><code class="md-code-inline">args</code>, <code class="md-code-inline">name = f</code></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>This is SymEngine&#39;s dictionary representation (<code class="md-code-inline">Add</code>: term → coefficient, <code class="md-code-inline">Mul</code>: base → exponent) laid out as sorted parallel vectors instead of hash maps:</p>
+<ul class="md-list-tight">
+<li><p><strong>Canonical storage order</strong> is <code class="md-code-inline">_cmp</code>. It compares hashes first and falls back to structure on a collision. The order is total and deterministic across sessions, because symbol hashes come from the name string. It has no mathematical meaning.</p>
+</li>
+<li><p>Combining two sums or two products is a <strong>linear merge</strong> of sorted vectors. Adding a single term is a binary search plus one copy. Sums of many terms (<code class="md-code-inline">sum</code>, <code class="md-code-inline">expand</code>, <code class="md-code-inline">diff</code>, <code class="md-code-inline">subs</code>) collect into a <code class="md-code-inline">Dict</code> and sort once.</p>
+</li>
+<li><p>Equality is elementwise comparison of the vectors.</p>
+</li>
+</ul>
+<p>Display order (higher degree first, then lexical) is computed only by the printer and by <code class="md-code-inline">sorted_arguments</code>.</p>
+<h3 id="Canonical-form-invariants" class="md-heading">Canonical-form invariants<a href="#Canonical-form-invariants" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<ul class="md-list-tight">
+<li><p><strong>ADD.</strong> No numeric or <code class="md-code-inline">ADD</code> terms. Terms carry no coefficient (the coefficient lives in <code class="md-code-inline">coefs</code>). Coefficients are nonzero. The node has at least two terms, or one term plus a nonzero constant.</p>
+</li>
+<li><p><strong>MUL.</strong> No <code class="md-code-inline">MUL</code> bases. Bases are distinct and exponents are nonzero. A <code class="md-code-inline">NUMBER</code> base appears only with a non-integer exponent, as in <code class="md-code-inline">2^(1/2)</code>. The node is never coefficient 1 times a single factor (that is a <code class="md-code-inline">POW</code> or the base itself). It is never a number times a single sum, because numbers distribute: <code class="md-code-inline">2(x+y) → 2x+2y</code>. This keeps <code class="md-code-inline">a - a == 0</code> true for sums.</p>
+</li>
+<li><p><strong>POW.</strong> The exponent is never 0 or 1. Integer powers distribute over products (<code class="md-code-inline">(xy)² → x²y²</code>) and multiply through powers (<code class="md-code-inline">(x^a)^n → x^(an)</code>). Non-integer outer powers are left alone, because <code class="md-code-inline">(x²)^(1/2) ≠ x</code> in general.</p>
+</li>
+<li><p><strong><code class="md-code-inline">exp(x)</code> is <code class="md-code-inline">ℯ^x</code></strong> (as in SymEngine), so <code class="md-code-inline">exp(x)·exp(y) → exp(x+y)</code> comes free from the product rules. <code class="md-code-inline">exp(log(z)) → z</code>.</p>
+</li>
+</ul>
+<p>The canonicalizing constructors are <code class="md-code-inline">add</code>, <code class="md-code-inline">mul</code> and <code class="md-code-inline">pow</code>. The <code class="md-code-inline">_mk*_node</code> functions build raw nodes. The <code class="md-code-inline">_mk*</code> helpers (<code class="md-code-inline">_mkadd</code>, <code class="md-code-inline">_mkmul</code>, <code class="md-code-inline">_mkpow</code>) assemble nodes from parts that are already canonical and handle the degenerate cases.</p>
+<h2 id="Numbers:-SymNumber" class="md-heading">Numbers: <code class="md-code-inline">SymNumber</code><a href="#Numbers:-SymNumber" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">struct SymNumber &lt;: Real
     tag::UInt8      # SMALL (Int n//d), BIG (Rational{BigInt}), FLOAT (Float64)
     n::Int; d::Int; f::Float64
     big::Union{Nothing,Rational{BigInt}}
-end</code></pre><ul><li><strong>Exact by default.</strong> Arithmetic on small values uses <code>Int</code> with overflow checks (<code>add_with_overflow</code>, <code>mul_with_overflow</code>, gcd cross-cancellation). It promotes to <code>BigInt</code> on overflow and demotes when a result fits again. Most coefficient arithmetic never allocates.</li><li><strong>Floats are contagious.</strong> A float in an operation makes the result a float.</li><li><strong>Equality.</strong> <code>==</code> is numeric (<code>1 == 1.0</code>). <code>isequal</code> and <code>hash</code> are structural, so the exact <code>1</code> and the float <code>1.0</code> are different expression nodes.</li><li><strong>Exact radicals.</strong> A number to a rational power is canonicalized as <code>n^(p/q) = c·m^(r/q)</code> with <code>m</code> free of <code>q</code>-th powers (trial division up to 1000, then a perfect-power check). For example <code>sqrt(8) → 2·sqrt(2)</code>, <code>4^(1/4) → sqrt(2)</code>, <code>2^(-1/2) → sqrt(2)/2</code>.<ul><li>Negative bases split off <code>(-1)^e</code>, with <code>e</code> reduced into (−1, 1]. So <code>sqrt(-1)</code> is <code>(-1)^(1/2)</code>, which prints as <code>im</code> and squares to −1.</li><li>Rational bases split into numerator and denominator.</li></ul></li><li><strong>Symbolic numbers.</strong> <code>Sym(2)</code>, <code>Sym(1//3)</code>, <code>Sym(π)</code> are the user-facing exact numbers, and <code>sqrt(Sym(2))</code> stays exact. <code>N(ex)</code> evaluates to <code>Float64</code> or <code>ComplexF64</code>.</li></ul><h2 id="Functions"><a class="docs-heading-anchor" href="#Functions">Functions</a><a id="Functions-1"></a><a class="docs-heading-anchor-permalink" href="#Functions" title="Permalink"></a></h2><p>Unevaluated applications are <code>FN</code> nodes identified by name. Behaviour lives in a registry:</p><pre><code class="language-julia hljs">register_function!(:sin; julia = sin,                 # numeric evaluation, TermInterface.operation
+end</code></pre>
+</div>
+<ul class="md-list-tight">
+<li><p><strong>Exact by default.</strong> Arithmetic on small values uses <code class="md-code-inline">Int</code> with overflow checks (<code class="md-code-inline">add_with_overflow</code>, <code class="md-code-inline">mul_with_overflow</code>, gcd cross-cancellation). It promotes to <code class="md-code-inline">BigInt</code> on overflow and demotes when a result fits again. Most coefficient arithmetic never allocates.</p>
+</li>
+<li><p><strong>Floats are contagious.</strong> A float in an operation makes the result a float.</p>
+</li>
+<li><p><strong>Equality.</strong> <code class="md-code-inline">==</code> is numeric (<code class="md-code-inline">1 == 1.0</code>). <code class="md-code-inline">isequal</code> and <code class="md-code-inline">hash</code> are structural, so the exact <code class="md-code-inline">1</code> and the float <code class="md-code-inline">1.0</code> are different expression nodes.</p>
+</li>
+<li><p><strong>Exact radicals.</strong> A number to a rational power is canonicalized as <code class="md-code-inline">n^(p/q) = c·m^(r/q)</code> with <code class="md-code-inline">m</code> free of <code class="md-code-inline">q</code>-th powers (trial division up to 1000, then a perfect-power check). For example <code class="md-code-inline">sqrt(8) → 2·sqrt(2)</code>, <code class="md-code-inline">4^(1/4) → sqrt(2)</code>, <code class="md-code-inline">2^(-1/2) → sqrt(2)/2</code>.</p>
+<ul class="md-list-tight">
+<li><p>Negative bases split off <code class="md-code-inline">(-1)^e</code>, with <code class="md-code-inline">e</code> reduced into (−1, 1]. So <code class="md-code-inline">sqrt(-1)</code> is <code class="md-code-inline">(-1)^(1/2)</code>, which prints as <code class="md-code-inline">im</code> and squares to −1.</p>
+</li>
+<li><p>Rational bases split into numerator and denominator.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Symbolic numbers.</strong> <code class="md-code-inline">Sym(2)</code>, <code class="md-code-inline">Sym(1//3)</code>, <code class="md-code-inline">Sym(π)</code> are the user-facing exact numbers, and <code class="md-code-inline">sqrt(Sym(2))</code> stays exact. <code class="md-code-inline">N(ex)</code> evaluates to <code class="md-code-inline">Float64</code> or <code class="md-code-inline">ComplexF64</code>.</p>
+</li>
+</ul>
+<h2 id="Functions" class="md-heading">Functions<a href="#Functions" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>Unevaluated applications are <code class="md-code-inline">FN</code> nodes identified by name. Behaviour lives in a registry:</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">register_function!(:sin; julia = sin,                 # numeric evaluation, TermInterface.operation
                          eval  = args -&gt; ...,         # simplification, or `nothing`
-                         diff  = (args, i) -&gt; ...)    # ∂/∂argᵢ</code></pre><ul><li><strong>Built-in functions</strong> (<code>sin</code>, <code>cos</code>, <code>tan</code>, inverse and hyperbolic trig, <code>abs</code>, <code>log</code>) extend <code>Base</code> on <code>Sym</code>. Their rules handle exact special values (<code>sin(kπ/6)</code>, <code>log(1)</code>, …), odd and even symmetry (via <code>_could_extract_minus</code>, so <code>sin(-x) → -sin(x)</code>), and inverse compositions.</li><li><strong>Float arguments</strong> evaluate numerically. Exact arguments stay symbolic: <code>sin(2)</code> is unevaluated.</li><li><strong>Coverage of Base&#39;s mathematical functions.</strong><ul><li><em>Unevaluated functions with rules:</em><ul><li>the reciprocal trig and hyperbolic functions (<code>sec csc cot sech csch coth</code>) and their inverses;</li><li><code>cbrt</code> (the real cube root), <code>sinc</code>/<code>cosc</code>;</li><li><code>sign floor ceil trunc round</code>, <code>mod rem</code>, <code>max min</code> (n-ary, flattened, canonically ordered), <code>factorial</code>, and <code>binomial</code> (a polynomial for a literal <code>k</code>).</li><li>Exact values come from the function they are defined through, accepted only when that function disappears: <code>sec(π/3) = 1/cos(π/3) = 2</code> and <code>sec(acos(x)) = 1/x</code>, while poles such as <code>sec(π/2)</code> stay unevaluated.</li><li>Piecewise constant functions evaluate constant arguments numerically only away from their jumps. Their derivatives are left unevaluated.</li></ul></li><li><em>Rewrites into existing forms:</em> the degree variants (<code>sind</code>, <code>asind</code>, …), <code>sinpi</code>, <code>cospi</code>, <code>tanpi</code>, <code>log2</code>, <code>log10</code>, <code>log1p</code>, <code>exp2</code>, <code>exp10</code>, <code>expm1</code>, <code>hypot</code>, <code>abs2</code>, <code>fourthroot</code>, <code>cis</code>, <code>cispi</code>, <code>deg2rad</code>, <code>rad2deg</code>, <code>div</code>/<code>fld</code>/<code>cld</code>, <code>mod2pi</code>, <code>clamp</code>, <code>minmax</code>, <code>muladd</code>/<code>fma</code> (so <code>evalpoly</code> works), <code>\</code>, and <code>numerator</code>/<code>denominator</code> (via <code>numer_denom</code>).</li><li><em>Not yet:</em> <code>real</code>, <code>imag</code>, <code>conj</code>, <code>angle</code>, <code>reim</code>, which need to know whether symbols are real (assumptions), and the bit and integer-representation functions.</li></ul></li><li><strong>Package extensions.</strong> These load automatically when the package is loaded with SymJ: <strong>SpecialFunctions</strong>, <strong>HypergeometricFunctions</strong> (<code>_₁F₁</code>, <code>_₂F₁</code>, <code>_₃F₂</code>, and <code>pFq</code> of those sizes) and <strong>PolyLog</strong> (<code>li0</code>–<code>li6</code>, <code>li(n, z)</code>, <code>reli…</code>).<ul><li>Calling a package function with a <code>Sym</code> argument, in any position, builds the unevaluated function: <code>sinint(x)</code>, <code>besselj(n, x)</code>.</li><li>The package&#39;s own function is registered as the numeric method. It runs only when asked for (<code>N</code>, calling with numbers, <code>lambdify</code>) or when an argument is a float.</li><li>Exact special values are given where standard: <code>gamma(7/2) = 15√π/8</code>, <code>zeta(2) = π²/6</code>, <code>li2(1) = π²/6</code>.</li><li>Derivative rules are given where standard: Bessel recurrences, <code>d/dz ₂F₁ = ab/c ₂F₁(a+1, b+1, c+1, z)</code>, <code>d/dz Li_n = Li_{n-1}/z</code>.</li><li>A partial derivative with no closed form, such as with respect to an order or a parameter, is left as an unevaluated <code>Derivative</code>. A derivative rule may return <code>nothing</code> for this.</li><li>The symbolic methods are defined at the extension&#39;s top level, so they&#39;re precompiled. The rules are registered in its <code>__init__</code>, because SymJ&#39;s rule table can&#39;t be modified during the extension&#39;s precompilation.</li></ul></li><li><strong>Integer arguments stay integers.</strong> An exact integer passed directly to a function stays an <code>Int</code> when evaluated, as in Julia (<code>besselj(2, x)</code>). Some parameters must be integers: <code>polygamma</code>&#39;s order, <code>besselh</code>&#39;s kind.</li><li><strong><code>N</code> uses real methods for real arguments.</strong> Many special functions have no complex method, so <code>N</code> evaluates with real numbers when all arguments are real. It falls back to complex only when the real call raises a <code>DomainError</code>.</li><li><strong><code>log(b, x)</code></strong> is stored unevaluated as a two-argument <code>FN</code>, with <code>log(b, b) = 1</code>, <code>log(b, 1) = 0</code> and derivatives in both arguments.</li><li><strong>User functions</strong> (<code>SymFunction(:f)</code> or <code>@syms f()</code>) have no rules. Their derivatives are <code>Derivative(f(x), x)</code>.</li></ul><p>The registry is a <code>Dict</code> lookup per application, and the rule closures are called dynamically. Function application is not on the innermost hot path, but if it becomes a bottleneck the fix is a function-id field and a rule table indexed by integer.</p><h2 id="TermInterface"><a class="docs-heading-anchor" href="#TermInterface">TermInterface</a><a id="TermInterface-1"></a><a class="docs-heading-anchor-permalink" href="#TermInterface" title="Permalink"></a></h2><ul><li><strong>Calls.</strong> <code>ADD</code>, <code>MUL</code>, <code>POW</code> and <code>FN</code> satisfy <code>isexpr</code> and <code>iscall</code>. <code>head</code> is <code>operation</code>, and <code>children</code> is <code>arguments</code>.</li><li><strong><code>operation</code>.</strong> Returns <code>+</code>, <code>*</code>, <code>^</code>, the registered Julia function (<code>sin</code>, …), or a <code>SymFunction</code>.</li><li><strong><code>arguments</code>.</strong> For <code>ADD</code> and <code>MUL</code> it is the list of summands or factors, with the numeric term or coefficient included. For <code>POW</code> and <code>FN</code> it is the node&#39;s own vector, which callers must treat as read-only.</li><li><strong><code>sorted_arguments</code>.</strong> Returns the arguments in display order.</li><li><strong><code>maketerm(Sym, op, args, metadata)</code>.</strong> Rebuilds through the canonicalizing constructors. <code>metadata</code> is ignored, and nodes deliberately carry no metadata field.</li></ul><h2 id="Polynomials:-Poly{C}"><a class="docs-heading-anchor" href="#Polynomials:-Poly{C}">Polynomials: <code>Poly{C}</code></a><a id="Polynomials:-Poly{C}-1"></a><a class="docs-heading-anchor-permalink" href="#Polynomials:-Poly{C}" title="Permalink"></a></h2><p><code>Poly{C,M}</code> is a sparse multivariate polynomial. Expressions convert with <code>Poly(ex, x, y, …)</code> and convert back with <code>Sym(p)</code>. <code>Poly{C}</code> (any word <code>M</code>) is what signatures use.</p><pre><code class="language-julia hljs">struct Poly{C,M&lt;:Integer} &lt;: AbstractSymbolic
+                         diff  = (args, i) -&gt; ...)    # ∂/∂argᵢ</code></pre>
+</div>
+<ul class="md-list-tight">
+<li><p><strong>Built-in functions</strong> (<code class="md-code-inline">sin</code>, <code class="md-code-inline">cos</code>, <code class="md-code-inline">tan</code>, inverse and hyperbolic trig, <code class="md-code-inline">abs</code>, <code class="md-code-inline">log</code>) extend <code class="md-code-inline">Base</code> on <code class="md-code-inline">Sym</code>. Their rules handle exact special values (<code class="md-code-inline">sin(kπ/6)</code>, <code class="md-code-inline">log(1)</code>, …), odd and even symmetry (via <code class="md-code-inline">_could_extract_minus</code>, so <code class="md-code-inline">sin(-x) → -sin(x)</code>), and inverse compositions.</p>
+</li>
+<li><p><strong>Float arguments</strong> evaluate numerically. Exact arguments stay symbolic: <code class="md-code-inline">sin(2)</code> is unevaluated.</p>
+</li>
+<li><p><strong>Coverage of Base&#39;s mathematical functions.</strong></p>
+<ul class="md-list-tight">
+<li><p><em>Unevaluated functions with rules:</em></p>
+<ul class="md-list-tight">
+<li><p>the reciprocal trig and hyperbolic functions (<code class="md-code-inline">sec csc cot sech csch coth</code>) and their inverses;</p>
+</li>
+<li><p><code class="md-code-inline">cbrt</code> (the real cube root), <code class="md-code-inline">sinc</code>/<code class="md-code-inline">cosc</code>;</p>
+</li>
+<li><p><code class="md-code-inline">sign floor ceil trunc round</code>, <code class="md-code-inline">mod rem</code>, <code class="md-code-inline">max min</code> (n-ary, flattened, canonically ordered), <code class="md-code-inline">factorial</code>, and <code class="md-code-inline">binomial</code> (a polynomial for a literal <code class="md-code-inline">k</code>).</p>
+</li>
+<li><p>Exact values come from the function they are defined through, accepted only when that function disappears: <code class="md-code-inline">sec(π/3) = 1/cos(π/3) = 2</code> and <code class="md-code-inline">sec(acos(x)) = 1/x</code>, while poles such as <code class="md-code-inline">sec(π/2)</code> stay unevaluated.</p>
+</li>
+<li><p>Piecewise constant functions evaluate constant arguments numerically only away from their jumps. Their derivatives are left unevaluated.</p>
+</li>
+</ul>
+</li>
+<li><p><em>Rewrites into existing forms:</em> the degree variants (<code class="md-code-inline">sind</code>, <code class="md-code-inline">asind</code>, …), <code class="md-code-inline">sinpi</code>, <code class="md-code-inline">cospi</code>, <code class="md-code-inline">tanpi</code>, <code class="md-code-inline">log2</code>, <code class="md-code-inline">log10</code>, <code class="md-code-inline">log1p</code>, <code class="md-code-inline">exp2</code>, <code class="md-code-inline">exp10</code>, <code class="md-code-inline">expm1</code>, <code class="md-code-inline">hypot</code>, <code class="md-code-inline">abs2</code>, <code class="md-code-inline">fourthroot</code>, <code class="md-code-inline">cis</code>, <code class="md-code-inline">cispi</code>, <code class="md-code-inline">deg2rad</code>, <code class="md-code-inline">rad2deg</code>, <code class="md-code-inline">div</code>/<code class="md-code-inline">fld</code>/<code class="md-code-inline">cld</code>, <code class="md-code-inline">mod2pi</code>, <code class="md-code-inline">clamp</code>, <code class="md-code-inline">minmax</code>, <code class="md-code-inline">muladd</code>/<code class="md-code-inline">fma</code> (so <code class="md-code-inline">evalpoly</code> works), <code class="md-code-inline">\</code>, and <code class="md-code-inline">numerator</code>/<code class="md-code-inline">denominator</code> (via <code class="md-code-inline">numer_denom</code>).</p>
+</li>
+<li><p><em>Not yet:</em> <code class="md-code-inline">real</code>, <code class="md-code-inline">imag</code>, <code class="md-code-inline">conj</code>, <code class="md-code-inline">angle</code>, <code class="md-code-inline">reim</code>, which need to know whether symbols are real (assumptions), and the bit and integer-representation functions.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Package extensions.</strong> These load automatically when the package is loaded with SymJ: <strong>SpecialFunctions</strong>, <strong>HypergeometricFunctions</strong> (<code class="md-code-inline">_₁F₁</code>, <code class="md-code-inline">_₂F₁</code>, <code class="md-code-inline">_₃F₂</code>, and <code class="md-code-inline">pFq</code> of those sizes) and <strong>PolyLog</strong> (<code class="md-code-inline">li0</code>–<code class="md-code-inline">li6</code>, <code class="md-code-inline">li(n, z)</code>, <code class="md-code-inline">reli…</code>).</p>
+<ul class="md-list-tight">
+<li><p>Calling a package function with a <code class="md-code-inline">Sym</code> argument, in any position, builds the unevaluated function: <code class="md-code-inline">sinint(x)</code>, <code class="md-code-inline">besselj(n, x)</code>.</p>
+</li>
+<li><p>The package&#39;s own function is registered as the numeric method. It runs only when asked for (<code class="md-code-inline">N</code>, calling with numbers, <code class="md-code-inline">lambdify</code>) or when an argument is a float.</p>
+</li>
+<li><p>Exact special values are given where standard: <code class="md-code-inline">gamma(7/2) = 15√π/8</code>, <code class="md-code-inline">zeta(2) = π²/6</code>, <code class="md-code-inline">li2(1) = π²/6</code>.</p>
+</li>
+<li><p>Derivative rules are given where standard: Bessel recurrences, <code class="md-code-inline">d/dz ₂F₁ = ab/c ₂F₁(a+1, b+1, c+1, z)</code>, <code class="md-code-inline">d/dz Li_n = Li_{n-1}/z</code>.</p>
+</li>
+<li><p>A partial derivative with no closed form, such as with respect to an order or a parameter, is left as an unevaluated <code class="md-code-inline">Derivative</code>. A derivative rule may return <code class="md-code-inline">nothing</code> for this.</p>
+</li>
+<li><p>The symbolic methods are defined at the extension&#39;s top level, so they&#39;re precompiled. The rules are registered in its <code class="md-code-inline">__init__</code>, because SymJ&#39;s rule table can&#39;t be modified during the extension&#39;s precompilation.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Integer arguments stay integers.</strong> An exact integer passed directly to a function stays an <code class="md-code-inline">Int</code> when evaluated, as in Julia (<code class="md-code-inline">besselj(2, x)</code>). Some parameters must be integers: <code class="md-code-inline">polygamma</code>&#39;s order, <code class="md-code-inline">besselh</code>&#39;s kind.</p>
+</li>
+<li><p><strong><code class="md-code-inline">N</code> uses real methods for real arguments.</strong> Many special functions have no complex method, so <code class="md-code-inline">N</code> evaluates with real numbers when all arguments are real. It falls back to complex only when the real call raises a <code class="md-code-inline">DomainError</code>.</p>
+</li>
+<li><p><strong><code class="md-code-inline">log(b, x)</code></strong> is stored unevaluated as a two-argument <code class="md-code-inline">FN</code>, with <code class="md-code-inline">log(b, b) = 1</code>, <code class="md-code-inline">log(b, 1) = 0</code> and derivatives in both arguments.</p>
+</li>
+<li><p><strong>User functions</strong> (<code class="md-code-inline">SymFunction(:f)</code> or <code class="md-code-inline">@syms f()</code>) have no rules. Their derivatives are <code class="md-code-inline">Derivative(f(x), x)</code>.</p>
+</li>
+</ul>
+<p>The registry is a <code class="md-code-inline">Dict</code> lookup per application, and the rule closures are called dynamically. Function application is not on the innermost hot path, but if it becomes a bottleneck the fix is a function-id field and a rule table indexed by integer.</p>
+<h2 id="TermInterface" class="md-heading">TermInterface<a href="#TermInterface" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<ul class="md-list-tight">
+<li><p><strong>Calls.</strong> <code class="md-code-inline">ADD</code>, <code class="md-code-inline">MUL</code>, <code class="md-code-inline">POW</code> and <code class="md-code-inline">FN</code> satisfy <code class="md-code-inline">isexpr</code> and <code class="md-code-inline">iscall</code>. <code class="md-code-inline">head</code> is <code class="md-code-inline">operation</code>, and <code class="md-code-inline">children</code> is <code class="md-code-inline">arguments</code>.</p>
+</li>
+<li><p><strong><code class="md-code-inline">operation</code>.</strong> Returns <code class="md-code-inline">+</code>, <code class="md-code-inline">*</code>, <code class="md-code-inline">^</code>, the registered Julia function (<code class="md-code-inline">sin</code>, …), or a <code class="md-code-inline">SymFunction</code>.</p>
+</li>
+<li><p><strong><code class="md-code-inline">arguments</code>.</strong> For <code class="md-code-inline">ADD</code> and <code class="md-code-inline">MUL</code> it is the list of summands or factors, with the numeric term or coefficient included. For <code class="md-code-inline">POW</code> and <code class="md-code-inline">FN</code> it is the node&#39;s own vector, which callers must treat as read-only.</p>
+</li>
+<li><p><strong><code class="md-code-inline">sorted_arguments</code>.</strong> Returns the arguments in display order.</p>
+</li>
+<li><p><strong><code class="md-code-inline">maketerm(Sym, op, args, metadata)</code>.</strong> Rebuilds through the canonicalizing constructors. <code class="md-code-inline">metadata</code> is ignored, and nodes deliberately carry no metadata field.</p>
+</li>
+</ul>
+<h2 id="Polynomials:-Poly{C}" class="md-heading">Polynomials: <code class="md-code-inline">Poly{C}</code><a href="#Polynomials:-Poly{C}" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p><code class="md-code-inline">Poly{C,M}</code> is a sparse multivariate polynomial. Expressions convert with <code class="md-code-inline">Poly(ex, x, y, …)</code> and convert back with <code class="md-code-inline">Sym(p)</code>. <code class="md-code-inline">Poly{C}</code> (any word <code class="md-code-inline">M</code>) is what signatures use.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">struct Poly{C,M&lt;:Integer} &lt;: AbstractSymbolic
     gens::Vector{Sym}       # generators, most significant first
     layout::_Layout         # field width per generator (with shifts and masks)
     monos::Vector{M}        # packed exponent vectors, strictly decreasing
     coefs::Vector{C}        # nonzero coefficients
-end</code></pre><ul><li><strong>Packed monomials.</strong> Each exponent vector is packed into one integer word, with the first generator in the most significant field. Multiplying monomials is integer addition (degree checks rule out carries), and lex order is integer order. So terms are sorted parallel vectors, addition is a linear merge, <code>diff</code> is a subtraction, and changing generators means repacking. The all-ones field is reserved, so each exponent is at most <code>2^width − 2</code>.</li><li><strong>Layouts.</strong> The usual layout is uniform: <code>64 ÷ ngens</code> bits per field in a <code>UInt64</code>. 4 generators allow degree 65 534 each, and 16 allow 14. All such polynomials share one precomputed layout, so mixing them never repacks.<ul><li><strong>Uneven fields.</strong> When the uniform layout can&#39;t hold the degrees, fields are sized to each generator&#39;s degree and the spare bits shared out as headroom. One generator of high degree among many linear ones then still fits one <code>UInt64</code>: <code>x^(2^40)</code> with 15 other generators, or <code>x^70</code> with 10.</li><li><strong>Wider words.</strong> Past 64 bits the polynomial is packed into a <code>UInt128</code>, then a <code>BigInt</code> (any width). Wider words are slower, but no degree or number of generators is refused.</li><li><strong>Construction.</strong> <code>Poly(ex, …)</code> tries the uniform layout first, the common case at no extra cost. If a field overflows, it computes degree bounds for <code>ex</code> and builds once in a layout sized to them.</li><li><strong>Arithmetic keeps its word.</strong> A product, power or division needing a wider field gets a new layout in the same word, which is type-stable. It never changes the word: when results could change type, multivariate <code>factor</code> ran 70% slower. Past the word&#39;s capacity it throws <code>_PackOverflow</code> (shown as an <code>OverflowError</code>). <code>BigInt</code> words just grow their fields.</li><li><strong>Entry points restart.</strong> <code>gcd</code>, <code>lcm</code>, <code>factor</code>, <code>factor_squarefree</code>, <code>squarefree_part</code> on polynomials, and <code>cancel</code>, <code>factor</code>, <code>apart</code>, <code>gcd</code>, … on expressions, catch <code>_PackOverflow</code>. They rerun the computation with a raised minimum field width (<code>_with_widening</code>; task-local, so nested calls compose). Internally they call non-restarting versions (<code>_gcd_poly</code>, <code>_factor_poly</code>, …), so callers stay type-stable.</li><li><strong>Direct arithmetic.</strong> <code>p * q</code>, <code>p^k</code> or <code>divrem</code> on polynomials built by hand raise rather than widen. Build the polynomial from an expression, or <code>convert</code> it to <code>Poly{C,UInt128}</code>.</li><li><strong>Limits elsewhere.</strong><ul><li>The modular gcd (and so Zippel) works on <code>UInt64</code> and <code>UInt128</code> words. <code>BigInt</code> ones use the PRS gcd.</li><li><code>RatFun</code> keeps its numerator and denominator in <code>UInt64</code> words (concrete fields keep parameter arithmetic fast), so parameters of very high degree are refused with an error.</li></ul></li><li><strong>Bug fixed.</strong> <code>cancel</code> used to return its input unchanged, silently, when the exponents didn&#39;t fit or there were more than 64 symbols.</li></ul></li><li><strong>Products.</strong> Products accumulate in a purpose-built open-addressing table keyed by the packed monomial (multiplicative hash, linear probing), then one sort. A generic <code>Dict</code> was about 3x slower.</li><li><strong>Coefficients.</strong><ul><li>The coefficient type is <code>C = SymNumber</code> for numeric polynomials and <code>Sym</code> for symbolic ones (<code>Poly(a*x^2 + b*x, x)</code>). The arithmetic is generic in <code>C</code>.</li><li><strong>Integer fast path.</strong> When every coefficient of both factors is a machine integer and <code>max|a|·max|b|·min(#p,#q) &lt; 2^125</code>, products accumulate in <code>Int128</code>. That removes about 98% of the coefficient cost. Otherwise the code falls back to exact <code>SymNumber</code> arithmetic, which overflows into <code>BigInt</code> as needed.</li></ul></li><li><strong>Conversion.</strong><ul><li><code>Sym → Poly</code> packs monomial terms directly, without building intermediate polynomials.</li><li><code>Poly → Sym</code> builds canonical nodes directly when the generators are symbols: bases visited in <code>_cmp</code> order are already sorted, and distinct monomials give distinct keys.</li></ul></li><li><strong>Powers.</strong> <code>p^k</code> uses the multinomial theorem when the base is sparse: each composition of <code>k</code> is computed once, its monomial is <code>Σ aᵢ·mᵢ</code> in packed integer arithmetic, and the multinomial coefficients are updated incrementally. Integer coefficients are computed in <code>Int128</code> when <code>(Σ|cᵢ|)^k &lt; 2^125</code> guarantees no overflow, or else in <code>BigInt</code>, and converted to <code>SymNumber</code> once per term. (Doing the arithmetic in <code>SymNumber</code>, whose big values are rationals, re-normalized a gcd on every operation.) When the number of compositions is far above the degree bound on the result size, many compositions share a monomial, as in a dense univariate base, and repeated multiplication is cheaper. <code>(a+x)^100</code> went from 867 μs and 56k allocations to 26 μs.</li><li><strong><code>expand</code> uses <code>Poly</code></strong> whenever the expression is a polynomial with numeric coefficients in at most 16 symbols. Anything else (functions, radicals, symbolic exponents) goes through the generic tree expansion. The generic expansion still calls <code>expand</code>, so polynomial subexpressions such as the <code>(x+1)^2</code> in <code>sin(x)*(x+1)^2</code> take the fast path.</li></ul><h3 id="Division"><a class="docs-heading-anchor" href="#Division">Division</a><a id="Division-1"></a><a class="docs-heading-anchor-permalink" href="#Division" title="Permalink"></a></h3><p><code>divrem(p, q)</code> is multivariate division with respect to lex order. For one generator it is ordinary long division. <code>div</code>, <code>rem</code>, <code>divides</code> and <code>divexact</code> are built on it.</p><ul><li><strong>Algorithm.</strong> The dividend lives in the same open-addressing table used for products, with a max-heap of its monomials. Each step pops the largest monomial <code>m</code>.<ul><li>If <code>LM(q)</code> divides <code>m</code>, the term <code>t = m/LM(q)</code> goes to the quotient and <code>-t·(q − LT(q))</code> is added into the table.</li><li>Otherwise the term goes to the remainder.</li></ul></li><li><strong>Why it is cheap.</strong> Everything added is smaller than <code>m</code>, so no monomial is revisited, and the quotient and remainder come out already sorted. The work is about <code>#quotient × #q</code> table operations; no intermediate polynomial is ever formed.</li><li><strong>Coefficients.</strong> Division is exact in the coefficient field (<code>SymNumber</code> rationals, or <code>Sym</code>), so dividing integer polynomials can produce rational coefficients.</li><li><strong>Overflow.</strong> Lex division can raise the degrees of the later generators (<code>x^k</code> by <code>x + y^5</code> leaves <code>±y^(5k)</code>). Each quotient term is checked against the exponent limit: <code>BigInt</code> words widen and retry; fixed-size words throw <code>_PackOverflow</code> for an entry point to restart.</li></ul><h3 id="GCD"><a class="docs-heading-anchor" href="#GCD">GCD</a><a id="GCD-1"></a><a class="docs-heading-anchor-permalink" href="#GCD" title="Permalink"></a></h3><p><code>gcd(p, q)</code> (and <code>lcm</code>) works on polynomials with exact numeric coefficients, and on expressions that are such polynomials.</p><ul><li><strong>Normalization.</strong><ul><li>Integer inputs give the integer gcd, including the gcd of the contents, with a positive leading coefficient.</li><li>Rational inputs are scaled to integers first, and the result is made monic.</li><li>Floating point coefficients are rejected.</li></ul></li></ul><p><strong>The algorithm is Brown&#39;s dense modular GCD</strong>, in the form of Geddes–Czapor–Labahn MGCD/PGCD (<code>src/modgcd.jl</code>).</p><ul><li><strong>Over ℤ.</strong><ul><li>Compute images of the gcd modulo primes below 2^31, so products fit in an <code>Int</code>.</li><li>Normalize each image so its leading coefficient is <code>γ = gcd(lc(a), lc(b))</code>.</li><li>A prime whose image has a larger leading monomial is unlucky and is discarded. A smaller one means every earlier prime was unlucky, so the work so far is discarded instead.</li><li>Combine images by Chinese remaindering in the symmetric range. Then take the primitive part and accept it only if it divides both inputs.</li><li>Trial division therefore makes the answer certain, not probabilistic. It runs only when the reconstruction looks finished: unchanged by the last prime, or every coefficient at least 8 bits below the modulus. A wrong reconstruction has residues spread across the whole range, so this avoids failed divisions.</li></ul></li><li><strong>Over ℤ_p.</strong><ul><li>Eliminate the last active variable <code>x_k</code> by evaluating it at points, recurse, and rebuild <code>x_k</code> by Newton interpolation. The base case is univariate Euclid on dense vectors.</li><li>Leading coefficients in <code>ℤ_p[x_k]</code> are handled by scaling each image to <code>g(α)</code>, with <code>g</code> the gcd of the leading coefficients.</li><li>Unlucky points give images that are too large, and are detected the same way as unlucky primes.</li><li>The number of points is <code>min(deg_k a, deg_k b) + deg g + 1</code>.</li></ul></li><li><strong>Data layout.</strong> Mod-p polynomials reuse the packed lex monomials. Because <code>x_k</code> is the least significant active field, evaluating it keeps terms sorted. Terms sharing a monomial in the other variables form contiguous runs, which are exactly the coefficients in <code>ℤ_p[x_k]</code>. Evaluation, contents and interpolation are therefore linear scans.</li></ul><p><strong>The recursive primitive PRS</strong> (<code>_gcd</code>) remains as the reference implementation. The tests check the two against each other.</p><p><strong>Zippel&#39;s sparse interpolation</strong> is chosen per call, with no global setting:</p><ul><li><strong>The keywords.</strong> <code>gcd</code> and <code>lcm</code>, on polynomials and expressions, take <code>method = :auto | :dense | :zippel</code>. The functions built on gcds take the same values as <code>gcd_method</code>: <code>cancel</code>, <code>factor</code>, <code>factor_squarefree</code>, <code>squarefree_part</code>, <code>apart</code>. A different name, because <code>factor(ex; method = :zippel)</code> would suggest a factoring method.</li><li><strong>The default, <code>:auto</code>,</strong> estimates the dense method&#39;s work as about <code>Π (deg_i + 1)</code> univariate gcds over all but the main variable, and compares it with the inputs&#39; term counts, a measure of sparsity. Zippel is chosen when the estimate exceeds both 256 and 3 times the larger term count.<ul><li>Measured: dense inputs have ratios near 1, and there Brown is up to 30x faster. Sparse or many-variable inputs have ratios of 4 and up, and there Zippel is 3–100x faster.</li><li>This removed a cliff in Brown&#39;s method, which is exponential in the number of variables. A 14-variable low-degree gcd took 1.1 s and now takes 0.05 s; 20 variables took more than a minute and now take 0.18 s.</li></ul></li><li><strong>Internal gcds.</strong> Gcds inside <code>RatFun</code> arithmetic (linear systems, <code>apart</code> with parameters) and inside EEZ use <code>:auto</code>.</li></ul><p>It changes how the images inside Brown&#39;s loop over <code>x_k</code> are found; everything else is the same.</p><ul><li><strong>The skeleton.</strong> The first image comes from the full recursion. Its terms are taken as the gcd&#39;s support.</li><li><strong>Later images.</strong> The other variables are evaluated at powers <code>β^j</code> of a random point. Univariate gcds in the main variable (the first active one) then give equations for the skeleton&#39;s coefficients.</li><li><strong>Scales.</strong> Each univariate gcd is monic, so it equals the image only up to an unknown scale <code>m_j</code>. That scale is an extra unknown per evaluation (the LINZIP form), so the gcd&#39;s leading coefficient in the main variable needn&#39;t be a single term. One extra evaluation checks the solution.</li><li><strong>Fallback.</strong> A degree mismatch, or a singular or inconsistent system, means the support is wrong or the point is bad. That image is then computed densely, and the skeleton refreshed from it. This also covers a content in the other variables, which the scales would absorb. The final division over ℤ still guarantees the result.</li></ul><p>It loses on dense gcds, hence the automatic choice. It needs about as many terms&#39; worth of evaluations as the gcd has, plus a linear solve.</p><p><strong>Performance.</strong> <code>bench/gcd.jl</code> compares against Nemo, which wraps FLINT. The first six inputs are <code>gcd(g·a, g·b)</code> with <code>g = (x+y+z+w+1)^k</code>; the last two have sparse gcds of degree 10 in four variables:</p><table><tr><th style="text-align: left">case</th><th style="text-align: right">auto (default)</th><th style="text-align: right">dense</th><th style="text-align: right">Zippel</th><th style="text-align: right">PRS</th><th style="text-align: right">Nemo (FLINT)</th></tr><tr><td style="text-align: left"><code>k = 10</code>, linear cofactors</td><td style="text-align: right">1.64 ms</td><td style="text-align: right">1.64 ms</td><td style="text-align: right">54 ms</td><td style="text-align: right">4.6 ms</td><td style="text-align: right">0.55 ms</td></tr><tr><td style="text-align: left"><code>k = 4</code>, degree-4 cofactors</td><td style="text-align: right">0.23 ms</td><td style="text-align: right">0.23 ms</td><td style="text-align: right">0.34 ms</td><td style="text-align: right">2.1 ms</td><td style="text-align: right">0.31 ms</td></tr><tr><td style="text-align: left"><code>k = 4</code>, degree-6 cofactors</td><td style="text-align: right">0.36 ms</td><td style="text-align: right">0.35 ms</td><td style="text-align: right">0.43 ms</td><td style="text-align: right">16 ms</td><td style="text-align: right">0.44 ms</td></tr><tr><td style="text-align: left"><code>k = 6</code>, degree-6 cofactors</td><td style="text-align: right">0.87 ms</td><td style="text-align: right">0.87 ms</td><td style="text-align: right">2.8 ms</td><td style="text-align: right">80 ms</td><td style="text-align: right">0.79 ms</td></tr><tr><td style="text-align: left"><code>k = 8</code>, degree-6 cofactors</td><td style="text-align: right">1.85 ms</td><td style="text-align: right">1.85 ms</td><td style="text-align: right">15 ms</td><td style="text-align: right">720 ms</td><td style="text-align: right">1.35 ms</td></tr><tr><td style="text-align: left">big coefficients (<code>3^20</code>, <code>5^15</code>, <code>7^10</code>), cubed</td><td style="text-align: right">0.60 ms</td><td style="text-align: right">0.59 ms</td><td style="text-align: right">0.45 ms</td><td style="text-align: right">36 ms</td><td style="text-align: right">0.69 ms</td></tr><tr><td style="text-align: left">sparse gcd, 5 terms</td><td style="text-align: right">0.086 ms</td><td style="text-align: right">1.31 ms</td><td style="text-align: right">0.085 ms</td><td style="text-align: right">0.28 ms</td><td style="text-align: right">0.30 ms</td></tr><tr><td style="text-align: left">sparse gcd, non-monomial leading coefficient</td><td style="text-align: right">0.068 ms</td><td style="text-align: right">0.48 ms</td><td style="text-align: right">0.068 ms</td><td style="text-align: right">1.8 ms</td><td style="text-align: right">0.34 ms</td></tr></table><ul><li><strong>The automatic choice</strong> picks the faster method in every case except big coefficients, where the two are close.</li><li><strong>Dense gcds:</strong> faster than FLINT on four of the first six cases and within 1.4x on <code>k = 8</code>. The weak case is a high-degree gcd with tiny cofactors (first row), where Brown&#39;s method needs about <code>(deg+1)^(nvars−1)</code> univariate gcds. There about 18% of the time is the final division check.</li><li><strong>Sparse gcds:</strong> Zippel is 6–16x faster than dense and 3.5–5x faster than FLINT.</li></ul><h3 id="Squarefree-factorization"><a class="docs-heading-anchor" href="#Squarefree-factorization">Squarefree factorization</a><a id="Squarefree-factorization-1"></a><a class="docs-heading-anchor-permalink" href="#Squarefree-factorization" title="Permalink"></a></h3><p><code>factor_squarefree(p)</code> returns <code>(unit, [f₁ =&gt; m₁, f₂ =&gt; m₂, …])</code> with <code>p = unit·Π fᵢ^mᵢ</code>. The guarantees:</p><ul><li>each <code>fᵢ</code> is squarefree, primitive, and has a positive leading coefficient;</li><li>the <code>fᵢ</code> are pairwise coprime;</li><li>the multiplicities are distinct and increasing.</li></ul><p><code>squarefree_part(p)</code> is <code>Π fᵢ</code>.</p><ul><li><strong>Algorithm.</strong> A primitive <code>f</code> splits into its content with respect to its most significant generator <code>xᵢ</code> (a polynomial in the later generators) and its primitive part, all of whose irreducible factors involve <code>xᵢ</code>.<ul><li><strong>Primitive part:</strong> decomposed by Yun&#39;s algorithm, a few gcds with <code>∂f/∂xᵢ</code> using the modular gcd.</li><li><strong>Content:</strong> decomposed recursively in the remaining generators.</li><li><strong>Merging:</strong> the two sets of factors are coprime, so factors of equal multiplicity are multiplied.</li></ul></li><li><strong>Speed.</strong> 1.5 ms for a 612-term polynomial in 4 variables, 0.09 ms for a degree-55 univariate one.</li><li><strong>Expressions.</strong> <code>factor_squarefree(ex)</code> and <code>squarefree_part(ex)</code> treat atoms the way <code>cancel</code> does. Rational expressions are cancelled first, then numerator and denominator are factored: <code>(x^2 - 1)/(x^2 + 2x + 1)^2 → (x - 1)/(x + 1)^3</code>.</li></ul><h3 id="Factorization"><a class="docs-heading-anchor" href="#Factorization">Factorization</a><a id="Factorization-1"></a><a class="docs-heading-anchor-permalink" href="#Factorization" title="Permalink"></a></h3><p><code>factor(p)</code> returns <code>(unit, [f₁ =&gt; m₁, …])</code>. The factors are irreducible over ℚ, primitive, and have positive leading coefficients. They&#39;re sorted by multiplicity, then by degree. The input is first reduced to squarefree primitive parts.</p><p><strong>Univariate: Zassenhaus.</strong></p><ul><li><p><strong>Choosing a prime.</strong> Pick a small odd prime that keeps the polynomial squarefree and doesn&#39;t divide the leading coefficient. Of up to five candidates, keep the one with the fewest modular factors, since that keeps recombination cheap.</p></li><li><p><strong>Factoring mod p.</strong> Distinct-degree factorization, then Cantor–Zassenhaus to split equal-degree parts, with a fixed xorshift generator so results are reproducible.</p></li><li><p><strong>Hensel lifting.</strong> The two-factor lift is linear, one power of <code>p</code> per step; several factors are lifted through a balanced split. It runs to <code>p^k &gt; 2|lc|·2ⁿ‖f‖₂</code>, past the Landau–Mignotte bound.</p></li><li><p><strong>Recombination.</strong> Try subsets of the lifted factors, smallest first. Each candidate <code>lc·Π mod p^k</code>, taken in the symmetric range, is tested by exact division over ℤ.</p></li><li><p><strong>van Hoeij recombination</strong> (<code>src/vanhoeij.jl</code>). The number of subsets grows exponentially with the number of modular factors, so from 9 factors up a lattice replaces the search:</p><ul><li><p><strong>Traces.</strong> For each lifted factor <code>gᵢ</code>, the power sums of its roots, <code>tᵢⱼ = ℓʲ·Pⱼ(gᵢ) mod pᵃ</code> (Newton&#39;s identities, <code>ℓ</code> the leading coefficient). For a true factor, the sum over its pieces is an integer bounded by <code>n(|ℓ|R)ʲ</code>, where <code>R</code> is Fujiwara&#39;s root bound. Cauchy&#39;s bound was far too loose for polynomials with large coefficients and small roots, and inflated every number in the lattice.</p></li><li><p><strong>Lattice.</strong> Rows <code>[eᵢ | tᵢⱼ/Dⱼ]</code> and <code>[0 | pᵃ/Dⱼ]</code>, with the trace columns scaled down so that true factors give short vectors. LLL is exact and all-integer (Cohen, Algorithm 2.6.7): it keeps the integers d<em>i and λ</em>ij in place of the rational Gram–Schmidt data, so every division is exact and there are no gcd normalizations. Exactness matters because a single short vector is taken as proof of irreducibility. Compared with exact rationals this is 13x faster on S₅ (0.98 s → 74 ms) and 8x on S₆ (6.1 s → 0.76 s). FLINT is still about 60x faster on S₅; closing that gap needs floating-point LLL and traces truncated to their leading bits (van Hoeij–Novocin).</p></li><li><p><strong>Reading off factors.</strong> Basis vectors whose Gram–Schmidt norm exceeds the proven bound are dropped. If one vector is left, <code>f</code> is irreducible. Otherwise the reduced echelon form should be a 0/1 partition, each part confirmed by trial division. Until it is, the number of traces doubles, and the precision grows with it.</p></li><li><p><strong>Fallback.</strong> Subset search remains the fallback.</p></li><li><p><strong>Speed.</strong></p><table><tr><th style="text-align: left">Swinnerton-Dyer polynomial</th><th style="text-align: right">modular factors</th><th style="text-align: right">subset search</th><th style="text-align: right">van Hoeij</th></tr><tr><td style="text-align: left">S₅, degree 32</td><td style="text-align: right">16</td><td style="text-align: right">3.2 s</td><td style="text-align: right">0.85 s</td></tr><tr><td style="text-align: left">S₆, degree 64</td><td style="text-align: right">32</td><td style="text-align: right">out of reach</td><td style="text-align: right">6.1 s</td></tr></table><p>These are irreducible, but split into many factors modulo every prime.</p></li></ul></li></ul><p><strong>Multivariate: Wang&#39;s EEZ approach</strong> (<code>src/eez.jl</code>).</p><ul><li><p><strong>Setup.</strong> The main variable <code>x</code> is the active variable of least degree. The content in <code>x</code>, a polynomial in the other variables, is factored on its own.</p></li><li><p><strong>Evaluation point.</strong> An integer point <code>α</code> for the other variables, with <code>lc_x(q)(α) ≠ 0</code> and <code>q(x, α)</code> squarefree. Of a few such points, keep the one with fewest univariate factors. A point with one factor proves <code>q</code> irreducible.</p></li><li><p><strong>Shift.</strong> <code>y → y + α</code> moves the point to 0, so Taylor coefficients are plain coefficients and evaluating means dropping terms.</p></li><li><p><strong>Leading coefficients.</strong></p><ul><li><strong>Wang&#39;s distribution.</strong> Factor <code>L = lc_x(q)</code> into irreducibles <code>tⱼ</code>. When each <code>tⱼ(α)</code> has a prime divisor shared with no other and not with the contents (Wang&#39;s non-divisor test), the <code>tⱼ</code> dividing each univariate factor&#39;s leading coefficient can be read off, and the lift runs on <code>q</code> itself. Points passing the test are preferred, but the values stay small, since a larger range densified the shifted polynomial and cost far more.</li><li><strong>Imposition.</strong> Otherwise <code>L</code> is imposed on every factor of <code>L^(r-1)·q</code>, and primitive parts are taken at the end.</li></ul></li><li><p><strong>Lifting.</strong> Multivariate Hensel lifting, one variable at a time, with multivariate Diophantine equations (Geddes–Czapor–Labahn 6.2–6.4), over ℚ. Working over ℚ needs no p-adic coefficient bound, and an exact product check decides success.</p></li><li><p><strong>Spurious factors.</strong> If <code>α</code> split a true factor, the full lift fails. Then two-factor lifts of subsets of the univariate factors, smallest first, find each irreducible factor.</p></li><li><p><strong>Fallback.</strong> Kronecker substitution (<code>x_i → t^(w_i)</code>, factoring the univariate image, decoding subset products) is the fallback when the EEZ cannot be used, and the reference in the tests. (An EEZ whose intermediate exponents overflow the packing is rerun with wider words by <code>factor</code>.) Its image has degree about <code>Π (deg_i + 1)</code> and is capped at</p><ol><li></li></ol></li><li><p><strong>Speed.</strong> Against Kronecker:</p><table><tr><th style="text-align: left">polynomial</th><th style="text-align: right">Kronecker</th><th style="text-align: right">EEZ</th></tr><tr><td style="text-align: left"><code>(wy + x + 1)(xz − y² + 3w)(x²y + z³ + w)</code></td><td style="text-align: right">14.2 s</td><td style="text-align: right">2.5 ms</td></tr><tr><td style="text-align: left"><code>x⁶ − y⁶z⁶</code></td><td style="text-align: right">3.6 s</td><td style="text-align: right">1.7 ms</td></tr><tr><td style="text-align: left"><code>(x⁵y³ + z⁴w² − 7)(x⁴ − y⁵z + w³ + 2)(xyzw + 1)</code></td><td style="text-align: right">beyond its cap</td><td style="text-align: right">38 ms</td></tr></table></li></ul><p><strong>Timings.</strong></p><table><tr><th style="text-align: left">polynomial</th><th style="text-align: right">time</th></tr><tr><td style="text-align: left">31 linear factors</td><td style="text-align: right">3.3 ms</td></tr><tr><td style="text-align: left"><code>x^60 - 1</code></td><td style="text-align: right">5.6 ms</td></tr><tr><td style="text-align: left"><code>x^105 - 1</code></td><td style="text-align: right">45 ms</td></tr><tr><td style="text-align: left">the degree-16 Swinnerton-Dyer polynomial, shown irreducible</td><td style="text-align: right">2.2 ms</td></tr><tr><td style="text-align: left">small multivariate inputs</td><td style="text-align: right">under 2 ms</td></tr></table><p><strong>Expressions.</strong> <code>factor(ex)</code> treats atoms the way <code>cancel</code> does, and factors the numerator and denominator of rational expressions.</p><h3 id="Partial-fractions"><a class="docs-heading-anchor" href="#Partial-fractions">Partial fractions</a><a id="Partial-fractions-1"></a><a class="docs-heading-anchor-permalink" href="#Partial-fractions" title="Permalink"></a></h3><p><code>apart(ex, x)</code> decomposes a rational function of <code>x</code> with exact numeric coefficients into a polynomial plus terms <code>c/pʲ</code>, with <code>p</code> irreducible and <code>deg c &lt; deg p</code>.</p><ol><li>Division gives the polynomial part and a proper remainder <code>r</code>.</li><li><code>factor</code> gives <code>d = c·Π pᵢ^mᵢ</code>.</li><li>For each <code>i</code>, <code>Aᵢ = (r/c)·(d/pᵢ^mᵢ)⁻¹ mod pᵢ^mᵢ</code>, by extended Euclid over ℚ.</li><li>Expanding <code>Aᵢ</code> in powers of <code>pᵢ</code> splits <code>Aᵢ/pᵢ^mᵢ</code> into the terms.</li></ol><p><strong>Symbolic coefficients.</strong> When other symbols or parameters appear, the decomposition is over the field <code>ℚ(a, b, …)</code>. For example, <code>apart(1/((x - a)(x - b)), x) = 1/((b - a)(x - b)) - 1/((b - a)(x - a))</code>.</p><ul><li><strong>Factoring.</strong> By Gauss&#39;s lemma, the irreducible factors of the denominator over <code>ℚ(params)[x]</code> are its multivariate factors over ℤ that involve <code>x</code>; the others are a unit there.</li><li><strong>Arithmetic.</strong> The steps above run in <code>Poly{RatFun}</code>. <code>RatFun</code> (<code>src/ratfun.jl</code>) is an exact rational function in the parameters, kept in a canonical form so that equality and zero tests are exact:<ul><li>a constant denominator becomes 1, with rational numerator coefficients;</li><li>otherwise, a coprime integer numerator and denominator (the modular gcd removes the common factor, including integer content) with a positive leading coefficient.</li></ul></li><li><strong>Generic code.</strong> <code>Poly</code>&#39;s division, <code>rem</code>, powers and modular inverses are generic in the coefficient type, so they work over <code>RatFun</code> unchanged.</li><li><strong>Display.</strong> Each numerator <code>c(x)</code> is written over a factored common denominator.</li></ul><h3 id="Rational-expressions"><a class="docs-heading-anchor" href="#Rational-expressions">Rational expressions</a><a id="Rational-expressions-1"></a><a class="docs-heading-anchor-permalink" href="#Rational-expressions" title="Permalink"></a></h3><p><code>numer_denom(ex)</code> writes <code>ex</code> as a single fraction without expanding anything. <code>cancel(ex)</code> then reduces it to <code>p/q</code>:</p><ul><li><strong>Polynomials.</strong> The numerator and denominator are converted to <code>Poly</code>, and their gcd is divided out. The denominator gets a positive leading coefficient, and the integer content is shared out.</li><li><strong>Generators.</strong> These are the expression&#39;s polynomial atoms: symbols, constants, function applications, and non-integer powers.<ul><li>Treating them as independent variables is always sound, because a polynomial identity in them still holds after substituting them back. So <code>cancel((sin(x)^2 - 1)/(sin(x) + 1)) == sin(x) - 1</code>.</li><li>Relations among atoms are not used: <code>(x - 1)/(sqrt(x) - 1)</code> stays as it is.</li></ul></li><li><strong>Floats.</strong> Expressions with floating point coefficients are returned unchanged.</li></ul><h2 id="Compiled-evaluation:-lambdify"><a class="docs-heading-anchor" href="#Compiled-evaluation:-lambdify">Compiled evaluation: <code>lambdify</code></a><a id="Compiled-evaluation:-lambdify-1"></a><a class="docs-heading-anchor-permalink" href="#Compiled-evaluation:-lambdify" title="Permalink"></a></h2><p><code>lambdify(ex, x, y)</code> compiles <code>ex</code> into a Julia function of <code>x</code> and <code>y</code>, in that order. Without variables, <code>ex</code> may have at most one free symbol. The result is a RuntimeGeneratedFunction, so it can be called right away, from the same function that created it, with no world-age problem.</p><ul><li><strong>Same semantics as calling.</strong><ul><li>Exact constants are Julia integers and rationals, converted to the arguments&#39; float type when there is one: <code>F = _liftfloat(promote_type(...))</code> is a compile-time constant, so for <code>Float64</code> the constants fold and <code>BigFloat</code> keeps its precision.</li><li>Integer powers are literal powers (<code>x^5</code>), and negative ones use <code>inv</code>.</li><li><code>ℯ^u</code> is emitted as <code>exp(u)</code>.</li><li>A negative base with a fractional power gives the principal complex value.</li></ul></li><li><strong>Shared subexpressions.</strong> Nodes used more than once become local variables. Nodes carry hashes, so counting uses is one pass over the DAG. Arrays and tuples of expressions compile to one function returning the same shape, sharing work between entries, which suits gradients and Jacobians.</li><li><strong>Speed.</strong> <code>sin(x)^2 + 3x^5 - 2x + exp(-x/2) + sqrt(2)x/3</code> takes 9.3 ns per call, against 9.2 ns hand-written, and is inferred as <code>Float64</code>. Evaluating it at 1,000 points takes 7.49 μs against 7.48 μs.</li><li><strong>When it pays.</strong> <code>bench/newton.jl</code> runs Newton&#39;s method on <code>x^5 - x - 1</code> from 1, which takes 7 iterations and 14 evaluations. Calling the expressions takes 3.6 μs per solve, the <code>lambdify</code>&#39;d functions 86 ns (42x faster; hand-written: 89 ns). Compiling costs about 2.9 ms per new expression, the first call compiling the generated method, so it pays off after roughly 800 solves or 11,600 evaluations. The compiled code is cached by expression, so compiling the same expression again is free.</li><li><strong>Generic arithmetic.</strong> Arguments may be any number type: <code>ForwardDiff</code> derivatives and gradients work through both <code>lambdify</code> and plain calls (tested).</li><li><code>lambdify_expr</code> returns the generated code.</li></ul><h2 id="Relations"><a class="docs-heading-anchor" href="#Relations">Relations</a><a id="Relations-1"></a><a class="docs-heading-anchor-permalink" href="#Relations" title="Permalink"></a></h2><p><code>==</code>, <code>&lt;</code> and <code>≤</code> keep returning <code>Bool</code>. Structural equality is what <code>Dict</code>s, <code>in</code> and generic code need, and a symbolic result in <code>if x &lt; 0</code> fails confusingly. Equations and inequalities use other operators:</p><ul><li><p><strong>Equations:</strong> <code>lhs ~ rhs</code>, the convention of Symbolics.jl, ModelingToolkit and SimpleExpressions. Binary <code>~</code> is free in Base, and its low precedence means <code>x^2 + 1 ~ 3</code> needs no parentheses.</p></li><li><p><strong>Everything else</strong> uses CommonEq.jl&#39;s operators and names, defined in SymJ without depending on that package:</p><table><tr><th style="text-align: left">relation</th><th style="text-align: left">infix</th><th style="text-align: left">typed as</th><th style="text-align: left">function</th></tr><tr><td style="text-align: left"><code>=</code></td><td style="text-align: left"><code>~</code>, <code>⩵</code></td><td style="text-align: left"><code>\Equal</code></td><td style="text-align: left"><code>Eq</code></td></tr><tr><td style="text-align: left"><code>&lt;</code></td><td style="text-align: left"><code>≪</code></td><td style="text-align: left"><code>\ll</code></td><td style="text-align: left"><code>Lt</code></td></tr><tr><td style="text-align: left"><code>≤</code></td><td style="text-align: left"><code>≦</code></td><td style="text-align: left"><code>\leqq</code></td><td style="text-align: left"><code>Le</code></td></tr><tr><td style="text-align: left"><code>&gt;</code></td><td style="text-align: left"><code>≫</code></td><td style="text-align: left"><code>\gg</code></td><td style="text-align: left"><code>Gt</code></td></tr><tr><td style="text-align: left"><code>≥</code></td><td style="text-align: left"><code>≧</code></td><td style="text-align: left"><code>\geqq</code></td><td style="text-align: left"><code>Ge</code></td></tr><tr><td style="text-align: left"><code>≠</code></td><td style="text-align: left"><code>≶</code>, <code>≷</code></td><td style="text-align: left"><code>\lessgtr</code>, <code>\gtrless</code></td><td style="text-align: left"><code>Ne</code></td></tr></table></li><li><p><strong>Representation.</strong> A <code>Relation</code> (an operation plus <code>lhs</code> and <code>rhs</code>) is its own small type, not a <code>Sym</code> node, because relations aren&#39;t algebraic quantities.</p></li><li><p><strong>TermInterface.</strong> <code>operation</code> is <code>~</code>, <code>Lt</code>, …</p></li><li><p><strong>Calling.</strong> It substitutes into both sides, like calling an expression. When no symbols remain, the result is a <code>Bool</code>: exact numbers compare exactly, other values numerically. A relation whose two sides are identical is decided outright.</p></li><li><p><strong>Precedence caveat.</strong> The infix inequalities have comparison precedence, so Julia chains them like <code>&lt;</code>: <code>a ≪ b == c</code> means <code>(a ≪ b) &amp;&amp; (b == c)</code>. Parenthesize: <code>(a ≪ b) == c</code>. <code>~</code> has the lowest precedence and doesn&#39;t chain.</p></li></ul><h2 id="Solving"><a class="docs-heading-anchor" href="#Solving">Solving</a><a id="Solving-1"></a><a class="docs-heading-anchor-permalink" href="#Solving" title="Permalink"></a></h2><p><code>solve(eq, x)</code> extends <code>CommonSolve.solve</code>, so code written against CommonSolve&#39;s interface works with SymJ equations.</p><ul><li><p><strong>Input.</strong> The equation must be a <code>Relation</code> such as <code>x^2 ~ 4</code>. A bare expression is never taken to mean &quot;= 0&quot;, on pedagogical grounds, and gives an error suggesting <code>ex ~ 0</code>.</p></li><li><p><strong>Method.</strong></p><ul><li><code>lhs − rhs</code> is brought to lowest terms with <code>cancel</code>, and the numerator&#39;s roots are the solutions. Numerator and denominator share no factor, so no root is a pole: <code>(x² − 1)/(x − 1) ~ 0</code> gives <code>[-1]</code>.</li><li>The numerator is factored; other symbols and parameters may appear in the coefficients.</li></ul></li><li><p><strong>Each irreducible factor in <code>x</code>:</strong></p><ul><li>degree 1 and 2: the usual formulas;</li><li><code>a·xⁿ + b</code>: all <code>n</code> roots exactly, <code>(−b/a)^(1/n)·(−1)^(2k/n)</code>;</li><li>degree 3: Cardano. With numeric coefficients and three real roots it uses the trigonometric form instead, which is exact and real (Cardano&#39;s radicals would need complex numbers, the <em>casus irreducibilis</em>): <code>x³ − 3x + 1 → 2cos(2π/9), …</code>;</li><li>degree 4: Ferrari, with biquadratics solved as quadratics in <code>x²</code>;</li><li>degree ≥ 5 with numeric coefficients: numeric roots by Aberth&#39;s iteration, with no dependency; with symbolic coefficients, an error.</li></ul></li><li><p><strong>Output.</strong> A vector of distinct roots. Numeric roots are sorted, real ones first.</p></li><li><p><strong>Equations in one function of <code>x</code>.</strong> When <code>x</code> appears only through one function application <code>g</code> (<code>sin(2x)</code>, <code>exp(x)</code>, <code>sqrt(x + 1)</code>, <code>2^x</code>), <code>u</code> replaces <code>g</code>, the polynomial in <code>u</code> is solved, and <code>g(t) = r</code> is inverted into equations for its argument, solved recursively.</p><ul><li>Inversions: <code>sin(t) = r</code> gives <code>t = asin(r)</code> and <code>π − asin(r)</code> (principal solutions in one period); <code>cos</code> gives <code>±acos(r)</code>; <code>bᵗ = r</code> gives <code>log(r)/log(b)</code>; <code>t^(p/q) = r</code> gives <code>r^(q/p)</code>.</li><li>Candidates are checked by substitution, which drops extraneous roots (<code>sqrt(x) ~ −1</code> has none).</li><li>Several powers of one base count as one function: <code>exp(2x)</code> and <code>exp(x)</code> are powers of <code>u = exp(x)</code>, and <code>4^x</code> and <code>2^x</code> are powers of <code>2^x</code>.</li><li>A square root mixed with <code>x</code> is reduced to <code>A + B·sqrt(t) = 0</code> using <code>R² = t</code>, squared to the polynomial <code>A² = B²t</code>, and extraneous roots dropped: <code>sqrt(x + 1) ~ x − 1</code> gives <code>[3]</code>.</li></ul></li><li><p><strong>Lambert W.</strong> When <code>x</code> appears both directly and inside an exponential <code>b^(γx + δ)</code>, with the equation linear in that exponential, it reduces to <code>(αx + β)·e^(γ′x + δ′) = K</code>. Its solution is <code>x = W(K·γ′/α·e^(γ′β/α − δ′))/γ′ − β/α</code>, using <code>lambertw</code> from LambertW.jl (a dependency, re-exported). The branch <code>W₋₁</code> is added when the argument is real in <code>(−1/ℯ, 0)</code>, where there are two real solutions. Examples: <code>x·eˣ ~ 1 → W(1)</code>, <code>2^x ~ 3x</code>, <code>eˣ ~ x + 2</code>.</p></li><li><p><strong>Inequalities.</strong> <code>solve(x^2 ≫ 1, x)</code> returns a <code>SymSet</code>, a union of disjoint intervals with exact endpoints: <code>(-∞, -1) ∪ (1, ∞)</code>.</p><ul><li><strong>Types.</strong> <code>SymSet</code> and <code>SymInterval</code> are deliberately not exported. An interval has <code>Sym</code> endpoints, with <code>nothing</code> for ±∞, and open/closed flags; a point is <code>[a, a]</code>, printed <code>{a}</code>.</li><li><strong>Method.</strong> The critical points are the real roots of the numerator and denominator of <code>lhs − rhs</code>. Between consecutive ones the sign is constant, so one sample decides each open piece. Each critical point is decided exactly, and poles are excluded. Adjacent included pieces merge.</li><li><strong>Set operations.</strong> <code>∪</code>, <code>∩</code> and <code>setdiff</code> reuse that construction over the operands&#39; endpoints. <code>in</code> compares against the exact endpoints.</li><li><strong>Limits.</strong> Numeric coefficients only: with parameters, the order of the endpoints depends on their values, which needs assumptions.</li></ul></li><li><p><strong>Linear systems.</strong> <code>solve(eqs, vars)</code> returns a <code>Dict</code> from variables to values.</p><ul><li><strong>Underdetermined systems</strong> give the pivot variables in terms of the free ones, which are not keys: <code>solve([x + y + z ~ 1, x - z ~ 0], [x, y, z]) == Dict(x =&gt; z, y =&gt; 1 − 2z)</code>.</li><li><strong>Inconsistent systems</strong> give <code>nothing</code>.</li><li><strong>Method.</strong> Gauss–Jordan elimination over an exact field: <code>SymNumber</code> when the coefficients are numeric, otherwise <code>RatFun</code> in the other symbols and parameters. Its canonical form makes the pivot zero tests exact.</li><li><strong>Parameters.</strong> The result is the generic solution, assuming nonzero pivots (as SymPy does): <code>[a·x + y ~ 1, x − y ~ b] → x = (b + 1)/(a + 1)</code>.</li><li><strong>Linearity.</strong> An equation must have no unknown in its denominator, and be of degree ≤ 1 in the unknowns.</li></ul></li><li><p><strong>Systems of inequalities.</strong></p><ul><li><p><strong>One unknown:</strong> each relation is solved and the sets intersected; equations contribute their real roots as points: <code>[x^2 ~ 4, x ≫ 0] → {2}</code>.</p></li><li><p><strong>Several unknowns, linear:</strong> the equations are solved and substituted first. Then exact Fourier–Motzkin elimination removes the unknowns in the given order, recording each one&#39;s bounds in terms of the unknowns still to come. Constraints are normalized and deduplicated (the tighter one kept), and bounds beaten by a parallel tighter one are dropped. An infeasible system gives <code>∅</code>.</p></li><li><p><strong>Result:</strong> a cylindrical description, <code>CylindricalSet</code> (not exported). The last unknown ranges over an interval; each earlier one lies between bounds in the later ones, using <code>max</code>/<code>min</code> for several bounds; unknowns fixed by equations come last. For example <code>[x + y ≪ 2, y ≪ 3] → y ∈ (-∞, 3), x ∈ (-∞, -y + 2)</code>.</p></li><li><p><strong>Calling a set.</strong> A set substitutes when called, like expressions and relations. A <code>CylindricalSet</code> keeps the constraints it was solved from:</p><ul><li>with every unknown given, <code>C(x =&gt; 1, y =&gt; 4)</code> is a <code>Bool</code>;</li><li>with some given, <code>C(y =&gt; 1)</code> re-solves exactly in the rest: a <code>SymSet</code> for one unknown, a <code>CylindricalSet</code> for several. That&#39;s simpler and more reliable than slicing the nested bounds;</li><li><code>pt in C</code>, for a point given as a <code>Dict</code>, is the same test.</li></ul><p>A <code>SymSet</code> from <code>solve(ineq, x)</code> records <code>x</code>, so both <code>S(2)</code> and <code>S(x =&gt; 2)</code> test membership.</p></li><li><p><strong>Not yet:</strong> nonlinear systems in several unknowns (cylindrical algebraic decomposition), <code>≠</code> in several unknowns (not convex), and symbolic coefficients.</p></li></ul></li><li><p><strong><code>&lt;</code> and friends.</strong> <code>&lt;</code>, <code>≤</code>, <code>&gt;</code>, <code>≥</code> compare constant expressions as numbers, returning a <code>Bool</code>. With a symbol, they raise an error naming the symbolic operator to use instead (<code>≪</code>, <code>≦</code>, <code>≫</code>, <code>≧</code>).</p></li><li><p><strong>Not yet:</strong></p><ul><li>nonlinear systems;</li><li>several unrelated functions of <code>x</code> (<code>sin(x) + cos(x) ~ 1</code>);</li><li>exponents that aren&#39;t rational multiples of one another (<code>9^x ~ 3^(x+2)</code>);</li><li>Lambert-type equations beyond the linear form (<code>x·e^(x²) ~ 1</code>).</li></ul></li></ul><p>Two canonical-form additions came with it:</p><ul><li><strong>Positive constants come out of radicals.</strong> <code>(c·m)^e = c^e·m^e</code> for <code>c &gt; 0</code> on the principal branch, so <code>sqrt(4a) = 2sqrt(a)</code> and <code>sqrt(2a + 2b) = sqrt(2)·sqrt(a + b)</code>, where the content of a sum is the gcd of its coefficients.</li><li><strong>Inverse trig functions have exact values</strong> at the standard points (±1/2, ±√2/2, ±√3/2, and √3, √3/3 for <code>atan</code>).</li></ul><h2 id="Parameters"><a class="docs-heading-anchor" href="#Parameters">Parameters</a><a id="Parameters-1"></a><a class="docs-heading-anchor-permalink" href="#Parameters" title="Permalink"></a></h2><p><code>parameter(:a)</code> or <code>@parameters a b</code> makes a symbolic parameter: a named constant of unknown value, as opposed to a variable. It is a node kind, <code>PARAMETER</code>, beside <code>SYMBOL</code>, not a new Julia type. Expressions stay one concrete type, so containers stay concretely typed and dispatch can&#39;t distinguish expressions that contain parameters; <code>isparameter</code> and <code>free_parameters</code> answer that instead. The parameter <code>a</code> and the variable <code>a</code> hash differently and are distinct.</p><table><tr><th style="text-align: left"></th><th style="text-align: left">variables</th><th style="text-align: left">parameters</th></tr><tr><td style="text-align: left"><code>free_symbols</code> / <code>free_parameters</code></td><td style="text-align: left">listed by <code>free_symbols</code></td><td style="text-align: left">listed by <code>free_parameters</code></td></tr><tr><td style="text-align: left"><code>ex(v)</code></td><td style="text-align: left">substituted, or evaluated if no parameters</td><td style="text-align: left">kept: <code>(a*x^2)(3) == 9a</code></td></tr><tr><td style="text-align: left"><code>lambdify(ex)</code></td><td style="text-align: left">first argument</td><td style="text-align: left">after it, by name: <code>(x, a, b) -&gt; …</code></td></tr><tr><td style="text-align: left">printing order</td><td style="text-align: left">by degree</td><td style="text-align: left">degree 0, so <code>a*x^2 + b*x + c</code></td></tr><tr><td style="text-align: left"><code>diff</code>, <code>subs</code>, <code>expand</code>, <code>Poly</code>, <code>cancel</code>, <code>factor</code>, <code>gcd</code></td><td style="text-align: left">as symbols</td><td style="text-align: left">as symbols</td></tr><tr><td style="text-align: left">constant tests (<code>sign</code>, <code>floor</code>, <code>mod</code>, <code>max</code>)</td><td style="text-align: left">not constant</td><td style="text-align: left">not constant</td></tr></table><p><strong>Cost.</strong> <code>bench/parameters.jl</code> times 22 core workloads, recording the minimum time of each. One run of identical code differs from another by up to ±13% per workload on this machine, and a baseline recorded earlier drifts with load. So the comparison put the previous commit in a git worktree and ran the old and new versions alternately, three rounds each, taking each workload&#39;s best time.</p><ul><li>The geometric mean ratio over the suite was 0.995.</li><li>The scan for parameters before a numeric call costs about 4% (0.2 μs) on a 40-node expression.</li><li><code>free_symbols</code> became 1.8x faster, because loops replaced the closure-based recursion.</li></ul><h2 id="Assumptions"><a class="docs-heading-anchor" href="#Assumptions">Assumptions</a><a id="Assumptions-1"></a><a class="docs-heading-anchor-permalink" href="#Assumptions" title="Permalink"></a></h2><p>Assumptions (real, positive, integer) will be passed per call, e.g. <code>simplify(ex; assume = …)</code>, not stored on symbols. This keeps canonical form context-free: <code>x</code> is always the same node with the same hash, and construction never consults assumptions. The trade-off is that identities such as <code>sqrt(x^2) = x</code> apply only inside the operations that take assumptions, never during construction.</p><h2 id="Performance-snapshot"><a class="docs-heading-anchor" href="#Performance-snapshot">Performance snapshot</a><a id="Performance-snapshot-1"></a><a class="docs-heading-anchor-permalink" href="#Performance-snapshot" title="Permalink"></a></h2><p>Run with <code>julia --project=bench bench/bench.jl</code> (Apple Silicon, Julia 1.13, SymEngine.jl 0.13). Times are medians. The ratio is SymJ time / SymEngine time, so lower is better.</p><table><tr><th style="text-align: left">benchmark</th><th style="text-align: right">SymJ</th><th style="text-align: right">SymEngine</th><th style="text-align: right">ratio</th></tr><tr><td style="text-align: left"><code>x + y</code></td><td style="text-align: right">32 ns</td><td style="text-align: right">98 ns</td><td style="text-align: right">0.33</td></tr><tr><td style="text-align: left">build Σ i·xⁱ·y²⁰⁰⁻ⁱ term by term</td><td style="text-align: right">216 μs</td><td style="text-align: right">593 μs</td><td style="text-align: right">0.36</td></tr><tr><td style="text-align: left">build Π (x+i)ⁱ, i ≤ 30</td><td style="text-align: right">5.1 μs</td><td style="text-align: right">14.7 μs</td><td style="text-align: right">0.35</td></tr><tr><td style="text-align: left"><code>expand((x+y+z+1)^15)</code></td><td style="text-align: right">135 μs</td><td style="text-align: right">534 μs</td><td style="text-align: right">0.25</td></tr><tr><td style="text-align: left"><code>expand((a+x)^100)</code></td><td style="text-align: right">26 μs</td><td style="text-align: right">29 μs</td><td style="text-align: right">0.91</td></tr><tr><td style="text-align: left"><code>diff</code> of expanded poly · sin</td><td style="text-align: right">38 μs</td><td style="text-align: right">52 μs</td><td style="text-align: right">0.72</td></tr><tr><td style="text-align: left"><code>subs</code> into 286-term poly</td><td style="text-align: right">152 μs</td><td style="text-align: right">170 μs</td><td style="text-align: right">0.89</td></tr><tr><td style="text-align: left"><code>expand(e*(e+w))</code>, <code>e=(x+y+z+w)^15</code></td><td style="text-align: right">5.1 ms</td><td style="text-align: right">415 ms</td><td style="text-align: right">0.01</td></tr></table><p>The <code>expand(e*(e+w))</code> row takes 5.1 ms in total. Of that, the <code>Poly</code> product (816 × 817 terms, giving 6 272) takes 1.8 ms, <code>Poly → Sym</code> takes 3.2 ms, and <code>Sym → Poly</code> takes 1.5 ms. SymEngine.jl&#39;s <code>expand</code> works on the generic tree, so this compares like with like at the user level. SymEngine&#39;s own sparse polynomial classes are not exposed by SymEngine.jl. SymEngine.jl&#39;s numbers also include the cost of the C wrapper (a <code>ccall</code> and a finalizer per operation), which dominates the small benchmarks.</p><h2 id="Not-yet-done-/-open-questions"><a class="docs-heading-anchor" href="#Not-yet-done-/-open-questions">Not yet done / open questions</a><a id="Not-yet-done-/-open-questions-1"></a><a class="docs-heading-anchor-permalink" href="#Not-yet-done-/-open-questions" title="Permalink"></a></h2><ul><li><strong>Complex numbers.</strong> <code>im</code> is the exact power <code>(-1)^(1/2)</code>. That covers the basics, but there is no <code>re</code>/<code>im</code> decomposition or <code>conj</code>, and <code>Sym(z::Complex)</code> builds <code>a + b*im</code>.</li><li><strong>Assumptions.</strong> These will be passed per call, as described above. Neither the API nor the rules exist yet.</li><li><strong>Relations.</strong> <code>==</code> is structural and returns <code>Bool</code>. Symbolic <code>Eq</code>, <code>&lt;</code>, etc. need their own constructors.</li><li><strong>Combining radicals.</strong> <code>sqrt(2)*sqrt(3)</code> is not combined into <code>sqrt(6)</code>, and <code>72^(1/3)</code> prints as <code>2*9^(1/3)</code> rather than <code>2*3^(2/3)</code>. Prime-base normalization would fix the latter.</li><li><strong>Polynomials, next steps.</strong><ul><li>Zippel: transposed Vandermonde solves per degree when the leading coefficient is a single term (now one dense solve).</li><li>Brown recursion: done so far are bivariate images in dense buffers and in-place Newton updates. Mod-p reduction is a few percent of the time, so Montgomery or Barrett reduction isn&#39;t worth it.</li><li>A univariate dense representation.</li><li>Faster LLL for van Hoeij: floating-point LLL on truncated traces (van Hoeij–Novocin). The integer LLL is now the main cost of S₆&#39;s 0.76 s.</li><li>Graded monomial orders.</li><li>Evaluation by Horner&#39;s scheme.</li><li>Threads for large products.</li></ul></li><li><strong>Hash-consing.</strong> Interning nodes would make equality pointer comparison and save memory, at the cost of a global, thread-safe table.</li><li><strong>Further features:</strong> series, <code>simplify</code>, <code>solve</code>, and symbolic matrices (noncommutative <code>MUL</code>).</li></ul></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« Home</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Friday 23 October 2026 12:43">Friday 23 October 2026</span>. Using Julia version 1.13.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+end</code></pre>
+</div>
+<ul class="md-list-tight">
+<li><p><strong>Packed monomials.</strong> Each exponent vector is packed into one integer word, with the first generator in the most significant field. Multiplying monomials is integer addition (degree checks rule out carries), and lex order is integer order. So terms are sorted parallel vectors, addition is a linear merge, <code class="md-code-inline">diff</code> is a subtraction, and changing generators means repacking. The all-ones field is reserved, so each exponent is at most <code class="md-code-inline">2^width − 2</code>.</p>
+</li>
+<li><p><strong>Layouts.</strong> The usual layout is uniform: <code class="md-code-inline">64 ÷ ngens</code> bits per field in a <code class="md-code-inline">UInt64</code>. 4 generators allow degree 65 534 each, and 16 allow 14. All such polynomials share one precomputed layout, so mixing them never repacks.</p>
+<ul class="md-list-tight">
+<li><p><strong>Uneven fields.</strong> When the uniform layout can&#39;t hold the degrees, fields are sized to each generator&#39;s degree and the spare bits shared out as headroom. One generator of high degree among many linear ones then still fits one <code class="md-code-inline">UInt64</code>: <code class="md-code-inline">x^(2^40)</code> with 15 other generators, or <code class="md-code-inline">x^70</code> with 10.</p>
+</li>
+<li><p><strong>Wider words.</strong> Past 64 bits the polynomial is packed into a <code class="md-code-inline">UInt128</code>, then a <code class="md-code-inline">BigInt</code> (any width). Wider words are slower, but no degree or number of generators is refused.</p>
+</li>
+<li><p><strong>Construction.</strong> <code class="md-code-inline">Poly(ex, …)</code> tries the uniform layout first, the common case at no extra cost. If a field overflows, it computes degree bounds for <code class="md-code-inline">ex</code> and builds once in a layout sized to them.</p>
+</li>
+<li><p><strong>Arithmetic keeps its word.</strong> A product, power or division needing a wider field gets a new layout in the same word, which is type-stable. It never changes the word: when results could change type, multivariate <code class="md-code-inline">factor</code> ran 70% slower. Past the word&#39;s capacity it throws <code class="md-code-inline">_PackOverflow</code> (shown as an <code class="md-code-inline">OverflowError</code>). <code class="md-code-inline">BigInt</code> words just grow their fields.</p>
+</li>
+<li><p><strong>Entry points restart.</strong> <code class="md-code-inline">gcd</code>, <code class="md-code-inline">lcm</code>, <code class="md-code-inline">factor</code>, <code class="md-code-inline">factor_squarefree</code>, <code class="md-code-inline">squarefree_part</code> on polynomials, and <code class="md-code-inline">cancel</code>, <code class="md-code-inline">factor</code>, <code class="md-code-inline">apart</code>, <code class="md-code-inline">gcd</code>, … on expressions, catch <code class="md-code-inline">_PackOverflow</code>. They rerun the computation with a raised minimum field width (<code class="md-code-inline">_with_widening</code>; task-local, so nested calls compose). Internally they call non-restarting versions (<code class="md-code-inline">_gcd_poly</code>, <code class="md-code-inline">_factor_poly</code>, …), so callers stay type-stable.</p>
+</li>
+<li><p><strong>Direct arithmetic.</strong> <code class="md-code-inline">p * q</code>, <code class="md-code-inline">p^k</code> or <code class="md-code-inline">divrem</code> on polynomials built by hand raise rather than widen. Build the polynomial from an expression, or <code class="md-code-inline">convert</code> it to <code class="md-code-inline">Poly{C,UInt128}</code>.</p>
+</li>
+<li><p><strong>Limits elsewhere.</strong></p>
+<ul class="md-list-tight">
+<li><p>The modular gcd (and so Zippel) works on <code class="md-code-inline">UInt64</code> and <code class="md-code-inline">UInt128</code> words. <code class="md-code-inline">BigInt</code> ones use the PRS gcd.</p>
+</li>
+<li><p><code class="md-code-inline">RatFun</code> keeps its numerator and denominator in <code class="md-code-inline">UInt64</code> words (concrete fields keep parameter arithmetic fast), so parameters of very high degree are refused with an error.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Bug fixed.</strong> <code class="md-code-inline">cancel</code> used to return its input unchanged, silently, when the exponents didn&#39;t fit or there were more than 64 symbols.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Products.</strong> Products accumulate in a purpose-built open-addressing table keyed by the packed monomial (multiplicative hash, linear probing), then one sort. A generic <code class="md-code-inline">Dict</code> was about 3x slower.</p>
+</li>
+<li><p><strong>Coefficients.</strong></p>
+<ul class="md-list-tight">
+<li><p>The coefficient type is <code class="md-code-inline">C = SymNumber</code> for numeric polynomials and <code class="md-code-inline">Sym</code> for symbolic ones (<code class="md-code-inline">Poly(a*x^2 + b*x, x)</code>). The arithmetic is generic in <code class="md-code-inline">C</code>.</p>
+</li>
+<li><p><strong>Integer fast path.</strong> When every coefficient of both factors is a machine integer and <code class="md-code-inline">max|a|·max|b|·min(#p,#q) &lt; 2^125</code>, products accumulate in <code class="md-code-inline">Int128</code>. That removes about 98% of the coefficient cost. Otherwise the code falls back to exact <code class="md-code-inline">SymNumber</code> arithmetic, which overflows into <code class="md-code-inline">BigInt</code> as needed.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Conversion.</strong></p>
+<ul class="md-list-tight">
+<li><p><code class="md-code-inline">Sym → Poly</code> packs monomial terms directly, without building intermediate polynomials.</p>
+</li>
+<li><p><code class="md-code-inline">Poly → Sym</code> builds canonical nodes directly when the generators are symbols: bases visited in <code class="md-code-inline">_cmp</code> order are already sorted, and distinct monomials give distinct keys.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Powers.</strong> <code class="md-code-inline">p^k</code> uses the multinomial theorem when the base is sparse: each composition of <code class="md-code-inline">k</code> is computed once, its monomial is <code class="md-code-inline">Σ aᵢ·mᵢ</code> in packed integer arithmetic, and the multinomial coefficients are updated incrementally. Integer coefficients are computed in <code class="md-code-inline">Int128</code> when <code class="md-code-inline">(Σ|cᵢ|)^k &lt; 2^125</code> guarantees no overflow, or else in <code class="md-code-inline">BigInt</code>, and converted to <code class="md-code-inline">SymNumber</code> once per term. (Doing the arithmetic in <code class="md-code-inline">SymNumber</code>, whose big values are rationals, re-normalized a gcd on every operation.) When the number of compositions is far above the degree bound on the result size, many compositions share a monomial, as in a dense univariate base, and repeated multiplication is cheaper. <code class="md-code-inline">(a+x)^100</code> went from 867 μs and 56k allocations to 26 μs.</p>
+</li>
+<li><p><strong><code class="md-code-inline">expand</code> uses <code class="md-code-inline">Poly</code></strong> whenever the expression is a polynomial with numeric coefficients in at most 16 symbols. Anything else (functions, radicals, symbolic exponents) goes through the generic tree expansion. The generic expansion still calls <code class="md-code-inline">expand</code>, so polynomial subexpressions such as the <code class="md-code-inline">(x+1)^2</code> in <code class="md-code-inline">sin(x)*(x+1)^2</code> take the fast path.</p>
+</li>
+</ul>
+<h3 id="Division" class="md-heading">Division<a href="#Division" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p><code class="md-code-inline">divrem(p, q)</code> is multivariate division with respect to lex order. For one generator it is ordinary long division. <code class="md-code-inline">div</code>, <code class="md-code-inline">rem</code>, <code class="md-code-inline">divides</code> and <code class="md-code-inline">divexact</code> are built on it.</p>
+<ul class="md-list-tight">
+<li><p><strong>Algorithm.</strong> The dividend lives in the same open-addressing table used for products, with a max-heap of its monomials. Each step pops the largest monomial <code class="md-code-inline">m</code>.</p>
+<ul class="md-list-tight">
+<li><p>If <code class="md-code-inline">LM(q)</code> divides <code class="md-code-inline">m</code>, the term <code class="md-code-inline">t = m/LM(q)</code> goes to the quotient and <code class="md-code-inline">-t·(q − LT(q))</code> is added into the table.</p>
+</li>
+<li><p>Otherwise the term goes to the remainder.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Why it is cheap.</strong> Everything added is smaller than <code class="md-code-inline">m</code>, so no monomial is revisited, and the quotient and remainder come out already sorted. The work is about <code class="md-code-inline">#quotient × #q</code> table operations; no intermediate polynomial is ever formed.</p>
+</li>
+<li><p><strong>Coefficients.</strong> Division is exact in the coefficient field (<code class="md-code-inline">SymNumber</code> rationals, or <code class="md-code-inline">Sym</code>), so dividing integer polynomials can produce rational coefficients.</p>
+</li>
+<li><p><strong>Overflow.</strong> Lex division can raise the degrees of the later generators (<code class="md-code-inline">x^k</code> by <code class="md-code-inline">x + y^5</code> leaves <code class="md-code-inline">±y^(5k)</code>). Each quotient term is checked against the exponent limit: <code class="md-code-inline">BigInt</code> words widen and retry; fixed-size words throw <code class="md-code-inline">_PackOverflow</code> for an entry point to restart.</p>
+</li>
+</ul>
+<h3 id="GCD" class="md-heading">GCD<a href="#GCD" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p><code class="md-code-inline">gcd(p, q)</code> (and <code class="md-code-inline">lcm</code>) works on polynomials with exact numeric coefficients, and on expressions that are such polynomials.</p>
+<ul class="md-list-tight">
+<li><p><strong>Normalization.</strong></p>
+<ul class="md-list-tight">
+<li><p>Integer inputs give the integer gcd, including the gcd of the contents, with a positive leading coefficient.</p>
+</li>
+<li><p>Rational inputs are scaled to integers first, and the result is made monic.</p>
+</li>
+<li><p>Floating point coefficients are rejected.</p>
+</li>
+</ul>
+</li>
+</ul>
+<p><strong>The algorithm is Brown&#39;s dense modular GCD</strong>, in the form of Geddes–Czapor–Labahn MGCD/PGCD (<code class="md-code-inline">src/modgcd.jl</code>).</p>
+<ul class="md-list-tight">
+<li><p><strong>Over ℤ.</strong></p>
+<ul class="md-list-tight">
+<li><p>Compute images of the gcd modulo primes below 2^31, so products fit in an <code class="md-code-inline">Int</code>.</p>
+</li>
+<li><p>Normalize each image so its leading coefficient is <code class="md-code-inline">γ = gcd(lc(a), lc(b))</code>.</p>
+</li>
+<li><p>A prime whose image has a larger leading monomial is unlucky and is discarded. A smaller one means every earlier prime was unlucky, so the work so far is discarded instead.</p>
+</li>
+<li><p>Combine images by Chinese remaindering in the symmetric range. Then take the primitive part and accept it only if it divides both inputs.</p>
+</li>
+<li><p>Trial division therefore makes the answer certain, not probabilistic. It runs only when the reconstruction looks finished: unchanged by the last prime, or every coefficient at least 8 bits below the modulus. A wrong reconstruction has residues spread across the whole range, so this avoids failed divisions.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Over ℤ_p.</strong></p>
+<ul class="md-list-tight">
+<li><p>Eliminate the last active variable <code class="md-code-inline">x_k</code> by evaluating it at points, recurse, and rebuild <code class="md-code-inline">x_k</code> by Newton interpolation. The base case is univariate Euclid on dense vectors.</p>
+</li>
+<li><p>Leading coefficients in <code class="md-code-inline">ℤ_p[x_k]</code> are handled by scaling each image to <code class="md-code-inline">g(α)</code>, with <code class="md-code-inline">g</code> the gcd of the leading coefficients.</p>
+</li>
+<li><p>Unlucky points give images that are too large, and are detected the same way as unlucky primes.</p>
+</li>
+<li><p>The number of points is <code class="md-code-inline">min(deg_k a, deg_k b) + deg g + 1</code>.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Data layout.</strong> Mod-p polynomials reuse the packed lex monomials. Because <code class="md-code-inline">x_k</code> is the least significant active field, evaluating it keeps terms sorted. Terms sharing a monomial in the other variables form contiguous runs, which are exactly the coefficients in <code class="md-code-inline">ℤ_p[x_k]</code>. Evaluation, contents and interpolation are therefore linear scans.</p>
+</li>
+</ul>
+<p><strong>The recursive primitive PRS</strong> (<code class="md-code-inline">_gcd</code>) remains as the reference implementation. The tests check the two against each other.</p>
+<p><strong>Zippel&#39;s sparse interpolation</strong> is chosen per call, with no global setting:</p>
+<ul class="md-list-tight">
+<li><p><strong>The keywords.</strong> <code class="md-code-inline">gcd</code> and <code class="md-code-inline">lcm</code>, on polynomials and expressions, take <code class="md-code-inline">method = :auto | :dense | :zippel</code>. The functions built on gcds take the same values as <code class="md-code-inline">gcd_method</code>: <code class="md-code-inline">cancel</code>, <code class="md-code-inline">factor</code>, <code class="md-code-inline">factor_squarefree</code>, <code class="md-code-inline">squarefree_part</code>, <code class="md-code-inline">apart</code>. A different name, because <code class="md-code-inline">factor(ex; method = :zippel)</code> would suggest a factoring method.</p>
+</li>
+<li><p><strong>The default, <code class="md-code-inline">:auto</code>,</strong> estimates the dense method&#39;s work as about <code class="md-code-inline">Π (deg_i + 1)</code> univariate gcds over all but the main variable, and compares it with the inputs&#39; term counts, a measure of sparsity. Zippel is chosen when the estimate exceeds both 256 and 3 times the larger term count.</p>
+<ul class="md-list-tight">
+<li><p>Measured: dense inputs have ratios near 1, and there Brown is up to 30x faster. Sparse or many-variable inputs have ratios of 4 and up, and there Zippel is 3–100x faster.</p>
+</li>
+<li><p>This removed a cliff in Brown&#39;s method, which is exponential in the number of variables. A 14-variable low-degree gcd took 1.1 s and now takes 0.05 s; 20 variables took more than a minute and now take 0.18 s.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Internal gcds.</strong> Gcds inside <code class="md-code-inline">RatFun</code> arithmetic (linear systems, <code class="md-code-inline">apart</code> with parameters) and inside EEZ use <code class="md-code-inline">:auto</code>.</p>
+</li>
+</ul>
+<p>It changes how the images inside Brown&#39;s loop over <code class="md-code-inline">x_k</code> are found; everything else is the same.</p>
+<ul class="md-list-tight">
+<li><p><strong>The skeleton.</strong> The first image comes from the full recursion. Its terms are taken as the gcd&#39;s support.</p>
+</li>
+<li><p><strong>Later images.</strong> The other variables are evaluated at powers <code class="md-code-inline">β^j</code> of a random point. Univariate gcds in the main variable (the first active one) then give equations for the skeleton&#39;s coefficients.</p>
+</li>
+<li><p><strong>Scales.</strong> Each univariate gcd is monic, so it equals the image only up to an unknown scale <code class="md-code-inline">m_j</code>. That scale is an extra unknown per evaluation (the LINZIP form), so the gcd&#39;s leading coefficient in the main variable needn&#39;t be a single term. One extra evaluation checks the solution.</p>
+</li>
+<li><p><strong>Fallback.</strong> A degree mismatch, or a singular or inconsistent system, means the support is wrong or the point is bad. That image is then computed densely, and the skeleton refreshed from it. This also covers a content in the other variables, which the scales would absorb. The final division over ℤ still guarantees the result.</p>
+</li>
+</ul>
+<p>It loses on dense gcds, hence the automatic choice. It needs about as many terms&#39; worth of evaluations as the gcd has, plus a linear solve.</p>
+<p><strong>Performance.</strong> <code class="md-code-inline">bench/gcd.jl</code> compares against Nemo, which wraps FLINT. The first six inputs are <code class="md-code-inline">gcd(g·a, g·b)</code> with <code class="md-code-inline">g = (x+y+z+w+1)^k</code>; the last two have sparse gcds of degree 10 in four variables:</p>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:left">case</th>
+<th style="text-align:right">auto (default)</th>
+<th style="text-align:right">dense</th>
+<th style="text-align:right">Zippel</th>
+<th style="text-align:right">PRS</th>
+<th style="text-align:right">Nemo (FLINT)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">k = 10</code>, linear cofactors</td>
+<td style="text-align:right">1.64 ms</td>
+<td style="text-align:right">1.64 ms</td>
+<td style="text-align:right">54 ms</td>
+<td style="text-align:right">4.6 ms</td>
+<td style="text-align:right">0.55 ms</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">k = 4</code>, degree-4 cofactors</td>
+<td style="text-align:right">0.23 ms</td>
+<td style="text-align:right">0.23 ms</td>
+<td style="text-align:right">0.34 ms</td>
+<td style="text-align:right">2.1 ms</td>
+<td style="text-align:right">0.31 ms</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">k = 4</code>, degree-6 cofactors</td>
+<td style="text-align:right">0.36 ms</td>
+<td style="text-align:right">0.35 ms</td>
+<td style="text-align:right">0.43 ms</td>
+<td style="text-align:right">16 ms</td>
+<td style="text-align:right">0.44 ms</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">k = 6</code>, degree-6 cofactors</td>
+<td style="text-align:right">0.87 ms</td>
+<td style="text-align:right">0.87 ms</td>
+<td style="text-align:right">2.8 ms</td>
+<td style="text-align:right">80 ms</td>
+<td style="text-align:right">0.79 ms</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">k = 8</code>, degree-6 cofactors</td>
+<td style="text-align:right">1.85 ms</td>
+<td style="text-align:right">1.85 ms</td>
+<td style="text-align:right">15 ms</td>
+<td style="text-align:right">720 ms</td>
+<td style="text-align:right">1.35 ms</td>
+</tr>
+<tr>
+<td style="text-align:left">big coefficients (<code class="md-code-inline">3^20</code>, <code class="md-code-inline">5^15</code>, <code class="md-code-inline">7^10</code>), cubed</td>
+<td style="text-align:right">0.60 ms</td>
+<td style="text-align:right">0.59 ms</td>
+<td style="text-align:right">0.45 ms</td>
+<td style="text-align:right">36 ms</td>
+<td style="text-align:right">0.69 ms</td>
+</tr>
+<tr>
+<td style="text-align:left">sparse gcd, 5 terms</td>
+<td style="text-align:right">0.086 ms</td>
+<td style="text-align:right">1.31 ms</td>
+<td style="text-align:right">0.085 ms</td>
+<td style="text-align:right">0.28 ms</td>
+<td style="text-align:right">0.30 ms</td>
+</tr>
+<tr>
+<td style="text-align:left">sparse gcd, non-monomial leading coefficient</td>
+<td style="text-align:right">0.068 ms</td>
+<td style="text-align:right">0.48 ms</td>
+<td style="text-align:right">0.068 ms</td>
+<td style="text-align:right">1.8 ms</td>
+<td style="text-align:right">0.34 ms</td>
+</tr>
+</tbody>
+</table>
+</div>
+<ul class="md-list-tight">
+<li><p><strong>The automatic choice</strong> picks the faster method in every case except big coefficients, where the two are close.</p>
+</li>
+<li><p><strong>Dense gcds:</strong> faster than FLINT on four of the first six cases and within 1.4x on <code class="md-code-inline">k = 8</code>. The weak case is a high-degree gcd with tiny cofactors (first row), where Brown&#39;s method needs about <code class="md-code-inline">(deg+1)^(nvars−1)</code> univariate gcds. There about 18% of the time is the final division check.</p>
+</li>
+<li><p><strong>Sparse gcds:</strong> Zippel is 6–16x faster than dense and 3.5–5x faster than FLINT.</p>
+</li>
+</ul>
+<h3 id="Squarefree-factorization" class="md-heading">Squarefree factorization<a href="#Squarefree-factorization" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p><code class="md-code-inline">factor_squarefree(p)</code> returns <code class="md-code-inline">(unit, [f₁ =&gt; m₁, f₂ =&gt; m₂, …])</code> with <code class="md-code-inline">p = unit·Π fᵢ^mᵢ</code>. The guarantees:</p>
+<ul class="md-list-tight">
+<li><p>each <code class="md-code-inline">fᵢ</code> is squarefree, primitive, and has a positive leading coefficient;</p>
+</li>
+<li><p>the <code class="md-code-inline">fᵢ</code> are pairwise coprime;</p>
+</li>
+<li><p>the multiplicities are distinct and increasing.</p>
+</li>
+</ul>
+<p><code class="md-code-inline">squarefree_part(p)</code> is <code class="md-code-inline">Π fᵢ</code>.</p>
+<ul class="md-list-tight">
+<li><p><strong>Algorithm.</strong> A primitive <code class="md-code-inline">f</code> splits into its content with respect to its most significant generator <code class="md-code-inline">xᵢ</code> (a polynomial in the later generators) and its primitive part, all of whose irreducible factors involve <code class="md-code-inline">xᵢ</code>.</p>
+<ul class="md-list-tight">
+<li><p><strong>Primitive part:</strong> decomposed by Yun&#39;s algorithm, a few gcds with <code class="md-code-inline">∂f/∂xᵢ</code> using the modular gcd.</p>
+</li>
+<li><p><strong>Content:</strong> decomposed recursively in the remaining generators.</p>
+</li>
+<li><p><strong>Merging:</strong> the two sets of factors are coprime, so factors of equal multiplicity are multiplied.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Speed.</strong> 1.5 ms for a 612-term polynomial in 4 variables, 0.09 ms for a degree-55 univariate one.</p>
+</li>
+<li><p><strong>Expressions.</strong> <code class="md-code-inline">factor_squarefree(ex)</code> and <code class="md-code-inline">squarefree_part(ex)</code> treat atoms the way <code class="md-code-inline">cancel</code> does. Rational expressions are cancelled first, then numerator and denominator are factored: <code class="md-code-inline">(x^2 - 1)/(x^2 + 2x + 1)^2 → (x - 1)/(x + 1)^3</code>.</p>
+</li>
+</ul>
+<h3 id="Factorization" class="md-heading">Factorization<a href="#Factorization" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p><code class="md-code-inline">factor(p)</code> returns <code class="md-code-inline">(unit, [f₁ =&gt; m₁, …])</code>. The factors are irreducible over ℚ, primitive, and have positive leading coefficients. They&#39;re sorted by multiplicity, then by degree. The input is first reduced to squarefree primitive parts.</p>
+<p><strong>Univariate: Zassenhaus.</strong></p>
+<ul>
+<li><p><strong>Choosing a prime.</strong> Pick a small odd prime that keeps the polynomial squarefree and doesn&#39;t divide the leading coefficient. Of up to five candidates, keep the one with the fewest modular factors, since that keeps recombination cheap.</p>
+</li>
+<li><p><strong>Factoring mod p.</strong> Distinct-degree factorization, then Cantor–Zassenhaus to split equal-degree parts, with a fixed xorshift generator so results are reproducible.</p>
+</li>
+<li><p><strong>Hensel lifting.</strong> The two-factor lift is linear, one power of <code class="md-code-inline">p</code> per step; several factors are lifted through a balanced split. It runs to <code class="md-code-inline">p^k &gt; 2|lc|·2ⁿ‖f‖₂</code>, past the Landau–Mignotte bound.</p>
+</li>
+<li><p><strong>Recombination.</strong> Try subsets of the lifted factors, smallest first. Each candidate <code class="md-code-inline">lc·Π mod p^k</code>, taken in the symmetric range, is tested by exact division over ℤ.</p>
+</li>
+<li><p><strong>van Hoeij recombination</strong> (<code class="md-code-inline">src/vanhoeij.jl</code>). The number of subsets grows exponentially with the number of modular factors, so from 9 factors up a lattice replaces the search:</p>
+<ul>
+<li><p><strong>Traces.</strong> For each lifted factor <code class="md-code-inline">gᵢ</code>, the power sums of its roots, <code class="md-code-inline">tᵢⱼ = ℓʲ·Pⱼ(gᵢ) mod pᵃ</code> (Newton&#39;s identities, <code class="md-code-inline">ℓ</code> the leading coefficient). For a true factor, the sum over its pieces is an integer bounded by <code class="md-code-inline">n(|ℓ|R)ʲ</code>, where <code class="md-code-inline">R</code> is Fujiwara&#39;s root bound. Cauchy&#39;s bound was far too loose for polynomials with large coefficients and small roots, and inflated every number in the lattice.</p>
+</li>
+<li><p><strong>Lattice.</strong> Rows <code class="md-code-inline">[eᵢ | tᵢⱼ/Dⱼ]</code> and <code class="md-code-inline">[0 | pᵃ/Dⱼ]</code>, with the trace columns scaled down so that true factors give short vectors. LLL is exact and all-integer (Cohen, Algorithm 2.6.7): it keeps the integers d<em>i and λ</em>ij in place of the rational Gram–Schmidt data, so every division is exact and there are no gcd normalizations. Exactness matters because a single short vector is taken as proof of irreducibility. Compared with exact rationals this is 13x faster on S₅ (0.98 s → 74 ms) and 8x on S₆ (6.1 s → 0.76 s). FLINT is still about 60x faster on S₅; closing that gap needs floating-point LLL and traces truncated to their leading bits (van Hoeij–Novocin).</p>
+</li>
+<li><p><strong>Reading off factors.</strong> Basis vectors whose Gram–Schmidt norm exceeds the proven bound are dropped. If one vector is left, <code class="md-code-inline">f</code> is irreducible. Otherwise the reduced echelon form should be a 0/1 partition, each part confirmed by trial division. Until it is, the number of traces doubles, and the precision grows with it.</p>
+</li>
+<li><p><strong>Fallback.</strong> Subset search remains the fallback.</p>
+</li>
+<li><p><strong>Speed.</strong></p>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:left">Swinnerton-Dyer polynomial</th>
+<th style="text-align:right">modular factors</th>
+<th style="text-align:right">subset search</th>
+<th style="text-align:right">van Hoeij</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">S₅, degree 32</td>
+<td style="text-align:right">16</td>
+<td style="text-align:right">3.2 s</td>
+<td style="text-align:right">0.85 s</td>
+</tr>
+<tr>
+<td style="text-align:left">S₆, degree 64</td>
+<td style="text-align:right">32</td>
+<td style="text-align:right">out of reach</td>
+<td style="text-align:right">6.1 s</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>These are irreducible, but split into many factors modulo every prime.</p>
+</li>
+</ul>
+</li>
+</ul>
+<p><strong>Multivariate: Wang&#39;s EEZ approach</strong> (<code class="md-code-inline">src/eez.jl</code>).</p>
+<ul>
+<li><p><strong>Setup.</strong> The main variable <code class="md-code-inline">x</code> is the active variable of least degree. The content in <code class="md-code-inline">x</code>, a polynomial in the other variables, is factored on its own.</p>
+</li>
+<li><p><strong>Evaluation point.</strong> An integer point <code class="md-code-inline">α</code> for the other variables, with <code class="md-code-inline">lc_x(q)(α) ≠ 0</code> and <code class="md-code-inline">q(x, α)</code> squarefree. Of a few such points, keep the one with fewest univariate factors. A point with one factor proves <code class="md-code-inline">q</code> irreducible.</p>
+</li>
+<li><p><strong>Shift.</strong> <code class="md-code-inline">y → y + α</code> moves the point to 0, so Taylor coefficients are plain coefficients and evaluating means dropping terms.</p>
+</li>
+<li><p><strong>Leading coefficients.</strong></p>
+<ul class="md-list-tight">
+<li><p><strong>Wang&#39;s distribution.</strong> Factor <code class="md-code-inline">L = lc_x(q)</code> into irreducibles <code class="md-code-inline">tⱼ</code>. When each <code class="md-code-inline">tⱼ(α)</code> has a prime divisor shared with no other and not with the contents (Wang&#39;s non-divisor test), the <code class="md-code-inline">tⱼ</code> dividing each univariate factor&#39;s leading coefficient can be read off, and the lift runs on <code class="md-code-inline">q</code> itself. Points passing the test are preferred, but the values stay small, since a larger range densified the shifted polynomial and cost far more.</p>
+</li>
+<li><p><strong>Imposition.</strong> Otherwise <code class="md-code-inline">L</code> is imposed on every factor of <code class="md-code-inline">L^(r-1)·q</code>, and primitive parts are taken at the end.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Lifting.</strong> Multivariate Hensel lifting, one variable at a time, with multivariate Diophantine equations (Geddes–Czapor–Labahn 6.2–6.4), over ℚ. Working over ℚ needs no p-adic coefficient bound, and an exact product check decides success.</p>
+</li>
+<li><p><strong>Spurious factors.</strong> If <code class="md-code-inline">α</code> split a true factor, the full lift fails. Then two-factor lifts of subsets of the univariate factors, smallest first, find each irreducible factor.</p>
+</li>
+<li><p><strong>Fallback.</strong> Kronecker substitution (<code class="md-code-inline">x_i → t^(w_i)</code>, factoring the univariate image, decoding subset products) is the fallback when the EEZ cannot be used, and the reference in the tests. (An EEZ whose intermediate exponents overflow the packing is rerun with wider words by <code class="md-code-inline">factor</code>.) Its image has degree about <code class="md-code-inline">Π (deg_i + 1)</code> and is capped at</p>
+<ol class="md-list-tight">
+<li></li>
+</ol>
+</li>
+<li><p><strong>Speed.</strong> Against Kronecker:</p>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:left">polynomial</th>
+<th style="text-align:right">Kronecker</th>
+<th style="text-align:right">EEZ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">(wy + x + 1)(xz − y² + 3w)(x²y + z³ + w)</code></td>
+<td style="text-align:right">14.2 s</td>
+<td style="text-align:right">2.5 ms</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">x⁶ − y⁶z⁶</code></td>
+<td style="text-align:right">3.6 s</td>
+<td style="text-align:right">1.7 ms</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">(x⁵y³ + z⁴w² − 7)(x⁴ − y⁵z + w³ + 2)(xyzw + 1)</code></td>
+<td style="text-align:right">beyond its cap</td>
+<td style="text-align:right">38 ms</td>
+</tr>
+</tbody>
+</table>
+</div>
+</li>
+</ul>
+<p><strong>Timings.</strong></p>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:left">polynomial</th>
+<th style="text-align:right">time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">31 linear factors</td>
+<td style="text-align:right">3.3 ms</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">x^60 - 1</code></td>
+<td style="text-align:right">5.6 ms</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">x^105 - 1</code></td>
+<td style="text-align:right">45 ms</td>
+</tr>
+<tr>
+<td style="text-align:left">the degree-16 Swinnerton-Dyer polynomial, shown irreducible</td>
+<td style="text-align:right">2.2 ms</td>
+</tr>
+<tr>
+<td style="text-align:left">small multivariate inputs</td>
+<td style="text-align:right">under 2 ms</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Expressions.</strong> <code class="md-code-inline">factor(ex)</code> treats atoms the way <code class="md-code-inline">cancel</code> does, and factors the numerator and denominator of rational expressions.</p>
+<h3 id="Partial-fractions" class="md-heading">Partial fractions<a href="#Partial-fractions" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p><code class="md-code-inline">apart(ex, x)</code> decomposes a rational function of <code class="md-code-inline">x</code> with exact numeric coefficients into a polynomial plus terms <code class="md-code-inline">c/pʲ</code>, with <code class="md-code-inline">p</code> irreducible and <code class="md-code-inline">deg c &lt; deg p</code>.</p>
+<ol class="md-list-tight">
+<li><p>Division gives the polynomial part and a proper remainder <code class="md-code-inline">r</code>.</p>
+</li>
+<li><p><code class="md-code-inline">factor</code> gives <code class="md-code-inline">d = c·Π pᵢ^mᵢ</code>.</p>
+</li>
+<li><p>For each <code class="md-code-inline">i</code>, <code class="md-code-inline">Aᵢ = (r/c)·(d/pᵢ^mᵢ)⁻¹ mod pᵢ^mᵢ</code>, by extended Euclid over ℚ.</p>
+</li>
+<li><p>Expanding <code class="md-code-inline">Aᵢ</code> in powers of <code class="md-code-inline">pᵢ</code> splits <code class="md-code-inline">Aᵢ/pᵢ^mᵢ</code> into the terms.</p>
+</li>
+</ol>
+<p><strong>Symbolic coefficients.</strong> When other symbols or parameters appear, the decomposition is over the field <code class="md-code-inline">ℚ(a, b, …)</code>. For example, <code class="md-code-inline">apart(1/((x - a)(x - b)), x) = 1/((b - a)(x - b)) - 1/((b - a)(x - a))</code>.</p>
+<ul class="md-list-tight">
+<li><p><strong>Factoring.</strong> By Gauss&#39;s lemma, the irreducible factors of the denominator over <code class="md-code-inline">ℚ(params)[x]</code> are its multivariate factors over ℤ that involve <code class="md-code-inline">x</code>; the others are a unit there.</p>
+</li>
+<li><p><strong>Arithmetic.</strong> The steps above run in <code class="md-code-inline">Poly{RatFun}</code>. <code class="md-code-inline">RatFun</code> (<code class="md-code-inline">src/ratfun.jl</code>) is an exact rational function in the parameters, kept in a canonical form so that equality and zero tests are exact:</p>
+<ul class="md-list-tight">
+<li><p>a constant denominator becomes 1, with rational numerator coefficients;</p>
+</li>
+<li><p>otherwise, a coprime integer numerator and denominator (the modular gcd removes the common factor, including integer content) with a positive leading coefficient.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Generic code.</strong> <code class="md-code-inline">Poly</code>&#39;s division, <code class="md-code-inline">rem</code>, powers and modular inverses are generic in the coefficient type, so they work over <code class="md-code-inline">RatFun</code> unchanged.</p>
+</li>
+<li><p><strong>Display.</strong> Each numerator <code class="md-code-inline">c(x)</code> is written over a factored common denominator.</p>
+</li>
+</ul>
+<h3 id="Rational-expressions" class="md-heading">Rational expressions<a href="#Rational-expressions" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p><code class="md-code-inline">numer_denom(ex)</code> writes <code class="md-code-inline">ex</code> as a single fraction without expanding anything. <code class="md-code-inline">cancel(ex)</code> then reduces it to <code class="md-code-inline">p/q</code>:</p>
+<ul class="md-list-tight">
+<li><p><strong>Polynomials.</strong> The numerator and denominator are converted to <code class="md-code-inline">Poly</code>, and their gcd is divided out. The denominator gets a positive leading coefficient, and the integer content is shared out.</p>
+</li>
+<li><p><strong>Generators.</strong> These are the expression&#39;s polynomial atoms: symbols, constants, function applications, and non-integer powers.</p>
+<ul class="md-list-tight">
+<li><p>Treating them as independent variables is always sound, because a polynomial identity in them still holds after substituting them back. So <code class="md-code-inline">cancel((sin(x)^2 - 1)/(sin(x) + 1)) == sin(x) - 1</code>.</p>
+</li>
+<li><p>Relations among atoms are not used: <code class="md-code-inline">(x - 1)/(sqrt(x) - 1)</code> stays as it is.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Floats.</strong> Expressions with floating point coefficients are returned unchanged.</p>
+</li>
+</ul>
+<h2 id="Compiled-evaluation:-lambdify" class="md-heading">Compiled evaluation: <code class="md-code-inline">lambdify</code><a href="#Compiled-evaluation:-lambdify" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p><code class="md-code-inline">lambdify(ex, x, y)</code> compiles <code class="md-code-inline">ex</code> into a Julia function of <code class="md-code-inline">x</code> and <code class="md-code-inline">y</code>, in that order. Without variables, <code class="md-code-inline">ex</code> may have at most one free symbol. The result is a RuntimeGeneratedFunction, so it can be called right away, from the same function that created it, with no world-age problem.</p>
+<ul class="md-list-tight">
+<li><p><strong>Same semantics as calling.</strong></p>
+<ul class="md-list-tight">
+<li><p>Exact constants are Julia integers and rationals, converted to the arguments&#39; float type when there is one: <code class="md-code-inline">F = _liftfloat(promote_type(...))</code> is a compile-time constant, so for <code class="md-code-inline">Float64</code> the constants fold and <code class="md-code-inline">BigFloat</code> keeps its precision.</p>
+</li>
+<li><p>Integer powers are literal powers (<code class="md-code-inline">x^5</code>), and negative ones use <code class="md-code-inline">inv</code>.</p>
+</li>
+<li><p><code class="md-code-inline">ℯ^u</code> is emitted as <code class="md-code-inline">exp(u)</code>.</p>
+</li>
+<li><p>A negative base with a fractional power gives the principal complex value.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Shared subexpressions.</strong> Nodes used more than once become local variables. Nodes carry hashes, so counting uses is one pass over the DAG. Arrays and tuples of expressions compile to one function returning the same shape, sharing work between entries, which suits gradients and Jacobians.</p>
+</li>
+<li><p><strong>Speed.</strong> <code class="md-code-inline">sin(x)^2 + 3x^5 - 2x + exp(-x/2) + sqrt(2)x/3</code> takes 9.3 ns per call, against 9.2 ns hand-written, and is inferred as <code class="md-code-inline">Float64</code>. Evaluating it at 1,000 points takes 7.49 μs against 7.48 μs.</p>
+</li>
+<li><p><strong>When it pays.</strong> <code class="md-code-inline">bench/newton.jl</code> runs Newton&#39;s method on <code class="md-code-inline">x^5 - x - 1</code> from 1, which takes 7 iterations and 14 evaluations. Calling the expressions takes 3.6 μs per solve, the <code class="md-code-inline">lambdify</code>&#39;d functions 86 ns (42x faster; hand-written: 89 ns). Compiling costs about 2.9 ms per new expression, the first call compiling the generated method, so it pays off after roughly 800 solves or 11,600 evaluations. The compiled code is cached by expression, so compiling the same expression again is free.</p>
+</li>
+<li><p><strong>Generic arithmetic.</strong> Arguments may be any number type: <code class="md-code-inline">ForwardDiff</code> derivatives and gradients work through both <code class="md-code-inline">lambdify</code> and plain calls (tested).</p>
+</li>
+<li><p><code class="md-code-inline">lambdify_expr</code> returns the generated code.</p>
+</li>
+</ul>
+<h2 id="Relations" class="md-heading">Relations<a href="#Relations" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p><code class="md-code-inline">==</code>, <code class="md-code-inline">&lt;</code> and <code class="md-code-inline">≤</code> keep returning <code class="md-code-inline">Bool</code>. Structural equality is what <code class="md-code-inline">Dict</code>s, <code class="md-code-inline">in</code> and generic code need, and a symbolic result in <code class="md-code-inline">if x &lt; 0</code> fails confusingly. Equations and inequalities use other operators:</p>
+<ul>
+<li><p><strong>Equations:</strong> <code class="md-code-inline">lhs ~ rhs</code>, the convention of Symbolics.jl, ModelingToolkit and SimpleExpressions. Binary <code class="md-code-inline">~</code> is free in Base, and its low precedence means <code class="md-code-inline">x^2 + 1 ~ 3</code> needs no parentheses.</p>
+</li>
+<li><p><strong>Everything else</strong> uses CommonEq.jl&#39;s operators and names, defined in SymJ without depending on that package:</p>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:left">relation</th>
+<th style="text-align:left">infix</th>
+<th style="text-align:left">typed as</th>
+<th style="text-align:left">function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">=</code></td>
+<td style="text-align:left"><code class="md-code-inline">~</code>, <code class="md-code-inline">⩵</code></td>
+<td style="text-align:left"><code class="md-code-inline">\Equal</code></td>
+<td style="text-align:left"><code class="md-code-inline">Eq</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">&lt;</code></td>
+<td style="text-align:left"><code class="md-code-inline">≪</code></td>
+<td style="text-align:left"><code class="md-code-inline">\ll</code></td>
+<td style="text-align:left"><code class="md-code-inline">Lt</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">≤</code></td>
+<td style="text-align:left"><code class="md-code-inline">≦</code></td>
+<td style="text-align:left"><code class="md-code-inline">\leqq</code></td>
+<td style="text-align:left"><code class="md-code-inline">Le</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">&gt;</code></td>
+<td style="text-align:left"><code class="md-code-inline">≫</code></td>
+<td style="text-align:left"><code class="md-code-inline">\gg</code></td>
+<td style="text-align:left"><code class="md-code-inline">Gt</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">≥</code></td>
+<td style="text-align:left"><code class="md-code-inline">≧</code></td>
+<td style="text-align:left"><code class="md-code-inline">\geqq</code></td>
+<td style="text-align:left"><code class="md-code-inline">Ge</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">≠</code></td>
+<td style="text-align:left"><code class="md-code-inline">≶</code>, <code class="md-code-inline">≷</code></td>
+<td style="text-align:left"><code class="md-code-inline">\lessgtr</code>, <code class="md-code-inline">\gtrless</code></td>
+<td style="text-align:left"><code class="md-code-inline">Ne</code></td>
+</tr>
+</tbody>
+</table>
+</div>
+</li>
+<li><p><strong>Representation.</strong> A <code class="md-code-inline">Relation</code> (an operation plus <code class="md-code-inline">lhs</code> and <code class="md-code-inline">rhs</code>) is its own small type, not a <code class="md-code-inline">Sym</code> node, because relations aren&#39;t algebraic quantities.</p>
+</li>
+<li><p><strong>TermInterface.</strong> <code class="md-code-inline">operation</code> is <code class="md-code-inline">~</code>, <code class="md-code-inline">Lt</code>, …</p>
+</li>
+<li><p><strong>Calling.</strong> It substitutes into both sides, like calling an expression. When no symbols remain, the result is a <code class="md-code-inline">Bool</code>: exact numbers compare exactly, other values numerically. A relation whose two sides are identical is decided outright.</p>
+</li>
+<li><p><strong>Precedence caveat.</strong> The infix inequalities have comparison precedence, so Julia chains them like <code class="md-code-inline">&lt;</code>: <code class="md-code-inline">a ≪ b == c</code> means <code class="md-code-inline">(a ≪ b) &amp;&amp; (b == c)</code>. Parenthesize: <code class="md-code-inline">(a ≪ b) == c</code>. <code class="md-code-inline">~</code> has the lowest precedence and doesn&#39;t chain.</p>
+</li>
+</ul>
+<h2 id="Solving" class="md-heading">Solving<a href="#Solving" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p><code class="md-code-inline">solve(eq, x)</code> extends <code class="md-code-inline">CommonSolve.solve</code>, so code written against CommonSolve&#39;s interface works with SymJ equations.</p>
+<ul>
+<li><p><strong>Input.</strong> The equation must be a <code class="md-code-inline">Relation</code> such as <code class="md-code-inline">x^2 ~ 4</code>. A bare expression is never taken to mean &quot;= 0&quot;, on pedagogical grounds, and gives an error suggesting <code class="md-code-inline">ex ~ 0</code>.</p>
+</li>
+<li><p><strong>Method.</strong></p>
+<ul class="md-list-tight">
+<li><p><code class="md-code-inline">lhs − rhs</code> is brought to lowest terms with <code class="md-code-inline">cancel</code>, and the numerator&#39;s roots are the solutions. Numerator and denominator share no factor, so no root is a pole: <code class="md-code-inline">(x² − 1)/(x − 1) ~ 0</code> gives <code class="md-code-inline">[-1]</code>.</p>
+</li>
+<li><p>The numerator is factored; other symbols and parameters may appear in the coefficients.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Each irreducible factor in <code class="md-code-inline">x</code>:</strong></p>
+<ul class="md-list-tight">
+<li><p>degree 1 and 2: the usual formulas;</p>
+</li>
+<li><p><code class="md-code-inline">a·xⁿ + b</code>: all <code class="md-code-inline">n</code> roots exactly, <code class="md-code-inline">(−b/a)^(1/n)·(−1)^(2k/n)</code>;</p>
+</li>
+<li><p>degree 3: Cardano. With numeric coefficients and three real roots it uses the trigonometric form instead, which is exact and real (Cardano&#39;s radicals would need complex numbers, the <em>casus irreducibilis</em>): <code class="md-code-inline">x³ − 3x + 1 → 2cos(2π/9), …</code>;</p>
+</li>
+<li><p>degree 4: Ferrari, with biquadratics solved as quadratics in <code class="md-code-inline">x²</code>;</p>
+</li>
+<li><p>degree ≥ 5 with numeric coefficients: numeric roots by Aberth&#39;s iteration, with no dependency; with symbolic coefficients, an error.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Output.</strong> A vector of distinct roots. Numeric roots are sorted, real ones first.</p>
+</li>
+<li><p><strong>Equations in one function of <code class="md-code-inline">x</code>.</strong> When <code class="md-code-inline">x</code> appears only through one function application <code class="md-code-inline">g</code> (<code class="md-code-inline">sin(2x)</code>, <code class="md-code-inline">exp(x)</code>, <code class="md-code-inline">sqrt(x + 1)</code>, <code class="md-code-inline">2^x</code>), <code class="md-code-inline">u</code> replaces <code class="md-code-inline">g</code>, the polynomial in <code class="md-code-inline">u</code> is solved, and <code class="md-code-inline">g(t) = r</code> is inverted into equations for its argument, solved recursively.</p>
+<ul class="md-list-tight">
+<li><p>Inversions: <code class="md-code-inline">sin(t) = r</code> gives <code class="md-code-inline">t = asin(r)</code> and <code class="md-code-inline">π − asin(r)</code> (principal solutions in one period); <code class="md-code-inline">cos</code> gives <code class="md-code-inline">±acos(r)</code>; <code class="md-code-inline">bᵗ = r</code> gives <code class="md-code-inline">log(r)/log(b)</code>; <code class="md-code-inline">t^(p/q) = r</code> gives <code class="md-code-inline">r^(q/p)</code>.</p>
+</li>
+<li><p>Candidates are checked by substitution, which drops extraneous roots (<code class="md-code-inline">sqrt(x) ~ −1</code> has none).</p>
+</li>
+<li><p>Several powers of one base count as one function: <code class="md-code-inline">exp(2x)</code> and <code class="md-code-inline">exp(x)</code> are powers of <code class="md-code-inline">u = exp(x)</code>, and <code class="md-code-inline">4^x</code> and <code class="md-code-inline">2^x</code> are powers of <code class="md-code-inline">2^x</code>.</p>
+</li>
+<li><p>A square root mixed with <code class="md-code-inline">x</code> is reduced to <code class="md-code-inline">A + B·sqrt(t) = 0</code> using <code class="md-code-inline">R² = t</code>, squared to the polynomial <code class="md-code-inline">A² = B²t</code>, and extraneous roots dropped: <code class="md-code-inline">sqrt(x + 1) ~ x − 1</code> gives <code class="md-code-inline">[3]</code>.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Lambert W.</strong> When <code class="md-code-inline">x</code> appears both directly and inside an exponential <code class="md-code-inline">b^(γx + δ)</code>, with the equation linear in that exponential, it reduces to <code class="md-code-inline">(αx + β)·e^(γ′x + δ′) = K</code>. Its solution is <code class="md-code-inline">x = W(K·γ′/α·e^(γ′β/α − δ′))/γ′ − β/α</code>, using <code class="md-code-inline">lambertw</code> from LambertW.jl (a dependency, re-exported). The branch <code class="md-code-inline">W₋₁</code> is added when the argument is real in <code class="md-code-inline">(−1/ℯ, 0)</code>, where there are two real solutions. Examples: <code class="md-code-inline">x·eˣ ~ 1 → W(1)</code>, <code class="md-code-inline">2^x ~ 3x</code>, <code class="md-code-inline">eˣ ~ x + 2</code>.</p>
+</li>
+<li><p><strong>Inequalities.</strong> <code class="md-code-inline">solve(x^2 ≫ 1, x)</code> returns a <code class="md-code-inline">SymSet</code>, a union of disjoint intervals with exact endpoints: <code class="md-code-inline">(-∞, -1) ∪ (1, ∞)</code>.</p>
+<ul class="md-list-tight">
+<li><p><strong>Types.</strong> <code class="md-code-inline">SymSet</code> and <code class="md-code-inline">SymInterval</code> are deliberately not exported. An interval has <code class="md-code-inline">Sym</code> endpoints, with <code class="md-code-inline">nothing</code> for ±∞, and open/closed flags; a point is <code class="md-code-inline">[a, a]</code>, printed <code class="md-code-inline">{a}</code>.</p>
+</li>
+<li><p><strong>Method.</strong> The critical points are the real roots of the numerator and denominator of <code class="md-code-inline">lhs − rhs</code>. Between consecutive ones the sign is constant, so one sample decides each open piece. Each critical point is decided exactly, and poles are excluded. Adjacent included pieces merge.</p>
+</li>
+<li><p><strong>Set operations.</strong> <code class="md-code-inline">∪</code>, <code class="md-code-inline">∩</code> and <code class="md-code-inline">setdiff</code> reuse that construction over the operands&#39; endpoints. <code class="md-code-inline">in</code> compares against the exact endpoints.</p>
+</li>
+<li><p><strong>Limits.</strong> Numeric coefficients only: with parameters, the order of the endpoints depends on their values, which needs assumptions.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Linear systems.</strong> <code class="md-code-inline">solve(eqs, vars)</code> returns a <code class="md-code-inline">Dict</code> from variables to values.</p>
+<ul class="md-list-tight">
+<li><p><strong>Underdetermined systems</strong> give the pivot variables in terms of the free ones, which are not keys: <code class="md-code-inline">solve([x + y + z ~ 1, x - z ~ 0], [x, y, z]) == Dict(x =&gt; z, y =&gt; 1 − 2z)</code>.</p>
+</li>
+<li><p><strong>Inconsistent systems</strong> give <code class="md-code-inline">nothing</code>.</p>
+</li>
+<li><p><strong>Method.</strong> Gauss–Jordan elimination over an exact field: <code class="md-code-inline">SymNumber</code> when the coefficients are numeric, otherwise <code class="md-code-inline">RatFun</code> in the other symbols and parameters. Its canonical form makes the pivot zero tests exact.</p>
+</li>
+<li><p><strong>Parameters.</strong> The result is the generic solution, assuming nonzero pivots (as SymPy does): <code class="md-code-inline">[a·x + y ~ 1, x − y ~ b] → x = (b + 1)/(a + 1)</code>.</p>
+</li>
+<li><p><strong>Linearity.</strong> An equation must have no unknown in its denominator, and be of degree ≤ 1 in the unknowns.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Systems of inequalities.</strong></p>
+<ul>
+<li><p><strong>One unknown:</strong> each relation is solved and the sets intersected; equations contribute their real roots as points: <code class="md-code-inline">[x^2 ~ 4, x ≫ 0] → {2}</code>.</p>
+</li>
+<li><p><strong>Several unknowns, linear:</strong> the equations are solved and substituted first. Then exact Fourier–Motzkin elimination removes the unknowns in the given order, recording each one&#39;s bounds in terms of the unknowns still to come. Constraints are normalized and deduplicated (the tighter one kept), and bounds beaten by a parallel tighter one are dropped. An infeasible system gives <code class="md-code-inline">∅</code>.</p>
+</li>
+<li><p><strong>Result:</strong> a cylindrical description, <code class="md-code-inline">CylindricalSet</code> (not exported). The last unknown ranges over an interval; each earlier one lies between bounds in the later ones, using <code class="md-code-inline">max</code>/<code class="md-code-inline">min</code> for several bounds; unknowns fixed by equations come last. For example <code class="md-code-inline">[x + y ≪ 2, y ≪ 3] → y ∈ (-∞, 3), x ∈ (-∞, -y + 2)</code>.</p>
+</li>
+<li><p><strong>Calling a set.</strong> A set substitutes when called, like expressions and relations. A <code class="md-code-inline">CylindricalSet</code> keeps the constraints it was solved from:</p>
+<ul class="md-list-tight">
+<li><p>with every unknown given, <code class="md-code-inline">C(x =&gt; 1, y =&gt; 4)</code> is a <code class="md-code-inline">Bool</code>;</p>
+</li>
+<li><p>with some given, <code class="md-code-inline">C(y =&gt; 1)</code> re-solves exactly in the rest: a <code class="md-code-inline">SymSet</code> for one unknown, a <code class="md-code-inline">CylindricalSet</code> for several. That&#39;s simpler and more reliable than slicing the nested bounds;</p>
+</li>
+<li><p><code class="md-code-inline">pt in C</code>, for a point given as a <code class="md-code-inline">Dict</code>, is the same test.</p>
+</li>
+</ul>
+<p>A <code class="md-code-inline">SymSet</code> from <code class="md-code-inline">solve(ineq, x)</code> records <code class="md-code-inline">x</code>, so both <code class="md-code-inline">S(2)</code> and <code class="md-code-inline">S(x =&gt; 2)</code> test membership.</p>
+</li>
+<li><p><strong>Not yet:</strong> nonlinear systems in several unknowns (cylindrical algebraic decomposition), <code class="md-code-inline">≠</code> in several unknowns (not convex), and symbolic coefficients.</p>
+</li>
+</ul>
+</li>
+<li><p><strong><code class="md-code-inline">&lt;</code> and friends.</strong> <code class="md-code-inline">&lt;</code>, <code class="md-code-inline">≤</code>, <code class="md-code-inline">&gt;</code>, <code class="md-code-inline">≥</code> compare constant expressions as numbers, returning a <code class="md-code-inline">Bool</code>. With a symbol, they raise an error naming the symbolic operator to use instead (<code class="md-code-inline">≪</code>, <code class="md-code-inline">≦</code>, <code class="md-code-inline">≫</code>, <code class="md-code-inline">≧</code>).</p>
+</li>
+<li><p><strong>Not yet:</strong></p>
+<ul class="md-list-tight">
+<li><p>nonlinear systems;</p>
+</li>
+<li><p>several unrelated functions of <code class="md-code-inline">x</code> (<code class="md-code-inline">sin(x) + cos(x) ~ 1</code>);</p>
+</li>
+<li><p>exponents that aren&#39;t rational multiples of one another (<code class="md-code-inline">9^x ~ 3^(x+2)</code>);</p>
+</li>
+<li><p>Lambert-type equations beyond the linear form (<code class="md-code-inline">x·e^(x²) ~ 1</code>).</p>
+</li>
+</ul>
+</li>
+</ul>
+<p>Two canonical-form additions came with it:</p>
+<ul class="md-list-tight">
+<li><p><strong>Positive constants come out of radicals.</strong> <code class="md-code-inline">(c·m)^e = c^e·m^e</code> for <code class="md-code-inline">c &gt; 0</code> on the principal branch, so <code class="md-code-inline">sqrt(4a) = 2sqrt(a)</code> and <code class="md-code-inline">sqrt(2a + 2b) = sqrt(2)·sqrt(a + b)</code>, where the content of a sum is the gcd of its coefficients.</p>
+</li>
+<li><p><strong>Inverse trig functions have exact values</strong> at the standard points (±1/2, ±√2/2, ±√3/2, and √3, √3/3 for <code class="md-code-inline">atan</code>).</p>
+</li>
+</ul>
+<h2 id="Parameters" class="md-heading">Parameters<a href="#Parameters" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p><code class="md-code-inline">parameter(:a)</code> or <code class="md-code-inline">@parameters a b</code> makes a symbolic parameter: a named constant of unknown value, as opposed to a variable. It is a node kind, <code class="md-code-inline">PARAMETER</code>, beside <code class="md-code-inline">SYMBOL</code>, not a new Julia type. Expressions stay one concrete type, so containers stay concretely typed and dispatch can&#39;t distinguish expressions that contain parameters; <code class="md-code-inline">isparameter</code> and <code class="md-code-inline">free_parameters</code> answer that instead. The parameter <code class="md-code-inline">a</code> and the variable <code class="md-code-inline">a</code> hash differently and are distinct.</p>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:left"></th>
+<th style="text-align:left">variables</th>
+<th style="text-align:left">parameters</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">free_symbols</code> / <code class="md-code-inline">free_parameters</code></td>
+<td style="text-align:left">listed by <code class="md-code-inline">free_symbols</code></td>
+<td style="text-align:left">listed by <code class="md-code-inline">free_parameters</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">ex(v)</code></td>
+<td style="text-align:left">substituted, or evaluated if no parameters</td>
+<td style="text-align:left">kept: <code class="md-code-inline">(a*x^2)(3) == 9a</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">lambdify(ex)</code></td>
+<td style="text-align:left">first argument</td>
+<td style="text-align:left">after it, by name: <code class="md-code-inline">(x, a, b) -&gt; …</code></td>
+</tr>
+<tr>
+<td style="text-align:left">printing order</td>
+<td style="text-align:left">by degree</td>
+<td style="text-align:left">degree 0, so <code class="md-code-inline">a*x^2 + b*x + c</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">diff</code>, <code class="md-code-inline">subs</code>, <code class="md-code-inline">expand</code>, <code class="md-code-inline">Poly</code>, <code class="md-code-inline">cancel</code>, <code class="md-code-inline">factor</code>, <code class="md-code-inline">gcd</code></td>
+<td style="text-align:left">as symbols</td>
+<td style="text-align:left">as symbols</td>
+</tr>
+<tr>
+<td style="text-align:left">constant tests (<code class="md-code-inline">sign</code>, <code class="md-code-inline">floor</code>, <code class="md-code-inline">mod</code>, <code class="md-code-inline">max</code>)</td>
+<td style="text-align:left">not constant</td>
+<td style="text-align:left">not constant</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Cost.</strong> <code class="md-code-inline">bench/parameters.jl</code> times 22 core workloads, recording the minimum time of each. One run of identical code differs from another by up to ±13% per workload on this machine, and a baseline recorded earlier drifts with load. So the comparison put the previous commit in a git worktree and ran the old and new versions alternately, three rounds each, taking each workload&#39;s best time.</p>
+<ul class="md-list-tight">
+<li><p>The geometric mean ratio over the suite was 0.995.</p>
+</li>
+<li><p>The scan for parameters before a numeric call costs about 4% (0.2 μs) on a 40-node expression.</p>
+</li>
+<li><p><code class="md-code-inline">free_symbols</code> became 1.8x faster, because loops replaced the closure-based recursion.</p>
+</li>
+</ul>
+<h2 id="Assumptions" class="md-heading">Assumptions<a href="#Assumptions" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>Assumptions (real, positive, integer) will be passed per call, e.g. <code class="md-code-inline">simplify(ex; assume = …)</code>, not stored on symbols. This keeps canonical form context-free: <code class="md-code-inline">x</code> is always the same node with the same hash, and construction never consults assumptions. The trade-off is that identities such as <code class="md-code-inline">sqrt(x^2) = x</code> apply only inside the operations that take assumptions, never during construction.</p>
+<h2 id="Performance-snapshot" class="md-heading">Performance snapshot<a href="#Performance-snapshot" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>Run with <code class="md-code-inline">julia --project=bench bench/bench.jl</code> (Apple Silicon, Julia 1.13, SymEngine.jl 0.13). Times are medians. The ratio is SymJ time / SymEngine time, so lower is better.</p>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:left">benchmark</th>
+<th style="text-align:right">SymJ</th>
+<th style="text-align:right">SymEngine</th>
+<th style="text-align:right">ratio</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">x + y</code></td>
+<td style="text-align:right">32 ns</td>
+<td style="text-align:right">98 ns</td>
+<td style="text-align:right">0.33</td>
+</tr>
+<tr>
+<td style="text-align:left">build Σ i·xⁱ·y²⁰⁰⁻ⁱ term by term</td>
+<td style="text-align:right">216 μs</td>
+<td style="text-align:right">593 μs</td>
+<td style="text-align:right">0.36</td>
+</tr>
+<tr>
+<td style="text-align:left">build Π (x+i)ⁱ, i ≤ 30</td>
+<td style="text-align:right">5.1 μs</td>
+<td style="text-align:right">14.7 μs</td>
+<td style="text-align:right">0.35</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">expand((x+y+z+1)^15)</code></td>
+<td style="text-align:right">135 μs</td>
+<td style="text-align:right">534 μs</td>
+<td style="text-align:right">0.25</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">expand((a+x)^100)</code></td>
+<td style="text-align:right">26 μs</td>
+<td style="text-align:right">29 μs</td>
+<td style="text-align:right">0.91</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">diff</code> of expanded poly · sin</td>
+<td style="text-align:right">38 μs</td>
+<td style="text-align:right">52 μs</td>
+<td style="text-align:right">0.72</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">subs</code> into 286-term poly</td>
+<td style="text-align:right">152 μs</td>
+<td style="text-align:right">170 μs</td>
+<td style="text-align:right">0.89</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">expand(e*(e+w))</code>, <code class="md-code-inline">e=(x+y+z+w)^15</code></td>
+<td style="text-align:right">5.1 ms</td>
+<td style="text-align:right">415 ms</td>
+<td style="text-align:right">0.01</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The <code class="md-code-inline">expand(e*(e+w))</code> row takes 5.1 ms in total. Of that, the <code class="md-code-inline">Poly</code> product (816 × 817 terms, giving 6 272) takes 1.8 ms, <code class="md-code-inline">Poly → Sym</code> takes 3.2 ms, and <code class="md-code-inline">Sym → Poly</code> takes 1.5 ms. SymEngine.jl&#39;s <code class="md-code-inline">expand</code> works on the generic tree, so this compares like with like at the user level. SymEngine&#39;s own sparse polynomial classes are not exposed by SymEngine.jl. SymEngine.jl&#39;s numbers also include the cost of the C wrapper (a <code class="md-code-inline">ccall</code> and a finalizer per operation), which dominates the small benchmarks.</p>
+<h2 id="Not-yet-done-/-open-questions" class="md-heading">Not yet done / open questions<a href="#Not-yet-done-/-open-questions" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<ul class="md-list-tight">
+<li><p><strong>Complex numbers.</strong> <code class="md-code-inline">im</code> is the exact power <code class="md-code-inline">(-1)^(1/2)</code>. That covers the basics, but there is no <code class="md-code-inline">re</code>/<code class="md-code-inline">im</code> decomposition or <code class="md-code-inline">conj</code>, and <code class="md-code-inline">Sym(z::Complex)</code> builds <code class="md-code-inline">a + b*im</code>.</p>
+</li>
+<li><p><strong>Assumptions.</strong> These will be passed per call, as described above. Neither the API nor the rules exist yet.</p>
+</li>
+<li><p><strong>Relations.</strong> <code class="md-code-inline">==</code> is structural and returns <code class="md-code-inline">Bool</code>. Symbolic <code class="md-code-inline">Eq</code>, <code class="md-code-inline">&lt;</code>, etc. need their own constructors.</p>
+</li>
+<li><p><strong>Combining radicals.</strong> <code class="md-code-inline">sqrt(2)*sqrt(3)</code> is not combined into <code class="md-code-inline">sqrt(6)</code>, and <code class="md-code-inline">72^(1/3)</code> prints as <code class="md-code-inline">2*9^(1/3)</code> rather than <code class="md-code-inline">2*3^(2/3)</code>. Prime-base normalization would fix the latter.</p>
+</li>
+<li><p><strong>Polynomials, next steps.</strong></p>
+<ul class="md-list-tight">
+<li><p>Zippel: transposed Vandermonde solves per degree when the leading coefficient is a single term (now one dense solve).</p>
+</li>
+<li><p>Brown recursion: done so far are bivariate images in dense buffers and in-place Newton updates. Mod-p reduction is a few percent of the time, so Montgomery or Barrett reduction isn&#39;t worth it.</p>
+</li>
+<li><p>A univariate dense representation.</p>
+</li>
+<li><p>Faster LLL for van Hoeij: floating-point LLL on truncated traces (van Hoeij–Novocin). The integer LLL is now the main cost of S₆&#39;s 0.76 s.</p>
+</li>
+<li><p>Graded monomial orders.</p>
+</li>
+<li><p>Evaluation by Horner&#39;s scheme.</p>
+</li>
+<li><p>Threads for large products.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Hash-consing.</strong> Interning nodes would make equality pointer comparison and save memory, at the cost of a global, thread-safe table.</p>
+</li>
+<li><p><strong>Further features:</strong> series, <code class="md-code-inline">simplify</code>, <code class="md-code-inline">solve</code>, and symbolic matrices (noncommutative <code class="md-code-inline">MUL</code>).</p>
+</li>
+</ul>
+      </article>
+      <footer class="md-footer">
+<p>Built with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and <a href="https://github.com/mthelm85/MaterialDocs.jl">MaterialDocs.jl</a>.</p>
+      </footer>
+    </main>
+    <aside class="md-toc">
+      <div class="md-toc-inner">
+        <p class="md-toc-title">On this page</p>
+          <a class="md-toc-link md-toc-h2" href="#Goals">Goals</a>
+          <a class="md-toc-link md-toc-h2" href="#One-concrete-node-type">One concrete node type</a>
+            <a class="md-toc-link md-toc-h3" href="#Representation-by-kind">Representation by kind</a>
+            <a class="md-toc-link md-toc-h3" href="#Canonical-form-invariants">Canonical-form invariants</a>
+          <a class="md-toc-link md-toc-h2" href="#Numbers:-SymNumber">Numbers: SymNumber</a>
+          <a class="md-toc-link md-toc-h2" href="#Functions">Functions</a>
+          <a class="md-toc-link md-toc-h2" href="#TermInterface">TermInterface</a>
+          <a class="md-toc-link md-toc-h2" href="#Polynomials:-Poly{C}">Polynomials: Poly{C}</a>
+            <a class="md-toc-link md-toc-h3" href="#Division">Division</a>
+            <a class="md-toc-link md-toc-h3" href="#GCD">GCD</a>
+            <a class="md-toc-link md-toc-h3" href="#Squarefree-factorization">Squarefree factorization</a>
+            <a class="md-toc-link md-toc-h3" href="#Factorization">Factorization</a>
+            <a class="md-toc-link md-toc-h3" href="#Partial-fractions">Partial fractions</a>
+            <a class="md-toc-link md-toc-h3" href="#Rational-expressions">Rational expressions</a>
+          <a class="md-toc-link md-toc-h2" href="#Compiled-evaluation:-lambdify">Compiled evaluation: lambdify</a>
+          <a class="md-toc-link md-toc-h2" href="#Relations">Relations</a>
+          <a class="md-toc-link md-toc-h2" href="#Solving">Solving</a>
+          <a class="md-toc-link md-toc-h2" href="#Parameters">Parameters</a>
+          <a class="md-toc-link md-toc-h2" href="#Assumptions">Assumptions</a>
+          <a class="md-toc-link md-toc-h2" href="#Performance-snapshot">Performance snapshot</a>
+          <a class="md-toc-link md-toc-h2" href="#Not-yet-done-/-open-questions">Not yet done / open questions</a>
+      </div>
+    </aside>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/julia.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/julia-repl.min.js"></script>
+  <script>hljs.highlightAll();</script>
+  <script src="../siteinfo.js"></script>
+  <script src="../../versions.js"></script>
+  <script src="../assets/materialdocs.js?v=11314de1"></script>
+</body>
+</html>
