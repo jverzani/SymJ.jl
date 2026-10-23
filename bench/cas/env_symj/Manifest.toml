@@ -209,11 +209,13 @@ deps = ["CommonSolve", "LambertW", "PrecompileTools", "RuntimeGeneratedFunctions
 path = "../../.."
 uuid = "73a6d648-42a5-483e-b8b5-fc71c1696ef5"
 version = "1.0.0-DEV"
-weakdeps = ["HypergeometricFunctions", "PolyLog", "SpecialFunctions"]
+weakdeps = ["GruntzLimit", "HypergeometricFunctions", "PolyLog", "RischIntegrate", "SpecialFunctions"]
 
     [deps.SymJ.extensions]
+    SymJGruntzLimitExt = "GruntzLimit"
     SymJHypergeometricFunctionsExt = "HypergeometricFunctions"
     SymJPolyLogExt = "PolyLog"
+    SymJRischIntegrateExt = "RischIntegrate"
     SymJSpecialFunctionsExt = "SpecialFunctions"
 
 [[deps.TOML]]

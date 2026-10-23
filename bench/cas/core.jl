@@ -206,7 +206,9 @@ end
 
 ## running a problem
 
-function operate(op, args)
+# (@nospecialize: otherwise the first call for each argument type infers every branch,
+# limits and integration included, and that is timed as the operation)
+function operate(op, @nospecialize(args))
     op === :expand && return EXPAND(args[1])
     op === :factor && return FACTOR(args[1])
     op === :gcd && return GCD(args[1], args[2])

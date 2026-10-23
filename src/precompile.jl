@@ -30,6 +30,11 @@ using PrecompileTools: @setup_workload, @compile_workload
         expand((x + y + 1)^3); expand(e); diff(e, x); subs(e, x => y + 1)
         cancel((x^2 - 1) / (x + 1)); factor_squarefree(x^3 - x^2 - x + 1)
         factor(x^4 - 1); factor(x^2 * y^2 - 1); apart(1 / (x^2 - 1))
+        z = Sym(:z)                                  # multivariate factoring (EEZ), more forms
+        factor(x^6 - y^6); factor(expand((x^2 + y * z + 1) * (x * y - z^2 + 3) * (x + y + z)))
+        apart(1 / ((x - parameter(:a)) * (x - y)), x); apart((x^3 + 1) / (x^2 - 1), x)
+        gcd(x^2 - 1, x^2 + 2x + 1); lcm(x^2 - 1, x + 1)
+        solve(exp(x) ~ 2, x); solve(sqrt(x + 1) ~ x - 1, x); solve(x^4 - 10x^2 + 1 ~ 0, x)
         solve(x^2 - 2 ~ 0, x); solve(x^3 - 3x + 1 ~ 0, x); solve(x^2 ≫ 1, x); solve(x * exp(x) ~ 1, x)
         solve([x + y ~ 3, x - y ~ 1], [x, y]); solve([parameter(:a) * x + y ~ 1, x - y ~ 2], [x, y])
         a = parameter(:a); (a * x^2 + x)(3); (a * x^2 + x)(x => 2); free_parameters(a * x)
