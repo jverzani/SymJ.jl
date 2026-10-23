@@ -5,3 +5,7 @@
 /docs/build/
 /bench/Manifest.toml
 /bench/results_*.tsv
+
+# IDE (JetBrains)
+.idea/
+*.iml
