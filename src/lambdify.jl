@@ -17,8 +17,7 @@
     lambdify(ex)
 
 Compile `ex` into a Julia function of the symbols `vars`, in that order. With no `vars`,
-`ex` may have at most one free variable, and its parameters, if any, follow it in
-the order of [`free_parameters`](@ref): `lambdify(a*x^2)` is `(x, a) -> a*x^2`. `ex` may also be an array or tuple of
+`ex` may have at most one free variable. `ex` may also be an array or tuple of
 expressions, and the function then returns an array of the same shape (or a tuple),
 with common subexpressions shared between the entries.
 

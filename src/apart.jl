@@ -12,7 +12,7 @@
 
 Partial fraction decomposition of a rational function of `x` with exact
 coefficients: a polynomial plus terms `c(x)/p(x)^j`, `p` irreducible and
-`deg c < deg p`. Coefficients may involve other symbols and parameters (and, as in
+`deg c < deg p`. Coefficients may involve other symbols (and, as in
 [`cancel`](@ref), function applications): the decomposition is then over the field
 of rational functions in them, `ℚ(a, b, ...)`. With no `x`, `ex` must have one free
 variable. `gcd_method` (`:auto`, `:dense` or `:zippel`; see [`gcd`](@ref)) chooses the gcd method in the

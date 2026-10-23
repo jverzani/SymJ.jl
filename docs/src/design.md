@@ -1,4 +1,4 @@
-# Design
+# Design notes
 
 SymJ is a symbolic manipulation kernel written in pure Julia. It aims for SymEngine-class
 speed with a small, explicit core that later layers (simplification, solving, matrices)
@@ -25,8 +25,13 @@ build on.
     and generic code reading leaves pays that on every symbol. This matches what generic
     term code expects from a callable numeric leaf; GruntzLimit, for example, reads
     numbers this way.
-  - An expression with several free symbols must be called with pairs. A single value
-    would leave implicit which symbol receives it.
+  - An expression with several free symbols must be called with pairs or keywords. A
+    single value would leave implicit which symbol receives it.
+  - `ex(; x = 2, y = 3)` matches keywords to variables and parameters by name. When all
+    of them get non-symbolic values it evaluates with Julia arithmetic, returning a Julia
+    number; otherwise it substitutes. Names not in `ex` are ignored (one set of keywords
+    can serve several expressions), and keywords aren't mixed with pairs or a positional
+    value. A name shared by a variable and a parameter is an error.
   - A `SymFunction` called on arguments builds an unevaluated application (`f(x)`).
 
   Evaluation interprets the tree: about 25 ns for `x^2` and 2.4 μs for
@@ -785,7 +790,13 @@ Two canonical-form additions came with it:
 - **Inverse trig functions have exact values** at the standard points (±1/2, ±√2/2,
   ±√3/2, and √3, √3/3 for `atan`).
 
-## Parameters
+## Parameters (internal)
+
+!!! note "Internal, not exported"
+    Parameters are hidden for now: `@parameters`, `parameter`, `isparameter` and
+    `free_parameters` are not exported or documented for users (they are reachable as
+    `SymJ.parameter` and so on), so that the current approach does not become
+    permanent before the shared-name question below is settled.
 
 `parameter(:a)` or `@parameters a b` makes a symbolic parameter: a named constant of
 unknown value, as opposed to a variable. It is a node kind, `PARAMETER`, beside
@@ -793,6 +804,18 @@ unknown value, as opposed to a variable. It is a node kind, `PARAMETER`, beside
 stay concretely typed and dispatch can't distinguish expressions that contain
 parameters; `isparameter` and `free_parameters` answer that instead. The parameter
 `a` and the variable `a` hash differently and are distinct.
+
+**Shared names (undecided).** Because the two are distinct nodes, a parameter and a
+variable can have the same name. Their sum prints as `a + a` and is not `2a`, which is
+confusing. Calling with keywords raises an error for such a name; nothing else checks.
+Prohibiting it needs a session-wide record of parameter names, checked whenever either
+kind is created: `@syms a` after `@parameters a` (or the reverse) would be an error. The
+costs are that a name can't change role within a session, and that everything run in
+one process (the test suite, the documentation build, other packages creating
+variables by name) shares that record. The decision is deferred until it is clearer how
+much parameters are used. The lighter alternative is to keep them separate and print
+parameters distinctly. Either way the current behavior will almost certainly change,
+and the user-facing documentation says so.
 
 | | variables | parameters |
 |:--|:--|:--|
@@ -847,6 +870,8 @@ and a finalizer per operation), which dominates the small benchmarks.
 
 ## Not yet done / open questions
 
+- **Parameters and variables sharing a name.** Prohibit it, or print them distinctly?
+  See Parameters above.
 - **Complex numbers.** `im` is the exact power `(-1)^(1/2)`. That covers the basics, but
   there is no `re`/`im` decomposition or `conj`, and `Sym(z::Complex)` builds `a + b*im`.
 - **Assumptions.** These will be passed per call, as described above. Neither the API
