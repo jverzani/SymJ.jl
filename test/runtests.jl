@@ -206,6 +206,51 @@ import ForwardDiff
         @test N(lambertw(Sym(-1 // 5), -1)) ≈ -2.542641357773527
     end
 
+    @testset "series" begin
+        @syms sa
+        S(e, args...) = Sym(series(e, args...))
+        @test S(sin(x), x) == x - x^3 / 6 + x^5 / 120
+        @test S(exp(x), x, 0, 4) == 1 + x + x^2 / 2 + x^3 / 6
+        @test S(log(1 + x), x, 0, 5) == x - x^2 / 2 + x^3 / 3 - x^4 / 4
+        @test S(atan(x), x) == x - x^3 / 3 + x^5 / 5
+        @test S(tan(x), x, 0, 8) == x + x^3 / 3 + 2x^5 / 15 + 17x^7 / 315
+        @test S(1 / sin(x), x, 0, 3) == 1 / x + x / 6                      # Laurent
+        @test S(cot(x), x, 0, 4) == 1 / x - x / 3 - x^3 / 45
+        @test S((sin(x) - x) / x^3, x, 0, 4) == -1 // 6 + x^2 / 120          # cancellation
+        @test S(sqrt(x + x^2), x, 0, 3) == sqrt(x) + x^(3 // 2) / 2 - x^(5 // 2) / 8   # Puiseux
+        @test S(x^x, x, 0, 3) == 1 + log(x) * x + log(x)^2 * x^2 / 2       # logarithmic terms
+        @test S(sqrt(x^2 + x), x, Inf, 3) == x + 1 // 2 - 1 / (8x) + 1 / (16x^2)   # at infinity
+        @test S(sqrt(x^2 + 1), x, -Inf, 3) == -x - 1 / (2x)
+        @test S(log(x + 1), x, Inf, 3) == log(x) + 1 / x - 1 / (2x^2)
+        @test S(exp(x), x, 1, 3) == ℯ * (1 + (x - 1) + (x - 1)^2 / 2) |> expand ||
+              iszero(expand(S(exp(x), x, 1, 3) - (Sym(ℯ) + Sym(ℯ) * (x - 1) + Sym(ℯ) * (x - 1)^2 / 2)))
+        @test iszero(expand(S(tan(x), x, Sym(π) / 2, 3) - (-1 / (x - Sym(π) / 2) + (x - Sym(π) / 2) / 3)))
+        @test S((1 + x)^sa, x, 0, 3) == 1 + sa * x + (sa^2 / 2 - sa / 2) * x^2   # symbolic exponent
+        @test S(x^2 + 1, x) == x^2 + 1 && string(series(x^2 + 1, x)) == "1 + x^2"   # exact: no O
+        # printing, and the error order
+        @test string(series(sin(x), x)) == "x - x^3/6 + x^5/120 + O(x^6)"
+        @test string(series(exp(x), x, 1, 2)) == "ℯ + ℯ*(x - 1) + O((x - 1)^2)"
+        @test string(series(1 / (1 - x), x, Inf, 3)) == "-1/x - 1/x^2 + O(1/x^3)"
+        # every term below the order is right: the error is O(h^n)
+        for (f, x0, n) in ((exp(sin(x)), 0, 6), (1 / cos(x), 0, 8), (sqrt(1 + x) * log(1 + x), 0, 5),
+                           (cot(x) - 1 / x, 0, 6), (exp(x) / (1 + x^2), 1, 5), (asin(x), 0, 7), (sinh(x) * cosh(x), 0, 7))
+            T = Sym(series(f, x, x0, n))
+            # in BigFloat (calling evaluates with Julia arithmetic), past Float64 rounding
+            errs = [abs((f - T)(x0 + big(h))) for h in (1 // 100, 1 // 200)]
+            @test errs[1] / errs[2] > 2.0^(n - 0.6)                    # halving h divides it by ~2^n
+        end
+        # arithmetic and derivatives of series
+        s, c = series(sin(x), x), series(cos(x), x)
+        @test Sym(s / c) == x + x^3 / 3 + 2x^5 / 15 && Sym(s * c) == x - 2x^3 / 3 + 2x^5 / 15
+        @test Sym(diff(s, x)) == 1 - x^2 / 2 + x^4 / 24
+        @test Sym(s^2 + c^2) == 1 && Sym(2 * s + 1) == 1 + 2x - x^3 / 3 + x^5 / 60
+        @test s(0.1) ≈ sin(0.1) atol = 1e-6
+        # no series
+        @test_throws ArgumentError series(exp(1 / x), x)                  # essential singularity
+        @test_throws ArgumentError series(f(x), x)                         # no derivative rule
+        @test_throws ArgumentError series(sin(x), x + 1)
+    end
+
     @testset "subs inside products" begin
         @test subs(x * exp(x), exp(x) => y) == x * y
         @test subs(3x^2 * y, x^2 => z) == 3y * z
