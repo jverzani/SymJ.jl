@@ -1,0 +1,97 @@
+Warning: floor value will use approx. evaluation, result might be wrong
+Undef/Unsigned Inf encountered in limit
+Warning, integration of abs or sign assumes constant sign by intervals (correct if the argument is real):
+Check [abs(t_nostep)]
+Warning, integration of abs or sign assumes constant sign by intervals (correct if the argument is real):
+Check [abs(t_nostep)]
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Warning, integration of abs or sign assumes constant sign by intervals (correct if the argument is real):
+Check [abs(a-x)]
+Discontinuities at zeroes of a-x were not checked
+Warning, integration of abs or sign assumes constant sign by intervals (correct if the argument is real):
+Check [abs(a-x)]
+Discontinuities at zeroes of a-x were not checked
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+Trying integration by part
+[ Info: GIAC wrapper library loaded from /Users/jverzani/.julia/artifacts/106c84f1bff7b3722dc055e5509677b0cc720cea/lib/libgiac_wrapper.0.dylib

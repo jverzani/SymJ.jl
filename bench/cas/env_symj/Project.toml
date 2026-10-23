@@ -1,0 +1,13 @@
+[deps]
+GruntzLimit = "549ac5eb-4437-4bd1-88f1-51d4e2fa49c9"
+HypergeometricFunctions = "34004b35-14d8-5ef3-9330-4cdb6864b03a"
+PolyLog = "85e3b03c-9856-11eb-0374-4dc1f8670e7f"
+RischIntegrate = "c180fd1b-065d-41df-ac4d-d8d9562c1957"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+SymJ = "73a6d648-42a5-483e-b8b5-fc71c1696ef5"
+TermInterface = "8ea1fca8-c5ef-4a55-8b96-4e9afe9c9a3c"
+
+[sources]
+GruntzLimit = {path = "../../../../GruntzLimit"}
+RischIntegrate = {path = "../../../../RischIntegrate"}
+SymJ = {path = "../../.."}
