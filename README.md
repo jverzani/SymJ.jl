@@ -4,10 +4,17 @@
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://jverzani.github.io/SymJ.jl/dev/)
 [![Build Status](https://github.com/jverzani/SymJ.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/jverzani/SymJ.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![Coverage](https://codecov.io/gh/jverzani/SymJ.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/jverzani/SymJ.jl)
+[![CAS comparison, verified of 311: SymJ 309, Giac 305, Symbolics 296, SymPy 296](https://img.shields.io/badge/CAS%20comparison%2C%20verified%20of%20311-SymJ%20309%20%C2%B7%20Giac%20305%20%C2%B7%20Symbolics%20296%20%C2%B7%20SymPy%20296-2f8a4c)](https://rawcdn.githack.com/jverzani/SymJ.jl/d9f9703f64bef58d1aa11a55ba041a7611429fa2/bench/cas/results/cas_comparison.html)
 
 A symbolic manipulation kernel for Julia: one concrete, hash-carrying node type, exact
 numbers, canonical sums/products/powers built as you go, callable expressions, and the
 TermInterface v2 contract. See [the design notes](docs/src/design.md).
+
+The CAS badge compares SymJ (with GruntzLimit for limits and RischIntegrate for integrals),
+Symbolics (with the same two), SymPy and Giac on 311 problems: expansion, factoring, gcds,
+rational functions, partial fractions, derivatives, equations, limits and integrals. It
+counts the answers that check out numerically. The [comparison](https://rawcdn.githack.com/jverzani/SymJ.jl/d9f9703f64bef58d1aa11a55ba041a7611429fa2/bench/cas/results/cas_comparison.html) has the numbers by
+area, the times, and each system's answer to each problem; see `bench/cas`.
 
 ```julia
 using SymJ

@@ -81,6 +81,12 @@ What is recorded, for each problem and system:
 Times: the first call in a fresh process (compilation included, for Julia packages), and a
 repeated call (after clearing SymPy's cache) when the first took under 15 s.
 
+The package README has a badge with the number of problems each system verifies. It links
+to the page through rawcdn.githack.com at a commit hash (githack caches each URL
+permanently, so a branch name would keep showing the first version it saw). After a run,
+commit and push the page, then put that commit's hash in the link. It is a static badge:
+after a run that changes these numbers, update them in the badge URL and its alt text.
+
 The results file of each system, `results/results_NAME.tsv`, has a line per event:
 `L` load time, `V` package versions, `S` problem started, `R` problem, status,
 verification, first and repeat times, answer; `D` done, `T` wall time and limit.
