@@ -799,6 +799,17 @@ stay concretely typed and dispatch can't distinguish expressions that contain
 parameters; `isparameter` and `free_parameters` answer that instead. The parameter
 `a` and the variable `a` hash differently and are distinct.
 
+**Shared names (undecided).** Because the two are distinct nodes, a parameter and a
+variable can have the same name. Their sum prints as `a + a` and is not `2a`, which is
+confusing. Calling with keywords raises an error for such a name; nothing else checks.
+Prohibiting it needs a session-wide record of parameter names, checked whenever either
+kind is created: `@syms a` after `@parameters a` (or the reverse) would be an error. The
+costs are that a name can't change role within a session, and that everything run in
+one process (the test suite, the documentation build, other packages creating
+variables by name) shares that record. The decision is deferred until it is clearer how
+much parameters are used. The lighter alternative is to keep them separate and print
+parameters distinctly.
+
 | | variables | parameters |
 |:--|:--|:--|
 | `free_symbols` / `free_parameters` | listed by `free_symbols` | listed by `free_parameters` |
@@ -852,6 +863,8 @@ and a finalizer per operation), which dominates the small benchmarks.
 
 ## Not yet done / open questions
 
+- **Parameters and variables sharing a name.** Prohibit it, or print them distinctly?
+  See Parameters above.
 - **Complex numbers.** `im` is the exact power `(-1)^(1/2)`. That covers the basics, but
   there is no `re`/`im` decomposition or `conj`, and `Sym(z::Complex)` builds `a + b*im`.
 - **Assumptions.** These will be passed per call, as described above. Neither the API

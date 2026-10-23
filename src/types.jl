@@ -250,7 +250,10 @@ A symbolic parameter: a named constant of unknown value, as opposed to a variabl
 Parameters take part in expressions like variables, but `free_symbols` lists only the
 variables, calling an expression with a value substitutes into its variable and keeps
 the parameters (`(a*x^2)(3) == 9a`), and `lambdify` takes them after the variable.
-The parameter `a` and the variable `a` are different symbols.
+
+A parameter and a variable may currently have the same name, and are then different
+symbols that print alike: `parameter(:a) + Sym(:a)` prints as `a + a` but is not `2a`.
+Avoid reusing a name in both roles. (Whether to prohibit it is undecided.)
 """
 parameter(s::Symbol) = _mkparam(s)
 parameter(s::AbstractString) = parameter(Symbol(s))
