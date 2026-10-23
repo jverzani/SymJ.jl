@@ -253,7 +253,8 @@ the parameters (`(a*x^2)(3) == 9a`), and `lambdify` takes them after the variabl
 
 A parameter and a variable may currently have the same name, and are then different
 symbols that print alike: `parameter(:a) + Sym(:a)` prints as `a + a` but is not `2a`.
-Avoid reusing a name in both roles. (Whether to prohibit it is undecided.)
+This will almost certainly change in a future version (most likely to an error), so do
+not rely on it: avoid reusing a name in both roles.
 """
 parameter(s::Symbol) = _mkparam(s)
 parameter(s::AbstractString) = parameter(Symbol(s))

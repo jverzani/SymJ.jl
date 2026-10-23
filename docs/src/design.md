@@ -808,7 +808,8 @@ costs are that a name can't change role within a session, and that everything ru
 one process (the test suite, the documentation build, other packages creating
 variables by name) shares that record. The decision is deferred until it is clearer how
 much parameters are used. The lighter alternative is to keep them separate and print
-parameters distinctly.
+parameters distinctly. Either way the current behavior will almost certainly change,
+and the user-facing documentation says so.
 
 | | variables | parameters |
 |:--|:--|:--|

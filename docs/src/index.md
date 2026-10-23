@@ -171,9 +171,12 @@ g = a * x^2 + b * x
 g(2), solve(g ~ 0, x)
 ```
 
-!!! note "Parameters and variables with the same name"
+!!! warning "Parameters and variables with the same name: this will change"
     A parameter and a variable can currently share a name, as with `parameter(:a)` and
     `Sym(:a)`. They are then different symbols that print alike: their sum prints as
     `a + a` but is not `2a`, and substituting for one leaves the other. Calling with
-    keywords (`ex(; a = 1)`) raises an error for such a name. It is best not to reuse a
-    name in both roles; whether SymJ should prohibit it is an open question.
+    keywords (`ex(; a = 1)`) raises an error for such a name.
+
+    **This behavior will almost certainly change in a future version**, most likely to
+    an error when a name is used in both roles. Do not rely on it: use different names
+    for parameters and variables.
