@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=47202db2">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=8ddab6d4">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -662,6 +662,53 @@ expand(h(c₀) + diff(h, x)(c₀) * (x - c₀))</code></pre>
 </div>
 <pre class="md-output md-output-text"><code class="nohighlight ansi">-3*x + 9</code></pre>
 </div>
+<h2 id="Series" class="md-heading">Series<a href="#Series" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p><code class="md-code-inline">series(ex, x, x0, n)</code> expands <code class="md-code-inline">ex</code> about <code class="md-code-inline">x0</code> with an error of order <code class="md-code-inline">(x - x0)^n</code>; <code class="md-code-inline">x0</code> defaults to 0 and <code class="md-code-inline">n</code> to 6:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">series(sin(x), x)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">x - x^3/6 + x^5/120 + O(x^6)</code></pre>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">series(exp(x), x, 1, 3)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">ℯ + ℯ*(x - 1) + ℯ/2*(x - 1)^2 + O((x - 1)^3)</code></pre>
+</div>
+<p>Laurent series (negative powers), Puiseux series (fractional powers), logarithmic terms and expansions at infinity (in powers of <code class="md-code-inline">1/x</code>) are included:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">series(cot(x), x, 0, 4), series(sqrt(x + x^2), x, 0, 3)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">(1/x - x/3 - x^3/45 + O(x^4), sqrt(x) + x^(3/2)/2 - x^(5/2)/8 + O(x^3))</code></pre>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">series(x^x, x, 0, 3), series(sqrt(x^2 + x), x, Inf, 3)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">(1 + log(x)*x + log(x)^2*x^2/2 + O(x^3), x + 1/2 - 1/(8*x) + 1/(16*x^2) + O(1/x^3))</code></pre>
+</div>
+<p>A series is an object that keeps its error term. Series about the same point can be added, multiplied and divided, with the order tracked, and <code class="md-code-inline">Sym</code> drops the <code class="md-code-inline">O</code> term:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">s, c = series(sin(x), x), series(cos(x), x)
+s / c</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">x + x^3/3 + 2*x^5/15 + O(x^6)</code></pre>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">Sym(s)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">x^5/120 - x^3/6 + x</code></pre>
+</div>
 <h2 id="Integrals" class="md-heading">Integrals<a href="#Integrals" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p>Antiderivatives come from <code class="md-code-inline">integrate</code>, from RischIntegrate, an implementation of the Risch algorithm. It decides whether an elementary antiderivative exists, and finds it:</p>
 <div class="md-multi-output">
@@ -719,8 +766,6 @@ G(x =&gt; Sym(π)) - G(x =&gt; 0)</code></pre>
 </div>
 <h2 id="What-SymJ-does-not-do-yet" class="md-heading">What SymJ does not do yet<a href="#What-SymJ-does-not-do-yet" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <ul class="md-list-tight">
-<li><p><strong>Series.</strong> There is no Taylor series command yet.</p>
-</li>
 <li><p><strong>Simplification under assumptions.</strong> Identities such as <code class="md-code-inline">sqrt(x^2) = x</code> for positive <code class="md-code-inline">x</code> need assumptions, which are not implemented.</p>
 </li>
 <li><p><strong>Matrices and noncommutative algebra.</strong></p>
@@ -757,6 +802,7 @@ G(x =&gt; Sym(π)) - G(x =&gt; 0)</code></pre>
           <a class="md-toc-link md-toc-h2" href="#Derivatives">Derivatives</a>
             <a class="md-toc-link md-toc-h3" href="#Critical-points">Critical points</a>
             <a class="md-toc-link md-toc-h3" href="#Tangent-lines">Tangent lines</a>
+          <a class="md-toc-link md-toc-h2" href="#Series">Series</a>
           <a class="md-toc-link md-toc-h2" href="#Integrals">Integrals</a>
             <a class="md-toc-link md-toc-h3" href="#Definite-integrals">Definite integrals</a>
           <a class="md-toc-link md-toc-h2" href="#What-SymJ-does-not-do-yet">What SymJ does not do yet</a>
@@ -769,6 +815,6 @@ G(x =&gt; Sym(π)) - G(x =&gt; 0)</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=47202db2"></script>
+  <script src="../assets/materialdocs.js?v=8ddab6d4"></script>
 </body>
 </html>

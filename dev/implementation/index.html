@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Implementation — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=28c2d5f9">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=8f5f7d82">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Implementation — SymJ.jl">
   <meta property="og:title" content="Implementation — SymJ.jl">
@@ -204,6 +204,18 @@ end</code></pre>
 </li>
 </ul>
 <p><code class="md-code-inline">&lt;</code> and friends are not used for symbolic inequalities: they keep returning <code class="md-code-inline">true</code> or <code class="md-code-inline">false</code>, which generic code relies on, and raise an error naming the symbolic operator (<code class="md-code-inline">≪</code>, <code class="md-code-inline">≦</code>, …) when given a symbol.</p>
+<h2 id="Series" class="md-heading">Series<a href="#Series" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p><code class="md-code-inline">series</code> substitutes <code class="md-code-inline">x = x0 + t</code> (or <code class="md-code-inline">x = 1/t</code> at infinity) and expands by truncated power series arithmetic in <code class="md-code-inline">t</code>, rather than by repeated differentiation, which breaks down at a pole or a branch point:</p>
+<ul class="md-list-tight">
+<li><p><strong>Exponents are rationals</strong>, so Laurent and Puiseux series need nothing special.</p>
+</li>
+<li><p><strong><code class="md-code-inline">log(t)</code> is kept in the coefficients</strong> as a placeholder symbol, which gives the logarithmic terms of <code class="md-code-inline">x^x = exp(x log x)</code>.</p>
+</li>
+<li><p><strong>Each series carries the order to which it is correct.</strong> A product, a quotient or a cancellation (as in <code class="md-code-inline">(sin(x) - x)/x^3</code>) lowers it, and <code class="md-code-inline">series</code> reruns with more terms until the result is correct to the order asked for.</p>
+</li>
+<li><p><strong>Functions</strong> are expanded by their Taylor coefficients at the constant term of their argument, from the derivative rules; <code class="md-code-inline">tan</code>, <code class="md-code-inline">cot</code>, <code class="md-code-inline">sec</code> and the like go through <code class="md-code-inline">sin</code> and <code class="md-code-inline">cos</code>, so poles come out of a division. An essential singularity, such as <code class="md-code-inline">exp(1/x)</code> at 0, is an error.</p>
+</li>
+</ul>
 <h2 id="Working-with-other-packages" class="md-heading">Working with other packages<a href="#Working-with-other-packages" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p>SymJ implements TermInterface, so generic code that walks terms with <code class="md-code-inline">operation</code> and <code class="md-code-inline">arguments</code> and rebuilds them with <code class="md-code-inline">maketerm</code> works on its expressions. GruntzLimit and RischIntegrate are written this way, for several symbolic systems.</p>
 <p>Julia compiles code the first time it runs, so the first limit or integral would pay for compiling those packages&#39; code for SymJ&#39;s types: about 3 s for the first limit and 4 s for the first integral. SymJ has package extensions for GruntzLimit and RischIntegrate that run a precompilation workload of limits and integrals on SymJ expressions when those packages are installed. The compiled code then ships with the extension, and the first limit takes about 1 ms.</p>
@@ -231,6 +243,7 @@ end</code></pre>
           <a class="md-toc-link md-toc-h2" href="#Factorization">Factorization</a>
           <a class="md-toc-link md-toc-h2" href="#Rational-functions-and-partial-fractions">Rational functions and partial fractions</a>
           <a class="md-toc-link md-toc-h2" href="#Solving">Solving</a>
+          <a class="md-toc-link md-toc-h2" href="#Series">Series</a>
           <a class="md-toc-link md-toc-h2" href="#Working-with-other-packages">Working with other packages</a>
           <a class="md-toc-link md-toc-h2" href="#How-it-compares">How it compares</a>
       </div>
@@ -242,6 +255,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=28c2d5f9"></script>
+  <script src="../assets/materialdocs.js?v=8f5f7d82"></script>
 </body>
 </html>
