@@ -139,6 +139,10 @@ diff(x^x, x), diff(sin(x)^2, x, 2)
 
 Limits and integrals come from two companion packages, which work on SymJ expressions:
 
+!!! note "Julia versions"
+    SymJ and GruntzLimit support Julia 1.10 and later. RischIntegrate needs Julia 1.12 or
+    later, so the integrals here need that version.
+
 ```@example usage
 using GruntzLimit, RischIntegrate
 gruntz_limit(sin(x) / x, x, 0), gruntz_limit((1 + 1 / x)^x, x, Inf)

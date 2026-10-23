@@ -21,6 +21,10 @@ SymJ is written in Julia, aims to be fast, and keeps numbers exact. Limits come 
 [RischIntegrate](https://github.com/jverzani/RischIntegrate.jl), two packages that work on
 the expressions of several symbolic systems, SymJ's among them.
 
+!!! note "Julia versions"
+    SymJ and GruntzLimit support Julia 1.10 and later. RischIntegrate needs Julia 1.12 or
+    later, so the section on integrals needs that version.
+
 ```@example tut
 using SymJ
 using GruntzLimit, RischIntegrate
