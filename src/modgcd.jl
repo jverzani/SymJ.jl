@@ -589,7 +589,7 @@ function _gcd_modular(a::Poly{SymNumber}, b::Poly{SymNumber}; sparse::Bool = fal
     iszero(b) && return _positive(a)
     gs, bits, n = a.gens, a.bits, length(a.gens)
     c = SymNumber(gcd(_int_content(a), _int_content(b)))
-    constant = _constpoly(SymNumber, gs, bits, c)
+    constant = _constpoly(SymNumber, gs, bits, c, UInt64)
     a, b = _primitive(a), _primitive(b)
     (a.monos[1] == 0 || b.monos[1] == 0) && return constant
     lca, lcb = big(_numerator(a.coefs[1])), big(_numerator(b.coefs[1]))

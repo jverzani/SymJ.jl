@@ -289,11 +289,34 @@ import ForwardDiff
         @test p(x => 1, y => 1) == 27
         @test string(Poly(x^2 - 2x * y + 1, x, y)) == "Poly(x^2 - 2*x*y + 1, x, y)"
 
-        # exponent overflow is detected (16 generators -> 4 bits each, max exponent 14)
+        # exponents beyond the 64-bit packing (16 generators: 4 bits, max exponent 14).
+        # Arithmetic keeps the packing (type-stable), so it raises; construction from an
+        # expression, and gcd, factor, cancel, ..., widen to UInt128 or BigInt words.
         g = [Sym(Symbol(:v, i)) for i in 1:16]
         h = Poly(g[1] + 1, g...)
-        @test_throws OverflowError h^15
-        @test nterms(h^14) == 15
+        @test nterms(h^14) == 15 && SymJ._monotype(h^14) === UInt64
+        @test_throws SymJ._PackOverflow h^15
+        @test occursin("widen", sprint(showerror, SymJ._PackOverflow(15)))
+        h15 = Poly((g[1] + 1)^15, g...)
+        @test SymJ._monotype(h15) === UInt128 && nterms(h15) == 16 && Sym(h15) == expand((g[1] + 1)^15)
+        h14w = convert(SymJ.Poly{SymNumber,UInt128}, h^14)
+        @test h15 == h14w * convert(SymJ.Poly{SymNumber,UInt128}, h) && hash(h14w) == hash(h^14) && h14w == h^14
+        @test Poly(g[1]^100 * g[2] * g[3], g...) == Poly(g[1]^100 * g[2], g...) * Poly(g[3], g...)
+        @test degree(Poly(g[1]^(2^40), g...)) == 2^40                     # BigInt words
+        @test SymJ._monotype(Poly(g[1]^(2^40), g...)) === BigInt
+        @test Sym(Poly(g[1]^(2^40) + g[16], g...)) == g[1]^(2^40) + g[16]
+        @test diff(Poly(g[1]^30, g...), g[1]) == Poly(30 * g[1]^29, g...)
+        @test gcd(Poly(g[1]^20 - 1, g...), Poly(g[1]^10 - 1, g...)) == Poly(g[1]^10 - 1, g...)   # widens
+        # division whose remainder outgrows the inputs' degrees (x^k by x + y^5), BigInt words
+        num, den = Poly(g[1]^4 + g[3]^(2^40), g...), Poly(g[1] + g[2]^5 + g[3]^(2^40) * 0, g...)
+        qd, rd = divrem(num, den)
+        @test SymJ._monotype(num) === BigInt
+        @test qd * den + rd == num && rd == Poly(g[2]^20 + g[3]^(2^40), g...)
+        # more than 64 generators
+        g70 = [Sym(Symbol(:u, i)) for i in 1:70]
+        P70 = Poly(sum(g70)^2, g70...)
+        @test nterms(P70) == 70 * 71 ÷ 2 && Sym(P70) == expand(sum(g70)^2)
+        @test gcd(P70, Poly(sum(g70) * g70[1], g70...)) == Poly(sum(g70), g70...)
         @test expand((g[1] + 1)^20) == SymJ._expand_generic((g[1] + 1)^20)  # unaffected (1 generator)
     end
 
@@ -785,6 +808,16 @@ import ForwardDiff
         @test squarefree_part(x^3 - x^2 - x + 1) == (x + 1) * (x - 1)
 
         # on expressions
+        # beyond the 64-bit packing: the slower path, not a refusal or a silent no-op
+        @syms a1 a2 a3 a4 a5 a6 a7 a8
+        @test gcd(x^130 * a1 - a2 + a3 + a4 + a5 + a6 + a7 + a8, x^65 + a1) == 1
+        wg = x^70 + a1 * a2 + a3^2
+        @test gcd(expand(wg * (x - a4 + a5 * a6)), expand(wg * (x + a7 - a8))) == wg
+        @test cancel((x^40 - a1^40) / (x - a1) + a2 + a3 + a4 + a5 + a6 + a7 + a8 + y + z) ==
+              expand(sum(x^k * a1^(39 - k) for k in 0:39)) + a2 + a3 + a4 + a5 + a6 + a7 + a8 + y + z
+        @test factor(expand((x^40 + a1) * (x - a2) * (a3 + a4 + a5 + a6 + a7 + a8 + y + z))) ==
+              (x - a2) * (x^40 + a1) * (a3 + a4 + a5 + a6 + a7 + a8 + y + z)
+
         @test gcd(x^2 - 1, x^2 + 2x + 1) == x + 1
         @test gcd(x^2 * y - y, x * y + y) == x * y + y
         @test lcm(x^2 - 1, x + 1) == x^2 - 1

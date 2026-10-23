@@ -10,13 +10,26 @@
 # Values with different generator lists are combined through Poly's unification, so
 # constants (no generators) mix freely with the rest.
 
+# numerator and denominator in the 64-bit packing (concrete fields keep the arithmetic
+# fast); parameters of degree beyond it are not supported
 struct RatFun
-    num::Poly{SymNumber}
-    den::Poly{SymNumber}
+    num::Poly{SymNumber,UInt64}
+    den::Poly{SymNumber,UInt64}
+    RatFun(n::Poly{SymNumber}, d::Poly{SymNumber}) = new(_rf64(n), _rf64(d))
+end
+_rf64(p::Poly{SymNumber,UInt64}) = p
+function _rf64(p::Poly{SymNumber})
+    try
+        convert(Poly{SymNumber,UInt64}, p)
+    catch err
+        err isa _PackOverflow || rethrow()
+        throw(ArgumentError("rational functions of parameters are limited to exponents " *
+                            "that fit 64 bits ($(64 ÷ max(length(p.gens), 1)) bits each here)"))
+    end
 end
 
 const _NOGENS = Sym[]
-_constpoly0(c::SymNumber) = _constpoly(SymNumber, _NOGENS, 64, c)
+_constpoly0(c::SymNumber) = _constpoly(SymNumber, _NOGENS, 64, c, UInt64)
 
 function RatFun(n::Poly{SymNumber}, d::Poly{SymNumber}, ::Val{:normalize})
     iszero(d) && throw(DivideError())
@@ -27,7 +40,7 @@ function RatFun(n::Poly{SymNumber}, d::Poly{SymNumber}, ::Val{:normalize})
     end
     l = reduce(lcm, (_denominator(c) for c in Iterators.flatten((n.coefs, d.coefs))); init = 1)
     isone(l) || (n = _scale(n, SymNumber(l)); d = _scale(d, SymNumber(l)))
-    g = gcd(n, d)
+    g = _gcd_poly(n, d)
     if !(g.monos[1] == 0 && isone(g.coefs[1]))
         n, d = divexact(n, g), divexact(d, g)
     end
@@ -78,14 +91,18 @@ function _to_ratfun_poly(P::Poly{SymNumber}, i::Int)
     params = P.gens[[j for j in 1:n if j != i]]
     pbits = _polybits(length(params))
     pos = [j for j in 1:n if j != i]
-    groups = Dict{Int,Tuple{Vector{UInt64},Vector{SymNumber}}}()
+    # the parameters' fields: wide enough for P's degrees in them
+    dmax = maximum((_maxdegs(P)[j] for j in pos); init = 0)
+    dmax > _maxexp(pbits) && (pbits = _widerbits(pbits, dmax))
+    M = _monotype(length(params), pbits)
+    groups = Dict{Int,Tuple{Vector{M},Vector{SymNumber}}}()
     for (m, c) in zip(P.monos, P.coefs)
         e = _exponent(m, P.bits, n, i)
-        code = UInt64(0)
+        code = zero(M)
         for (k, j) in enumerate(pos)
-            code |= UInt64(_exponent(m, P.bits, n, j)) << _shift(pbits, length(params), k)
+            code |= M(_exponent(m, P.bits, n, j)) << _shift(pbits, length(params), k)
         end
-        ms, cs = get!(() -> (UInt64[], SymNumber[]), groups, e)
+        ms, cs = get!(() -> (M[], SymNumber[]), groups, e)
         push!(ms, code)
         push!(cs, c)
     end

@@ -12,7 +12,7 @@
 
 # most significant generator present in p or q (0 if both are constants)
 function _mainvar(p::Poly, q::Poly)
-    all = reduce(|, p.monos; init = UInt64(0)) | reduce(|, q.monos; init = UInt64(0))
+    all = reduce(|, p.monos; init = zero(eltype(p.monos))) | reduce(|, q.monos; init = zero(eltype(q.monos)))
     n = length(p.gens)
     for i in 1:n
         (all >> _shift(p.bits, n, i)) & _mask(p.bits) != 0 && return i
@@ -25,8 +25,8 @@ _deg_in(p::Poly, i::Int) = isempty(p.monos) ? -1 : _exponent(p.monos[1], p.bits,
 # coefficients of p as a polynomial in x_i (generators before i absent), highest first
 function _coeffs_in(p::Poly{C}, i::Int) where {C}
     n = length(p.gens)
-    clear = ~(_mask(p.bits) << _shift(p.bits, n, i))
-    out = Poly{C}[]
+    clear = ~(eltype(p.monos)(_mask(p.bits)) << _shift(p.bits, n, i))   # in the word's own width
+    out = typeof(p)[]
     k = 1
     while k <= length(p.monos)
         e = _exponent(p.monos[k], p.bits, n, i)
@@ -57,10 +57,11 @@ end
 # pseudo-remainder of a by b in x_i, up to a factor that is a power of lc(b)
 function _prem(a::Poly{C}, b::Poly{C}, i::Int) where {C}
     db, lcb = _deg_in(b, i), _lc_in(b, i)
-    unit = UInt64(1) << _shift(b.bits, length(b.gens), i)
+    M = eltype(b.monos)
+    unit = one(M) << _shift(b.bits, length(b.gens), i)
     r = a
     while !iszero(r) && (dr = _deg_in(r, i)) >= db
-        r = lcb * r - _lc_in(r, i) * _mul_term(b, unit * UInt64(dr - db), one(C))
+        r = lcb * r - _lc_in(r, i) * _mul_term(b, unit * M(dr - db), one(C))
     end
     r
 end
@@ -72,12 +73,13 @@ end
 
 # gcd of integer-coefficient polynomials over the same generators, positive lc
 function _gcd(a::Poly{C}, b::Poly{C}) where {C}
+    a, b = _unify(a, b)
     iszero(a) && return _positive(b)
     iszero(b) && return _positive(a)
     i = _mainvar(a, b)
     if i == 0
         g = gcd(_numerator(a.coefs[1]), _numerator(b.coefs[1]))
-        return _constpoly(C, a.gens, a.bits, SymNumber(g))
+        return _constpoly(C, a.gens, a.bits, SymNumber(g), _monotype(a))
     end
     _deg_in(a, i) == 0 && return _gcd(a, _content_in(b, i))   # a is free of x_i
     _deg_in(b, i) == 0 && return _gcd(_content_in(a, i), b)
@@ -121,10 +123,17 @@ same either way (it is verified by division).
 _check_gcd_method(m::Symbol) = m in (:dense, :zippel) ? m :
     throw(ArgumentError("the gcd method must be :dense or :zippel, not :$m"))
 
-function Base.gcd(p::Poly{SymNumber}, q::Poly{SymNumber}; method::Symbol = :dense)
+Base.gcd(p::Poly{SymNumber}, q::Poly{SymNumber}; method::Symbol = :dense) =
+    _with_widening(_gcd_poly, p, q; method)
+
+# the gcd within the packing of p and q (internal callers: type-stable)
+function _gcd_poly(p::Poly{SymNumber}, q::Poly{SymNumber}; method::Symbol = :dense)
     _check_gcd_method(method)
     p, q = _unify(p, q)
-    g = _gcd_modular(_integer_scaled(p), _integer_scaled(q); sparse = method === :zippel)
+    # the modular gcd works on 64-bit monomials; wider ones take the PRS (slower)
+    g = _monotype(p) === UInt64 ?
+        _gcd_modular(_integer_scaled(p), _integer_scaled(q); sparse = method === :zippel) :
+        _gcd(_integer_scaled(p), _integer_scaled(q))
     rational = !all(_isint, p.coefs) || !all(_isint, q.coefs)
     rational && !iszero(g) ? _scale(g, inv(g.coefs[1])) : g
 end
@@ -134,10 +143,12 @@ end
 
 Least common multiple, normalized like [`gcd`](@ref), whose `method` it takes.
 """
-function Base.lcm(p::Poly{SymNumber}, q::Poly{SymNumber}; method::Symbol = :dense)
+Base.lcm(p::Poly{SymNumber}, q::Poly{SymNumber}; method::Symbol = :dense) =
+    _with_widening(_lcm_poly, p, q; method)
+function _lcm_poly(p::Poly{SymNumber}, q::Poly{SymNumber}; method::Symbol = :dense)
     p, q = _unify(p, q)
     (iszero(p) || iszero(q)) && return zero(p)
-    _positive(divexact(p * q, gcd(p, q; method)))
+    _positive(divexact(p * q, _gcd_poly(p, q; method)))
 end
 
 """
@@ -147,8 +158,10 @@ end
 GCD and LCM of expressions that are polynomials with numeric coefficients in their
 symbols, computed through [`Poly`](@ref); `method = :zippel` as for polynomials.
 """
-Base.gcd(a::Sym, b::Sym; method::Symbol = :dense) = Sym(gcd(_poly_pair(a, b)...; method))
-Base.lcm(a::Sym, b::Sym; method::Symbol = :dense) = Sym(lcm(_poly_pair(a, b)...; method))
+Base.gcd(a::Sym, b::Sym; method::Symbol = :dense) =
+    _with_widening(() -> Sym(_gcd_poly(_poly_pair(a, b)...; method)))
+Base.lcm(a::Sym, b::Sym; method::Symbol = :dense) =
+    _with_widening(() -> Sym(_lcm_poly(_poly_pair(a, b)...; method)))
 
 function _poly_pair(a::Sym, b::Sym)
     gs = Set{Sym}()

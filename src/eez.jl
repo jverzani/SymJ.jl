@@ -22,8 +22,9 @@ const _P = Poly{SymNumber}
 # terms with exponent e in variable j, that exponent removed (order is preserved)
 function _coeff_of(p::_P, j::Int, e::Int)
     n = length(p.gens)
-    unit = UInt64(e) << _shift(p.bits, n, j)
-    monos, coefs = UInt64[], SymNumber[]
+    M = eltype(p.monos)
+    unit = M(e) << _shift(p.bits, n, j)
+    monos, coefs = M[], SymNumber[]
     for (m, c) in zip(p.monos, p.coefs)
         _exponent(m, p.bits, n, j) == e || continue
         push!(monos, m - unit)
@@ -32,19 +33,19 @@ function _coeff_of(p::_P, j::Int, e::Int)
     _P(p.gens, p.bits, monos, coefs)
 end
 _eval0(p::_P, j::Int) = _coeff_of(p, j, 0)
-_ypow(p::_P, j::Int, m::Int) = UInt64(m) << _shift(p.bits, length(p.gens), j)
 
 # p with y_j replaced by y_j + α
 function _shift_var(p::_P, j::Int, α::Integer)
     iszero(α) && return p
     n = length(p.gens)
     s = _shift(p.bits, n, j)
-    t = _MonoTable{SymNumber}(4 * length(p.monos))
+    M = eltype(p.monos)
+    t = _MonoTable{SymNumber}(4 * length(p.monos), M)
     for (m, c) in zip(p.monos, p.coefs)
         e = _exponent(m, p.bits, n, j)
-        base = m - (UInt64(e) << s)
+        base = m - (M(e) << s)
         for k in 0:e
-            _addto!(t, base + (UInt64(k) << s), c * SymNumber(binomial(big(e), k) * big(α)^(e - k)))
+            _addto!(t, base + (M(k) << s), c * SymNumber(binomial(big(e), k) * big(α)^(e - k)))
         end
     end
     monos, coefs = _contents(t)
@@ -55,15 +56,14 @@ _lcoeff_x(p::_P, xi::Int) = _coeff_of(p, xi, _deg_in_all(p, xi))
 
 function _set_lc(U::_P, xi::Int, newlc::_P)
     d = _deg_in_all(U, xi)
-    xd = _ypow(U, xi, d)
-    U - _mul_term(_coeff_of(U, xi, d), xd, N1) + _mul_term(newlc, xd, N1)
+    U - _mul_genpow(_coeff_of(U, xi, d), xi, d) + _mul_genpow(newlc, xi, d)
 end
 
 # gcd of the coefficients of p as a polynomial in x (a polynomial in the others)
 function _content_x(p::_P, xi::Int)
     g = zero(p)
     for e in unique(_exponent(m, p.bits, length(p.gens), xi) for m in p.monos)
-        g = gcd(g, _coeff_of(p, xi, e))
+        g = _gcd_poly(g, _coeff_of(p, xi, e))
         _isunit(g) && break
     end
     g
@@ -79,10 +79,10 @@ end
 ## multivariate Diophantine equations: Σ σ_i Π_{l≠i} a_l = c with deg_x σ_i < deg_x a_i
 
 struct _DiophantBase
-    us::Vector{_P}          # the univariate factors (all y at 0)
-    s::Vector{_P}           # s_i = (Π_{l≠i} u_l)^(-1) mod u_i
+    us::Vector{<:_P}          # the univariate factors (all y at 0)
+    s::Vector{<:_P}           # s_i = (Π_{l≠i} u_l)^(-1) mod u_i
 end
-function _DiophantBase(us::Vector{_P})
+function _DiophantBase(us::Vector{<:_P})
     s = map(eachindex(us)) do i
         b = foldl(*, (us[l] for l in eachindex(us) if l != i); init = one(us[i]))
         _qinvmod(b, us[i])
@@ -90,7 +90,7 @@ function _DiophantBase(us::Vector{_P})
     _DiophantBase(us, s)
 end
 
-function _mdiophant(as::Vector{_P}, c::_P, vars::Vector{Int}, d::Int, base::_DiophantBase)
+function _mdiophant(as::Vector{<:_P}, c::_P, vars::Vector{Int}, d::Int, base::_DiophantBase)
     if isempty(vars)                             # univariate in x: as == base.us
         return [rem(c * base.s[i], base.us[i]) for i in eachindex(as)]
     end
@@ -105,9 +105,8 @@ function _mdiophant(as::Vector{_P}, c::_P, vars::Vector{Int}, d::Int, base::_Dio
         cm = _coeff_of(e, yj, m)
         iszero(cm) && continue
         Δ = _mdiophant(anew, cm, vars[1:(end-1)], d, base)
-        ym = _ypow(c, yj, m)
         for i in eachindex(σ)
-            δ = _mul_term(Δ[i], ym, N1)
+            δ = _mul_genpow(Δ[i], yj, m)
             σ[i] += δ
             e -= δ * bs[i]
         end
@@ -119,7 +118,7 @@ end
 
 # us: univariate factors (in x) of Q(x, 0) scaled so that Π us = Q(x, 0); lcs: the
 # leading coefficient (in x) each lifted factor must have. The factors, or nothing.
-function _mhensel(Q::_P, us::Vector{_P}, lcs::Vector{_P}, xi::Int, ys::Vector{Int})
+function _mhensel(Q::_P, us::Vector{<:_P}, lcs::Vector{<:_P}, xi::Int, ys::Vector{Int})
     k = length(ys)
     As = Vector{_P}(undef, k + 1)
     As[k+1] = Q
@@ -146,9 +145,8 @@ function _mhensel(Q::_P, us::Vector{_P}, lcs::Vector{_P}, xi::Int, ys::Vector{In
             c = _coeff_of(e, yj, m)
             iszero(c) && continue
             σ = _mdiophant(U1, c, ys[1:(j-1)], dmax, base)
-            ym = _ypow(Q, yj, m)
             for i in eachindex(U)
-                U[i] += _mul_term(σ[i], ym, N1)
+                U[i] += _mul_genpow(σ[i], yj, m)
             end
             e = As[j+1] - foldl(*, U)
         end
@@ -159,7 +157,7 @@ end
 
 # the irreducible factors of qs (shifted: the point is 0), from the univariate
 # factors us of qs(x, 0)
-function _eez_split(qs::_P, us::Vector{_P}, xi::Int, ys::Vector{Int})
+function _eez_split(qs::_P, us::Vector{<:_P}, xi::Int, ys::Vector{Int})
     length(us) == 1 && return [_positive(qs)]
     L = _lcoeff_x(qs, xi)
     L0 = foldl(_eval0, ys; init = L)                 # a constant
@@ -210,7 +208,7 @@ function _wang_nondivisors(E::Vector{BigInt}, cs::BigInt, ct::BigInt)
     result[2:end]
 end
 
-function _eez_wang(qs::_P, H::Vector{_P}, xi::Int, ys::Vector{Int})
+function _eez_wang(qs::_P, H::Vector{<:_P}, xi::Int, ys::Vector{Int})
     L = _lcoeff_x(qs, xi)
     ct, T = factor(L)
     E = BigInt[_constval(t, ys) for (t, _) in T]
@@ -298,7 +296,7 @@ function _factor_eez(q::_P, act::Vector{Int})
         end
         up = Poly{SymNumber}([q.gens[xi]], 64, UInt64[e - 1 for e in length(u):-1:1 if !iszero(u[e])],
                              SymNumber[SymNumber(u[e]) for e in length(u):-1:1 if !iszero(u[e])])
-        gcd(up, diff(up, q.gens[xi])).monos[1] == 0 || continue    # squarefree
+        _gcd_poly(up, diff(up, q.gens[xi])).monos[1] == 0 || continue    # squarefree
         fs = _zassenhaus(_zprimitive(_ztrim!(u)))
         length(fs) == 1 && return [q]                              # irreducible
         ok = _wang_nondivisors(BigInt[ev(t) for (t, _) in T], reduce(gcd, u; init = big(0)),
@@ -318,7 +316,7 @@ function _factor_eez(q::_P, act::Vector{Int})
     s = _shift(q.bits, n, xi)
     us = map(fs) do f
         ks = [e for e in length(f):-1:1 if !iszero(f[e])]
-        _P(q.gens, q.bits, UInt64[UInt64(e - 1) << s for e in ks], SymNumber[SymNumber(f[e]) for e in ks])
+        _P(q.gens, q.bits, eltype(q.monos)[eltype(q.monos)(e - 1) << s for e in ks], SymNumber[SymNumber(f[e]) for e in ks])
     end
     gs = length(us) > 1 ? _eez_wang(qs, us, xi, ys) : nothing
     gs === nothing && (gs = _eez_split(qs, us, xi, ys))

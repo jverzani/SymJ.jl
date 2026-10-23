@@ -237,25 +237,51 @@ bottleneck the fix is a function-id field and a rule table indexed by integer.
 
 ## Polynomials: `Poly{C}`
 
-`Poly{C}` is a sparse multivariate polynomial. Expressions convert with
-`Poly(ex, x, y, …)` and convert back with `Sym(p)`.
+`Poly{C,M}` is a sparse multivariate polynomial. Expressions convert with
+`Poly(ex, x, y, …)` and convert back with `Sym(p)`. `Poly{C}` (any word `M`) is what
+signatures use.
 
 ```julia
-struct Poly{C} <: AbstractSymbolic
+struct Poly{C,M<:Integer} <: AbstractSymbolic
     gens::Vector{Sym}       # generators, most significant first
-    bits::Int               # 64 ÷ length(gens) bits per exponent
-    monos::Vector{UInt64}   # packed exponent vectors, strictly decreasing
+    bits::Int               # bits per exponent field
+    monos::Vector{M}        # packed exponent vectors, strictly decreasing
     coefs::Vector{C}        # nonzero coefficients
 end
 ```
 
-- **Packed monomials.** Each exponent vector is packed into one `UInt64`, with the first
-  generator in the most significant field. Multiplying monomials is integer addition
-  (degree checks rule out carries), and lex order is integer order. So terms are sorted
-  parallel vectors, addition is a linear merge, `diff` is a subtraction, and changing
-  generators means repacking. The all-ones field is reserved, so each exponent is at most
-  `2^bits − 2`, and too high a degree throws an `OverflowError`. For example, 4
-  generators allow degree 65 534 each, and 16 allow 14.
+- **Packed monomials.** Each exponent vector is packed into one integer word, with the
+  first generator in the most significant field. Multiplying monomials is integer
+  addition (degree checks rule out carries), and lex order is integer order. So terms are
+  sorted parallel vectors, addition is a linear merge, `diff` is a subtraction, and
+  changing generators means repacking. The all-ones field is reserved, so each exponent
+  is at most `2^bits − 2`.
+- **Words.** The fast case is a `UInt64` with `64 ÷ ngens` bits per field: 4 generators
+  allow degree 65 534 each, and 16 allow 14. Beyond that a polynomial is packed into a
+  `UInt128` (`128 ÷ ngens` bits), then a `BigInt` (any width). Wider words are slower,
+  but no degree or number of generators is refused.
+  - **Construction widens.** `Poly(ex, …)` picks the narrowest word that holds `ex`.
+  - **Arithmetic keeps its word.** It never changes a polynomial's word, which keeps
+    computations type-stable: when results could change type, multivariate `factor`
+    ran 70% slower. An exponent that doesn't fit throws `_PackOverflow` (shown as an
+    `OverflowError`). `BigInt` words simply grow their fields.
+  - **Entry points restart.** `gcd`, `lcm`, `factor`, `factor_squarefree`,
+    `squarefree_part` on polynomials, and `cancel`, `factor`, `apart`, `gcd`, … on
+    expressions, catch `_PackOverflow`. They rerun the computation with a raised minimum
+    field width (`_with_widening`; task-local, so nested calls compose). Internally
+    they call non-restarting versions (`_gcd_poly`, `_factor_poly`, …), so callers stay
+    type-stable.
+  - **Direct arithmetic.** `p * q`, `p^k` or `divrem` on polynomials built by hand raise
+    rather than widen. Build the polynomial from an expression, or `convert` it to
+    `Poly{C,UInt128}`.
+  - **Limits elsewhere.**
+    - The modular gcd (and so Zippel) works on `UInt64` words; wider polynomials use the
+      PRS gcd.
+    - `RatFun` keeps its numerator and denominator in `UInt64` words (concrete fields
+      keep parameter arithmetic fast), so parameters of very high degree are refused
+      with an error.
+  - **Bug fixed.** `cancel` used to return its input unchanged, silently, when the
+    exponents didn't fit or there were more than 64 symbols.
 - **Products.** Products accumulate in a purpose-built open-addressing table keyed by the
   packed monomial (multiplicative hash, linear probing), then one sort. A generic `Dict`
   was about 3x slower.
@@ -284,7 +310,7 @@ end
   allocations to 26 μs.
 - **`expand` uses `Poly`** whenever the expression is a polynomial with numeric
   coefficients in at most 16 symbols. Anything else (functions, radicals, symbolic
-  exponents, or an exponent overflow) goes through the generic tree expansion. The
+  exponents) goes through the generic tree expansion. The
   generic expansion still calls `expand`, so polynomial subexpressions such as the
   `(x+1)^2` in `sin(x)*(x+1)^2` take the fast path.
 
@@ -303,8 +329,10 @@ is ordinary long division. `div`, `rem`, `divides` and `divexact` are built on i
   `#quotient × #q` table operations; no intermediate polynomial is ever formed.
 - **Coefficients.** Division is exact in the coefficient field (`SymNumber` rationals, or
   `Sym`), so dividing integer polynomials can produce rational coefficients.
-- **Overflow.** Lex division can raise the degrees of the later generators, so each
-  quotient term is checked against the exponent limit.
+- **Overflow.** Lex division can raise the degrees of the later generators (`x^k` by
+  `x + y^5` leaves `±y^(5k)`). Each quotient term is checked against the exponent limit:
+  `BigInt` words widen and retry; fixed-size words throw `_PackOverflow` for an entry
+  point to restart.
 
 ### GCD
 
@@ -493,8 +521,9 @@ then by degree. The input is first reduced to squarefree primitive parts.
   lifts of subsets of the univariate factors, smallest first, find each irreducible
   factor.
 - **Fallback.** Kronecker substitution (`x_i → t^(w_i)`, factoring the univariate image,
-  decoding subset products) is the fallback if packed exponents would overflow, and the
-  reference in the tests. Its image has degree about `Π (deg_i + 1)` and is capped at
+  decoding subset products) is the fallback when the EEZ cannot be used, and the
+  reference in the tests. (An EEZ whose intermediate exponents overflow the packing is
+  rerun with wider words by `factor`.) Its image has degree about `Π (deg_i + 1)` and is capped at
   4000.
 - **Speed.** Against Kronecker:
 
@@ -815,7 +844,9 @@ and a finalizer per operation), which dominates the small benchmarks.
   - Faster LLL for van Hoeij: floating-point LLL on truncated traces (van
     Hoeij–Novocin). The integer LLL is now the main cost of S₆'s 0.76 s.
   - Graded monomial orders.
-  - Wider monomials (`UInt128` or exponent vectors) for many generators or high degree.
+  - Field widths sized to each generator's degree, which would keep more polynomials
+    in one `UInt64`, such as one generator of high degree among many linear ones.
+  - The modular gcd on `UInt128` words.
   - Evaluation by Horner's scheme.
   - Threads for large products.
 - **Hash-consing.** Interning nodes would make equality pointer comparison and save

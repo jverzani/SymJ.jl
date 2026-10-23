@@ -92,20 +92,15 @@ cancel(1/x + 1/x^2)                        # (x + 1)/x^2
 cancel((sin(x)^2 - 1)/(sin(x) + 1))        # sin(x) - 1
 ```
 """
-function cancel(ex::Sym; gcd_method::Symbol = :dense)
+cancel(ex::Sym; gcd_method::Symbol = :dense) = _with_widening(_cancel, ex; gcd_method)
+function _cancel(ex::Sym; gcd_method::Symbol = :dense)
     _check_gcd_method(gcd_method)
     n, d = numer_denom(ex)
     atoms = Set{Sym}()
     (_poly_atoms!(atoms, n) && _poly_atoms!(atoms, d)) || return ex
     gs = sort!(collect(atoms); lt = _lt)
-    length(gs) <= 64 || return ex
-    P, Q = try
-        Poly{SymNumber}(n, gs), Poly{SymNumber}(d, gs)
-    catch err
-        err isa OverflowError || rethrow()
-        return ex                                      # degree too large to pack
-    end
-    g = gcd(P, Q; method = gcd_method)
+    P, Q = Poly{SymNumber}(n, gs), Poly{SymNumber}(d, gs)
+    g = _gcd_poly(P, Q; method = gcd_method)
     P, Q = divexact(P, g), divexact(Q, g)
     if sign(Q.coefs[1]) < 0
         P, Q = -P, -Q

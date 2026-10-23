@@ -43,8 +43,9 @@ Multivariate inputs are factored through Kronecker substitution, whose cost grow
 with the product of the degrees in each variable; very large inputs throw an
 `ArgumentError` rather than run for a long time.
 """
-function factor(p::Poly{SymNumber}; gcd_method::Symbol = :dense)
-    unit, sqf = factor_squarefree(p; gcd_method)
+factor(p::Poly{SymNumber}; gcd_method::Symbol = :dense) = _with_widening(_factor_poly, p; gcd_method)
+function _factor_poly(p::Poly{SymNumber}; gcd_method::Symbol = :dense)
+    unit, sqf = _factor_squarefree_poly(p; gcd_method)
     out = Pair{Poly{SymNumber},Int}[]
     for (q, m) in sqf, g in _factor_sqfree(q)
         push!(out, g => m)
@@ -53,12 +54,13 @@ function factor(p::Poly{SymNumber}; gcd_method::Symbol = :dense)
     unit, out
 end
 
-function factor(ex::Sym; gcd_method::Symbol = :dense)
-    n, d = numer_denom(cancel(ex; gcd_method))
+factor(ex::Sym; gcd_method::Symbol = :dense) = _with_widening(_factor_sym, ex; gcd_method)
+function _factor_sym(ex::Sym; gcd_method::Symbol = :dense)
+    n, d = numer_denom(_cancel(ex; gcd_method))
     atoms = Set{Sym}()
     (_poly_atoms!(atoms, n) && _poly_atoms!(atoms, d)) || return ex
     gs = sort!(collect(atoms); lt = _lt)
-    num, den = factor(Poly{SymNumber}(n, gs); gcd_method), factor(Poly{SymNumber}(d, gs); gcd_method)
+    num, den = _factor_poly(Poly{SymNumber}(n, gs); gcd_method), _factor_poly(Poly{SymNumber}(d, gs); gcd_method)
     _sqf_sym(num...) / _sqf_sym(den...)
 end
 factor(x::Number; gcd_method::Symbol = :dense) = Sym(x)
@@ -90,7 +92,8 @@ function _factor_univariate(q::Poly{SymNumber}, i::Int)
     end
     s = _shift(q.bits, n, i)
     map(_zassenhaus(f)) do g
-        monos = UInt64[UInt64(e - 1) << s for e in length(g):-1:1 if !iszero(g[e])]
+        M = eltype(q.monos)
+        monos = M[M(e - 1) << s for e in length(g):-1:1 if !iszero(g[e])]
         coefs = SymNumber[SymNumber(g[e]) for e in length(g):-1:1 if !iszero(g[e])]
         _positive(Poly{SymNumber}(q.gens, q.bits, monos, coefs))
     end
@@ -407,7 +410,7 @@ function _factor_kronecker(q::Poly{SymNumber}, act::Vector{Int})
     end
     F = Poly{SymNumber}([t], 64, UInt64[e for e in sort!(collect(keys(img)); rev = true)],
                         SymNumber[img[e] for e in sort!(collect(keys(img)); rev = true)])
-    _, ufacs = factor(F)
+    _, ufacs = _factor_poly(F)
     us = Poly{SymNumber}[]
     for (u, m) in ufacs, _ in 1:m
         push!(us, u)
@@ -440,14 +443,15 @@ end
 # does not decode within the degree bounds
 function _kronecker_decode(u::Poly{SymNumber}, q::Poly{SymNumber}, act, degs, w)
     n = length(q.gens)
-    monos, coefs = UInt64[], SymNumber[]
+    M = eltype(q.monos)
+    monos, coefs = M[], SymNumber[]
     for (m, c) in zip(u.monos, u.coefs)
         e = Int(m)
-        code = UInt64(0)
+        code = zero(M)
         for j in length(act):-1:1
             dj, e = divrem(e, w[j])
             dj > degs[j] && return nothing
-            code |= UInt64(dj) << _shift(q.bits, n, act[j])
+            code |= M(dj) << _shift(q.bits, n, act[j])
         end
         push!(monos, code)
         push!(coefs, c)

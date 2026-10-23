@@ -24,9 +24,10 @@ apart((x^3 + 1)/(x^2 - 1))      # x + 1/(x - 1)
 apart(1/((x - a)*(x - b)), x)   # 1/((a - b)*(x - a)) - 1/((a - b)*(x - b))
 ```
 """
-function apart(ex::Sym, x::Sym; gcd_method::Symbol = :dense)
+apart(ex::Sym, x::Sym; gcd_method::Symbol = :dense) = _with_widening(_apart, ex, x; gcd_method)
+function _apart(ex::Sym, x::Sym; gcd_method::Symbol = :dense)
     _isnamed(x) || throw(ArgumentError("apart: $x is not a symbol"))
-    n, d = numer_denom(cancel(ex; gcd_method))
+    n, d = numer_denom(_cancel(ex; gcd_method))
     atoms = Set{Sym}()
     (_poly_atoms!(atoms, n) && _poly_atoms!(atoms, d)) ||
         throw(ArgumentError("apart needs exact coefficients"))
@@ -36,7 +37,7 @@ function apart(ex::Sym, x::Sym; gcd_method::Symbol = :dense)
     q, r = divrem(N, D)
     result = Sym(q)
     iszero(r) && return result
-    c, facs = factor(D)
+    c, facs = _factor_poly(D)
     r = _scale(r, inv(c))
     D = _scale(D, inv(c))
     for (p, m) in facs
@@ -67,7 +68,7 @@ apart(ex::Number, x...; gcd_method::Symbol = :dense) = Sym(ex)
 function _apart_params(n::Sym, d::Sym, x::Sym, params::Vector{Sym}, gcd_method::Symbol = :dense)
     gs = [x; params]
     N, D = Poly{SymNumber}(n, gs), Poly{SymNumber}(d, gs)
-    c, facs = factor(D; gcd_method)
+    c, facs = _factor_poly(D; gcd_method)
     unit = Poly{SymNumber}(Sym(c), gs)
     xfacs = Pair{Poly{SymNumber},Int}[]
     for (p, m) in facs
@@ -95,7 +96,7 @@ end
 
 # c(x) with coefficients in ℚ(params) as (polynomial)/(factored common denominator)
 function _over_common_den(c::Poly{RatFun})
-    L = foldl((l, r) -> lcm(l, r.den), c.coefs; init = one(c.coefs[1].den))
+    L = foldl((l, r) -> _lcm_poly(l, r.den), c.coefs; init = one(c.coefs[1].den))
     num = _add_many(mul(Sym(r.num * divexact(L, _unify(r.den, L)[1])), _monomial(c, m))
                     for (m, r) in zip(c.monos, c.coefs))
     L.monos[1] == 0 ? num / Sym(L) : factor(num) / factor(Sym(L))
