@@ -4,6 +4,7 @@ const HERE = @__DIR__
 const RESULTS = joinpath(HERE, "results")
 const SYSTEMS = [
     ("symj", "SymJ", "with GruntzLimit (limits) and RischIntegrate (integrals)"),
+    ("symbolics", "Symbolics", "SymbolicUtils terms; GruntzLimit and RischIntegrate as for SymJ"),
     ("sympy", "SymPy", "through SymPyPythonCall"),
     ("giac", "Giac", "through Giac.jl"),
 ]
@@ -53,6 +54,7 @@ systems = map(SYSTEMS) do (key, name, how)
         p = split(line, '\t')
         if p[1] == "R"
             t1, t2 = parse(Float64, p[5]), parse(Float64, p[6])
+            isnan(t1) && (t1 = 0.0)                    # not attempted (not available)
             cells[parse(Int, p[2])] = Dict("s" => p[3], "v" => p[4], "t" => round(t1, digits = 4),
                                            "r" => isnan(t2) ? nothing : round(t2, digits = 4),
                                            "o" => length(p) > 6 ? p[7] : "")
@@ -86,7 +88,7 @@ html = replace(read(joinpath(HERE, "template.html"), String), "/*DATA*/null" => 
 write(joinpath(RESULTS, "cas_comparison.html"), html)
 
 # a text summary
-kind(c) = c["s"] == "solved" ? c["v"] : c["s"] in ("timeout", "crash") ? "timeout" : c["s"]
+kind(c) = c["s"] == "solved" ? c["v"] : c["s"] in ("timeout", "crash") ? "timeout" : c["s"]   # or "unavailable"
 println(rpad("area", 20), join((rpad(s["name"], 30) for s in systems)))
 for a in areas
     idx = [p["i"] for p in problems if p["area"] == a]

@@ -23,7 +23,7 @@ open(joinpath(HERE, "results", "commits.tsv"), "w") do io
     foreach(((name, dir),) -> println(io, name, "\t", commit(dir)), checkouts)
 end
 
-for (name, env) in (("symj", "env_symj"), ("sympy", "env_sympy"), ("giac", "env_giac"))
+for (name, env) in (("symj", "env_symj"), ("symbolics", "env_symbolics"), ("sympy", "env_sympy"), ("giac", "env_giac"))
     @info "running $name"
     run(`julia $(joinpath(HERE, "supervise.jl")) $name $env $LIMIT`)
 end

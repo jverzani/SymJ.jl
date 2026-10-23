@@ -10,10 +10,12 @@
 #   NTERMS(ex)               the number of terms of a sum (1 if not a sum)
 #   DENDEG(ex, x)            the degree in x of the denominator
 #   CLEARCACHE()             forget cached results (before the repeat timing)
+#   UNAVAILABLE              (optional) the operations the system does not have
 # Usage: julia --project=ENV worker_X.jl START OUTFILE [STOP] (run by supervise.jl)
 const T_LOADED = time()
 
 const PROBLEMS = include(joinpath(@__DIR__, "problems.jl"))
+isdefined(@__MODULE__, :UNAVAILABLE) || (const UNAVAILABLE = ())
 const ALLVARS = (:x, :y, :z, :w, :t, :a, :b, :c, :d, :n,
                  :v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8, :v9, :v10, :v11, :v12)
 
@@ -246,6 +248,10 @@ show_out(out) = out isa Tuple && length(out) == 2 && out[2] isa AbstractVector ?
 function run_one(io, i)
     area, op, args, expect, _ = PROBLEMS[i]
     println(io, "S\t$i\t", time()); flush(io)
+    if op in UNAVAILABLE                          # recorded, not attempted
+        println(io, "R\t$i\tunavailable\tnone\tNaN\tNaN\tno such function"); flush(io)
+        return
+    end
     t1, t2, out = NaN, NaN, nothing
     t0 = time()
     status, ver, s = try

@@ -1,7 +1,8 @@
 # Computer algebra comparison
 
-SymJ, with GruntzLimit for limits and RischIntegrate for integrals, against SymPy
-(through SymPyPythonCall) and Giac (through Giac.jl), on the everyday tasks of a computer
+SymJ and Symbolics (SymbolicUtils terms), each with GruntzLimit for limits and
+RischIntegrate for integrals, against SymPy (through SymPyPythonCall) and Giac (through
+Giac.jl), on the everyday tasks of a computer
 algebra system. The result is a page, `results/cas_comparison.html`, with a summary
 (counts and times) for each system, the same by area, and a grid of the problems of each
 area; selecting a problem shows each system's answer.
@@ -27,6 +28,7 @@ registry. SymPy is installed by CondaPkg on the first `instantiate`.
 ```sh
 cd bench/cas
 julia --project=env_symj -e 'using Pkg; Pkg.instantiate()'    # once, or after changing a package
+julia --project=env_symbolics -e 'using Pkg; Pkg.instantiate()'
 julia --project=env_sympy -e 'using Pkg; Pkg.instantiate()'
 julia --project=env_giac -e 'using Pkg; Pkg.instantiate()'
 julia run_all.jl            # or `julia run_all.jl 120` for a 120 s limit per problem
@@ -50,11 +52,11 @@ To try a worker on some problems only: `julia --project=env_symj worker_symj.jl 
 | File | Role |
 |---|---|
 | `problems_basic.jl`, `problems_limits.jl`, `problems_integrals.jl` | the problems, as quoted expressions; `problems.jl` puts them in one list of `(area, op, args, expect, source)` |
-| `worker_symj.jl`, `worker_sympy.jl`, `worker_giac.jl` | one per system: loads the packages, makes the variables, and defines the operations (`EXPAND`, `FACTOR`, `GCD`, `CANCEL`, `APART`, `DIFF`, `SOLVE`, `LINSOLVE`, `LIMIT`, `INTEGRATE`) and what the checks need (`EVAL`, `NTERMS`, `DENDEG`, `UNSOLVED`, `CLEARCACHE`) |
+| `worker_symj.jl`, `worker_symbolics.jl`, `worker_sympy.jl`, `worker_giac.jl` | one per system: loads the packages, makes the variables, and defines the operations (`EXPAND`, `FACTOR`, `GCD`, `CANCEL`, `APART`, `DIFF`, `SOLVE`, `LINSOLVE`, `LIMIT`, `INTEGRATE`) and what the checks need (`EVAL`, `NTERMS`, `DENDEG`, `UNSOLVED`, `CLEARCACHE`) |
 | `core.jl` | shared by the workers: builds each problem with the worker's variables, runs and times it, checks the answer, writes a line per problem |
 | `supervise.jl` | runs a worker; if one problem takes longer than the limit, kills the process, records a timeout and restarts at the next problem (from RischIntegrate's benchmark) |
 | `build.jl`, `template.html` | turn the results into the page |
-| `env_symj`, `env_sympy`, `env_giac` | the environments |
+| `env_symj`, `env_symbolics`, `env_sympy`, `env_giac` | the environments |
 
 Each problem is built from its expression with the worker's own variables. Numeric
 constants in the problems (`sqrt(2)`, `log(6)`) are made exact numbers of the system
@@ -73,6 +75,8 @@ What is recorded, for each problem and system:
 - **Not done**: the problem came back unevaluated (`Integral(…)`, `limit(…)`), or no
   limit (`zoo`, `undef`).
 - **Error**, **Timed out or crashed**.
+- **Not available**: the system has no such operation (a worker's `UNAVAILABLE`, e.g.
+  gcd for Symbolics); not attempted.
 
 Times: the first call in a fresh process (compilation included, for Julia packages), and a
 repeated call (after clearing SymPy's cache) when the first took under 15 s.

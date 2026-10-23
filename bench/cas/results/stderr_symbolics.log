@@ -1,0 +1,2 @@
+┌ Warning: This expression cannot be solved with the methods available to ia_solve. Try a numerical method instead.
+└ @ Symbolics ~/.julia/packages/Symbolics/KL0Tx/src/solver/ia_main.jl:52
