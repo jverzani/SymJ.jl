@@ -38,6 +38,12 @@ end
 The two sides of a relation.
 """
 lhs(r::Relation) = r.lhs
+
+"""
+    rhs(r::Relation)
+
+The right side of a relation (see [`lhs`](@ref)).
+"""
 rhs(r::Relation) = r.rhs
 
 const _REL_INFO = Dict(:eq => ("~", ==), :lt => ("≪", <), :le => ("≦", <=),

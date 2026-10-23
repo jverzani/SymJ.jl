@@ -15,24 +15,6 @@
 # catch it and rerun the computation with wider words (`_with_widening`). BigInt words
 # simply grow their fields.
 
-"""
-    Poly{C}
-
-Sparse multivariate polynomial in the generators `gens(p)` with coefficients of type `C`:
-`SymNumber` for numeric coefficients, or `Sym` for symbolic ones. Terms are stored in
-lex order with `gens(p)[1]` most significant.
-
-    Poly(ex, x, y, ...)
-
-Convert the expression `ex` to a polynomial in `x, y, ...`. Coefficients are `SymNumber`
-when they are all numeric, and `Sym` otherwise (so `Poly(a*x^2 + b, x)` has coefficients
-`a` and `b`). Use `Poly{C}(ex, x, ...)` to choose the coefficient type. `Sym(p)` converts
-back. Degrees and the number of generators are unlimited; polynomials whose exponents
-fit in 64 bits (`64 ÷ ngens` bits each) are the fast case, and larger ones are packed
-into wider words. Arithmetic on polynomials keeps their packing: `p * q` or `p^k` whose
-exponents do not fit throws an error, while `Poly`, `gcd`, `factor` and the functions
-on expressions widen and carry on.
-"""
 # Field widths per generator (gens[1] in the most significant field), with the shifts
 # and masks derived from them
 struct _Layout
@@ -53,6 +35,24 @@ end
 Base.:(==)(a::_Layout, b::_Layout) = a === b || a.widths == b.widths
 _total(L::_Layout) = sum(L.widths; init = 0)
 
+"""
+    Poly{C}
+
+Sparse multivariate polynomial in the generators `gens(p)` with coefficients of type `C`:
+`SymNumber` for numeric coefficients, or `Sym` for symbolic ones. Terms are stored in
+lex order with `gens(p)[1]` most significant.
+
+    Poly(ex, x, y, ...)
+
+Convert the expression `ex` to a polynomial in `x, y, ...`. Coefficients are `SymNumber`
+when they are all numeric, and `Sym` otherwise (so `Poly(a*x^2 + b, x)` has coefficients
+`a` and `b`). Use `Poly{C}(ex, x, ...)` to choose the coefficient type. `Sym(p)` converts
+back. Degrees and the number of generators are unlimited; polynomials whose exponents
+fit in 64 bits (`64 ÷ ngens` bits each) are the fast case, and larger ones are packed
+into wider words. Arithmetic on polynomials keeps their packing: `p * q` or `p^k` whose
+exponents do not fit throws an error, while `Poly`, `gcd`, `factor` and the functions
+on expressions widen and carry on.
+"""
 struct Poly{C,M<:Integer} <: AbstractSymbolic
     gens::Vector{Sym}
     layout::_Layout
