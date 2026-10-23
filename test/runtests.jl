@@ -206,6 +206,50 @@ import ForwardDiff
         @test N(lambertw(Sym(-1 // 5), -1)) ≈ -2.542641357773527
     end
 
+    @testset "Gröbner bases" begin
+        @syms gx gy gz gr ga
+        same(A, B) = length(A) == length(B) && all(iszero(expand(a - b)) for (a, b) in zip(A, B))
+        @test same(groebner([gx^2 + gy^2 - 1, gx - gy], gx, gy), [gx - gy, gy^2 - 1 // 2])
+        @test same(groebner([gx^2 + gy^2 - 1, gx - gy], gx, gy; order = :grevlex), [gy^2 - 1 // 2, gx - gy])
+        @test same(groebner([gx * gy - 1, gx^2 + gy^2 - 4], gx, gy), [gx + gy^3 - 4gy, gy^4 - 4gy^2 + 1])
+        @test same(groebner([gx * gy - 1, gx^2 + gy^2 - 4], gx, gy; order = :grevlex),
+                   [gy^3 + gx - 4gy, gx^2 + gy^2 - 4, gx * gy - 1])
+        @test same(groebner([gx + gy + gz, gx * gy + gy * gz + gz * gx, gx * gy * gz - 1], gx, gy, gz),
+                   [gx + gy + gz, gy^2 + gy * gz + gz^2, gz^3 - 1])                        # cyclic-3
+        @test same(groebner([gx + 2gy + 2gz - 1, gx^2 + 2gy^2 + 2gz^2 - gx, 2gx * gy + 2gy * gz - gy], gx, gy, gz),
+                   [gx - 60gz^3 + 158gz^2 / 7 + 8gz / 7 - 1, gy + 30gz^3 - 79gz^2 / 7 + 3gz / 7,
+                    gz^4 - 10gz^3 / 21 + gz^2 / 84 + gz / 84])                              # katsura-2
+        @test groebner([gx - 1, gx - 2], gx) == [1]                                          # no common zero
+        @test same(groebner([gy - gx^2, gz - gx^3], gz, gy, gx), [gz - gx^3, gy - gx^2])     # infinitely many
+        @test same(groebner([gy - gx^2, gz - gx^3], gx, gy, gz; order = :grevlex), [gx^2 - gy, gx * gy - gz, gy^2 - gx * gz])
+        @test same(groebner([gx^2 + gy^2 - gr^2, gx - gy], gx, gy), [gx - gy, gy^2 - gr^2 / 2])   # a parameter
+        @test same(groebner([ga * gx - 1, gx * gy - ga], gx, gy), [gx - 1 / ga, gy - ga^2])
+        @test same(groebner([gx^2 - 2, gy - gx]), [gx - gy, gy^2 - 2])                      # all the symbols
+        @test same(groebner([gx^2 + gy^2 ~ 1, gx ~ gy], gx, gy), [gx - gy, gy^2 - 1 // 2])   # equations
+        @test same(groebner([gx^300 - 1, gx^200 - 1], gx), [gx^100 - 1])
+        vs = [Sym(Symbol("gv$i")) for i in 1:7]                                            # wider words
+        @test same(groebner([vs[i]^200 - vs[i+1] for i in 1:6], vs...; order = :grevlex)[end:end], [vs[6]^200 - vs[7]])
+        # FGLM agrees with lex computed directly, and the inputs are in the ideal
+        for (F, xs) in (([gx^2 + 2gy * gz - 3, gy^2 - gx * gz + 1, gz^2 + gx * gy - 2], [gx, gy, gz]),
+                        ([gx + gy + gz, gx * gy + gy * gz + gz * gx, gx * gy * gz - 1], [gx, gy, gz]))
+            @test same(groebner(F, xs...), SymJ._groebner(F, xs, Sym[], :lex; fglm = false))
+            for ord in (:lex, :grlex, :grevlex)
+                G = groebner(F, xs...; order = ord)
+                @test all(f -> iszero(reduced(f, G, xs...; order = ord)[2]), F)
+            end
+        end
+        # division
+        G = groebner([gx^2 + gy^2 - 1, gx - gy], gx, gy)
+        q, r = reduced(gx^3 + gy, G, gx, gy)
+        @test r == 3gy / 2 && iszero(expand(q[1] * G[1] + q[2] * G[2] + r - (gx^3 + gy)))
+        q, r = reduced(gx^2 * gy - gr * gx, [gx * gy - gr, gy^2 - 1], gx, gy; order = :grevlex)
+        @test iszero(expand(q[1] * (gx * gy - gr) + q[2] * (gy^2 - 1) + r - (gx^2 * gy - gr * gx)))
+        @test_throws ArgumentError groebner([gx], gx; order = :revlex)
+        @test_throws ArgumentError groebner([gx^2 - 0.5], gx)
+        @test_throws ArgumentError groebner([sin(gx) - gy], gx, gy)
+        @test_throws ArgumentError groebner([gx < gy], gx, gy)
+    end
+
     @testset "resultants" begin
         @syms ra rb rc rd re rf rg rh ry rz
         for m in (:auto, :modular, :subresultant)
