@@ -1,6 +1,8 @@
 [deps]
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+GruntzLimit = "549ac5eb-4437-4bd1-88f1-51d4e2fa49c9"
 MaterialDocs = "10bdffc8-969c-4dd4-83f3-742518eccd6b"
+RischIntegrate = "c180fd1b-065d-41df-ac4d-d8d9562c1957"
 SymJ = "73a6d648-42a5-483e-b8b5-fc71c1696ef5"
 
 [sources]
@@ -8,4 +10,6 @@ SymJ = {path = ".."}
 
 [compat]
 Documenter = "1.19.0"
+GruntzLimit = "1"
 MaterialDocs = "0.2.1"
+RischIntegrate = "1"

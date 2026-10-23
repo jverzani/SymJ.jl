@@ -1,4 +1,4 @@
-# Design
+# Design notes
 
 SymJ is a symbolic manipulation kernel written in pure Julia. It aims for SymEngine-class
 speed with a small, explicit core that later layers (simplification, solving, matrices)
