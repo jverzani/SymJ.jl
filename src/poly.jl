@@ -33,23 +33,41 @@ into wider words. Arithmetic on polynomials keeps their packing: `p * q` or `p^k
 exponents do not fit throws an error, while `Poly`, `gcd`, `factor` and the functions
 on expressions widen and carry on.
 """
+# Field widths per generator (gens[1] in the most significant field), with the shifts
+# and masks derived from them
+struct _Layout
+    widths::Vector{Int}
+    shifts::Vector{Int}
+    masks::Vector{UInt64}
+end
+function _Layout(widths::Vector{Int})
+    n = length(widths)
+    shifts = Vector{Int}(undef, n)
+    s = 0
+    for i in n:-1:1
+        shifts[i] = s
+        s += widths[i]
+    end
+    _Layout(widths, shifts, UInt64[_mask(w) for w in widths])
+end
+Base.:(==)(a::_Layout, b::_Layout) = a === b || a.widths == b.widths
+_total(L::_Layout) = sum(L.widths; init = 0)
+
 struct Poly{C,M<:Integer} <: AbstractSymbolic
     gens::Vector{Sym}
-    bits::Int
+    layout::_Layout
     monos::Vector{M}        # strictly decreasing
     coefs::Vector{C}        # nonzero
 end
-Poly{C}(gens::Vector{Sym}, bits::Int, monos::Vector{M}, coefs::Vector) where {C,M<:Integer} =
-    Poly{C,M}(gens, bits, monos, coefs)
+Poly{C}(gens::Vector{Sym}, L::_Layout, monos::Vector{M}, coefs::Vector) where {C,M<:Integer} =
+    Poly{C,M}(gens, L, monos, coefs)
 
 # Storing into a container of polynomials of another word repacks if the exponents fit
 function Base.convert(::Type{Poly{C,M}}, p::Poly{C}) where {C,M}
     p isa Poly{C,M} && return p
-    n = length(p.gens)
-    bits = M === BigInt ? max(p.bits, 128 ÷ max(n, 1) + 1) : _fullbits(M, n)
-    maximum(_maxdegs(p); init = 0) <= _maxexp(bits) && _monotype(n, bits) === M || throw(
-        _PackOverflow(maximum(_maxdegs(p); init = 0)))
-    _repack(p, p.gens, bits, M)
+    L = _layout_in(M, _maxdegs(p))
+    L === nothing && throw(_PackOverflow(maximum(_maxdegs(p); init = 0)))
+    _repack(p, p.gens, L, M)
 end
 
 # an exponent that does not fit the packing in use: caught by `_with_widening`
@@ -60,23 +78,79 @@ Base.showerror(io::IO, err::_PackOverflow) = print(io, "OverflowError: exponent 
     "does not fit the packed exponents of these polynomials; operations such as gcd, ",
     "factor and the functions on expressions widen the packing automatically")
 
-# the word holding n fields of `bits` bits; the widest field of a fixed-size word
-_monotype(n::Int, bits::Int) = n * bits <= 64 ? UInt64 : n * bits <= 128 ? UInt128 : BigInt
-_monotype(p::Poly{C,M}) where {C,M} = M
-_fullbits(::Type{UInt64}, n::Int) = n == 0 ? 64 : 64 ÷ n
-_fullbits(::Type{UInt128}, n::Int) = n == 0 ? 64 : 128 ÷ n
+_mask(bits::Int) = bits == 64 ? typemax(UInt64) : (UInt64(1) << bits) - 1
+# largest allowed exponent; an all-ones field is never used, so the packed monomial
+# typemax(UInt64) (UInt128) is free to serve as the empty-slot marker in `_MonoTable`
+_maxexp(bits::Int) = Int(min(_mask(bits) - 1, UInt64(typemax(Int))))
+_maxexp(L::_Layout, i::Int) = _maxexp(L.widths[i])
+@inline _shift(L::_Layout, n::Int, i::Int) = @inbounds L.shifts[i]
+@inline _fieldmask(L::_Layout, i::Int) = @inbounds L.masks[i]
+@inline _exponent(m::Integer, L::_Layout, n::Int, i::Int) =
+    @inbounds Int((m >> L.shifts[i]) & L.masks[i])
+_fits(L::_Layout, degs) = all(i -> degs[i] <= _maxexp(L, i), eachindex(degs))
 
-# The field width for n generators and exponents up to e: the smallest word that holds
-# them, used in full. Within `_with_widening` a floor (`_minbits`) forces wider words.
+# the width of a field holding exponent e (≤ 62 bits, so exponents stay Ints)
+function _bitsfor(e::Integer)
+    e < 2^61 || throw(OverflowError("exponent $e is too large"))
+    64 - leading_zeros(UInt64(e + 1))
+end
+
+# the word holding a layout; the uniform width of a fixed-size word
+_monotype(L::_Layout) = (t = _total(L); t <= 64 ? UInt64 : t <= 128 ? UInt128 : BigInt)
+_monotype(p::Poly{C,M}) where {C,M} = M
+_capacity(::Type{UInt64}) = 64
+_capacity(::Type{UInt128}) = 128
+_fullbits(::Type{M}, n::Int) where {M} = n == 0 ? 64 : n == 1 && M === UInt64 ? 64 : min(_capacity(M) ÷ n, 62)
+
+# uniform layouts: the full-width ones for up to 64 generators precomputed (no lookup
+# on the common path), others built on demand
+const _UNIFORM64 = [_Layout(fill(_fullbits(UInt64, n), n)) for n in 0:64]
+const _UNIFORM128 = [_Layout(fill(_fullbits(UInt128, n), n)) for n in 0:64]
+function _uniform(n::Int, w::Int)
+    n <= 64 && w == _fullbits(UInt64, n) && return @inbounds _UNIFORM64[n+1]
+    n <= 64 && w == _fullbits(UInt128, n) && return @inbounds _UNIFORM128[n+1]
+    _Layout(fill(w, n))
+end
+
+# Within `_with_widening` a floor (`_minbits`) on every field forces wider words.
 const _MINBITS = :SymJ_poly_minbits
 _minbits() = get(task_local_storage(), _MINBITS, 0)::Int
-function _choosebits(n::Int, e::Integer = 0)
-    b = max(n == 0 ? 64 : max(64 ÷ n, 2), _minbits())
-    e > _maxexp(b) && (b = max(b, _bitsfor(e)))
-    M = _monotype(n, b)
-    M === BigInt ? b : max(b, _fullbits(M, n))
+
+# The layout for exponents up to degs (one per generator), in the narrowest word at
+# least `M0`: the uniform one (the widest equal fields) whenever it holds them, which
+# is nearly always and the same layout for all such polynomials; otherwise fields sized
+# to the degrees, the spare bits shared out as headroom (say one generator of high
+# degree among many linear ones, still in one UInt64).
+function _layout_for(degs::AbstractVector{<:Integer}, ::Type{M0} = UInt64) where {M0}
+    n = length(degs)
+    n == 0 && return _uniform(0, 64)
+    fl = _minbits()
+    # the common case first, without allocating: the uniform UInt64 layout holds degs
+    if fl == 0 && M0 === UInt64
+        u = _fullbits(UInt64, n)
+        emax = _maxexp(u)
+        u >= 1 && all(d -> d <= emax, degs) && return _uniform(n, u)
+    end
+    need = Int[max(_bitsfor(d), fl, 1) for d in degs]
+    for M in (UInt64, UInt128)
+        (M0 === UInt128 && M === UInt64 || M0 === BigInt) && continue
+        u = _fullbits(M, n)
+        u >= 1 && all(<=(u), need) && return _uniform(n, u)
+        cap = _capacity(M)
+        tot = sum(need)
+        tot <= cap || continue
+        spare = cap - tot
+        w = [min(need[i] + spare ÷ n + (i <= spare % n), 62) for i in 1:n]
+        return _Layout(w)
+    end
+    _Layout(Int[min(max(2 * k, 2), 62) for k in need])          # BigInt: room to grow
 end
-_polybits(n::Int) = _choosebits(n)
+# a layout for degs within the word M, or nothing if M cannot hold them
+function _layout_in(::Type{M}, degs) where {M}
+    L = _layout_for(degs, M)
+    (M === BigInt || _total(L) <= _capacity(M)) ? L : nothing
+end
+_polylayout(n::Int) = _layout_for(zeros(Int, n))
 
 # Run f(args...), and if a packed exponent overflows, again with wider words (the
 # polynomial arguments repacked): the slow path, instead of failing.
@@ -94,31 +168,16 @@ function _with_widening(f, args...; kws...)
 end
 _rewiden(x) = x
 function _rewiden(p::Poly)
-    n = length(p.gens)
-    bits = _choosebits(n, maximum(_maxdegs(p); init = 0))
-    bits <= p.bits && _monotype(n, bits) === _monotype(p) ? p : _repack(p, p.gens, bits)
+    L = _layout_for(_maxdegs(p), _monotype(p))
+    L == p.layout ? p : _repack(p, p.gens, L, _monotype(L) === BigInt ? BigInt : promote_type(_monotype(L), _monotype(p)))
 end
-_mask(bits::Int) = bits == 64 ? typemax(UInt64) : (UInt64(1) << bits) - 1
-# largest allowed exponent; an all-ones field is never used, so the packed monomial
-# typemax(UInt64) (UInt128) is free to serve as the empty-slot marker in `_MonoTable`
-_maxexp(bits::Int) = Int(min(_mask(bits) - 1, UInt64(typemax(Int))))
-@inline _shift(bits::Int, n::Int, i::Int) = bits * (n - i)
-@inline _exponent(m::Integer, bits::Int, n::Int, i::Int) = Int((m >> _shift(bits, n, i)) & _mask(bits))
 
-# the width of a field holding exponent e (bits ≤ 62, so exponents stay Ints)
-function _bitsfor(e::Integer)
-    e < 2^61 || throw(OverflowError("exponent $e is too large"))
-    64 - leading_zeros(UInt64(e + 1))
-end
-# a wider field for exponents up to e: at least doubled, so repacking is rare
-_widerbits(bits::Int, e::Integer) = min(max(_bitsfor(e), 2 * bits), 62)
-
-_zeropoly(::Type{C}, gens, bits, ::Type{M} = _monotype(length(gens), bits)) where {C,M} =
-    Poly{C,M}(gens, bits, M[], C[])
-_constpoly(::Type{C}, gens, bits, c, ::Type{M} = _monotype(length(gens), bits)) where {C,M} =
-    iszero(c) ? _zeropoly(C, gens, bits, M) : Poly{C,M}(gens, bits, M[zero(M)], C[c])
-_genpoly(::Type{C}, gens, bits, i::Int, ::Type{M} = _monotype(length(gens), bits)) where {C,M} =
-    Poly{C,M}(gens, bits, M[one(M) << _shift(bits, length(gens), i)], C[one(C)])
+_zeropoly(::Type{C}, gens, L::_Layout, ::Type{M} = _monotype(L)) where {C,M} =
+    Poly{C,M}(gens, L, M[], C[])
+_constpoly(::Type{C}, gens, L::_Layout, c, ::Type{M} = _monotype(L)) where {C,M} =
+    iszero(c) ? _zeropoly(C, gens, L, M) : Poly{C,M}(gens, L, M[zero(M)], C[c])
+_genpoly(::Type{C}, gens, L::_Layout, i::Int, ::Type{M} = _monotype(L)) where {C,M} =
+    Poly{C,M}(gens, L, M[one(M) << _shift(L, length(gens), i)], C[one(C)])
 
 ## accessors
 
@@ -149,7 +208,7 @@ coefficients(p::Poly) = p.coefs
 Exponent vector of each term, in lex order.
 """
 exponent_vectors(p::Poly) =
-    [[_exponent(m, p.bits, length(p.gens), i) for i in eachindex(p.gens)] for m in p.monos]
+    [[_exponent(m, p.layout, length(p.gens), i) for i in eachindex(p.gens)] for m in p.monos]
 
 function _genindex(p::Poly, x::Sym)
     i = findfirst(g -> _eq(g, x), p.gens)
@@ -165,45 +224,47 @@ Total degree, or the degree in the generator `x`. The zero polynomial has degree
 """
 function degree(p::Poly)
     n = length(p.gens)
-    maximum((sum(_exponent(m, p.bits, n, i) for i in 1:n; init = 0) for m in p.monos); init = -1)
+    maximum((sum(_exponent(m, p.layout, n, i) for i in 1:n; init = 0) for m in p.monos); init = -1)
 end
 function degree(p::Poly, x::Sym)
     i, n = _genindex(p, x), length(p.gens)
-    maximum((_exponent(m, p.bits, n, i) for m in p.monos); init = -1)
+    maximum((_exponent(m, p.layout, n, i) for m in p.monos); init = -1)
 end
 
 function _maxdegs(p::Poly)
     n = length(p.gens)
     d = zeros(Int, n)
     for m in p.monos, i in 1:n
-        d[i] = max(d[i], _exponent(m, p.bits, n, i))
+        d[i] = max(d[i], _exponent(m, p.layout, n, i))
     end
     d
 end
 
-# Room for exponents up to e (for a product, the sums of the degrees): fixed-size words
-# throw `_PackOverflow`, BigInt words widen their fields (the type is unchanged)
+# Room for exponents up to degs (for a product, the sums of the degrees): a new layout
+# in the same word if it holds them (type-stable), else `_PackOverflow` (BigInt words
+# always hold them)
 function _fit_product(p::Poly{C,M}, q::Poly{C,M}) where {C,M}
-    e = maximum(a + b for (a, b) in zip(_maxdegs(p), _maxdegs(q)); init = 0)
-    e <= _maxexp(p.bits) && return p, q
-    M === BigInt || throw(_PackOverflow(e))
-    bits = _widerbits(p.bits, e)
-    _repack(p, p.gens, bits, M), _repack(q, q.gens, bits, M)
+    degs = _maxdegs(p) .+ _maxdegs(q)
+    _fits(p.layout, degs) && return p, q
+    L = _layout_in(M, degs)
+    L === nothing && throw(_PackOverflow(maximum(degs)))
+    _repack(p, p.gens, L, M), _repack(q, q.gens, L, M)
 end
-function _fit_exponent(p::Poly{C,M}, e::Integer) where {C,M}
-    e <= _maxexp(p.bits) && return p
-    M === BigInt || throw(_PackOverflow(min(e, typemax(Int))))
-    _repack(p, p.gens, _widerbits(p.bits, e), M)
+function _fit_degrees(p::Poly{C,M}, degs) where {C,M}
+    _fits(p.layout, degs) && return p
+    L = _layout_in(M, degs)
+    L === nothing && throw(_PackOverflow(min(maximum(degs), typemax(Int))))
+    _repack(p, p.gens, L, M)
 end
 
 Base.iszero(p::Poly) = isempty(p.monos)
 Base.isone(p::Poly) = length(p.monos) == 1 && p.monos[1] == 0 && isone(p.coefs[1])
-Base.zero(p::Poly{C,M}) where {C,M} = _zeropoly(C, p.gens, p.bits, M)
-Base.one(p::Poly{C,M}) where {C,M} = _constpoly(C, p.gens, p.bits, one(C), M)
+Base.zero(p::Poly{C,M}) where {C,M} = _zeropoly(C, p.gens, p.layout, M)
+Base.one(p::Poly{C,M}) where {C,M} = _constpoly(C, p.gens, p.layout, one(C), M)
 
 function Base.:(==)(p::Poly, q::Poly)
     _samegens(p, q) || return false
-    p.bits == q.bits && return p.monos == q.monos && p.coefs == q.coefs
+    p.layout == q.layout && return p.monos == q.monos && p.coefs == q.coefs
     length(p.monos) == length(q.monos) && p.coefs == q.coefs &&       # different packings
         exponent_vectors(p) == exponent_vectors(q)
 end
@@ -214,54 +275,58 @@ Base.hash(p::Poly, h::UInt) = hash(p.coefs, hash(exponent_vectors(p), hash(p.gen
 
 _samegens(p::Poly, q::Poly) = p.gens === q.gens || (length(p.gens) == length(q.gens) && all(_eq.(p.gens, q.gens)))
 
-# common generators and field width, in the same word (type-stable): the union of the
+# common generators and layout, in the same word (type-stable): the union of the
 # generators must fit it, else `_PackOverflow`
 function _unify(p::Poly{C,M}, q::Poly{C,M}) where {C,M}
     if _samegens(p, q)
-        p.bits == q.bits && return (p, q)
-        bits = max(p.bits, q.bits)                     # BigInt words of different widths
-        return (_repack(p, p.gens, bits, M), _repack(q, p.gens, bits, M))
+        p.layout == q.layout && return (p, q)
+        degs = max.(_maxdegs(p), _maxdegs(q))
+        L = _fits(p.layout, degs) ? p.layout : _fits(q.layout, degs) ? q.layout : _layout_in(M, degs)
+        L === nothing && throw(_PackOverflow(maximum(degs)))
+        return (_repack(p, p.gens, L, M), _repack(q, p.gens, L, M))
     end
     gs = copy(p.gens)
     for g in q.gens
         any(h -> _eq(g, h), gs) || push!(gs, g)
     end
-    e = max(maximum(_maxdegs(p); init = 0), maximum(_maxdegs(q); init = 0))
-    n = length(gs)
-    bits = M === BigInt ? max(p.bits, q.bits, _bitsfor(e)) : _fullbits(M, n)
-    (_monotype(n, bits) === M && e <= _maxexp(bits)) || throw(_PackOverflow(e))
-    (_repack(p, gs, bits, M), _repack(q, gs, bits, M))
+    degs = zeros(Int, length(gs))
+    for (r, d) in ((p, _maxdegs(p)), (q, _maxdegs(q))), (k, v) in enumerate(r.gens)
+        j = findfirst(g -> _eq(g, v), gs)
+        degs[j] = max(degs[j], d[k])
+    end
+    L = _layout_in(M, degs)
+    L === nothing && throw(_PackOverflow(maximum(degs)))
+    (_repack(p, gs, L, M), _repack(q, gs, L, M))
 end
 # different words: the narrower one widened (not type-stable; only at the boundaries)
 # (explicit M1, M2: with `p::Poly{C}, q::Poly{C}` this method would be chosen over the
 # one above even for equal words)
 function _unify(p::Poly{C,M1}, q::Poly{C,M2}) where {C,M1,M2}
-    sizeof_rank(M) = M === UInt64 ? 1 : M === UInt128 ? 2 : 3
-    if sizeof_rank(_monotype(p)) < sizeof_rank(_monotype(q))
-        q2, p2 = _unify(q, convert(Poly{C,_monotype(q)}, p))
+    rank(M) = M === UInt64 ? 1 : M === UInt128 ? 2 : 3
+    if rank(M1) < rank(M2)
+        q2, p2 = _unify(q, convert(Poly{C,M2}, p))
         return p2, q2
     end
-    _unify(p, convert(Poly{C,_monotype(p)}, q))
+    _unify(p, convert(Poly{C,M1}, q))
 end
 
-_repack(p::Poly{C}, gs::Vector{Sym}, bits::Int) where {C} = _repack(p, gs, bits, _monotype(length(gs), bits))
-function _repack(p::Poly{C}, gs::Vector{Sym}, bits::Int, ::Type{M}) where {C,M}
+_repack(p::Poly{C}, gs::Vector{Sym}, L::_Layout) where {C} = _repack(p, gs, L, _monotype(L))
+function _repack(p::Poly{C}, gs::Vector{Sym}, L::_Layout, ::Type{M}) where {C,M}
     n, np = length(gs), length(p.gens)
-    p isa Poly{C,M} && p.bits == bits && p.gens === gs && return p
+    p isa Poly{C,M} && p.layout == L && p.gens === gs && return p
     pos = [findfirst(g -> _eq(g, v), gs) for v in p.gens]
-    emax = _maxexp(bits)
     monos = Vector{M}(undef, length(p.monos))
     for (k, m) in enumerate(p.monos)
         r = zero(M)
         for i in 1:np
-            e = _exponent(m, p.bits, np, i)
-            e > emax && throw(_PackOverflow(e))
-            r |= M(e) << _shift(bits, n, pos[i])
+            e = _exponent(m, p.layout, np, i)
+            e > _maxexp(L, pos[i]) && throw(_PackOverflow(e))
+            r |= M(e) << _shift(L, n, pos[i])
         end
         monos[k] = r
     end
     perm = sortperm(monos; rev = true)
-    Poly{C,M}(gs, bits, monos[perm], p.coefs[perm])
+    Poly{C,M}(gs, L, monos[perm], p.coefs[perm])
 end
 
 ## arithmetic
@@ -292,10 +357,10 @@ function Base.:+(p::Poly{C}, q::Poly{C}) where {C}
     @inbounds while j <= nb
         k += 1; monos[k] = b[j]; coefs[k] = bc[j]; j += 1
     end
-    Poly{C}(p.gens, p.bits, resize!(monos, k), resize!(coefs, k))
+    Poly{C}(p.gens, p.layout, resize!(monos, k), resize!(coefs, k))
 end
 
-Base.:-(p::Poly{C}) where {C} = Poly{C}(p.gens, p.bits, p.monos, C[-c for c in p.coefs])
+Base.:-(p::Poly{C}) where {C} = Poly{C}(p.gens, p.layout, p.monos, C[-c for c in p.coefs])
 Base.:-(p::Poly{C}, q::Poly{C}) where {C} = p + (-q)
 
 function _scale(p::Poly{C}, c::C) where {C}
@@ -303,21 +368,23 @@ function _scale(p::Poly{C}, c::C) where {C}
     isone(c) && return p
     cs = C[x * c for x in p.coefs]
     keep = findall(!iszero, cs)    # inexact or zero-divisor coefficients may vanish
-    Poly{C}(p.gens, p.bits, p.monos[keep], cs[keep])
+    Poly{C}(p.gens, p.layout, p.monos[keep], cs[keep])
 end
 
 # p * c*m for a single term
 function _mul_term(p::Poly{C}, m::Integer, c::C) where {C}
     cs = C[x * c for x in p.coefs]
     keep = findall(!iszero, cs)
-    Poly{C}(p.gens, p.bits, p.monos[keep] .+ m, cs[keep])
+    Poly{C}(p.gens, p.layout, p.monos[keep] .+ m, cs[keep])
 end
 
 # p * x_j^e, widened if the exponent needs it (safe where a packed unit is not)
 function _mul_genpow(p::Poly{C}, j::Int, e::Int) where {C}
     (iszero(p) || e == 0) && return p
-    p = _fit_exponent(p, _maxdegs(p)[j] + e)
-    _mul_term(p, _monotype(p)(e) << _shift(p.bits, length(p.gens), j), one(C))
+    degs = _maxdegs(p)
+    degs[j] += e
+    p = _fit_degrees(p, degs)
+    _mul_term(p, _monotype(p)(e) << _shift(p.layout, length(p.gens), j), one(C))
 end
 
 function Base.:*(p::Poly{C}, q::Poly{C}) where {C}
@@ -333,7 +400,7 @@ function Base.:*(p::Poly{C}, q::Poly{C}) where {C}
     t = _MonoTable{C}(length(p.monos) + length(q.monos), _monotype(p))
     _mul_into!(t, p.monos, p.coefs, q.monos, q.coefs)
     monos, coefs = _contents(t)
-    _sorted_poly(p.gens, p.bits, monos, coefs)
+    _sorted_poly(p.gens, p.layout, monos, coefs)
 end
 
 # Integer coefficients that fit in Int: accumulate in Int128 when the bound
@@ -348,7 +415,7 @@ function _mul_smallint(p::Poly{SymNumber}, q::Poly{SymNumber})
     t = _MonoTable{Int128}(length(p.monos) + length(q.monos), _monotype(p))
     _mul_into!(t, p.monos, Int128[c.n for c in p.coefs], q.monos, Int128[c.n for c in q.coefs])
     monos, acc = _contents(t)
-    _sorted_poly(p.gens, p.bits, monos, SymNumber[SymNumber(a) for a in acc])
+    _sorted_poly(p.gens, p.layout, monos, SymNumber[SymNumber(a) for a in acc])
 end
 
 # Open-addressing hash table from packed monomial to accumulated coefficient.
@@ -437,20 +504,20 @@ function _contents(t::_MonoTable{M,T}) where {M,T}
     monos, vals
 end
 
-function _sorted_poly(gs, bits, monos::Vector{<:Integer}, coefs::Vector{C}) where {C}
+function _sorted_poly(gs, L, monos::Vector{<:Integer}, coefs::Vector{C}) where {C}
     perm = sortperm(monos; rev = true)
     keep = filter(k -> !iszero(coefs[k]), perm)
-    Poly{C}(gs, bits, monos[keep], coefs[keep])
+    Poly{C}(gs, L, monos[keep], coefs[keep])
 end
 
 function Base.:^(p::Poly{C}, k::Integer) where {C}
     k < 0 && throw(DomainError(k, "negative powers of polynomials are not polynomials"))
     k == 0 && return one(p)
     k == 1 && return p
-    p = _fit_exponent(p, min(maximum(_maxdegs(p); init = 0) * big(k), big(typemax(Int))))
+    p = _fit_degrees(p, [Int(min(d * big(k), big(typemax(Int)))) for d in _maxdegs(p)])
     degs = _maxdegs(p)
     t = length(p.monos)
-    t == 1 && return Poly{C}(p.gens, p.bits, [p.monos[1] * _monotype(p)(k)], [p.coefs[1]^k])
+    t == 1 && return Poly{C}(p.gens, p.layout, [p.monos[1] * _monotype(p)(k)], [p.coefs[1]^k])
     # The multinomial theorem computes each composition of k once, which is the result
     # size when few compositions share a monomial. Many collide when the base is dense
     # (e.g. 1 + x + ... + x^9), and then repeated multiplication by the small base is
@@ -474,10 +541,10 @@ function _multinomial_pow(p::Poly{C}, k::Int) where {C}
     if C === SymNumber && all(_isint, p.coefs)
         T = sum(c -> abs(big(_numerator(c))), p.coefs)^k < big(2)^125 ? Int128 : BigInt
         monos, coefs = _multinomial_terms(p.monos, T[T(_numerator(c)) for c in p.coefs], k, one(T))
-        return _sorted_poly(p.gens, p.bits, monos, SymNumber[SymNumber(c) for c in coefs])
+        return _sorted_poly(p.gens, p.layout, monos, SymNumber[SymNumber(c) for c in coefs])
     end
     monos, coefs = _multinomial_terms(p.monos, p.coefs, k, N1)
-    _sorted_poly(p.gens, p.bits, monos, coefs)
+    _sorted_poly(p.gens, p.layout, monos, coefs)
 end
 
 function _multinomial_terms(ms::Vector{M}, cs::Vector{T}, k::Int, b1) where {M,T}
@@ -510,9 +577,9 @@ function _multinomial!(table::_MonoTable{M,T}, ms, cpow, i::Int, rem::Int, coef:
 end
 
 # scalars and expressions lift into the polynomial's ring
-_lift(p::Poly{C,M}, x::Number) where {C,M} = _constpoly(C, p.gens, p.bits, _tocoef(C, Sym(x)), M)
+_lift(p::Poly{C,M}, x::Number) where {C,M} = _constpoly(C, p.gens, p.layout, _tocoef(C, Sym(x)), M)
 _lift(p::Poly{C,M}, x::Sym) where {C,M} =
-    _topoly(C, M, x, p.gens, p.bits, Dict{Sym,Int}(g => i for (i, g) in enumerate(p.gens)))
+    _topoly(C, M, x, p.gens, p.layout, Dict{Sym,Int}(g => i for (i, g) in enumerate(p.gens)))
 for op in (:+, :-, :*)
     @eval Base.$op(p::Poly, x::Union{Number,Sym}) = $op(p, _lift(p, x))
     @eval Base.$op(x::Union{Number,Sym}, p::Poly) = $op(_lift(p, x), p)
@@ -527,15 +594,15 @@ function Base.diff(p::Poly{C,M}, x::Sym) where {C,M}
     i = findfirst(g -> _eq(g, x), p.gens)
     i === nothing && return zero(p)
     n = length(p.gens)
-    unit = one(M) << _shift(p.bits, n, i)
+    unit = one(M) << _shift(p.layout, n, i)
     monos, coefs = M[], C[]
     for (m, c) in zip(p.monos, p.coefs)
-        e = _exponent(m, p.bits, n, i)
+        e = _exponent(m, p.layout, n, i)
         e == 0 && continue
         push!(monos, m - unit)     # order is preserved: same unit removed from each
         push!(coefs, c * _tocoef(C, Sym(e)))
     end
-    Poly{C}(p.gens, p.bits, monos, coefs)
+    Poly{C}(p.gens, p.layout, monos, coefs)
 end
 
 ## conversion from expressions
@@ -559,17 +626,73 @@ function Poly{C}(ex::Sym, gs::Vector{Sym}) where {C}
     all(g -> g.kind != NUMBER, gs) || throw(ArgumentError("generators must not be numbers"))
     index = Dict{Sym,Int}(g => i for (i, g) in enumerate(gs))
     n = length(gs)
-    bits = _choosebits(n)
-    while true
-        try
-            return _topoly(C, _monotype(n, bits), ex, gs, bits, index)
-        catch err
-            err isa _PackOverflow || rethrow()
-            bits = max(_choosebits(n, err.e), bits + 1)   # again, with wider words
-            M = _monotype(n, bits)
-            M === BigInt || (bits = _fullbits(M, n))
-        end
+    # the uniform layout nearly always holds ex; if not, a layout from bounds on its
+    # degrees (products and powers inside find room for themselves)
+    L = _polylayout(n)
+    try
+        return _topoly(C, _monotype(L), ex, gs, L, index)
+    catch err
+        err isa _PackOverflow || rethrow()
     end
+    L = _layout_for(_degbound(ex, index, n))
+    _topoly(C, _monotype(L), ex, gs, L, index)
+end
+
+# an upper bound on the degree of ex in each generator (exact for an expanded sum)
+function _degbound(ex::Sym, index, n::Int)
+    d = zeros(Int, n)
+    _degbound!(d, zeros(Int, n), ex, index)
+    d
+end
+# d .= max.(d, the degrees of ex); t is scratch
+function _degbound!(d, t, ex::Sym, index)
+    if ex.kind == ADD
+        for a in ex.args
+            if _monodeg!(t, a, index)
+                d .= max.(d, t)
+            else
+                d .= max.(d, _degbound(a, index, length(d)))
+            end
+        end
+    elseif _monodeg!(t, ex, index)
+        d .= max.(d, t)
+    else                                                # a product: degrees add
+        s = zeros(Int, length(d))
+        factors = ex.kind == MUL ? [_mkpow(ex.args[i], ex.exps[i]) for i in eachindex(ex.args)] : [ex]
+        for f in factors
+            if f.kind == POW && _nonneg_int(f.args[2])
+                s .+= _toint(f.args[2].num) .* _degbound(f.args[1], index, length(d))
+            elseif _monodeg!(t, f, index)
+                s .+= t
+            elseif f.kind == ADD
+                s .+= _degbound(f, index, length(d))
+            end                         # else not polynomial: `_topoly` reports it
+        end
+        d .= max.(d, s)
+    end
+    d
+end
+# t = the exponents of a product of generator powers or a constant (true), else false
+function _monodeg!(t, ex::Sym, index)
+    fill!(t, 0)
+    i = get(index, ex, 0)
+    i > 0 && (t[i] = 1; return true)
+    k = ex.kind
+    if k == POW
+        i = get(index, ex.args[1], 0)
+        i > 0 && _nonneg_int(ex.args[2]) && (t[i] = _toint(ex.args[2].num); return true)
+        return !any(g -> has(ex, g), keys(index))
+    elseif k == MUL
+        for j in eachindex(ex.args)
+            i = get(index, ex.args[j], 0)
+            (i > 0 && _nonneg_int(ex.exps[j])) || return !any(g -> has(ex, g), keys(index))
+            t[i] += _toint(ex.exps[j].num)
+        end
+        return true
+    elseif k == ADD
+        return false
+    end
+    true                                                # a number or other constant
 end
 
 function _has_numeric_coefs(ex::Sym, gs::Vector{Sym})
@@ -582,54 +705,54 @@ function _has_numeric_coefs(ex::Sym, gs::Vector{Sym})
     false
 end
 
-function _topoly(::Type{C}, ::Type{M}, ex::Sym, gs, bits, index) where {C,M}
+function _topoly(::Type{C}, ::Type{M}, ex::Sym, gs, L::_Layout, index) where {C,M}
     i = get(index, ex, 0)
-    i > 0 && return _genpoly(C, gs, bits, i, M)
+    i > 0 && return _genpoly(C, gs, L, i, M)
     k = ex.kind
-    k == NUMBER && return _constpoly(C, gs, bits, _tocoef(C, ex), M)
+    k == NUMBER && return _constpoly(C, gs, L, _tocoef(C, ex), M)
     if k == ADD
         monos, coefs = M[], C[]
         iszero(ex.num) || (push!(monos, 0); push!(coefs, _tocoef(C, ex.num)))
         parts = Poly{C,M}[]
         for i in eachindex(ex.args)
-            m = _monocode(M, ex.args[i], index, bits, length(gs))
+            m = _monocode(M, ex.args[i], index, L, length(gs))
             if m === nothing
-                push!(parts, _scale(_topoly(C, M, ex.args[i], gs, bits, index), _tocoef(C, ex.coefs[i])))
+                push!(parts, _scale(_topoly(C, M, ex.args[i], gs, L, index), _tocoef(C, ex.coefs[i])))
             else
                 push!(monos, m)
                 push!(coefs, _tocoef(C, ex.coefs[i]))
             end
         end
-        push!(parts, Poly{C,M}(gs, bits, monos, coefs))   # unsorted; `_sum_polys` sorts
-        return _sum_polys(C, M, gs, bits, parts)
+        push!(parts, Poly{C,M}(gs, L, monos, coefs))   # unsorted; `_sum_polys` sorts
+        return _sum_polys(C, M, gs, L, parts)
     elseif k == MUL
-        r = _constpoly(C, gs, bits, _tocoef(C, ex.num), M)
+        r = _constpoly(C, gs, L, _tocoef(C, ex.num), M)
         for i in eachindex(ex.args)
-            r = r * _topoly(C, M, _mkpow(ex.args[i], ex.exps[i]), gs, bits, index)
+            r = r * _topoly(C, M, _mkpow(ex.args[i], ex.exps[i]), gs, L, index)
         end
         return r
     elseif k == POW && _nonneg_int(ex.args[2])
-        return _topoly(C, M, ex.args[1], gs, bits, index)^_toint(ex.args[2].num)
+        return _topoly(C, M, ex.args[1], gs, L, index)^_toint(ex.args[2].num)
     end
     any(g -> has(ex, g), gs) && throw(ArgumentError("$ex is not polynomial in $(join(gs, ", "))"))
-    _constpoly(C, gs, bits, _tocoef(C, ex), M)
+    _constpoly(C, gs, L, _tocoef(C, ex), M)
 end
 
 # packed monomial of a product of generator powers, or `nothing`
-function _monocode(::Type{M}, ex::Sym, index, bits::Int, n::Int) where {M}
+function _monocode(::Type{M}, ex::Sym, index, L::_Layout, n::Int) where {M}
     i = get(index, ex, 0)
-    i > 0 && return one(M) << _shift(bits, n, i)
+    i > 0 && return one(M) << _shift(L, n, i)
     k = ex.kind
     if k == POW
         i = get(index, ex.args[1], 0)
         (i > 0 && _nonneg_int(ex.args[2])) || return nothing
         e = _toint(ex.args[2].num)
-        e > _maxexp(bits) && throw(_PackOverflow(e))
-        return M(e) << _shift(bits, n, i)
+        e > _maxexp(L, i) && throw(_PackOverflow(e))
+        return M(e) << _shift(L, n, i)
     elseif k == MUL && _isN1(ex.num)
         m = zero(M)
         for j in eachindex(ex.args)
-            mj = _monocode(M, _mkpow(ex.args[j], ex.exps[j]), index, bits, n)
+            mj = _monocode(M, _mkpow(ex.args[j], ex.exps[j]), index, L, n)
             mj === nothing && return nothing
             m += mj               # distinct bases: distinct fields, no carries
         end
@@ -639,11 +762,14 @@ function _monocode(::Type{M}, ex::Sym, index, bits::Int, n::Int) where {M}
 end
 
 # sum of many polynomials: concatenate, sort once, combine runs
-function _sum_polys(::Type{C}, ::Type{M}, gs, bits, ps) where {C,M}
-    # BigInt parts may have grown their fields: bring all to the widest
-    wb = maximum(p -> p.bits, ps; init = bits)
-    wb == bits || (ps = [_repack(p, gs, wb, M) for p in ps])
-    bits = wb
+function _sum_polys(::Type{C}, ::Type{M}, gs, L, ps) where {C,M}
+    # parts built in other layouts (none, given the degree bounds): bring all to one
+    if any(p -> !(p.layout == L), ps)
+        degs = reduce((a, p) -> max.(a, _maxdegs(p)), ps; init = zeros(Int, length(gs)))
+        L = _layout_in(M, degs)
+        L === nothing && throw(_PackOverflow(maximum(degs)))
+        ps = [_repack(p, gs, L, M) for p in ps]
+    end
     monos = reduce(vcat, (p.monos for p in ps); init = M[])
     coefs = reduce(vcat, (p.coefs for p in ps); init = C[])
     perm = sortperm(monos; rev = true)
@@ -657,7 +783,7 @@ function _sum_polys(::Type{C}, ::Type{M}, gs, bits, ps) where {C,M}
         end
     end
     keep = findall(!iszero, oc)
-    Poly{C}(gs, bits, om[keep], oc[keep])
+    Poly{C}(gs, L, om[keep], oc[keep])
 end
 
 ## conversion to expressions
@@ -674,7 +800,7 @@ function _monomial(p::Poly, m::Integer)
     n = length(p.gens)
     r = ONE
     for i in 1:n
-        e = _exponent(m, p.bits, n, i)
+        e = _exponent(m, p.layout, n, i)
         e > 0 && (r = mul(r, pow(p.gens[i], Sym(e))))
     end
     r
@@ -685,9 +811,9 @@ end
 function _sym_fast(p::Poly{SymNumber})
     n = length(p.gens)
     order = sortperm(p.gens; lt = _lt)
-    shifts = [_shift(p.bits, n, i) for i in order]
+    shifts = [_shift(p.layout, n, i) for i in order]
+    masks = [_fieldmask(p.layout, i) for i in order]
     gens = p.gens[order]
-    mask = _mask(p.bits)
     keys = Vector{Sym}(undef, length(p.monos))
     coefs = Vector{SymNumber}(undef, length(p.monos))
     c0 = N0
@@ -698,13 +824,13 @@ function _sym_fast(p::Poly{SymNumber})
             continue
         end
         cnt = 0                                   # exact sizes: no growing by push!
-        for s in shifts
+        for (s, mask) in zip(shifts, masks)
             (m >> s) & mask == 0 || (cnt += 1)
         end
         bases = Vector{Sym}(undef, cnt)
         exps = Vector{Sym}(undef, cnt)
         j = 0
-        for (g, s) in zip(gens, shifts)
+        for (g, s, mask) in zip(gens, shifts, masks)
             e = Int((m >> s) & mask)
             e > 0 || continue
             j += 1

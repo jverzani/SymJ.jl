@@ -289,29 +289,38 @@ import ForwardDiff
         @test p(x => 1, y => 1) == 27
         @test string(Poly(x^2 - 2x * y + 1, x, y)) == "Poly(x^2 - 2*x*y + 1, x, y)"
 
-        # exponents beyond the 64-bit packing (16 generators: 4 bits, max exponent 14).
-        # Arithmetic keeps the packing (type-stable), so it raises; construction from an
-        # expression, and gcd, factor, cancel, ..., widen to UInt128 or BigInt words.
+        # Exponents beyond the uniform packing (16 generators: 4 bits each, max 14). A
+        # field too small gets a new layout in the same word (fields sized per generator);
+        # past the word, construction and gcd, factor, cancel, ... widen to UInt128 or
+        # BigInt, while direct arithmetic (type-stable) raises.
         g = [Sym(Symbol(:v, i)) for i in 1:16]
         h = Poly(g[1] + 1, g...)
-        @test nterms(h^14) == 15 && SymJ._monotype(h^14) === UInt64
-        @test_throws SymJ._PackOverflow h^15
+        @test h.layout == SymJ._uniform(16, 4)
+        @test nterms(h^14) == 15 && (h^14).layout == h.layout
+        h15 = h^15                                       # g[1] needs 5 bits: new layout
+        @test SymJ._monotype(h15) === UInt64 && h15.layout != h.layout
+        @test nterms(h15) == 16 && Sym(h15) == expand((g[1] + 1)^15) && h15 == h^14 * h
+        @test hash(h15) == hash(Poly((g[1] + 1)^15, g...))
+        hs = Poly(sum(g) + 1, g...)
+        @test_throws SymJ._PackOverflow hs^15            # 16 fields of 5 bits: not in a UInt64
         @test occursin("widen", sprint(showerror, SymJ._PackOverflow(15)))
-        h15 = Poly((g[1] + 1)^15, g...)
-        @test SymJ._monotype(h15) === UInt128 && nterms(h15) == 16 && Sym(h15) == expand((g[1] + 1)^15)
-        h14w = convert(SymJ.Poly{SymNumber,UInt128}, h^14)
-        @test h15 == h14w * convert(SymJ.Poly{SymNumber,UInt128}, h) && hash(h14w) == hash(h^14) && h14w == h^14
+        @test SymJ._monotype(Poly(prod(g)^15, g...)) === UInt128
+        @test SymJ._monotype(Poly(prod(g)^(2^40), g...)) === BigInt
+        x40 = Poly(g[1]^(2^40) + g[16], g...)           # one high degree among 16: one UInt64
+        @test SymJ._monotype(x40) === UInt64 && degree(x40) == 2^40 && Sym(x40) == g[1]^(2^40) + g[16]
+        w = convert(SymJ.Poly{SymNumber,UInt128}, h^14)
+        @test w == h^14 && hash(w) == hash(h^14) && w * convert(SymJ.Poly{SymNumber,UInt128}, h) == h15
         @test Poly(g[1]^100 * g[2] * g[3], g...) == Poly(g[1]^100 * g[2], g...) * Poly(g[3], g...)
-        @test degree(Poly(g[1]^(2^40), g...)) == 2^40                     # BigInt words
-        @test SymJ._monotype(Poly(g[1]^(2^40), g...)) === BigInt
-        @test Sym(Poly(g[1]^(2^40) + g[16], g...)) == g[1]^(2^40) + g[16]
         @test diff(Poly(g[1]^30, g...), g[1]) == Poly(30 * g[1]^29, g...)
-        @test gcd(Poly(g[1]^20 - 1, g...), Poly(g[1]^10 - 1, g...)) == Poly(g[1]^10 - 1, g...)   # widens
-        # division whose remainder outgrows the inputs' degrees (x^k by x + y^5), BigInt words
-        num, den = Poly(g[1]^4 + g[3]^(2^40), g...), Poly(g[1] + g[2]^5 + g[3]^(2^40) * 0, g...)
+        @test gcd(Poly(g[1]^20 - 1, g...), Poly(g[1]^10 - 1, g...)) == Poly(g[1]^10 - 1, g...)
+        # division whose remainder outgrows the inputs' degrees (x^k by x + y^5)
+        qd, rd = divrem(Poly(g[1]^4, g...), Poly(g[1] + g[2]^5, g...))
+        @test rd == Poly(g[2]^20, g...) && qd * Poly(g[1] + g[2]^5, g...) + rd == Poly(g[1]^4, g...)
+        big14 = prod(g[3:16])^(2^40)                     # BigInt words
+        num, den = Poly(g[1]^4 + big14, g...), Poly(g[1] + g[2]^5, g...)
         qd, rd = divrem(num, den)
         @test SymJ._monotype(num) === BigInt
-        @test qd * den + rd == num && rd == Poly(g[2]^20 + g[3]^(2^40), g...)
+        @test qd * den + rd == num && rd == Poly(g[2]^20 + big14, g...)
         # more than 64 generators
         g70 = [Sym(Symbol(:u, i)) for i in 1:70]
         P70 = Poly(sum(g70)^2, g70...)
@@ -689,7 +698,7 @@ import ForwardDiff
             a, b = randpoly(6, 4), randpoly(3, 3)
             q, r = divrem(a, b)
             @test q * b + r == a
-            @test !any(m -> SymJ._mono_divides(b.monos[1], m, b.bits, 3), r.monos)
+            @test !any(m -> SymJ._mono_divides(b.monos[1], m, b.layout, 3), r.monos)
         end
 
         # gcd

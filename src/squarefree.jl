@@ -77,15 +77,15 @@ end
 function _diff_in(p::Poly{C}, i::Int) where {C}
     n = length(p.gens)
     M = eltype(p.monos)
-    unit = one(M) << _shift(p.bits, n, i)
+    unit = one(M) << _shift(p.layout, n, i)
     monos, coefs = M[], C[]
     for (m, c) in zip(p.monos, p.coefs)
-        e = _exponent(m, p.bits, n, i)
+        e = _exponent(m, p.layout, n, i)
         e == 0 && continue
         push!(monos, m - unit)
         push!(coefs, c * SymNumber(e))
     end
-    Poly{C}(p.gens, p.bits, monos, coefs)
+    Poly{C}(p.gens, p.layout, monos, coefs)
 end
 
 # Yun's algorithm for f primitive in x_i (every factor involves x_i)

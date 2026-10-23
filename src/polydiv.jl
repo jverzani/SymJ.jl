@@ -40,10 +40,9 @@ function _heappop!(h::Vector{M}) where {M}
 end
 
 # does monomial a divide monomial m?
-@inline function _mono_divides(a::M, m::M, bits::Int, n::Int) where {M}
-    mask = _mask(bits)
+@inline function _mono_divides(a::M, m::M, L::_Layout, n::Int) where {M}
     for i in 1:n
-        s = _shift(bits, n, i)
+        s, mask = _shift(L, n, i), _fieldmask(L, i)
         (a >> s) & mask > (m >> s) & mask && return false
     end
     true
@@ -63,24 +62,33 @@ function Base.divrem(p::Poly{C}, q::Poly{C}) where {C}
     _divrem_fit(p, q)
 end
 
-# the remainder's degrees can exceed the inputs' (x^k by x + y^5): BigInt words widen
-# their fields and retry; fixed-size words throw `_PackOverflow` for the caller
+# The remainder's degrees can exceed the inputs' (x^k by x + y^5): a layout with room
+# for twice the exponent that did not fit, in the same word, and again; if the word
+# cannot hold it, `_PackOverflow` for the caller
 function _divrem_fit(p::Poly{C,M}, q::Poly{C,M}) where {C,M}
     while true
         try
             return _divrem(p, q)
         catch err
-            (err isa _PackOverflow && M === BigInt) || rethrow()
-            bits = _widerbits(p.bits, err.e)
-            p, q = _repack(p, p.gens, bits, M), _repack(q, q.gens, bits, M)
+            (err isa _DivOverflow) || rethrow()
+            degs = max.(_maxdegs(p), _maxdegs(q))
+            degs[err.i] = max(degs[err.i], 2 * err.e)
+            L = _layout_in(M, degs)
+            L === nothing && throw(_PackOverflow(err.e))
+            p, q = _repack(p, p.gens, L, M), _repack(q, q.gens, L, M)
         end
     end
 end
 
+# an exponent of generator i overflowing during division
+struct _DivOverflow <: Exception
+    e::Int
+    i::Int
+end
+
 function _divrem(p::Poly{C,M}, q::Poly{C,M}) where {C,M}
-    gs, bits, n = p.gens, p.bits, length(p.gens)
+    gs, L, n = p.gens, p.layout, length(p.gens)
     lm, lc = q.monos[1], q.coefs[1]
-    emax = _maxexp(bits)
     qdeg = _maxdegs(q)
     qm, qc = q.monos, q.coefs
     work = _MonoTable{C}(2 * (length(p.monos) + length(qm)), M)
@@ -94,15 +102,15 @@ function _divrem(p::Poly{C,M}, q::Poly{C,M}) where {C,M}
         m = _heappop!(heap)
         c = _lookup(work, m)
         iszero(c) && continue
-        if !_mono_divides(lm, m, bits, n)
+        if !_mono_divides(lm, m, L, n)
             push!(remm, m)
             push!(remc, c)
             continue
         end
         t, ct = m - lm, c / lc
         for i in 1:n                      # t * (terms of q) must not overflow a field
-            e = _exponent(t, bits, n, i) + qdeg[i]
-            e > emax && throw(_PackOverflow(e))
+            e = _exponent(t, L, n, i) + qdeg[i]
+            e > _maxexp(L, i) && throw(_DivOverflow(e, i))
         end
         push!(quom, t)
         push!(quoc, ct)
@@ -111,7 +119,7 @@ function _divrem(p::Poly{C,M}, q::Poly{C,M}) where {C,M}
             _addto!(work, mj, -(ct * qc[j])) && _heappush!(heap, mj)
         end
     end
-    Poly{C}(gs, bits, quom, quoc), Poly{C}(gs, bits, remm, remc)
+    Poly{C}(gs, L, quom, quoc), Poly{C}(gs, L, remm, remc)
 end
 
 Base.div(p::Poly, q::Poly) = divrem(p, q)[1]

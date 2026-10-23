@@ -80,7 +80,7 @@ function _factor_sqfree(q::Poly{SymNumber})
     end
 end
 
-_deg_in_all(p::Poly, i::Int) = maximum((_exponent(m, p.bits, length(p.gens), i) for m in p.monos); init = 0)
+_deg_in_all(p::Poly, i::Int) = maximum((_exponent(m, p.layout, length(p.gens), i) for m in p.monos); init = 0)
 
 ## univariate
 
@@ -88,14 +88,14 @@ function _factor_univariate(q::Poly{SymNumber}, i::Int)
     n = length(q.gens)
     f = zeros(BigInt, _deg_in_all(q, i) + 1)
     for (m, c) in zip(q.monos, q.coefs)
-        f[_exponent(m, q.bits, n, i) + 1] = big(_numerator(c))
+        f[_exponent(m, q.layout, n, i) + 1] = big(_numerator(c))
     end
-    s = _shift(q.bits, n, i)
+    s = _shift(q.layout, n, i)
     map(_zassenhaus(f)) do g
         M = eltype(q.monos)
         monos = M[M(e - 1) << s for e in length(g):-1:1 if !iszero(g[e])]
         coefs = SymNumber[SymNumber(g[e]) for e in length(g):-1:1 if !iszero(g[e])]
-        _positive(Poly{SymNumber}(q.gens, q.bits, monos, coefs))
+        _positive(Poly{SymNumber}(q.gens, q.layout, monos, coefs))
     end
 end
 
@@ -405,10 +405,10 @@ function _factor_kronecker(q::Poly{SymNumber}, act::Vector{Int})
     t = Sym(:t)
     img = Dict{Int,SymNumber}()
     for (m, c) in zip(q.monos, q.coefs)
-        e = sum(_exponent(m, q.bits, n, act[j]) * w[j] for j in eachindex(act))
+        e = sum(_exponent(m, q.layout, n, act[j]) * w[j] for j in eachindex(act))
         img[e] = c
     end
-    F = Poly{SymNumber}([t], 64, UInt64[e for e in sort!(collect(keys(img)); rev = true)],
+    F = Poly{SymNumber}([t], _uniform(1, 64), UInt64[e for e in sort!(collect(keys(img)); rev = true)],
                         SymNumber[img[e] for e in sort!(collect(keys(img)); rev = true)])
     _, ufacs = _factor_poly(F)
     us = Poly{SymNumber}[]
@@ -451,11 +451,11 @@ function _kronecker_decode(u::Poly{SymNumber}, q::Poly{SymNumber}, act, degs, w)
         for j in length(act):-1:1
             dj, e = divrem(e, w[j])
             dj > degs[j] && return nothing
-            code |= M(dj) << _shift(q.bits, n, act[j])
+            code |= M(dj) << _shift(q.layout, n, act[j])
         end
         push!(monos, code)
         push!(coefs, c)
     end
     perm = sortperm(monos; rev = true)
-    _positive(Poly{SymNumber}(q.gens, q.bits, monos[perm], coefs[perm]))
+    _positive(Poly{SymNumber}(q.gens, q.layout, monos[perm], coefs[perm]))
 end

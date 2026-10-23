@@ -15,26 +15,26 @@ function _mainvar(p::Poly, q::Poly)
     all = reduce(|, p.monos; init = zero(eltype(p.monos))) | reduce(|, q.monos; init = zero(eltype(q.monos)))
     n = length(p.gens)
     for i in 1:n
-        (all >> _shift(p.bits, n, i)) & _mask(p.bits) != 0 && return i
+        (all >> _shift(p.layout, n, i)) & _fieldmask(p.layout, i) != 0 && return i
     end
     0
 end
 
-_deg_in(p::Poly, i::Int) = isempty(p.monos) ? -1 : _exponent(p.monos[1], p.bits, length(p.gens), i)
+_deg_in(p::Poly, i::Int) = isempty(p.monos) ? -1 : _exponent(p.monos[1], p.layout, length(p.gens), i)
 
 # coefficients of p as a polynomial in x_i (generators before i absent), highest first
 function _coeffs_in(p::Poly{C}, i::Int) where {C}
     n = length(p.gens)
-    clear = ~(eltype(p.monos)(_mask(p.bits)) << _shift(p.bits, n, i))   # in the word's own width
+    clear = ~(eltype(p.monos)(_fieldmask(p.layout, i)) << _shift(p.layout, n, i))   # in the word's own width
     out = typeof(p)[]
     k = 1
     while k <= length(p.monos)
-        e = _exponent(p.monos[k], p.bits, n, i)
+        e = _exponent(p.monos[k], p.layout, n, i)
         j = k
-        while j < length(p.monos) && _exponent(p.monos[j+1], p.bits, n, i) == e
+        while j < length(p.monos) && _exponent(p.monos[j+1], p.layout, n, i) == e
             j += 1
         end
-        push!(out, Poly{C}(p.gens, p.bits, p.monos[k:j] .& clear, p.coefs[k:j]))
+        push!(out, Poly{C}(p.gens, p.layout, p.monos[k:j] .& clear, p.coefs[k:j]))
         k = j + 1
     end
     out
@@ -58,7 +58,7 @@ end
 function _prem(a::Poly{C}, b::Poly{C}, i::Int) where {C}
     db, lcb = _deg_in(b, i), _lc_in(b, i)
     M = eltype(b.monos)
-    unit = one(M) << _shift(b.bits, length(b.gens), i)
+    unit = one(M) << _shift(b.layout, length(b.gens), i)
     r = a
     while !iszero(r) && (dr = _deg_in(r, i)) >= db
         r = lcb * r - _lc_in(r, i) * _mul_term(b, unit * M(dr - db), one(C))
@@ -79,7 +79,7 @@ function _gcd(a::Poly{C}, b::Poly{C}) where {C}
     i = _mainvar(a, b)
     if i == 0
         g = gcd(_numerator(a.coefs[1]), _numerator(b.coefs[1]))
-        return _constpoly(C, a.gens, a.bits, SymNumber(g), _monotype(a))
+        return _constpoly(C, a.gens, a.layout, SymNumber(g), _monotype(a))
     end
     _deg_in(a, i) == 0 && return _gcd(a, _content_in(b, i))   # a is free of x_i
     _deg_in(b, i) == 0 && return _gcd(_content_in(a, i), b)
@@ -130,8 +130,8 @@ Base.gcd(p::Poly{SymNumber}, q::Poly{SymNumber}; method::Symbol = :dense) =
 function _gcd_poly(p::Poly{SymNumber}, q::Poly{SymNumber}; method::Symbol = :dense)
     _check_gcd_method(method)
     p, q = _unify(p, q)
-    # the modular gcd works on 64-bit monomials; wider ones take the PRS (slower)
-    g = _monotype(p) === UInt64 ?
+    # the modular gcd works on UInt64 and UInt128 words; BigInt ones take the PRS
+    g = _monotype(p) !== BigInt ?
         _gcd_modular(_integer_scaled(p), _integer_scaled(q); sparse = method === :zippel) :
         _gcd(_integer_scaled(p), _integer_scaled(q))
     rational = !all(_isint, p.coefs) || !all(_isint, q.coefs)

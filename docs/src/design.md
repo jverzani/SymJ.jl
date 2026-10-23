@@ -244,7 +244,7 @@ signatures use.
 ```julia
 struct Poly{C,M<:Integer} <: AbstractSymbolic
     gens::Vector{Sym}       # generators, most significant first
-    bits::Int               # bits per exponent field
+    layout::_Layout         # field width per generator (with shifts and masks)
     monos::Vector{M}        # packed exponent vectors, strictly decreasing
     coefs::Vector{C}        # nonzero coefficients
 end
@@ -255,16 +255,25 @@ end
   addition (degree checks rule out carries), and lex order is integer order. So terms are
   sorted parallel vectors, addition is a linear merge, `diff` is a subtraction, and
   changing generators means repacking. The all-ones field is reserved, so each exponent
-  is at most `2^bits − 2`.
-- **Words.** The fast case is a `UInt64` with `64 ÷ ngens` bits per field: 4 generators
-  allow degree 65 534 each, and 16 allow 14. Beyond that a polynomial is packed into a
-  `UInt128` (`128 ÷ ngens` bits), then a `BigInt` (any width). Wider words are slower,
-  but no degree or number of generators is refused.
-  - **Construction widens.** `Poly(ex, …)` picks the narrowest word that holds `ex`.
-  - **Arithmetic keeps its word.** It never changes a polynomial's word, which keeps
-    computations type-stable: when results could change type, multivariate `factor`
-    ran 70% slower. An exponent that doesn't fit throws `_PackOverflow` (shown as an
-    `OverflowError`). `BigInt` words simply grow their fields.
+  is at most `2^width − 2`.
+- **Layouts.** The usual layout is uniform: `64 ÷ ngens` bits per field in a `UInt64`.
+  4 generators allow degree 65 534 each, and 16 allow 14. All such polynomials share
+  one precomputed layout, so mixing them never repacks.
+  - **Uneven fields.** When the uniform layout can't hold the degrees, fields are sized
+    to each generator's degree and the spare bits shared out as headroom. One generator
+    of high degree among many linear ones then still fits one `UInt64`: `x^(2^40)` with
+    15 other generators, or `x^70` with 10.
+  - **Wider words.** Past 64 bits the polynomial is packed into a `UInt128`, then a
+    `BigInt` (any width). Wider words are slower, but no degree or number of generators
+    is refused.
+  - **Construction.** `Poly(ex, …)` tries the uniform layout first, the common case at
+    no extra cost. If a field overflows, it computes degree bounds for `ex` and builds
+    once in a layout sized to them.
+  - **Arithmetic keeps its word.** A product, power or division needing a wider field
+    gets a new layout in the same word, which is type-stable. It never changes the
+    word: when results could change type, multivariate `factor` ran 70% slower. Past
+    the word's capacity it throws `_PackOverflow` (shown as an `OverflowError`).
+    `BigInt` words just grow their fields.
   - **Entry points restart.** `gcd`, `lcm`, `factor`, `factor_squarefree`,
     `squarefree_part` on polynomials, and `cancel`, `factor`, `apart`, `gcd`, … on
     expressions, catch `_PackOverflow`. They rerun the computation with a raised minimum
@@ -275,8 +284,8 @@ end
     rather than widen. Build the polynomial from an expression, or `convert` it to
     `Poly{C,UInt128}`.
   - **Limits elsewhere.**
-    - The modular gcd (and so Zippel) works on `UInt64` words; wider polynomials use the
-      PRS gcd.
+    - The modular gcd (and so Zippel) works on `UInt64` and `UInt128` words. `BigInt`
+      ones use the PRS gcd.
     - `RatFun` keeps its numerator and denominator in `UInt64` words (concrete fields
       keep parameter arithmetic fast), so parameters of very high degree are refused
       with an error.
@@ -844,9 +853,11 @@ and a finalizer per operation), which dominates the small benchmarks.
   - Faster LLL for van Hoeij: floating-point LLL on truncated traces (van
     Hoeij–Novocin). The integer LLL is now the main cost of S₆'s 0.76 s.
   - Graded monomial orders.
-  - Field widths sized to each generator's degree, which would keep more polynomials
-    in one `UInt64`, such as one generator of high degree among many linear ones.
-  - The modular gcd on `UInt128` words.
+  - Many variables in the dense modular gcd. Brown's method needs about
+    `Π (deg_i + 1)` evaluations, exponential in the number of variables: 14 low-degree
+    variables take 1.1 s, and 18 more than a minute. Zippel (`method = :zippel`) takes
+    0.04 s and 0.15 s for 14 and 20. Choosing it automatically when that product is
+    large would remove the cliff.
   - Evaluation by Horner's scheme.
   - Threads for large products.
 - **Hash-consing.** Interning nodes would make equality pointer comparison and save

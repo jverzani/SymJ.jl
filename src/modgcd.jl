@@ -19,20 +19,21 @@
 const _MODPRIME_START = 2^31 - 1      # primes below 2^31: products fit in an Int
 
 struct _Ctx
-    bits::Int
+    L::_Layout          # the polynomials' packing (field widths per variable)
     n::Int
     p::Int
     sparse::Bool        # images by Zippel's sparse interpolation (opt-in)
 end
-_Ctx(bits::Int, n::Int, p::Int) = _Ctx(bits, n, p, false)
+_Ctx(L::_Layout, n::Int, p::Int) = _Ctx(L, n, p, false)
 
-# mod-p polynomial: strictly decreasing packed monomials, coefficients in 1:p-1
-struct _MP
-    monos::Vector{UInt64}
+# mod-p polynomial: strictly decreasing packed monomials (words W: UInt64 or UInt128),
+# coefficients in 1:p-1
+struct _MP{W}
+    monos::Vector{W}
     coefs::Vector{Int}
 end
 
-_mpone() = _MP(UInt64[0], Int[1])
+_mpone(::Type{W}) where {W} = _MP(W[zero(W)], Int[1])
 _mpiszero(a::_MP) = isempty(a.monos)
 
 @inline _mulmod(a::Int, b::Int, p::Int) = (a * b) % p
@@ -200,7 +201,7 @@ end
 ## multivariate mod-p polynomials
 
 function _mp_from(P::Poly{SymNumber}, p::Int)
-    monos, coefs = UInt64[], Int[]
+    monos, coefs = eltype(P.monos)[], Int[]
     for (m, c) in zip(P.monos, P.coefs)
         r = c.tag == T_SMALL ? mod(c.n, p) : Int(mod(numerator(c.big::Rational{BigInt}), p))
         r == 0 && continue
@@ -213,20 +214,20 @@ end
 _mp_scale(a::_MP, c::Int, p::Int) = c == 1 ? a : _MP(a.monos, Int[_mulmod(x, c, p) for x in a.coefs])
 _mp_monic(a::_MP, p::Int) = _mpiszero(a) ? a : _mp_scale(a, invmod(a.coefs[1], p), p)
 
-_active(a::_MP) = reduce(|, a.monos; init = UInt64(0))
+_active(a::_MP{W}) where {W} = reduce(|, a.monos; init = zero(W))
 
-function _lastactive(mask::UInt64, ctx::_Ctx)
+function _lastactive(mask::Integer, ctx::_Ctx)
     for i in ctx.n:-1:1
-        (mask >> _shift(ctx.bits, ctx.n, i)) & _mask(ctx.bits) != 0 && return i
+        (mask >> _shift(ctx.L, ctx.n, i)) & _fieldmask(ctx.L, i) != 0 && return i
     end
     0
 end
 
 # runs of terms sharing the monomial in the other variables, as dense polys in x_k
-function _mp_split(a::_MP, k::Int, ctx::_Ctx)
-    s = _shift(ctx.bits, ctx.n, k)
-    fmask = _mask(ctx.bits) << s
-    uppers, polys = UInt64[], Vector{Int}[]
+function _mp_split(a::_MP{W}, k::Int, ctx::_Ctx) where {W}
+    s = _shift(ctx.L, ctx.n, k)
+    fmask = W(_fieldmask(ctx.L, k)) << s
+    uppers, polys = W[], Vector{Int}[]
     for (m, c) in zip(a.monos, a.coefs)
         u = m & ~fmask
         e = Int((m & fmask) >> s)
@@ -239,23 +240,23 @@ function _mp_split(a::_MP, k::Int, ctx::_Ctx)
     uppers, polys
 end
 
-function _mp_join(uppers::Vector{UInt64}, polys::Vector{Vector{Int}}, k::Int, ctx::_Ctx)
-    s = _shift(ctx.bits, ctx.n, k)
-    monos, coefs = UInt64[], Int[]
+function _mp_join(uppers::Vector{W}, polys::Vector{Vector{Int}}, k::Int, ctx::_Ctx) where {W}
+    s = _shift(ctx.L, ctx.n, k)
+    monos, coefs = W[], Int[]
     for (u, q) in zip(uppers, polys), e in length(q):-1:1
         q[e] == 0 && continue
-        push!(monos, u | (UInt64(e - 1) << s))
+        push!(monos, u | (W(e - 1) << s))
         push!(coefs, q[e])
     end
     _MP(monos, coefs)
 end
 
 # a with x_k = α (x_k the last active variable, so the result stays sorted)
-function _mp_eval(a::_MP, k::Int, α::Int, ctx::_Ctx)
-    p, s = ctx.p, _shift(ctx.bits, ctx.n, k)
-    fmask = _mask(ctx.bits) << s
+function _mp_eval(a::_MP{W}, k::Int, α::Int, ctx::_Ctx) where {W}
+    p, s = ctx.p, _shift(ctx.L, ctx.n, k)
+    fmask = W(_fieldmask(ctx.L, k)) << s
     pw = Int[1]
-    monos, coefs = UInt64[], Int[]
+    monos, coefs = W[], Int[]
     am, ac = a.monos, a.coefs
     i, n = 1, length(am)
     @inbounds while i <= n
@@ -279,8 +280,8 @@ end
 
 # a at x_k = α from its runs (the split already computed): each run's dense
 # polynomial in x_k evaluated by Horner, no monomial decoding
-function _mp_eval_runs(us::Vector{UInt64}, qs::Vector{Vector{Int}}, pw::Vector{Int}, p::Int)
-    monos, coefs = UInt64[], Int[]
+function _mp_eval_runs(us::Vector{W}, qs::Vector{Vector{Int}}, pw::Vector{Int}, p::Int) where {W}
+    monos, coefs = W[], Int[]
     sizehint!(monos, length(us))
     sizehint!(coefs, length(us))
     @inbounds for i in eachindex(us)
@@ -295,26 +296,26 @@ end
 
 ## gcd over Z_p, monic in lex order
 
-_isconstrun(u::Vector{UInt64}) = length(u) == 1 && u[1] == 0
+_isconstrun(u::Vector{<:Integer}) = length(u) == 1 && u[1] == 0
 
-function _pgcd(a::_MP, b::_MP, ctx::_Ctx)
+function _pgcd(a::_MP{W}, b::_MP{W}, ctx::_Ctx) where {W}
     p = ctx.p
     _mpiszero(a) && return _mp_monic(b, p)
     _mpiszero(b) && return _mp_monic(a, p)
     k = _lastactive(_active(a) | _active(b), ctx)
-    k == 0 && return _mpone()
+    k == 0 && return _mpone(W)
     ua, qa = _mp_split(a, k, ctx)
     ub, qb = _mp_split(b, k, ctx)
 
     # contents in Z_p[x_k] and primitive parts
     # univariate in x_k: Euclid directly
     if _isconstrun(ua) && _isconstrun(ub)
-        return _mp_join(UInt64[0], [_ugcd(qa[1], qb[1], p)], k, ctx)
+        return _mp_join(W[zero(W)], [_ugcd(qa[1], qb[1], p)], k, ctx)
     end
     conta, contb = _ugcd_all(qa, p), _ugcd_all(qb, p)
     c = _ugcd(conta, contb, p)
     # a primitive part free of the other variables is a unit
-    (_isconstrun(ua) || _isconstrun(ub)) && return _mp_join(UInt64[0], [c], k, ctx)
+    (_isconstrun(ua) || _isconstrun(ub)) && return _mp_join(W[zero(W)], [c], k, ctx)
     if length(conta) > 1
         qa = [_udivrem(q, conta, p)[1] for q in qa]
         a = _mp_join(ua, qa, k, ctx)
@@ -329,16 +330,16 @@ function _pgcd(a::_MP, b::_MP, ctx::_Ctx)
     bound = min(maximum(_udeg, qa), maximum(_udeg, qb)) + _udeg(g)
 
     # interpolant: sorted other-variable monomials Hu, each with a dense poly in x_k
-    Hu, Hh = UInt64[], Vector{Int}[]
+    Hu, Hh = W[], Vector{Int}[]
     q = Int[1]                         # product of (x_k - α) over the points used
-    lmH = typemax(UInt64)
+    lmH = typemax(W)
     npts = 0
     # bivariate: the images are univariate in one variable x_j; evaluate straight into
     # dense buffers and take the gcd in place (no intermediate _MP, split or join)
     rest = reduce(|, ua) | reduce(|, ub)
     j = _lastactive(rest, ctx)
-    sj = _shift(ctx.bits, ctx.n, j)
-    biv = j > 0 && rest & ~(_mask(ctx.bits) << sj) == 0
+    sj = j > 0 ? _shift(ctx.L, ctx.n, j) : 0
+    biv = j > 0 && rest & ~(W(_fieldmask(ctx.L, j)) << sj) == 0
     da = biv ? Int(ua[1] >> sj) : 0
     db = biv ? Int(ub[1] >> sj) : 0
     A, B = Int[], Int[]
@@ -362,12 +363,12 @@ function _pgcd(a::_MP, b::_MP, ctx::_Ctx)
             end
             G = _ugcd!(A, B, p)
             nz = count(!iszero, G)
-            cm, cc = Vector{UInt64}(undef, nz), Vector{Int}(undef, nz)
+            cm, cc = Vector{W}(undef, nz), Vector{Int}(undef, nz)
             t = 0
             @inbounds for e in length(G):-1:1
                 G[e] == 0 && continue
                 t += 1
-                cm[t] = UInt64(e - 1) << sj
+                cm[t] = W(e - 1) << sj
                 cc[t] = G[e]
             end
             _MP(cm, cc)
@@ -384,7 +385,7 @@ function _pgcd(a::_MP, b::_MP, ctx::_Ctx)
         lmC = C.monos[1]
         lmC > lmH && continue                       # unlucky point
         if lmC < lmH                                 # all earlier points were unlucky
-            Hu, Hh = UInt64[], Vector{Int}[]
+            Hu, Hh = W[], Vector{Int}[]
             q, lmH, npts = Int[1], lmC, 0
         end
         Hu, Hh = _newton_step(Hu, Hh, C, _ueval(g, α, p), q, α, p, pw)
@@ -430,15 +431,15 @@ end
 # linear in the c_t and m_j (m_1 = 1). One extra evaluation checks the solution.
 # `nothing` when the support looks wrong or the point is bad: the caller then
 # computes the image densely.
-function _sparse_image(A::_MP, B::_MP, skel::Vector{UInt64}, ctx::_Ctx, seed::Int)
-    p, bits, n = ctx.p, ctx.bits, ctx.n
+function _sparse_image(A::_MP{W}, B::_MP{W}, skel::Vector{W}, ctx::_Ctx, seed::Int) where {W}
+    p, L, n = ctx.p, ctx.L, ctx.n
     mask = _active(A) | _active(B)
-    m = findfirst(i -> (mask >> _shift(bits, n, i)) & _mask(bits) != 0, 1:n)
+    m = findfirst(i -> (mask >> _shift(L, n, i)) & _fieldmask(L, i) != 0, 1:n)
     m === nothing && return nothing
-    others = [i for i in (m + 1):n if (mask >> _shift(bits, n, i)) & _mask(bits) != 0]
+    others = [i for i in (m + 1):n if (mask >> _shift(L, n, i)) & _fieldmask(L, i) != 0]
     isempty(others) && return nothing
-    sm = _shift(bits, n, m)
-    deg(u) = Int((u >> sm) & _mask(bits))
+    sm, mm = _shift(L, n, m), _fieldmask(L, m)
+    deg(u) = Int((u >> sm) & mm)
     T = length(skel)
     D = deg(skel[1])
     groups = [Int[] for _ in 0:D]                       # terms by power of x_m
@@ -459,7 +460,7 @@ function _sparse_image(A::_MP, B::_MP, skel::Vector{UInt64}, ctx::_Ctx, seed::In
             β[i] = Int(h % UInt(p - 2)) + 2
         end
         mval(u) = (v = 1; for i in others
-                       e = Int((u >> _shift(bits, n, i)) & _mask(bits))
+                       e = _exponent(u, L, n, i)
                        e == 0 || (v = _mulmod(v, powermod(β[i], e, p), p))
                    end; v)
         vs = [mval(u) for u in skel]
@@ -544,7 +545,7 @@ function _newton_step(Hu, Hh, C::_MP, s::Int, q::Vector{Int}, α::Int, p::Int, p
         end
         return Hu, Hh
     end
-    nu, nh = UInt64[], Vector{Int}[]
+    nu, nh = eltype(Hu)[], Vector{Int}[]
     sizehint!(nu, length(Hu) + length(C.monos))
     sizehint!(nh, length(Hu) + length(C.monos))
     i, j = 1, 1
@@ -587,23 +588,24 @@ _symmetric(r::Integer, m::Integer) = r > m >> 1 ? r - m : r
 function _gcd_modular(a::Poly{SymNumber}, b::Poly{SymNumber}; sparse::Bool = false)
     iszero(a) && return _positive(b)
     iszero(b) && return _positive(a)
-    gs, bits, n = a.gens, a.bits, length(a.gens)
+    gs, L, n = a.gens, a.layout, length(a.gens)
+    W = _monotype(a)
     c = SymNumber(gcd(_int_content(a), _int_content(b)))
-    constant = _constpoly(SymNumber, gs, bits, c, UInt64)
+    constant = _constpoly(SymNumber, gs, L, c, W)
     a, b = _primitive(a), _primitive(b)
     (a.monos[1] == 0 || b.monos[1] == 0) && return constant
     lca, lcb = big(_numerator(a.coefs[1])), big(_numerator(b.coefs[1]))
     γ = gcd(lca, lcb)
 
-    Hm = UInt64[]                    # candidate (gcd scaled to lc γ), coefficients mod M
+    Hm = W[]                         # candidate (gcd scaled to lc γ), coefficients mod M
     Hc = BigInt[]
     M = big(1)
-    lmH = typemax(UInt64)
+    lmH = typemax(W)
     p = _MODPRIME_START + 1
     while true
         p = _prevprime(p)
         (lca % p == 0 || lcb % p == 0) && continue
-        ctx = _Ctx(bits, n, p, sparse)
+        ctx = _Ctx(L, n, p, sparse)
         C = _pgcd(_mp_from(a, p), _mp_from(b, p), ctx)
         C.monos[1] == 0 && return constant            # lucky images are never too small
         lmC = C.monos[1]
@@ -622,13 +624,13 @@ function _gcd_modular(a::Poly{SymNumber}, b::Poly{SymNumber}; sparse::Bool = fal
         # has residues spread over the whole range).
         stable || maximum(abs, Hc) <= M >> 8 || continue
         keep = findall(!iszero, Hc)
-        G = _primitive(Poly{SymNumber}(gs, bits, Hm[keep], SymNumber.(Hc[keep])))
+        G = _primitive(Poly{SymNumber}(gs, L, Hm[keep], SymNumber.(Hc[keep])))
         divides(a, G)[1] && divides(b, G)[1] && return _scale(G, c)
     end
 end
 
-function _crt(Hm::Vector{UInt64}, Hc::Vector{BigInt}, M::BigInt, C::_MP, p::Int)
-    monos, coefs = UInt64[], BigInt[]
+function _crt(Hm::Vector{W}, Hc::Vector{BigInt}, M::BigInt, C::_MP{W}, p::Int) where {W}
+    monos, coefs = W[], BigInt[]
     Mp = M * p
     w = invmod(Int(mod(M, p)), p)
     i, j = 1, 1

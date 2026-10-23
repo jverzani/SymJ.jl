@@ -29,7 +29,7 @@ function _rf64(p::Poly{SymNumber})
 end
 
 const _NOGENS = Sym[]
-_constpoly0(c::SymNumber) = _constpoly(SymNumber, _NOGENS, 64, c, UInt64)
+_constpoly0(c::SymNumber) = _constpoly(SymNumber, _NOGENS, _uniform(0, 64), c, UInt64)
 
 function RatFun(n::Poly{SymNumber}, d::Poly{SymNumber}, ::Val{:normalize})
     iszero(d) && throw(DivideError())
@@ -89,30 +89,27 @@ Base.show(io::IO, r::RatFun) = show(io, Sym(r))
 function _to_ratfun_poly(P::Poly{SymNumber}, i::Int)
     n = length(P.gens)
     params = P.gens[[j for j in 1:n if j != i]]
-    pbits = _polybits(length(params))
     pos = [j for j in 1:n if j != i]
     # the parameters' fields: wide enough for P's degrees in them
-    dmax = maximum((_maxdegs(P)[j] for j in pos); init = 0)
-    dmax > _maxexp(pbits) && (pbits = _widerbits(pbits, dmax))
-    M = _monotype(length(params), pbits)
+    PL = _layout_for(_maxdegs(P)[pos])
+    M = _monotype(PL)
     groups = Dict{Int,Tuple{Vector{M},Vector{SymNumber}}}()
     for (m, c) in zip(P.monos, P.coefs)
-        e = _exponent(m, P.bits, n, i)
+        e = _exponent(m, P.layout, n, i)
         code = zero(M)
         for (k, j) in enumerate(pos)
-            code |= M(_exponent(m, P.bits, n, j)) << _shift(pbits, length(params), k)
+            code |= M(_exponent(m, P.layout, n, j)) << _shift(PL, length(params), k)
         end
         ms, cs = get!(() -> (M[], SymNumber[]), groups, e)
         push!(ms, code)
         push!(cs, c)
     end
     es = sort!(collect(keys(groups)); rev = true)
-    xbits = 64
     monos = UInt64[UInt64(e) for e in es]
     coefs = map(es) do e
         ms, cs = groups[e]
         perm = sortperm(ms; rev = true)
-        RatFun(Poly{SymNumber}(params, pbits, ms[perm], cs[perm]))
+        RatFun(Poly{SymNumber}(params, PL, ms[perm], cs[perm]))
     end
-    Poly{RatFun}([P.gens[i]], xbits, monos, coefs)
+    Poly{RatFun}([P.gens[i]], _uniform(1, 64), monos, coefs)
 end

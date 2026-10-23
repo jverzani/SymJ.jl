@@ -23,14 +23,14 @@ const _P = Poly{SymNumber}
 function _coeff_of(p::_P, j::Int, e::Int)
     n = length(p.gens)
     M = eltype(p.monos)
-    unit = M(e) << _shift(p.bits, n, j)
+    unit = M(e) << _shift(p.layout, n, j)
     monos, coefs = M[], SymNumber[]
     for (m, c) in zip(p.monos, p.coefs)
-        _exponent(m, p.bits, n, j) == e || continue
+        _exponent(m, p.layout, n, j) == e || continue
         push!(monos, m - unit)
         push!(coefs, c)
     end
-    _P(p.gens, p.bits, monos, coefs)
+    _P(p.gens, p.layout, monos, coefs)
 end
 _eval0(p::_P, j::Int) = _coeff_of(p, j, 0)
 
@@ -38,18 +38,18 @@ _eval0(p::_P, j::Int) = _coeff_of(p, j, 0)
 function _shift_var(p::_P, j::Int, α::Integer)
     iszero(α) && return p
     n = length(p.gens)
-    s = _shift(p.bits, n, j)
+    s = _shift(p.layout, n, j)
     M = eltype(p.monos)
     t = _MonoTable{SymNumber}(4 * length(p.monos), M)
     for (m, c) in zip(p.monos, p.coefs)
-        e = _exponent(m, p.bits, n, j)
+        e = _exponent(m, p.layout, n, j)
         base = m - (M(e) << s)
         for k in 0:e
             _addto!(t, base + (M(k) << s), c * SymNumber(binomial(big(e), k) * big(α)^(e - k)))
         end
     end
     monos, coefs = _contents(t)
-    _sorted_poly(p.gens, p.bits, monos, coefs)
+    _sorted_poly(p.gens, p.layout, monos, coefs)
 end
 
 _lcoeff_x(p::_P, xi::Int) = _coeff_of(p, xi, _deg_in_all(p, xi))
@@ -62,7 +62,7 @@ end
 # gcd of the coefficients of p as a polynomial in x (a polynomial in the others)
 function _content_x(p::_P, xi::Int)
     g = zero(p)
-    for e in unique(_exponent(m, p.bits, length(p.gens), xi) for m in p.monos)
+    for e in unique(_exponent(m, p.layout, length(p.gens), xi) for m in p.monos)
         g = _gcd_poly(g, _coeff_of(p, xi, e))
         _isunit(g) && break
     end
@@ -287,14 +287,14 @@ function _factor_eez(q::_P, act::Vector{Int})
     for t in 1:60
         B = 1 + t ÷ 6
         α = [Int(_next!(rng) % UInt64(2B + 1)) - B for _ in ys]
-        val(m) = prod((big(α[j])^_exponent(m, q.bits, n, ys[j]) for j in eachindex(ys)); init = big(1))
+        val(m) = prod((big(α[j])^_exponent(m, q.layout, n, ys[j]) for j in eachindex(ys)); init = big(1))
         ev(p) = sum((big(_numerator(c)) * val(m) for (m, c) in zip(p.monos, p.coefs)); init = big(0))
         ev(L) == 0 && continue
         u = zeros(BigInt, _deg_in_all(q, xi) + 1)
         for (m, c) in zip(q.monos, q.coefs)
-            u[_exponent(m, q.bits, n, xi) + 1] += big(_numerator(c)) * val(m)
+            u[_exponent(m, q.layout, n, xi) + 1] += big(_numerator(c)) * val(m)
         end
-        up = Poly{SymNumber}([q.gens[xi]], 64, UInt64[e - 1 for e in length(u):-1:1 if !iszero(u[e])],
+        up = Poly{SymNumber}([q.gens[xi]], _uniform(1, 64), UInt64[e - 1 for e in length(u):-1:1 if !iszero(u[e])],
                              SymNumber[SymNumber(u[e]) for e in length(u):-1:1 if !iszero(u[e])])
         _gcd_poly(up, diff(up, q.gens[xi])).monos[1] == 0 || continue    # squarefree
         fs = _zassenhaus(_zprimitive(_ztrim!(u)))
@@ -313,10 +313,10 @@ function _factor_eez(q::_P, act::Vector{Int})
     for (j, y) in enumerate(ys)
         qs = _shift_var(qs, y, α[j])
     end
-    s = _shift(q.bits, n, xi)
+    s = _shift(q.layout, n, xi)
     us = map(fs) do f
         ks = [e for e in length(f):-1:1 if !iszero(f[e])]
-        _P(q.gens, q.bits, eltype(q.monos)[eltype(q.monos)(e - 1) << s for e in ks], SymNumber[SymNumber(f[e]) for e in ks])
+        _P(q.gens, q.layout, eltype(q.monos)[eltype(q.monos)(e - 1) << s for e in ks], SymNumber[SymNumber(f[e]) for e in ks])
     end
     gs = length(us) > 1 ? _eez_wang(qs, us, xi, ys) : nothing
     gs === nothing && (gs = _eez_split(qs, us, xi, ys))
