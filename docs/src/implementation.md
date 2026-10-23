@@ -313,6 +313,23 @@ exact rational function type kept in canonical form, so that its zero tests are 
 `false`, which generic code relies on, and raise an error naming the symbolic operator
 (`≪`, `≦`, …) when given a symbol.
 
+## Series
+
+`series` substitutes `x = x0 + t` (or `x = 1/t` at infinity) and expands by truncated
+power series arithmetic in `t`, rather than by repeated differentiation, which breaks
+down at a pole or a branch point:
+
+- **Exponents are rationals**, so Laurent and Puiseux series need nothing special.
+- **`log(t)` is kept in the coefficients** as a placeholder symbol, which gives the
+  logarithmic terms of `x^x = exp(x log x)`.
+- **Each series carries the order to which it is correct.** A product, a quotient or a
+  cancellation (as in `(sin(x) - x)/x^3`) lowers it, and `series` reruns with more terms
+  until the result is correct to the order asked for.
+- **Functions** are expanded by their Taylor coefficients at the constant term of their
+  argument, from the derivative rules; `tan`, `cot`, `sec` and the like go through `sin`
+  and `cos`, so poles come out of a division. An essential singularity, such as `exp(1/x)`
+  at 0, is an error.
+
 ## Working with other packages
 
 SymJ implements TermInterface, so generic code that walks terms with `operation` and

@@ -479,6 +479,42 @@ c₀ = 2
 expand(h(c₀) + diff(h, x)(c₀) * (x - c₀))
 ```
 
+## Series
+
+`series(ex, x, x0, n)` expands `ex` about `x0` with an error of order `(x - x0)^n`;
+`x0` defaults to 0 and `n` to 6:
+
+```@example tut
+series(sin(x), x)
+```
+
+```@example tut
+series(exp(x), x, 1, 3)
+```
+
+Laurent series (negative powers), Puiseux series (fractional powers), logarithmic terms
+and expansions at infinity (in powers of `1/x`) are included:
+
+```@example tut
+series(cot(x), x, 0, 4), series(sqrt(x + x^2), x, 0, 3)
+```
+
+```@example tut
+series(x^x, x, 0, 3), series(sqrt(x^2 + x), x, Inf, 3)
+```
+
+A series is an object that keeps its error term. Series about the same point can be
+added, multiplied and divided, with the order tracked, and `Sym` drops the `O` term:
+
+```@example tut
+s, c = series(sin(x), x), series(cos(x), x)
+s / c
+```
+
+```@example tut
+Sym(s)
+```
+
 ## Integrals
 
 Antiderivatives come from `integrate`, from RischIntegrate, an implementation of the
@@ -521,7 +557,6 @@ G(x => Sym(π)) - G(x => 0)
 
 ## What SymJ does not do yet
 
-- **Series.** There is no Taylor series command yet.
 - **Simplification under assumptions.** Identities such as `sqrt(x^2) = x` for positive
   `x` need assumptions, which are not implemented.
 - **Matrices and noncommutative algebra.**
