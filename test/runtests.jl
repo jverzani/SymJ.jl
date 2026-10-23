@@ -212,6 +212,15 @@ import ForwardDiff
 
     @testset "diff" begin
         @test diff(x^3, x) == 3x^2
+        # mixed derivatives: in each variable in turn
+        @test diff(x^3 * y^2, x, y) == 6x^2 * y == diff(diff(x^3 * y^2, x), y)
+        @test diff(x^3 * y^2, y, x) == diff(x^3 * y^2, x, y)
+        @test diff(x^3 * y^2, x, x, y) == diff(diff(x^3 * y^2, x, 2), y) == 6x * y * 2
+        @test diff(sin(x * y), x, y) == cos(x * y) - x * y * sin(x * y)
+        @test diff(x^2 * y * z, x, x, y, z) == 2
+        @test diff(x^2 * y, x, z) == 0 && diff(3, x, y) == 0
+        @test diff(exp(x * y), x, y) == exp(x * y) + x * y * exp(x * y)
+        @test_throws ArgumentError diff(x * y, x, x + y)
         @test diff(x * y, x) == y
         @test diff(sin(x), x) == cos(x)
         @test diff(sin(x)^2, x) == 2sin(x) * cos(x)

@@ -416,6 +416,13 @@ diff(sin(x)^2 * exp(x), x)
 diff(x^x, x), diff(atan(x), x, 3)
 ```
 
+Mixed partial derivatives take the variables in order: `diff(f, x, y)` differentiates
+with respect to `x`, then `y`:
+
+```@example tut
+diff(x^3 * y^2, x, y), diff(sin(x * y), x, y), diff(x^2 * y * z, x, x, y, z)
+```
+
 A symbolic function gives an unevaluated derivative:
 
 ```@example tut

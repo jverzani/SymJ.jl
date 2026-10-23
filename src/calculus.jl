@@ -1,8 +1,19 @@
 """
     diff(ex::Sym, x::Sym, n=1)
+    diff(ex::Sym, x::Sym, y::Sym, zs::Sym...)
 
-Derivative of `ex` with respect to the symbol `x`. Functions without a registered
-derivative rule give an unevaluated `Derivative(f(...), x)`.
+Derivative of `ex` with respect to the symbol `x`, `n` times. With several symbols, the
+mixed derivative: `ex` differentiated with respect to `x`, then `y`, then each of `zs`,
+so `diff(ex, x, y)` is `∂²ex/∂y∂x` and `diff(ex, x, x, y)` is `∂³ex/∂y∂x²`.
+
+Functions without a registered derivative rule give an unevaluated
+`Derivative(f(...), x)`.
+
+```julia
+diff(x^3 * y^2, x, 2)        # 6*x*y^2
+diff(x^3 * y^2, x, y)        # 6*x^2*y
+diff(sin(x * y), x, y)       # -x*y*sin(x*y) + cos(x*y)
+```
 """
 function Base.diff(ex::Sym, x::Sym, n::Integer = 1)
     _isnamed(x) || throw(ArgumentError("can only differentiate with respect to a symbol or parameter, got $x"))
@@ -12,6 +23,14 @@ function Base.diff(ex::Sym, x::Sym, n::Integer = 1)
     ex
 end
 Base.diff(ex::Number, x::Sym, n::Integer = 1) = ZERO
+
+function Base.diff(ex::Sym, x::Sym, y::Sym, zs::Sym...)
+    for v in (x, y, zs...)
+        ex = diff(ex, v)
+    end
+    ex
+end
+Base.diff(ex::Number, x::Sym, y::Sym, zs::Sym...) = ZERO
 
 function _diff(ex::Sym, x::Sym)
     k = ex.kind
