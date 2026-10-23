@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Design notes — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=1a2e4b98">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=4d6b8f87">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Design notes — SymJ.jl">
   <meta property="og:title" content="Design notes — SymJ.jl">
@@ -751,6 +751,8 @@ end</code></pre>
 </li>
 <li><p>Relations among atoms are not used: <code class="md-code-inline">(x - 1)/(sqrt(x) - 1)</code> stays as it is.</p>
 </li>
+<li><p><strong>Except square roots of rationals.</strong> When the reduced denominator involves roots <code class="md-code-inline">sᵢ = sqrt(cᵢ)</code> (up to three), both sides are multiplied by its other conjugates (each <code class="md-code-inline">sᵢ → ±sᵢ</code>), which makes it rational. The gcd of that denominator and every coefficient of the numerator, grouped by its <code class="md-code-inline">s</code>-monomial, is a common factor. When only the numerator has roots, the same with the roles swapped: <code class="md-code-inline">(x + sqrt(2)y)/(x^2 − 2y^2) → 1/(x − sqrt(2)y)</code>. The result is kept only if the denominator&#39;s degree in the other atoms goes down, so <code class="md-code-inline">1/(x − sqrt(2))</code> is left alone. These roots are ordered last among the generators, so the sign normalization (positive leading coefficient) is decided by the variables.</p>
+</li>
 </ul>
 </li>
 <li><p><strong>Floats.</strong> Expressions with floating point coefficients are returned unchanged.</p>
@@ -884,6 +886,8 @@ end</code></pre>
 <li><p>Candidates are checked by substitution, which drops extraneous roots (<code class="md-code-inline">sqrt(x) ~ −1</code> has none).</p>
 </li>
 <li><p>Several powers of one base count as one function: <code class="md-code-inline">exp(2x)</code> and <code class="md-code-inline">exp(x)</code> are powers of <code class="md-code-inline">u = exp(x)</code>, and <code class="md-code-inline">4^x</code> and <code class="md-code-inline">2^x</code> are powers of <code class="md-code-inline">2^x</code>.</p>
+</li>
+<li><p><strong>Several logarithms.</strong> When <code class="md-code-inline">x</code> appears only inside logarithms and the equation is linear in them with rational coefficients, <code class="md-code-inline">Σ cᵢ log(fᵢ) + R = 0</code> (constant logs such as <code class="md-code-inline">log(6)</code> included, <code class="md-code-inline">R</code> free of logs) is exponentiated to <code class="md-code-inline">Π fᵢ^kᵢ = exp(−L·R)</code> with integers <code class="md-code-inline">kᵢ = L·cᵢ</code>. Exponentiating forgets the branch (<code class="md-code-inline">log(−2) + log(−3) = log(6) + 2πi</code>), so candidates are checked in the original equation: <code class="md-code-inline">log(x) + log(x − 1) ~ log(6)</code> gives <code class="md-code-inline">[3]</code>, not <code class="md-code-inline">[−2, 3]</code>.</p>
 </li>
 <li><p>A square root mixed with <code class="md-code-inline">x</code> is reduced to <code class="md-code-inline">A + B·sqrt(t) = 0</code> using <code class="md-code-inline">R² = t</code>, squared to the polynomial <code class="md-code-inline">A² = B²t</code>, and extraneous roots dropped: <code class="md-code-inline">sqrt(x + 1) ~ x − 1</code> gives <code class="md-code-inline">[3]</code>.</p>
 </li>
@@ -1163,6 +1167,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=1a2e4b98"></script>
+  <script src="../assets/materialdocs.js?v=4d6b8f87"></script>
 </body>
 </html>

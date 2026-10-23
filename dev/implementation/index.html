@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Implementation — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=38cbd81d">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=28c2d5f9">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Implementation — SymJ.jl">
   <meta property="og:title" content="Implementation — SymJ.jl">
@@ -178,7 +178,8 @@ end</code></pre>
 </ul>
 <p>The leading coefficients are predicted before lifting, by Wang&#39;s method of matching the factors of the leading coefficient to the univariate factors through prime divisors. Kronecker&#39;s substitution, which maps the problem to one univariate factorization, remains as a fallback and as a reference for the tests; it is correct but far slower (14 s against 2.5 ms on a 4-variable example).</p>
 <h2 id="Rational-functions-and-partial-fractions" class="md-heading">Rational functions and partial fractions<a href="#Rational-functions-and-partial-fractions" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
-<p><code class="md-code-inline">cancel</code> brings an expression to the form <code class="md-code-inline">p/q</code> in lowest terms. Its polynomial variables are the expression&#39;s atoms: symbols, but also function applications and non-integer powers. Treating <code class="md-code-inline">sin(x)</code> as an independent variable is always sound, since a polynomial identity in it remains true after substituting back. So <code class="md-code-inline">cancel((sin(x)^2 - 1)/(sin(x) + 1))</code> is <code class="md-code-inline">sin(x) - 1</code>. The price is that relations among atoms are not used: <code class="md-code-inline">(x - 1)/(sqrt(x) - 1)</code> is not reduced, nor is a fraction whose cancellation needs <code class="md-code-inline">sqrt(2)^2 = 2</code>.</p>
+<p><code class="md-code-inline">cancel</code> brings an expression to the form <code class="md-code-inline">p/q</code> in lowest terms. Its polynomial variables are the expression&#39;s atoms: symbols, but also function applications and non-integer powers. Treating <code class="md-code-inline">sin(x)</code> as an independent variable is always sound, since a polynomial identity in it remains true after substituting back. So <code class="md-code-inline">cancel((sin(x)^2 - 1)/(sin(x) + 1))</code> is <code class="md-code-inline">sin(x) - 1</code>. The price is that relations among atoms are not used: <code class="md-code-inline">(x - 1)/(sqrt(x) - 1)</code> is not reduced.</p>
+<p>Square roots of rational numbers are the exception, since <code class="md-code-inline">sqrt(2)^2 = 2</code> is known. When the denominator involves them, both sides are multiplied by the denominator&#39;s other conjugates (<code class="md-code-inline">sqrt(2) → −sqrt(2)</code>), which makes the denominator rational; a common factor of that denominator and the numerator&#39;s coefficients is then removed. So <code class="md-code-inline">(x^2 + 2sqrt(2)x + 2)/(x + sqrt(2))</code> becomes <code class="md-code-inline">x + sqrt(2)</code>. The result is kept only when the denominator gets simpler, so <code class="md-code-inline">1/(x − sqrt(2))</code> is not rewritten as <code class="md-code-inline">(x + sqrt(2))/(x^2 − 2)</code>.</p>
 <p><code class="md-code-inline">apart</code> divides out the polynomial part, factors the denominator, and finds each fraction&#39;s numerator by modular inverses. When other symbols appear, the decomposition is over the field of rational functions in them, with arithmetic in an exact rational function type kept in canonical form, so that its zero tests are exact.</p>
 <h2 id="Solving" class="md-heading">Solving<a href="#Solving" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p><code class="md-code-inline">solve</code> follows a few rules:</p>
@@ -192,6 +193,8 @@ end</code></pre>
 </ul>
 </li>
 <li><p><strong>One function of the unknown.</strong> When the unknown appears through one function, such as <code class="md-code-inline">exp(x)</code> or <code class="md-code-inline">sqrt(x + 1)</code>, that function is solved for first, then inverted. Candidates are checked by substitution, which drops extraneous roots.</p>
+</li>
+<li><p><strong>Several logarithms.</strong> An equation linear in logarithms of the unknown, such as <code class="md-code-inline">log(x) + log(x − 1) ~ log(6)</code>, is exponentiated into <code class="md-code-inline">x(x − 1) = 6</code>. That can add roots where the logarithms are complex (<code class="md-code-inline">x = −2</code> here), and the check by substitution removes them.</p>
 </li>
 <li><p><strong>Lambert W.</strong> Equations mixing the unknown with an exponential of it, such as <code class="md-code-inline">x*exp(x) ~ 1</code>, are solved with the Lambert W function.</p>
 </li>
@@ -239,6 +242,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=38cbd81d"></script>
+  <script src="../assets/materialdocs.js?v=28c2d5f9"></script>
 </body>
 </html>
