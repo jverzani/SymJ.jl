@@ -614,6 +614,15 @@ is over the field `ℚ(a, b, …)`. For example,
     identity in them still holds after substituting them back. So
     `cancel((sin(x)^2 - 1)/(sin(x) + 1)) == sin(x) - 1`.
   - Relations among atoms are not used: `(x - 1)/(sqrt(x) - 1)` stays as it is.
+  - **Except square roots of rationals.** When the reduced denominator involves roots
+    `sᵢ = sqrt(cᵢ)` (up to three), both sides are multiplied by its other conjugates
+    (each `sᵢ → ±sᵢ`), which makes it rational. The gcd of that denominator and every
+    coefficient of the numerator, grouped by its `s`-monomial, is a common factor. When
+    only the numerator has roots, the same with the roles swapped:
+    `(x + sqrt(2)y)/(x^2 − 2y^2) → 1/(x − sqrt(2)y)`. The result is kept only if the
+    denominator's degree in the other atoms goes down, so `1/(x − sqrt(2))` is left
+    alone. These roots are ordered last among the generators, so the sign normalization
+    (positive leading coefficient) is decided by the variables.
 - **Floats.** Expressions with floating point coefficients are returned unchanged.
 
 ## Compiled evaluation: `lambdify`
@@ -714,6 +723,12 @@ interface works with SymJ equations.
     (`sqrt(x) ~ −1` has none).
   - Several powers of one base count as one function: `exp(2x)` and `exp(x)` are
     powers of `u = exp(x)`, and `4^x` and `2^x` are powers of `2^x`.
+  - **Several logarithms.** When `x` appears only inside logarithms and the equation is
+    linear in them with rational coefficients, `Σ cᵢ log(fᵢ) + R = 0` (constant logs
+    such as `log(6)` included, `R` free of logs) is exponentiated to
+    `Π fᵢ^kᵢ = exp(−L·R)` with integers `kᵢ = L·cᵢ`. Exponentiating forgets the branch
+    (`log(−2) + log(−3) = log(6) + 2πi`), so candidates are checked in the original
+    equation: `log(x) + log(x − 1) ~ log(6)` gives `[3]`, not `[−2, 3]`.
   - A square root mixed with `x` is reduced to `A + B·sqrt(t) = 0` using `R² = t`,
     squared to the polynomial `A² = B²t`, and extraneous roots dropped:
     `sqrt(x + 1) ~ x − 1` gives `[3]`.

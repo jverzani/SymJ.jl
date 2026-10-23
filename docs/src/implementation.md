@@ -268,8 +268,15 @@ variables are the expression's atoms: symbols, but also function applications an
 non-integer powers. Treating `sin(x)` as an independent variable is always sound, since
 a polynomial identity in it remains true after substituting back. So
 `cancel((sin(x)^2 - 1)/(sin(x) + 1))` is `sin(x) - 1`. The price is that relations
-among atoms are not used: `(x - 1)/(sqrt(x) - 1)` is not reduced, nor is a fraction
-whose cancellation needs `sqrt(2)^2 = 2`.
+among atoms are not used: `(x - 1)/(sqrt(x) - 1)` is not reduced.
+
+Square roots of rational numbers are the exception, since `sqrt(2)^2 = 2` is known.
+When the denominator involves them, both sides are multiplied by the denominator's other
+conjugates (`sqrt(2) → −sqrt(2)`), which makes the denominator rational; a common factor
+of that denominator and the numerator's coefficients is then removed. So
+`(x^2 + 2sqrt(2)x + 2)/(x + sqrt(2))` becomes `x + sqrt(2)`. The result is kept only when
+the denominator gets simpler, so `1/(x − sqrt(2))` is not rewritten as
+`(x + sqrt(2))/(x^2 − 2)`.
 
 `apart` divides out the polynomial part, factors the denominator, and finds each
 fraction's numerator by modular inverses. When other symbols appear, the
@@ -290,6 +297,10 @@ exact rational function type kept in canonical form, so that its zero tests are 
 - **One function of the unknown.** When the unknown appears through one function, such
   as `exp(x)` or `sqrt(x + 1)`, that function is solved for first, then inverted.
   Candidates are checked by substitution, which drops extraneous roots.
+- **Several logarithms.** An equation linear in logarithms of the unknown, such as
+  `log(x) + log(x − 1) ~ log(6)`, is exponentiated into `x(x − 1) = 6`. That can add
+  roots where the logarithms are complex (`x = −2` here), and the check by substitution
+  removes them.
 - **Lambert W.** Equations mixing the unknown with an exponential of it, such as
   `x*exp(x) ~ 1`, are solved with the Lambert W function.
 - **Inequalities** are solved exactly through the real roots of the numerator and

@@ -531,6 +531,16 @@ import ForwardDiff
     end
 
     @testset "solve" begin
+        # several logarithms of x: combined (rational coefficients), candidates checked
+        @test solve(log(x) + log(x - 1) ~ log(Sym(6)), x) == [3]       # not -2 (complex logs)
+        @test solve(2log(x) - log(x + 2) ~ 0, x) == [2]
+        @test solve(log(x) + log(x + 3) ~ 2log(Sym(2)), x) == [1]
+        @test solve(log(x^2) - log(x) ~ log(Sym(5)), x) == [5]
+        @test solve(log(x) - log(x - 1) ~ 1, x) == [Sym(ℯ) / (Sym(ℯ) - 1)]
+        @test_throws ArgumentError solve(log(x) + sin(x) ~ 1, x)
+        @test_throws ArgumentError solve(x * log(x) + log(x - 1) ~ 1, x)
+        # N outside the real domain, with an exact integer argument
+        @test N(log(Sym(-3))) ≈ log(complex(-3.0)) && N(log(Sym(-2)) + log(Sym(-3)) - log(Sym(6))) ≈ 2π * im
         @parameters a b c
         satisfies(eq, rs) = all(r -> abs(N(subs(lhs(eq) - rhs(eq), x => r))) < 1e-8 * max(1, abs(N(r))), rs)
         cases = [(2x + 3 ~ 0, 1), (x^2 - 2 ~ 0, 2), (x^2 ~ -1, 2), (x^2 + x + 1 ~ 0, 2), (x^4 ~ 1, 4),
@@ -879,6 +889,17 @@ import ForwardDiff
     end
 
     @testset "numer_denom and cancel" begin
+        # square roots of rationals: cancelled through their conjugates, kept when the
+        # denominator would not get simpler
+        s2, s3 = sqrt(Sym(2)), sqrt(Sym(3))
+        @test cancel((x^2 + 2s2 * x + 2) / (x + s2)) == x + s2
+        @test cancel((x^2 - 2) / (x - s2)) == x + s2
+        @test cancel((x^2 - 5 - 2s2 * s3) / (x - s2 - s3)) == x + s2 + s3
+        @test cancel((x^2 - 3) / ((x + s3) * (x + 2))) == (x - s3) / (x + 2)
+        @test iszero(cancel(cancel((x + s2 * y) / (x^2 - 2y^2)) - 1 / (x - s2 * y)))
+        @test cancel(1 / (x - s2)) == 1 / (x - s2)                     # not (x + √2)/(x² - 2)
+        @test cancel((x + s2) / (x^2 + 1)) == (x + s2) / (x^2 + 1)
+        @test cancel((sqrt(x) + 1) / (x - 1)) == (sqrt(x) + 1) / (x - 1)  # sqrt(x) is no number
         @test numer_denom(x / y + 1) == (x + y, y)
         @test numer_denom(3x / 4) == (3x, Sym(4))
         @test numer_denom(1 / sqrt(x)) == (Sym(1), sqrt(x))

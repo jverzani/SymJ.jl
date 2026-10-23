@@ -58,8 +58,12 @@ solve(ex::Sym, x::Sym) = throw(ArgumentError(
 function _solve_through(eq::Relation, n::Sym, x::Sym, bad::Vector{Sym})
     common = _common_power(bad)                     # exp(2x), exp(x): powers of one exp
     if common === nothing
-        length(bad) == 1 || throw(ArgumentError(
-            "solve: $eq involves $x through several functions ($(join(bad, ", "))); not supported yet"))
+        if length(bad) > 1
+            r = _solve_logs(eq, n, x)
+            r === nothing || return r
+            throw(ArgumentError(
+                "solve: $eq involves $x through several functions ($(join(bad, ", "))); not supported yet"))
+        end
         g = only(bad)
         u = Sym(Symbol("_u", objectid(g)))
         nu = subs(n, g => u)
@@ -79,6 +83,38 @@ function _solve_through(eq::Relation, n::Sym, x::Sym, bad::Vector{Sym})
         append!(out, solve(arg ~ val, x))
     end
     filter(r -> _satisfies(eq, x, r), out)
+end
+
+# Σ cᵢ log(fᵢ) + R = 0, linear in the logarithms with rational cᵢ (constant logs such as
+# log(6) included) and R free of logs: exponentiated to Π fᵢ^kᵢ = exp(-L R), kᵢ = L cᵢ
+# integers. Exponentiating loses the branch information (log(-2) + log(-3) ≠ log(6)), so
+# candidates are checked in the original equation. nothing if n is not of this form.
+function _solve_logs(eq::Relation, n::Sym, x::Sym)
+    atoms = Set{Sym}()
+    _poly_atoms!(atoms, n)
+    logs = [a for a in atoms if a.kind == FN && a.name === :log && length(a.args) == 1]
+    any(a -> !_eq(a, x) && has(a, x) && !any(l -> _eq(l, a), logs), atoms) && return nothing
+    P = Poly{Sym}(n, logs)
+    cs, R = Sym[], ZERO
+    ks = zeros(Int, length(logs))
+    for (ev, c) in zip(exponent_vectors(P), coefficients(P))
+        d = sum(ev)
+        if d == 0
+            has(c, x) && return nothing
+            R = c
+        elseif d == 1 && c.kind == NUMBER && isexact(c.num)
+            push!(cs, c)
+        else
+            return nothing                              # log products or symbolic coefficients
+        end
+    end
+    L = reduce(lcm, (big(_denominator(c.num)) for c in cs); init = big(1))
+    for (ev, c) in zip(exponent_vectors(P), coefficients(P))
+        sum(ev) == 1 && (ks[findfirst(==(1), ev)] = Int(_numerator(c.num) * (L ÷ _denominator(c.num))))
+    end
+    lhs = prod((logs[i].args[1]^ks[i] for i in eachindex(logs) if ks[i] != 0); init = ONE)
+    cands = solve(lhs ~ exp(-Sym(SymNumber(L)) * R), x)
+    filter(r -> _satisfies(eq, x, r), cands)
 end
 
 # atoms b^(e_i) with one base b free of x and exponents rational multiples of one

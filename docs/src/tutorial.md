@@ -333,6 +333,13 @@ solve(exp(2x) - 3exp(x) + 2 ~ 0, x)
 solve(sqrt(x + 1) ~ x - 1, x)
 ```
 
+Several logarithms of the unknown are combined; roots where a logarithm would be complex
+(here `x = -2`) are dropped:
+
+```@example tut
+solve(log(x) + log(x - 1) ~ log(Sym(6)), x)
+```
+
 Some equations need the Lambert W function:
 
 ```@example tut
