@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Implementation — SymJ.jl</title>
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=38cbd81d">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <meta name="title" content="Implementation — SymJ.jl">
+  <meta property="og:title" content="Implementation — SymJ.jl">
+  <meta property="twitter:title" content="Implementation — SymJ.jl">
+  <meta name="description" content="Documentation for SymJ.jl.">
+  <meta property="og:description" content="Documentation for SymJ.jl.">
+  <meta property="twitter:description" content="Documentation for SymJ.jl.">
+  <script>
+    (function(){
+      document.documentElement.classList.add('no-transition');
+      var t=localStorage.getItem('md-theme');if(t)document.documentElement.setAttribute('data-theme',t);
+      window.addEventListener('load',function(){setTimeout(function(){document.documentElement.classList.remove('no-transition');},50);});
+    })()
+  </script>
+</head>
+<body data-warn-outdated>
+  <header class="md-navbar">
+    <button id="md-hamburger" class="md-icon-btn md-hamburger" aria-label="Toggle navigation" aria-expanded="false"><svg class="md-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg></button>
+    <span class="md-navbar-title">SymJ.jl</span>
+    <span class="md-navbar-spacer"></span>
+    <button id="md-search-btn" class="md-search-bar" aria-label="Search documentation" aria-expanded="false">
+      <svg class="md-icon md-search-bar-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+      <span class="md-search-bar-label">Search docs</span>
+      <kbd class="md-search-bar-kbd">Ctrl K</kbd>
+    </button>
+    <div id="md-version" class="md-version" hidden>
+      <button id="md-version-btn" class="md-version-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="Select documentation version">
+        <span id="md-version-current" class="md-version-current"></span>
+        <svg class="md-icon md-version-caret" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M7 10l5 5 5-5z"/></svg>
+      </button>
+      <ul id="md-version-menu" class="md-version-menu" role="listbox" hidden></ul>
+    </div>
+    <a class="md-icon-btn md-repo-link" href="https://github.com/jverzani/SymJ.jl" title="View the repository on GitHub" aria-label="View the repository on GitHub" rel="noopener" target="_blank"><svg class="md-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 .3a12 12 0 00-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.4-1.8-1.4-1.8-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 0-.8.4-1.3.7-1.6-2.7-.3-5.5-1.3-5.5-6 0-1.2.5-2.3 1.3-3.1-.2-.4-.6-1.6.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 016 0c2.3-1.5 3.3-1.2 3.3-1.2.7 1.6.2 2.8.1 3.2.8.8 1.3 1.9 1.3 3.2 0 4.6-2.8 5.6-5.5 5.9.5.4.9 1.1.9 2.2v3.3c0 .3.1.7.8.6A12 12 0 0012 .3z"/></svg><span class="md-repo-label">GitHub</span></a>
+    <button id="md-theme-toggle" class="md-icon-btn" title="Toggle dark mode" aria-label="Toggle dark mode"><svg class="md-icon md-icon-light" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0a.996.996 0 000-1.41l-1.06-1.06zm1.06-10.96a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/></svg><svg class="md-icon md-icon-dark" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg></button>
+  </header>
+  <div class="md-layout">
+    <nav class="md-sidebar">
+      <a href="../">Home</a>
+      <a href="../tutorial/">Tutorial</a>
+      <a href="../implementation/" class="md-nav-active">Implementation</a>
+      <a href="../design/">Design notes</a>
+      <a href="../reference/">Reference</a>
+    </nav>
+    <main class="md-content">
+      <article class="md-article">
+      <div class="md-article-actions"><a class="md-icon-btn md-edit-link" href="https://github.com/jverzani/SymJ.jl/blob/main/docs/src/implementation.md" title="Edit source on GitHub" aria-label="Edit source on GitHub"><svg class="md-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 000-1.41l-2.34-2.34a.996.996 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></a></div>
+<h1 id="Implementation" class="md-heading">Implementation<a href="#Implementation" class="md-heading-anchor" aria-label="Link to this section">#</a></h1>
+<p>This page discusses the main design choices in SymJ and the reasons for them. The <a href="../design/#Design-notes">Design notes</a> record each decision in more detail, with measurements.</p>
+<p>SymJ set out to be a symbolic kernel in pure Julia with the speed of SymEngine, exact numbers, and expressions that behave like functions. Most of the choices below follow from wanting speed without giving up exactness, and type stability without giving up generality.</p>
+<h2 id="One-concrete-node-type" class="md-heading">One concrete node type<a href="#One-concrete-node-type" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>Every expression is a <code class="md-code-inline">Sym</code>, a single concrete type with a <code class="md-code-inline">kind</code> tag (number, symbol, constant, sum, product, power, function application). This is SymEngine&#39;s approach, and differs from a Julia type per kind of node:</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">mutable struct Sym &lt;: AbstractSymbolic
+    const kind::Kind              # NUMBER SYMBOL CONSTANT ADD MUL POW FN, …
+    const hash::UInt              # structural hash, computed once
+    const name::Symbol            # symbol, constant or function name
+    const num::SymNumber          # value, constant term or coefficient
+    const args::Vector{Sym}       # terms, bases, [base, exponent] or arguments
+    const exps::Vector{Sym}       # MUL: the exponent of each base
+    const coefs::Vector{SymNumber}# ADD: the coefficient of each term
+end</code></pre>
+</div>
+<ul class="md-list-tight">
+<li><p><strong>Concretely typed children.</strong> A sum&#39;s terms are a <code class="md-code-inline">Vector{Sym}</code>, so walking a tree never boxes a value, and the compiler infers everything.</p>
+</li>
+<li><p><strong>Branching instead of dispatch.</strong> The hot paths, <code class="md-code-inline">add</code>, <code class="md-code-inline">mul</code> and <code class="md-code-inline">pow</code>, branch on a byte; with a type per kind they would dispatch dynamically on the children.</p>
+</li>
+<li><p><strong>A stored hash.</strong> Each node computes its structural hash once. Equality compares hashes first, and dictionaries keyed by expressions never rehash a subtree.</p>
+</li>
+<li><p><strong>Identity.</strong> The struct is <code class="md-code-inline">mutable</code> with all fields <code class="md-code-inline">const</code>, so <code class="md-code-inline">===</code> is pointer identity, a free first test for equality, and storing a node copies a pointer, not a wide struct.</p>
+</li>
+</ul>
+<p>The cost is that Julia&#39;s dispatch cannot tell sums from products: functions inspect the kind. Function applications are not separate types either. <code class="md-code-inline">sin(x)</code> is a node naming <code class="md-code-inline">sin</code>, and its rules (exact values, symmetries, derivative) live in a registry (<code class="md-code-inline">register_function!</code>), which package extensions add to for SpecialFunctions, HypergeometricFunctions and PolyLog.</p>
+<h2 id="Canonical-form-as-you-go" class="md-heading">Canonical form as you go<a href="#Canonical-form-as-you-go" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>Sums collect like terms and products collect like bases when they are built: <code class="md-code-inline">x + 2x</code> is <code class="md-code-inline">3x</code>, <code class="md-code-inline">x*y*x</code> is <code class="md-code-inline">x^2*y</code>, <code class="md-code-inline">exp(x)*exp(y)</code> is <code class="md-code-inline">exp(x + y)</code>. There is no separate simplification pass for these identities, so <code class="md-code-inline">a - a == 0</code> holds for any <code class="md-code-inline">a</code>.</p>
+<p>A sum is stored as a constant plus sorted parallel vectors of terms and coefficients, a product as a coefficient plus sorted vectors of bases and exponents. This is SymEngine&#39;s dictionary representation, laid out as sorted vectors instead of hash tables. Adding two sums is a merge of sorted vectors, and equality is elementwise comparison.</p>
+<p><strong>The storage order is by hash.</strong> The canonical order compares the stored hashes first, and the structure only when two hashes collide, which practically never happens. Sorting a sum&#39;s terms is then a sort of integers. When the order compared structure, it took over 40% of the time to convert a large polynomial to an expression; sorting by hash made that conversion 3.4x faster.</p>
+<p>The order has no mathematical meaning, so printing computes its own (by degree, then by name). It is deterministic within a Julia version, but <code class="md-code-inline">Symbol</code> hashes differ between versions. So anything that depends on the order of the variables can differ between versions, such as which term leads and therefore the sign of a gcd. The tests allow for this.</p>
+<h2 id="Exact-numbers" class="md-heading">Exact numbers<a href="#Exact-numbers" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>Numbers are <code class="md-code-inline">SymNumber</code>, which holds a small rational in two <code class="md-code-inline">Int</code>s, a <code class="md-code-inline">Rational{BigInt}</code>, or a <code class="md-code-inline">Float64</code>.</p>
+<ul class="md-list-tight">
+<li><p><strong>The fast path.</strong> Arithmetic on small values uses <code class="md-code-inline">Int</code> with overflow checks. On overflow it moves to <code class="md-code-inline">BigInt</code>, and back when a result fits again. Most coefficient arithmetic never allocates.</p>
+</li>
+<li><p><strong>Exactness.</strong> No answer is ever wrong because of overflow. (In the CAS comparison, another Julia system&#39;s <code class="md-code-inline">expand((x + y)^100)</code> silently overflowed <code class="md-code-inline">Int</code>.)</p>
+</li>
+<li><p><strong>Radicals.</strong> A number to a rational power is reduced: <code class="md-code-inline">sqrt(8)</code> is <code class="md-code-inline">2*sqrt(2)</code>, <code class="md-code-inline">4^(1/4)</code> is <code class="md-code-inline">sqrt(2)</code>. Standard values of functions are exact: <code class="md-code-inline">sin(π/3)</code> is <code class="md-code-inline">sqrt(3)/2</code>.</p>
+</li>
+<li><p><strong>Floats are contagious.</strong> A float in an operation makes the result a float, so an exact answer is never silently replaced by an approximation and back.</p>
+</li>
+</ul>
+<h2 id="Expressions-as-functions" class="md-heading">Expressions as functions<a href="#Expressions-as-functions" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p><code class="md-code-inline">Sym</code> is a subtype of <code class="md-code-inline">Function</code>. The goal is for expressions to be drop-in replacements for functions in numeric code:</p>
+<ul class="md-list-tight">
+<li><p><strong>Calling with a number evaluates</strong> with Julia&#39;s arithmetic on that number: if <code class="md-code-inline">u = x^2</code>, then <code class="md-code-inline">u(3) === 9</code>, <code class="md-code-inline">u(3.0) === 9.0</code> and <code class="md-code-inline">u(1//2) === 1//4</code>. Because this is generic, dual numbers (automatic differentiation), intervals and <code class="md-code-inline">BigFloat</code> work.</p>
+</li>
+<li><p><strong>Calling with pairs substitutes.</strong> A single value is accepted only when there is one free variable; with several, an implicit order would be confusing.</p>
+</li>
+<li><p><strong>Calling with keywords names the values</strong>: <code class="md-code-inline">ex(; x = 2, y = 3)</code>. It evaluates with Julia arithmetic when every variable gets a number, and substitutes otherwise. Names that don&#39;t appear are ignored, so one set of keywords can serve several expressions. The keywords are matched to the expression&#39;s variables by name, which is possible because a variable is identified by its name.</p>
+</li>
+<li><p><strong>Calling with no arguments</strong> gives the value of a constant expression, and returns the expression unchanged if it has a free variable. It does not throw, deliberately: a Julia exception costs about 40 μs (the backtrace), and generic code that reads numeric leaves this way (GruntzLimit does) would pay that for every symbol.</p>
+</li>
+<li><p><strong><code class="md-code-inline">lambdify</code> compiles.</strong> Evaluation by calling interprets the tree (about 2.4 μs for <code class="md-code-inline">sin(x)^2 + 3x^5 - 2x + exp(-x/2)</code>). <code class="md-code-inline">lambdify</code> generates Julia code, with shared subexpressions computed once, and compiles it with RuntimeGeneratedFunctions, so it can be called immediately. The result runs as fast as a hand-written function (9.3 ns against 9.2 ns for that expression).</p>
+</li>
+</ul>
+<h2 id="Polynomials" class="md-heading">Polynomials<a href="#Polynomials" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>Polynomial algorithms (expansion, division, gcd, factoring, partial fractions, solving) run on a separate type, <code class="md-code-inline">Poly{C,M}</code>, a sparse multivariate polynomial: a vector of generators, sorted vectors of monomials and coefficients, and a description of how exponents are packed.</p>
+<h3 id="Packed-monomials" class="md-heading">Packed monomials<a href="#Packed-monomials" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p>A monomial&#39;s exponents are packed into one machine word, with the first generator in the most significant bits. For <code class="md-code-inline">x^3*y^2</code> in two generators with 32-bit fields, the word is <code class="md-code-inline">3 &lt;&lt; 32 + 2</code>. Then:</p>
+<ul class="md-list-tight">
+<li><p>multiplying monomials is adding words (degree checks rule out carries);</p>
+</li>
+<li><p>lexicographic order is integer order, so sorting terms sorts integers;</p>
+</li>
+<li><p>divisibility and differentiation are a few shifts and subtractions.</p>
+</li>
+</ul>
+<p>Products accumulate in a purpose-built hash table keyed by the packed monomial (about 3x faster than a <code class="md-code-inline">Dict</code>), then are sorted once. When all coefficients are machine integers and a bound shows the sums cannot overflow, they accumulate in <code class="md-code-inline">Int128</code>, which removes nearly all of the coefficient cost. Powers use the multinomial theorem when the base is sparse: <code class="md-code-inline">expand((a + x)^100)</code> takes 26 μs.</p>
+<p><code class="md-code-inline">expand</code> converts to <code class="md-code-inline">Poly</code> whenever an expression is a polynomial with numeric coefficients, which is why SymJ expands large products far faster than tree-based systems: <code class="md-code-inline">expand(e*(e + w))</code> with <code class="md-code-inline">e = expand((x + y + z + w)^15)</code> takes 5 ms, against 415 ms for SymEngine.jl.</p>
+<h3 id="When-the-exponents-don&#39;t-fit" class="md-heading">When the exponents don&#39;t fit<a href="#When-the-exponents-don&#39;t-fit" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p>The usual packing gives each of <code class="md-code-inline">n</code> generators <code class="md-code-inline">64 ÷ n</code> bits: 4 generators allow degree 65 534 each, and 16 allow 14. Exponents that don&#39;t fit are handled in two stages:</p>
+<ol class="md-list-tight">
+<li><p><strong>Uneven fields.</strong> The fields are sized to each generator&#39;s degree, with the spare bits shared out. One generator of high degree among many linear ones still fits one 64-bit word: <code class="md-code-inline">x^(2^40)</code> with 15 other generators, or <code class="md-code-inline">x^70</code> with 10.</p>
+</li>
+<li><p><strong>Wider words.</strong> Past 64 bits the polynomial is packed into a <code class="md-code-inline">UInt128</code>, then a <code class="md-code-inline">BigInt</code>, which is slower but has no limit.</p>
+</li>
+</ol>
+<p>The word type is a type parameter, <code class="md-code-inline">Poly{C,M}</code>, and arithmetic never changes it. This is a trade-off between generality and speed. A first version widened inside each operation, so the result of <code class="md-code-inline">p * q</code> could be a different type from <code class="md-code-inline">p</code>. Julia could no longer infer types through polynomial code, and code doing many small polynomial operations slowed down: multivariate factoring by 70%. Now an operation that needs a wider word signals it, and the public entry points (<code class="md-code-inline">Poly(ex, …)</code>, <code class="md-code-inline">gcd</code>, <code class="md-code-inline">factor</code>, <code class="md-code-inline">cancel</code>, <code class="md-code-inline">apart</code>, …) catch the signal and rerun the computation with wider words. The common case keeps its speed, and only direct arithmetic on hand-built polynomials can still raise an error.</p>
+<h3 id="Division" class="md-heading">Division<a href="#Division" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p>Multivariate division keeps the dividend in the same hash table used for products, with a heap of its monomials. Each step takes the largest monomial; everything added to the table is smaller, so no monomial is revisited and the quotient and remainder come out already sorted, without forming intermediate polynomials.</p>
+<h2 id="Greatest-common-divisors" class="md-heading">Greatest common divisors<a href="#Greatest-common-divisors" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>Polynomial gcds are at the heart of rational function arithmetic (<code class="md-code-inline">cancel</code>), squarefree and full factorization, partial fractions and solving, so their speed sets the speed of much else.</p>
+<h3 id="Why-a-modular-algorithm" class="md-heading">Why a modular algorithm<a href="#Why-a-modular-algorithm" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p>The classical method is a sequence of pseudo-remainders, made primitive at each step. Its coefficients grow quickly, and it is very slow beyond small inputs: 720 ms for a 4-variable gcd that the modular method does in 1.9 ms. SymJ keeps it only as a reference implementation for the tests, and for polynomials packed in <code class="md-code-inline">BigInt</code> words.</p>
+<p>The default is <strong>Brown&#39;s dense modular algorithm</strong> (in the form of Geddes, Czapor and Labahn):</p>
+<ul class="md-list-tight">
+<li><p><strong>Images mod primes.</strong> The gcd is computed modulo primes below 2^31, so products fit in an <code class="md-code-inline">Int</code>, and the images are combined by the Chinese remainder theorem.</p>
+</li>
+<li><p><strong>Variables by interpolation.</strong> Modulo a prime, the last variable is evaluated at points, the gcds of the evaluated polynomials are computed recursively, and the variable is restored by Newton interpolation. The base case is Euclid&#39;s algorithm on dense vectors.</p>
+</li>
+<li><p><strong>Unlucky primes and points.</strong> A prime or point can give an image of too high degree. These are detected by comparing leading monomials and discarded.</p>
+</li>
+<li><p><strong>Certainty.</strong> The candidate is accepted only if it divides both inputs exactly. The answer is therefore certain, not probabilistic. The division is tried only once the reconstruction stops changing, since a wrong candidate has coefficients spread over the whole modulus.</p>
+</li>
+</ul>
+<p>The packed monomial layout pays off again: with the eliminated variable in the least significant field, evaluation keeps terms sorted, and terms that share their other exponents are contiguous runs, which are exactly the coefficients of a polynomial in that variable. Evaluation and interpolation are linear scans.</p>
+<p>Against FLINT (through Nemo), on gcds of <code class="md-code-inline">(x+y+z+w+1)^k</code> times two cofactors, this is faster on four of six cases and within 1.4x on another. The weak case is a high-degree gcd with small cofactors, where the method needs about <code class="md-code-inline">(deg + 1)^(nvars − 1)</code> small gcds.</p>
+<h3 id="Sparse-gcds:-Zippel&#39;s-method" class="md-heading">Sparse gcds: Zippel&#39;s method<a href="#Sparse-gcds:-Zippel&#39;s-method" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p>Brown&#39;s method interpolates every possible term, so its cost is exponential in the number of variables, whatever the size of the answer. A gcd of 14 low-degree variables took 1.1 s, and 18 variables more than a minute. Zippel&#39;s method learns the gcd&#39;s terms from one image and then solves only for their coefficients:</p>
+<ul class="md-list-tight">
+<li><p><strong>The skeleton.</strong> The first image comes from the full recursion. Its terms are taken as the gcd&#39;s support.</p>
+</li>
+<li><p><strong>Later images.</strong> The other variables are evaluated at powers of a random point. Univariate gcds then give a linear system for the skeleton&#39;s coefficients, with an unknown scale for each evaluation (the LINZIP form), so the leading coefficient can have several terms.</p>
+</li>
+<li><p><strong>Fallback.</strong> Any inconsistency (a degree mismatch, a singular system) means the support was wrong or the point bad. That image is computed densely instead, and the skeleton refreshed. The final division still guarantees the result.</p>
+</li>
+</ul>
+<p>Zippel&#39;s method loses on dense gcds, by up to 33x, and wins on sparse ones, by 6–16x. So the default, <code class="md-code-inline">method = :auto</code>, chooses per call. It estimates Brown&#39;s work as the product of <code class="md-code-inline">(degree + 1)</code> over the variables and compares it with the number of terms of the inputs, a measure of sparsity. On the benchmarks, dense inputs have ratios near 1 and sparse ones 4 and up, so Zippel is chosen above 3 (and above an absolute minimum). The 14-variable gcd now takes 0.05 s and the 20-variable one 0.18 s, while dense gcds are unchanged. <code class="md-code-inline">method = :dense</code> and <code class="md-code-inline">method = :zippel</code> force a choice.</p>
+<h2 id="Factorization" class="md-heading">Factorization<a href="#Factorization" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>Factoring over the rationals starts with the <strong>squarefree decomposition</strong>, by Yun&#39;s algorithm: a few gcds with a derivative separate the factors by multiplicity, and each squarefree part is then factored into irreducibles.</p>
+<p><strong>Univariate polynomials</strong> use the Zassenhaus approach: factor modulo a small prime chosen to keep the number of factors small, lift the factors by Hensel lifting past a bound on the true factors&#39; coefficients, then recombine the lifted factors into true ones, checking each candidate by exact division.</p>
+<p>Recombination by trying subsets is exponential in the number of modular factors, and some irreducible polynomials split into many factors modulo every prime (the Swinnerton-Dyer polynomials). From nine factors on, SymJ uses <strong>van Hoeij&#39;s method</strong>: traces of the lifted factors form a lattice in which the true factors give short vectors, found by lattice reduction (LLL). The reduction is exact, in integers (Cohen&#39;s integral LLL), because a single short vector is taken as proof that the polynomial is irreducible, and floating point could not guarantee that. Keeping it in integers instead of rationals made it 8–13x faster: the degree-64 Swinnerton-Dyer polynomial is shown irreducible in 0.76 s.</p>
+<p><strong>Multivariate polynomials</strong> use Wang&#39;s extended Zassenhaus method:</p>
+<ul class="md-list-tight">
+<li><p>evaluate all variables but one at a small integer point, chosen so that the univariate image keeps its degree and stays squarefree;</p>
+</li>
+<li><p>factor the univariate image;</p>
+</li>
+<li><p>lift the factors back to all variables by multivariate Hensel lifting.</p>
+</li>
+</ul>
+<p>The leading coefficients are predicted before lifting, by Wang&#39;s method of matching the factors of the leading coefficient to the univariate factors through prime divisors. Kronecker&#39;s substitution, which maps the problem to one univariate factorization, remains as a fallback and as a reference for the tests; it is correct but far slower (14 s against 2.5 ms on a 4-variable example).</p>
+<h2 id="Rational-functions-and-partial-fractions" class="md-heading">Rational functions and partial fractions<a href="#Rational-functions-and-partial-fractions" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p><code class="md-code-inline">cancel</code> brings an expression to the form <code class="md-code-inline">p/q</code> in lowest terms. Its polynomial variables are the expression&#39;s atoms: symbols, but also function applications and non-integer powers. Treating <code class="md-code-inline">sin(x)</code> as an independent variable is always sound, since a polynomial identity in it remains true after substituting back. So <code class="md-code-inline">cancel((sin(x)^2 - 1)/(sin(x) + 1))</code> is <code class="md-code-inline">sin(x) - 1</code>. The price is that relations among atoms are not used: <code class="md-code-inline">(x - 1)/(sqrt(x) - 1)</code> is not reduced, nor is a fraction whose cancellation needs <code class="md-code-inline">sqrt(2)^2 = 2</code>.</p>
+<p><code class="md-code-inline">apart</code> divides out the polynomial part, factors the denominator, and finds each fraction&#39;s numerator by modular inverses. When other symbols appear, the decomposition is over the field of rational functions in them, with arithmetic in an exact rational function type kept in canonical form, so that its zero tests are exact.</p>
+<h2 id="Solving" class="md-heading">Solving<a href="#Solving" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p><code class="md-code-inline">solve</code> follows a few rules:</p>
+<ul class="md-list-tight">
+<li><p><strong>An equation is required.</strong> It must be written <code class="md-code-inline">lhs ~ rhs</code>. A bare expression is not taken to mean &quot;= 0&quot;, on pedagogical grounds.</p>
+</li>
+<li><p><strong>Polynomials are factored first.</strong> The left side minus the right is reduced with <code class="md-code-inline">cancel</code>, so no root is a pole, and the numerator is factored. Each irreducible factor is solved by formula up to degree four, numerically beyond.</p>
+<ul class="md-list-tight">
+<li><p>A cubic with three real roots is solved in trigonometric form, which is exact and real, where Cardano&#39;s formula would need complex numbers.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>One function of the unknown.</strong> When the unknown appears through one function, such as <code class="md-code-inline">exp(x)</code> or <code class="md-code-inline">sqrt(x + 1)</code>, that function is solved for first, then inverted. Candidates are checked by substitution, which drops extraneous roots.</p>
+</li>
+<li><p><strong>Lambert W.</strong> Equations mixing the unknown with an exponential of it, such as <code class="md-code-inline">x*exp(x) ~ 1</code>, are solved with the Lambert W function.</p>
+</li>
+<li><p><strong>Inequalities</strong> are solved exactly through the real roots of the numerator and denominator, between which the sign is constant. The result is a union of intervals.</p>
+</li>
+<li><p><strong>Systems.</strong> Linear systems are solved by Gauss–Jordan elimination over an exact field. Linear inequalities in several unknowns are solved by Fourier–Motzkin elimination, giving each unknown&#39;s bounds in terms of the unknowns after it.</p>
+</li>
+</ul>
+<p><code class="md-code-inline">&lt;</code> and friends are not used for symbolic inequalities: they keep returning <code class="md-code-inline">true</code> or <code class="md-code-inline">false</code>, which generic code relies on, and raise an error naming the symbolic operator (<code class="md-code-inline">≪</code>, <code class="md-code-inline">≦</code>, …) when given a symbol.</p>
+<h2 id="Working-with-other-packages" class="md-heading">Working with other packages<a href="#Working-with-other-packages" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>SymJ implements TermInterface, so generic code that walks terms with <code class="md-code-inline">operation</code> and <code class="md-code-inline">arguments</code> and rebuilds them with <code class="md-code-inline">maketerm</code> works on its expressions. GruntzLimit and RischIntegrate are written this way, for several symbolic systems.</p>
+<p>Julia compiles code the first time it runs, so the first limit or integral would pay for compiling those packages&#39; code for SymJ&#39;s types: about 3 s for the first limit and 4 s for the first integral. SymJ has package extensions for GruntzLimit and RischIntegrate that run a precompilation workload of limits and integrals on SymJ expressions when those packages are installed. The compiled code then ships with the extension, and the first limit takes about 1 ms.</p>
+<h2 id="How-it-compares" class="md-heading">How it compares<a href="#How-it-compares" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>The <code class="md-code-inline">bench/cas</code> directory compares SymJ (with GruntzLimit and RischIntegrate), Symbolics (with the same two), SymPy and Giac on 311 problems in nine areas, checking every answer numerically. SymJ verifies 309, Giac 305, and Symbolics and SymPy 296 each. The <a href="https://rawcdn.githack.com/jverzani/SymJ.jl/d9f9703f64bef58d1aa11a55ba041a7611429fa2/bench/cas/results/cas_comparison.html">comparison page</a> has the details, the times, and each system&#39;s answer to each problem.</p>
+      </article>
+      <footer class="md-footer">
+<p>Built with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and <a href="https://github.com/mthelm85/MaterialDocs.jl">MaterialDocs.jl</a>.</p>
+      </footer>
+    </main>
+    <aside class="md-toc">
+      <div class="md-toc-inner">
+        <p class="md-toc-title">On this page</p>
+          <a class="md-toc-link md-toc-h2" href="#One-concrete-node-type">One concrete node type</a>
+          <a class="md-toc-link md-toc-h2" href="#Canonical-form-as-you-go">Canonical form as you go</a>
+          <a class="md-toc-link md-toc-h2" href="#Exact-numbers">Exact numbers</a>
+          <a class="md-toc-link md-toc-h2" href="#Expressions-as-functions">Expressions as functions</a>
+          <a class="md-toc-link md-toc-h2" href="#Polynomials">Polynomials</a>
+            <a class="md-toc-link md-toc-h3" href="#Packed-monomials">Packed monomials</a>
+            <a class="md-toc-link md-toc-h3" href="#When-the-exponents-don&#39;t-fit">When the exponents don&#39;t fit</a>
+            <a class="md-toc-link md-toc-h3" href="#Division">Division</a>
+          <a class="md-toc-link md-toc-h2" href="#Greatest-common-divisors">Greatest common divisors</a>
+            <a class="md-toc-link md-toc-h3" href="#Why-a-modular-algorithm">Why a modular algorithm</a>
+            <a class="md-toc-link md-toc-h3" href="#Sparse-gcds:-Zippel&#39;s-method">Sparse gcds: Zippel&#39;s method</a>
+          <a class="md-toc-link md-toc-h2" href="#Factorization">Factorization</a>
+          <a class="md-toc-link md-toc-h2" href="#Rational-functions-and-partial-fractions">Rational functions and partial fractions</a>
+          <a class="md-toc-link md-toc-h2" href="#Solving">Solving</a>
+          <a class="md-toc-link md-toc-h2" href="#Working-with-other-packages">Working with other packages</a>
+          <a class="md-toc-link md-toc-h2" href="#How-it-compares">How it compares</a>
+      </div>
+    </aside>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/julia.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/julia-repl.min.js"></script>
+  <script>hljs.highlightAll();</script>
+  <script src="../siteinfo.js"></script>
+  <script src="../../versions.js"></script>
+  <script src="../assets/materialdocs.js?v=38cbd81d"></script>
+</body>
+</html>

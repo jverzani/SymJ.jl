@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Design — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=11314de1">
+  <title>Design notes — SymJ.jl</title>
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=1a2e4b98">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
-  <meta name="title" content="Design — SymJ.jl">
-  <meta property="og:title" content="Design — SymJ.jl">
-  <meta property="twitter:title" content="Design — SymJ.jl">
+  <meta name="title" content="Design notes — SymJ.jl">
+  <meta property="og:title" content="Design notes — SymJ.jl">
+  <meta property="twitter:title" content="Design notes — SymJ.jl">
   <meta name="description" content="Documentation for SymJ.jl.">
   <meta property="og:description" content="Documentation for SymJ.jl.">
   <meta property="twitter:description" content="Documentation for SymJ.jl.">
@@ -43,12 +43,15 @@
   <div class="md-layout">
     <nav class="md-sidebar">
       <a href="../">Home</a>
-      <a href="../design/" class="md-nav-active">Design</a>
+      <a href="../tutorial/">Tutorial</a>
+      <a href="../implementation/">Implementation</a>
+      <a href="../design/" class="md-nav-active">Design notes</a>
+      <a href="../reference/">Reference</a>
     </nav>
     <main class="md-content">
       <article class="md-article">
       <div class="md-article-actions"><a class="md-icon-btn md-edit-link" href="https://github.com/jverzani/SymJ.jl/blob/main/docs/src/design.md" title="Edit source on GitHub" aria-label="Edit source on GitHub"><svg class="md-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 000-1.41l-2.34-2.34a.996.996 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></a></div>
-<h1 id="Design" class="md-heading">Design<a href="#Design" class="md-heading-anchor" aria-label="Link to this section">#</a></h1>
+<h1 id="Design-notes" class="md-heading">Design notes<a href="#Design-notes" class="md-heading-anchor" aria-label="Link to this section">#</a></h1>
 <p>SymJ is a symbolic manipulation kernel written in pure Julia. It aims for SymEngine-class speed with a small, explicit core that later layers (simplification, solving, matrices) build on.</p>
 <h2 id="Goals" class="md-heading">Goals<a href="#Goals" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <ul>
@@ -64,7 +67,9 @@
 </li>
 <li><p><code class="md-code-inline">ex()</code> gives the value of a constant expression as a Julia number (<code class="md-code-inline">Sym(2)() === 2</code>, <code class="md-code-inline">Sym(π)() === π</code>), and returns <code class="md-code-inline">ex</code> unchanged if it has a free symbol. It deliberately does not throw: a Julia <code class="md-code-inline">throw</code> costs about 40 μs (the backtrace), and generic code reading leaves pays that on every symbol. This matches what generic term code expects from a callable numeric leaf; GruntzLimit, for example, reads numbers this way.</p>
 </li>
-<li><p>An expression with several free symbols must be called with pairs. A single value would leave implicit which symbol receives it.</p>
+<li><p>An expression with several free symbols must be called with pairs or keywords. A single value would leave implicit which symbol receives it.</p>
+</li>
+<li><p><code class="md-code-inline">ex(; x = 2, y = 3)</code> matches keywords to variables and parameters by name. When all of them get non-symbolic values it evaluates with Julia arithmetic, returning a Julia number; otherwise it substitutes. Names not in <code class="md-code-inline">ex</code> are ignored (one set of keywords can serve several expressions), and keywords aren&#39;t mixed with pairs or a positional value. A name shared by a variable and a parameter is an error.</p>
 </li>
 <li><p>A <code class="md-code-inline">SymFunction</code> called on arguments builds an unevaluated application (<code class="md-code-inline">f(x)</code>).</p>
 </li>
@@ -957,8 +962,15 @@ end</code></pre>
 <li><p><strong>Inverse trig functions have exact values</strong> at the standard points (±1/2, ±√2/2, ±√3/2, and √3, √3/3 for <code class="md-code-inline">atan</code>).</p>
 </li>
 </ul>
-<h2 id="Parameters" class="md-heading">Parameters<a href="#Parameters" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<h2 id="Parameters-(internal)" class="md-heading">Parameters (internal)<a href="#Parameters-(internal)" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<div class="md-admonition md-admonition-note">
+<p class="md-admonition-title">Internal, not exported</p>
+<div class="md-admonition-body">
+<p>Parameters are hidden for now: <code class="md-code-inline">@parameters</code>, <code class="md-code-inline">parameter</code>, <code class="md-code-inline">isparameter</code> and <code class="md-code-inline">free_parameters</code> are not exported or documented for users (they are reachable as <code class="md-code-inline">SymJ.parameter</code> and so on), so that the current approach does not become permanent before the shared-name question below is settled.</p>
+</div>
+</div>
 <p><code class="md-code-inline">parameter(:a)</code> or <code class="md-code-inline">@parameters a b</code> makes a symbolic parameter: a named constant of unknown value, as opposed to a variable. It is a node kind, <code class="md-code-inline">PARAMETER</code>, beside <code class="md-code-inline">SYMBOL</code>, not a new Julia type. Expressions stay one concrete type, so containers stay concretely typed and dispatch can&#39;t distinguish expressions that contain parameters; <code class="md-code-inline">isparameter</code> and <code class="md-code-inline">free_parameters</code> answer that instead. The parameter <code class="md-code-inline">a</code> and the variable <code class="md-code-inline">a</code> hash differently and are distinct.</p>
+<p><strong>Shared names (undecided).</strong> Because the two are distinct nodes, a parameter and a variable can have the same name. Their sum prints as <code class="md-code-inline">a + a</code> and is not <code class="md-code-inline">2a</code>, which is confusing. Calling with keywords raises an error for such a name; nothing else checks. Prohibiting it needs a session-wide record of parameter names, checked whenever either kind is created: <code class="md-code-inline">@syms a</code> after <code class="md-code-inline">@parameters a</code> (or the reverse) would be an error. The costs are that a name can&#39;t change role within a session, and that everything run in one process (the test suite, the documentation build, other packages creating variables by name) shares that record. The decision is deferred until it is clearer how much parameters are used. The lighter alternative is to keep them separate and print parameters distinctly. Either way the current behavior will almost certainly change, and the user-facing documentation says so.</p>
 <div class="md-table-wrap">
 <table class="md-table">
 <thead>
@@ -1080,6 +1092,8 @@ end</code></pre>
 <p>The <code class="md-code-inline">expand(e*(e+w))</code> row takes 5.1 ms in total. Of that, the <code class="md-code-inline">Poly</code> product (816 × 817 terms, giving 6 272) takes 1.8 ms, <code class="md-code-inline">Poly → Sym</code> takes 3.2 ms, and <code class="md-code-inline">Sym → Poly</code> takes 1.5 ms. SymEngine.jl&#39;s <code class="md-code-inline">expand</code> works on the generic tree, so this compares like with like at the user level. SymEngine&#39;s own sparse polynomial classes are not exposed by SymEngine.jl. SymEngine.jl&#39;s numbers also include the cost of the C wrapper (a <code class="md-code-inline">ccall</code> and a finalizer per operation), which dominates the small benchmarks.</p>
 <h2 id="Not-yet-done-/-open-questions" class="md-heading">Not yet done / open questions<a href="#Not-yet-done-/-open-questions" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <ul class="md-list-tight">
+<li><p><strong>Parameters and variables sharing a name.</strong> Prohibit it, or print them distinctly? See Parameters above.</p>
+</li>
 <li><p><strong>Complex numbers.</strong> <code class="md-code-inline">im</code> is the exact power <code class="md-code-inline">(-1)^(1/2)</code>. That covers the basics, but there is no <code class="md-code-inline">re</code>/<code class="md-code-inline">im</code> decomposition or <code class="md-code-inline">conj</code>, and <code class="md-code-inline">Sym(z::Complex)</code> builds <code class="md-code-inline">a + b*im</code>.</p>
 </li>
 <li><p><strong>Assumptions.</strong> These will be passed per call, as described above. Neither the API nor the rules exist yet.</p>
@@ -1136,7 +1150,7 @@ end</code></pre>
           <a class="md-toc-link md-toc-h2" href="#Compiled-evaluation:-lambdify">Compiled evaluation: lambdify</a>
           <a class="md-toc-link md-toc-h2" href="#Relations">Relations</a>
           <a class="md-toc-link md-toc-h2" href="#Solving">Solving</a>
-          <a class="md-toc-link md-toc-h2" href="#Parameters">Parameters</a>
+          <a class="md-toc-link md-toc-h2" href="#Parameters-(internal)">Parameters (internal)</a>
           <a class="md-toc-link md-toc-h2" href="#Assumptions">Assumptions</a>
           <a class="md-toc-link md-toc-h2" href="#Performance-snapshot">Performance snapshot</a>
           <a class="md-toc-link md-toc-h2" href="#Not-yet-done-/-open-questions">Not yet done / open questions</a>
@@ -1149,6 +1163,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=11314de1"></script>
+  <script src="../assets/materialdocs.js?v=1a2e4b98"></script>
 </body>
 </html>
