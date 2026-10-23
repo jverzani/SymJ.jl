@@ -3,8 +3,7 @@
 """
     free_symbols(ex)
 
-The variables appearing in `ex`, sorted by name. Parameters are not included; see
-[`free_parameters`](@ref).
+The variables appearing in `ex`, sorted by name.
 """
 function free_symbols(ex::Sym)
     s = Set{Sym}()
@@ -13,11 +12,10 @@ function free_symbols(ex::Sym)
 end
 free_symbols(::Number) = Sym[]
 
-"""
-    free_parameters(ex)
-
-The parameters appearing in `ex`, sorted by name.
-"""
+# (internal, not exported: parameters are hidden until the name question is settled)
+#     free_parameters(ex)
+#
+# The parameters appearing in `ex`, sorted by name.
 function free_parameters(ex::Sym)
     s = Set{Sym}()
     _free!(s, ex, PARAMETER)
@@ -494,11 +492,10 @@ macro syms(xs...)
     ex
 end
 
-"""
-    @parameters a b
-
-Create symbolic parameters (see [`parameter`](@ref)) and bind them to the names.
-"""
+# (internal, not exported: parameters are hidden until the name question is settled)
+#     @parameters a b
+#
+# Create symbolic parameters (see [`parameter`](@ref)) and bind them to the names.
 macro parameters(xs...)
     all(x -> x isa Symbol, xs) || throw(ArgumentError("@parameters: names only"))
     ex = Expr(:block)

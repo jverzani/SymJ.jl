@@ -17,10 +17,10 @@ be called in these ways:
 
 - `ex(a)` with a number `a`: evaluates `ex`, which may have one free variable, with
   Julia's arithmetic on `a` (see [`evaluate`](@ref)), so `(x^2)(3) === 9`. With a
-  symbolic `a`, or with parameters present, it substitutes instead.
+  symbolic `a`, it substitutes instead.
 - `ex(x => a, y => b)`: substitutes (see [`subs`](@ref)) and returns an expression.
-- `ex(; x = a, y = b)`: gives values to the variables and parameters named `x` and `y`.
-  If every one of `ex`'s variables and parameters gets a non-symbolic value, `ex` is
+- `ex(; x = a, y = b)`: gives values to the variables named `x` and `y`.
+  If every one of `ex`'s variables gets a non-symbolic value, `ex` is
   evaluated with Julia arithmetic and the result is a Julia number:
   `(x^2 + y)(; x = 2, y = 3) === 7`. Otherwise this substitutes and returns an expression:
   `(x^2 + y)(; x = 2) == y + 4`. Names that are not in `ex` are ignored, so one set of
@@ -46,7 +46,6 @@ Layout by `kind`:
 |:-----------|:-------------------|:---------------------|:---------------|:-----------------------|
 | `NUMBER`   | the value          |                      |                |                        |
 | `SYMBOL`   |                    |                      |                |                        |
-| `PARAMETER`|                    |                      |                |                        |
 | `CONSTANT` |                    |                      |                |                        |
 | `ADD`      | constant term      | terms (sorted)       |                | coefficient of each    |
 | `MUL`      | coefficient        | bases (sorted)       | exponent of each |                      |
@@ -224,38 +223,36 @@ Base.isequal(a::Sym, b::Sym) = _eq(a, b)
 """
     kind(x::Sym)
 
-The node kind: one of `NUMBER`, `SYMBOL`, `PARAMETER`, `CONSTANT`, `ADD`, `MUL`, `POW`, `FN`
-(accessible as `SymJ.ADD`, etc.).
+The node kind: one of `NUMBER`, `SYMBOL`, `CONSTANT`, `ADD`, `MUL`, `POW`, `FN` (accessible
+as `SymJ.ADD`, etc.).
 """
 kind(x::Sym) = x.kind
 
 isnumber(x::Sym) = x.kind == NUMBER
 issymbol(x::Sym) = x.kind == SYMBOL
 
-"""
-    isparameter(x)
-
-Is `x` a symbolic parameter (made with [`parameter`](@ref) or [`@parameters`](@ref))?
-"""
+# (internal, not exported: parameters are hidden until the name question is settled)
+#     isparameter(x)
+#
+# Is `x` a symbolic parameter (made with [`parameter`](@ref) or [`@parameters`](@ref))?
 isparameter(x::Sym) = x.kind == PARAMETER
 isparameter(x) = false
 
 # a variable or a parameter: the leaves with a name
 @inline _isnamed(x::Sym) = x.kind == SYMBOL || x.kind == PARAMETER
 
-"""
-    parameter(name)
-
-A symbolic parameter: a named constant of unknown value, as opposed to a variable.
-Parameters take part in expressions like variables, but `free_symbols` lists only the
-variables, calling an expression with a value substitutes into its variable and keeps
-the parameters (`(a*x^2)(3) == 9a`), and `lambdify` takes them after the variable.
-
-A parameter and a variable may currently have the same name, and are then different
-symbols that print alike: `parameter(:a) + Sym(:a)` prints as `a + a` but is not `2a`.
-This will almost certainly change in a future version (most likely to an error), so do
-not rely on it: avoid reusing a name in both roles.
-"""
+# (internal, not exported: parameters are hidden until the name question is settled)
+#     parameter(name)
+#
+# A symbolic parameter: a named constant of unknown value, as opposed to a variable.
+# Parameters take part in expressions like variables, but `free_symbols` lists only the
+# variables, calling an expression with a value substitutes into its variable and keeps
+# the parameters (`(a*x^2)(3) == 9a`), and `lambdify` takes them after the variable.
+#
+# A parameter and a variable may currently have the same name, and are then different
+# symbols that print alike: `parameter(:a) + Sym(:a)` prints as `a + a` but is not `2a`.
+# This will almost certainly change in a future version (most likely to an error), so do
+# not rely on it: avoid reusing a name in both roles.
 parameter(s::Symbol) = _mkparam(s)
 parameter(s::AbstractString) = parameter(Symbol(s))
 

@@ -158,8 +158,8 @@ through it. An expression can also be broadcast over a collection:
 u.(0:4)
 ```
 
-With several variables, or parameters, keywords give the values by name. When every
-variable and parameter has a numeric value the result is a Julia number, and otherwise
+With several variables, keywords give their values by name. When every variable has a
+numeric value the result is a Julia number, and otherwise
 the expression with the given values substituted:
 
 ```@example tut
@@ -408,13 +408,13 @@ The algorithm handles cancellations that numerical evaluation cannot follow:
 limit(exp(x) * (exp(1 / x - exp(-x)) - exp(1 / x)), x => Inf)
 ```
 
-Parameters may appear:
+Other symbols may appear:
 
 ```@example tut
 limit((1 + a / x)^(b * x), x => Inf)
 ```
 
-When the limit depends on the values of the parameters, `limit` gives it for each case:
+When the limit depends on the values of the other symbols, `limit` gives it for each case:
 
 ```@example tut
 limit(x^a, x => Inf)

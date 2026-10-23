@@ -73,8 +73,7 @@ ex = x^2 * y + sin(x)
 ex(x => 2), subs(ex, x => y + 1)
 ```
 
-Called with keywords, it gives the variables (and parameters) values by name. With all
-of them numeric the result is a Julia number, and otherwise an expression:
+Called with keywords, it gives the variables values by name. With all of them numeric the result is a Julia number, and otherwise an expression:
 
 ```@example usage
 ex(; x = 2, y = 3), ex(; x = 2)
@@ -159,24 +158,3 @@ limit(sin(x) / x, x => 0), limit((1 + 1 / x)^x, x => Inf)
 ```@example usage
 integrate(x * sin(x), x), integrate(1 / (1 + x^2), x)
 ```
-
-### Parameters
-
-A parameter is a named constant, as opposed to a variable. Calling an expression
-substitutes for its variable and keeps the parameters:
-
-```@example usage
-@parameters a b
-g = a * x^2 + b * x
-g(2), solve(g ~ 0, x)
-```
-
-!!! warning "Parameters and variables with the same name: this will change"
-    A parameter and a variable can currently share a name, as with `parameter(:a)` and
-    `Sym(:a)`. They are then different symbols that print alike: their sum prints as
-    `a + a` but is not `2a`, and substituting for one leaves the other. Calling with
-    keywords (`ex(; a = 1)`) raises an error for such a name.
-
-    **This behavior will almost certainly change in a future version**, most likely to
-    an error when a name is used in both roles. Do not rely on it: use different names
-    for parameters and variables.

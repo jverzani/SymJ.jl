@@ -9,8 +9,8 @@
 Solve a system of linear equations (written with `~`) for the variables `vars`. The
 result is a `Dict` from variables to values; for an underdetermined system the pivot
 variables are given in terms of the free ones, which do not appear as keys. An
-inconsistent system gives `nothing`. Coefficients may involve other symbols and
-parameters; the solution is then the generic one (it assumes that the pivots, such as
+inconsistent system gives `nothing`. Coefficients may involve other symbols; the
+solution is then the generic one (it assumes that the pivots, such as
 `a` in `a*x + y ~ 1`, are nonzero).
 
 ```julia

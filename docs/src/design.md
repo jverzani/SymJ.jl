@@ -790,7 +790,13 @@ Two canonical-form additions came with it:
 - **Inverse trig functions have exact values** at the standard points (±1/2, ±√2/2,
   ±√3/2, and √3, √3/3 for `atan`).
 
-## Parameters
+## Parameters (internal)
+
+!!! note "Internal, not exported"
+    Parameters are hidden for now: `@parameters`, `parameter`, `isparameter` and
+    `free_parameters` are not exported or documented for users (they are reachable as
+    `SymJ.parameter` and so on), so that the current approach does not become
+    permanent before the shared-name question below is settled.
 
 `parameter(:a)` or `@parameters a b` makes a symbolic parameter: a named constant of
 unknown value, as opposed to a variable. It is a node kind, `PARAMETER`, beside

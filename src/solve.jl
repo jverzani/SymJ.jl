@@ -16,7 +16,7 @@ import CommonSolve: solve
 
 The solutions of the equation `eq` (written with `~`, e.g. `x^2 ~ 4`) for `x`, as a
 vector of distinct expressions. The equation must be polynomial or rational in `x`;
-its coefficients may involve other symbols and parameters. Solutions are exact through
+its coefficients may involve other symbols. Solutions are exact through
 degree 4 and for equations that factor into such pieces; irreducible factors of higher
 degree with numeric coefficients give numeric (floating point) roots. Numeric
 solutions are sorted, real ones first. An equation with no solution gives an empty

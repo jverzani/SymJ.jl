@@ -11,12 +11,12 @@ generality.
 ## One concrete node type
 
 Every expression is a `Sym`, a single concrete type with a `kind` tag (number, symbol,
-parameter, constant, sum, product, power, function application). This is SymEngine's
+constant, sum, product, power, function application). This is SymEngine's
 approach, and differs from a Julia type per kind of node:
 
 ```julia
 mutable struct Sym <: AbstractSymbolic
-    const kind::Kind              # NUMBER SYMBOL PARAMETER CONSTANT ADD MUL POW FN
+    const kind::Kind              # NUMBER SYMBOL CONSTANT ADD MUL POW FN, …
     const hash::UInt              # structural hash, computed once
     const name::Symbol            # symbol, constant or function name
     const num::SymNumber          # value, constant term or coefficient
@@ -92,7 +92,7 @@ for functions in numeric code:
 - **Calling with pairs substitutes.** A single value is accepted only when there is one
   free variable; with several, an implicit order would be confusing.
 - **Calling with keywords names the values**: `ex(; x = 2, y = 3)`. It evaluates with
-  Julia arithmetic when every variable and parameter gets a number, and substitutes
+  Julia arithmetic when every variable gets a number, and substitutes
   otherwise. Names that don't appear are ignored, so one set of keywords can serve
   several expressions. The keywords are matched to the expression's variables by
   name, which is possible because a variable is identified by its name.
@@ -106,8 +106,6 @@ for functions in numeric code:
   be called immediately. The result runs as fast as a hand-written function (9.3 ns
   against 9.2 ns for that expression).
 
-**Parameters** are a node kind, not a Julia type, so that expressions stay one concrete
-type. Calling substitutes for variables and keeps parameters: `(a*x^2)(3) == 9a`.
 
 ## Polynomials
 
@@ -274,7 +272,7 @@ among atoms are not used: `(x - 1)/(sqrt(x) - 1)` is not reduced, nor is a fract
 whose cancellation needs `sqrt(2)^2 = 2`.
 
 `apart` divides out the polynomial part, factors the denominator, and finds each
-fraction's numerator by modular inverses. When other symbols or parameters appear, the
+fraction's numerator by modular inverses. When other symbols appear, the
 decomposition is over the field of rational functions in them, with arithmetic in an
 exact rational function type kept in canonical form, so that its zero tests are exact.
 
