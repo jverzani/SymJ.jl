@@ -144,8 +144,9 @@ Limits and integrals come from two companion packages, which work on SymJ expres
     later, so the integrals here need that version.
 
 ```@example usage
-using GruntzLimit, RischIntegrate
-gruntz_limit(sin(x) / x, x, 0), gruntz_limit((1 + 1 / x)^x, x, Inf)
+import GruntzLimit: limit
+using RischIntegrate
+limit(sin(x) / x, x => 0), limit((1 + 1 / x)^x, x => Inf)
 ```
 
 ```@example usage

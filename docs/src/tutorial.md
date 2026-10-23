@@ -27,7 +27,8 @@ the expressions of several symbolic systems, SymJ's among them.
 
 ```@example tut
 using SymJ
-using GruntzLimit, RischIntegrate
+import GruntzLimit: limit
+using RischIntegrate
 ```
 
 A few ideas run through the package:
@@ -362,37 +363,44 @@ solve([x ≧ 0, y ≧ 0, x + y ≦ 1], [x, y])
 
 ## Limits
 
-Limits are computed by `gruntz_limit` from GruntzLimit, an implementation of Gruntz's
-algorithm. The limit point may be a number, an expression, or `Inf`:
+Limits are computed by `limit` from GruntzLimit, which implements Gruntz's algorithm.
+`limit(f, x => x0)` is the limit of `f` as `x` tends to `x0`, a number, an expression or
+`Inf`:
 
 ```@example tut
-gruntz_limit(sin(x) / x, x, 0)
+limit(sin(x) / x, x => 0)
 ```
 
 ```@example tut
-gruntz_limit((1 + 1 / x)^x, x, Inf), gruntz_limit(x * ((1 + 1 / x)^x - ℯ), x, Inf)
+limit((1 + 1 / x)^x, x => Inf), limit(x * ((1 + 1 / x)^x - ℯ), x => Inf)
 ```
 
 ```@example tut
-gruntz_limit((sin(x) - sin(Sym(π) / 6)) / (x - Sym(π) / 6), x, Sym(π) / 6)
+limit((sin(x) - sin(Sym(π) / 6)) / (x - Sym(π) / 6), x => Sym(π) / 6)
 ```
 
-One-sided limits take `dir = :+` or `dir = :-`:
+The limit is two-sided unless `dir = :+` or `dir = :-` asks for a one-sided one:
 
 ```@example tut
-gruntz_limit(x * exp(1 / x), x, 0; dir = :-), gruntz_limit(x^x, x, 0; dir = :+)
+limit(x * exp(1 / x), x => 0; dir = :-), limit(x^x, x => 0; dir = :+)
 ```
 
 The algorithm handles cancellations that numerical evaluation cannot follow:
 
 ```@example tut
-gruntz_limit(exp(x) * (exp(1 / x - exp(-x)) - exp(1 / x)), x, Inf)
+limit(exp(x) * (exp(1 / x - exp(-x)) - exp(1 / x)), x => Inf)
 ```
 
 Parameters may appear:
 
 ```@example tut
-gruntz_limit((1 + a / x)^(b * x), x, Inf)
+limit((1 + a / x)^(b * x), x => Inf)
+```
+
+When the limit depends on the values of the parameters, `limit` gives it for each case:
+
+```@example tut
+limit(x^a, x => Inf)
 ```
 
 ## Derivatives
