@@ -135,10 +135,11 @@ function _cancel_radicals(P::Poly{SymNumber}, Q::Poly{SymNumber}, gs::Vector{Sym
     inP = [i for i in rad if _maxdegs(P)[i] > 0]
     if !isempty(inQ)
         r = _conj_cancel(Q, P, gs, inQ, gcd_method)       # Q rationalized
-        r === nothing && return nothing
+        (r === nothing || r === :zero) && return nothing
         Q2, P2 = r
     elseif !isempty(inP)
         r = _conj_cancel(P, Q, gs, inP, gcd_method)       # P rationalized
+        r === :zero && return zero(P), one(Q)             # P was zero: sqrt(2)^2 - 2, unexpanded
         r === nothing && return nothing
         P2, Q2 = r
     else
@@ -162,7 +163,11 @@ function _conj_cancel(R::Poly{SymNumber}, S::Poly{SymNumber}, gs::Vector{Sym}, r
     end
     c = prod(conjs)
     rn, sn = expand(Rs * c), expand(Sym(S) * c)
+    iszero(rn) && return :zero
     any(i -> has(rn, gs[i]), rad) && return nothing
+    # the products may leave the generators (sqrt(r^2)^2 = r^2): no gain to be had then
+    atoms = Set{Sym}()
+    (_poly_atoms!(atoms, rn) && _poly_atoms!(atoms, sn) && all(a -> any(g -> _eq(a, g), gs), atoms)) || return nothing
     Rn, Sn = Poly{SymNumber}(rn, gs), Poly{SymNumber}(sn, gs)
     n = length(gs)
     groups = Dict{Vector{Int},Vector{Tuple{Vector{Int},SymNumber}}}()

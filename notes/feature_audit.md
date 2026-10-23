@@ -73,7 +73,7 @@ against its source and by running it.
 | One function of the unknown, Lambert W, several logarithms | `solve` | `solve` | ✅ |
 | Trigonometric equations: all solutions | `solveset` (`ImageSet`) | `solve` | ◐ principal solutions in one period |
 | Linear systems (symbolic coefficients) | `linsolve`, `solve` | `linsolve` | ✅ |
-| Nonlinear systems | `nonlinsolve`, `solve` | `solve` | ❌ (needs resultants or Gröbner bases) |
+| Nonlinear systems | `nonlinsolve`, `solve` | `solve` | ◐ polynomial and rational systems, through a lex Gröbner basis; not transcendental ones |
 | Inequalities: one unknown; linear systems | `solve`, `solveset` | `solve` | ✅ unions of intervals; cylindrical description for linear systems |
 | Nonlinear inequality systems | partial | partial | ❌ |
 | Numeric root finding, any equation | `nsolve` | `fsolve` | ◐ polynomials only |

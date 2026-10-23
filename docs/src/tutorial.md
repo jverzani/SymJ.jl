@@ -408,7 +408,8 @@ solve((x - 1) / (x + 2) ≧ 0, x)
 
 ### Systems
 
-A list of linear equations in several unknowns gives a `Dict`:
+A system of equations gives a vector of solutions, each a `Dict` from the unknowns to
+their values. A linear system has at most one:
 
 ```@example tut
 solve([x + y ~ 3, x - y ~ 1], [x, y])
@@ -416,6 +417,22 @@ solve([x + y ~ 3, x - y ~ 1], [x, y])
 
 ```@example tut
 solve([a * x + y ~ 1, x - y ~ b], [x, y])
+```
+
+Polynomial systems are solved through a lex Gröbner basis, which is triangular:
+
+```@example tut
+solve([x^2 + y^2 ~ 1, x ~ y], [x, y])
+```
+
+```@example tut
+solve([x*y ~ 1, x + y ~ 3], [x, y])
+```
+
+With infinitely many solutions, the unknowns left free are not keys:
+
+```@example tut
+solve([x^2 + y^2 ~ 1], [x, y])
 ```
 
 A system of linear inequalities gives a description of the region, each unknown between
@@ -600,5 +617,6 @@ G(x => Sym(π)) - G(x => 0)
 - **Simplification under assumptions.** Identities such as `sqrt(x^2) = x` for positive
   `x` need assumptions, which are not implemented.
 - **Matrices and noncommutative algebra.**
-- **Nonlinear systems of equations**, and equations in several unrelated functions of the
+- **Transcendental systems of equations**, such as `sin(x) ~ y, x ~ y^2` (polynomial and
+  rational systems are solved), and equations in several unrelated functions of the
   unknown, such as `sin(x) + cos(x) ~ 1`.

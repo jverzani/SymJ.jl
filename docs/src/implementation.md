@@ -350,7 +350,14 @@ exact rational function type kept in canonical form, so that its zero tests are 
 - **Inequalities** are solved exactly through the real roots of the numerator and
   denominator, between which the sign is constant. The result is a union of intervals.
 - **Systems.** Linear systems are solved by Gauss–Jordan elimination over an exact
-  field. Linear inequalities in several unknowns are solved by Fourier–Motzkin
+  field. Polynomial systems are solved through their lex Gröbner basis, by
+  back-substitution from the last variable. At each level, the basis polynomials in that
+  variable, with the values found so far substituted, are solved and their common roots
+  kept.
+  - The last variable's polynomial is factored, and the basis is recomputed with each
+    factor. The other polynomials are then reduced modulo that factor, which keeps the
+    substituted values simple.
+  - Where a root is numeric, the levels above it are solved numerically too. Linear inequalities in several unknowns are solved by Fourier–Motzkin
   elimination, giving each unknown's bounds in terms of the unknowns after it.
 
 `<` and friends are not used for symbolic inequalities: they keep returning `true` or
