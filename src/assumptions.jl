@@ -657,6 +657,18 @@ function _fnmask(e::Sym, A::Assumptions)
     if f === :abs
         return _isnonzero(u, A) === true ? _POS : (_ZER | _POS)
     end
+    # real, imag, angle are real-valued; conj of a real is itself
+    if f === :real
+        m = _signs(u, A)
+        return m === nothing ? _ALLS : m
+    elseif f === :imag
+        return _signs(u, A) === nothing ? _ALLS : _ZER
+    elseif f === :angle
+        m = _signs(u, A)
+        return m === nothing ? _ALLS : (m & _NEG != 0 ? _POS : 0x00) | (m & (_ZER | _POS) != 0 ? _ZER : 0x00)
+    elseif f === :conj
+        return _signs(u, A)
+    end
     mu = _signs(u, A)
     mu === nothing && return nothing
     f in (:sign, :atan, :asinh, :sinh, :tanh, :erf, :cbrt) && return mu
