@@ -7,7 +7,7 @@
 # for every value the assumptions allow.
 #
 # `simplify` refines, then searches: each specialized routine (simplify_rational,
-# simplify_powers, expansion, factoring) gives a candidate, and the one with the fewest
+# simplify_powers, simplify_trig, expansion, factoring) gives a candidate, and the one with the fewest
 # nodes is kept, the input itself if none is smaller. Function arguments are simplified
 # first. The routines are Julia functions on the canonical form; there is no general
 # pattern matcher, as the canonical form already orders sums and products.
@@ -175,17 +175,21 @@ transformations are tried and the smallest result kept (`ex` itself if none is s
 - rational functions over a common denominator, in lowest terms;
 - powers: radicals of numbers combined (`sqrt(2)*sqrt(3) = sqrt(6)`), and of
   nonnegative quantities (`sqrt(x)*sqrt(y) = sqrt(x*y)` for `x, y ≥ 0`);
+- trigonometric identities: a normal form modulo `sin^2 + cos^2 = 1`, multiple angles
+  and sums of angles (`2sin(x)cos(x) = sin(2x)`, `sin(x)cos(y) + cos(x)sin(y) =
+  sin(x + y)`);
 - expansion and factoring.
 
 The transformations are also available on their own, unexported:
-`SymJ.simplify_rational` and `SymJ.simplify_powers`. Assumptions are given as for
-`refine`.
+`SymJ.simplify_rational`, `SymJ.simplify_powers` and `SymJ.simplify_trig`. Assumptions
+are given as for `refine`.
 
 ```julia
 simplify((x^2 - 1) / (x - 1))                    # x + 1
 simplify((x + 1)^2 - x^2)                        # 2x + 1
 simplify(sqrt(Sym(2)) * sqrt(Sym(3)))            # sqrt(6)
 simplify(sqrt(x^2) / x; assume = @assume(x > 0)) # 1
+simplify(1 - cos(x)^2)                           # sin(x)^2
 ```
 """
 function simplify(ex; assume = nothing)
@@ -203,7 +207,7 @@ function _simplify(e::Sym, A::Assumptions)
     best, size = e, _nodes(e)
     powers(x) = simplify_powers(x; assume = A)
     expansion(x) = _bigpower(x) ? nothing : expand(x)   # (x + y)^30 expanded never wins
-    for g in (simplify_rational, powers, expansion, _factor_or_nothing,
+    for g in (simplify_rational, powers, expansion, _factor_or_nothing, simplify_trig,
               simplify_rational ∘ powers, expansion ∘ simplify_rational)
         c = try g(e) catch err; err isa InterruptException && rethrow(); nothing end
         c isa Sym || continue
@@ -309,4 +313,198 @@ function _powers(e::Sym, A::Assumptions)
         return other
     end
     _rebuild_node(e, Sym[_powers(a, A) for a in e.args])
+end
+
+## trigonometric simplification
+
+"""
+    SymJ.simplify_trig(ex)
+
+`ex` with its trigonometric functions simplified. The arguments are grouped into base
+angles (`2x` and `x` share the base `x`); `sin` and `cos` of multiples of a base are
+written as polynomials in `S = sin(g)` and `C = cos(g)`, and `tan`, `cot`, `sec`, `csc`
+through them. The resulting rational function is reduced modulo `S^2 + C^2 = 1` (once
+eliminating `S^2`, once `C^2`) and cancelled, which is a normal form: an expression equal
+to zero by trigonometric identities becomes `0`. The products are also linearized into
+sines and cosines of multiples of the base (`2*sin(x)*cos(x)` is `sin(2x)`). The smallest
+candidate is returned, with `sin/cos` written as `tan`. Not exported; used by
+[`simplify`](@ref).
+
+```julia
+SymJ.simplify_trig(sin(x)^2 + cos(x)^2)          # 1
+SymJ.simplify_trig(1 - cos(x)^2)                 # sin(x)^2
+SymJ.simplify_trig(2*sin(x)*cos(x))              # sin(2x)
+SymJ.simplify_trig(sin(2x) / sin(x))             # 2cos(x)
+```
+"""
+function simplify_trig(ex)
+    e = Sym(ex)
+    bases = _trig_bases(e)
+    isempty(bases) && return e
+    length(bases) > 3 && return e                    # 2^k orders of elimination
+    vars = [(Sym(Symbol("_trigS", i)), Sym(Symbol("_trigC", i))) for i in eachindex(bases)]
+    p = _trig_poly(e, bases, vars)
+    p === nothing && return e
+    n, d = numer_denom(cancel(p))
+    best, size = e, _nodes(e)
+    back(q) = _trig_tan(subs(q, (v => f(g) for ((s, c), g) in zip(vars, bases) for (v, f) in ((s, sin), (c, cos)))...))
+    for order in Iterators.product(((true, false) for _ in bases)...)
+        ns = _trig_reduce(n, vars, order)
+        ds = _trig_reduce(d, vars, order)
+        for q in (cancel(ns / ds), ns / ds)
+            r = try back(q) catch; continue end
+            k = _nodes(r)
+            k < size && ((best, size) = (r, k))
+        end
+    end
+    # linearized: products of sines and cosines as sines and cosines of sums of multiples
+    # of the bases (2 sin(x) cos(x) = sin(2x), sin(x) cos(y) + cos(x) sin(y) = sin(x + y))
+    allv = Sym[v for sc in vars for v in sc]
+    if _ispolyin(n, allv) && _ispolyin(d, allv)
+        r = try _trig_tan(_trig_linear(n, vars, bases) / _trig_linear(d, vars, bases)) catch; nothing end
+        r === nothing || (k = _nodes(r); k < size && ((best, size) = (r, k)))
+    end
+    best
+end
+
+const _TRIGFNS = (:sin, :cos, :tan, :cot, :sec, :csc)
+
+# the base angles: arguments with their numeric content taken out, each with the gcd of
+# the multiples it appears with (args x/2 and x: base x/2)
+function _trig_bases(e::Sym)
+    seen = Dict{Sym,Rational{BigInt}}()
+    function walk(n::Sym)
+        if n.kind == FN && n.name in _TRIGFNS && length(n.args) == 1
+            q, h = _trig_split(n.args[1])
+            seen[h] = haskey(seen, h) ? gcd(seen[h], q) : q
+        end
+        foreach(walk, n.args)
+        foreach(walk, n.exps)
+    end
+    walk(e)
+    Sym[expand(Sym(SymNumber(q)) * h) for (h, q) in seen]
+end
+# u = q * h, q the numeric content of u (2x + 2 is 2*(x + 1))
+function _trig_split(u::Sym)
+    q = if u.kind == MUL && isexact(u.num)
+        Rational{BigInt}(_numerator(u.num), _denominator(u.num))
+    elseif u.kind == ADD && isexact(u.num) && all(isexact, u.coefs)
+        g = reduce(gcd, (Rational{BigInt}(_numerator(c), _denominator(c)) for c in u.coefs);
+                   init = Rational{BigInt}(_numerator(u.num), _denominator(u.num)))
+        iszero(g) ? one(Rational{BigInt}) : abs(g)
+    else
+        one(Rational{BigInt})
+    end
+    q, expand(u / Sym(SymNumber(q)))
+end
+
+# e with trigonometric functions of multiples of the bases as polynomials (and
+# quotients) in S, C; nothing if an argument is not a multiple of a base
+function _trig_poly(e::Sym, bases::Vector{Sym}, vars)
+    ok = Ref(true)
+    function tr(n::Sym)
+        isempty(n.args) && return n
+        if n.kind == FN && n.name in _TRIGFNS && length(n.args) == 1
+            u = n.args[1]
+            i = findfirst(g -> (r = expand(u / g); r.kind == NUMBER && isexact(r.num) && isone(_denominator(r.num))), bases)
+            i === nothing && (ok[] = false; return n)
+            k = Int(_numerator(expand(u / bases[i]).num))
+            S, C = vars[i]
+            s, c = _chebyshev(k, S, C)
+            f = n.name
+            return f === :sin ? s : f === :cos ? c : f === :tan ? s / c : f === :cot ? c / s : f === :sec ? 1 / c : 1 / s
+        end
+        n.kind == MUL && return Sym(n.num) * prod((tr(b)^tr(p) for (b, p) in zip(n.args, n.exps)); init = ONE)
+        _rebuild_node(n, Sym[tr(a) for a in n.args])
+    end
+    r = tr(e)
+    ok[] ? r : nothing
+end
+
+# (sin(k g), cos(k g)) as polynomials in S = sin(g), C = cos(g)
+function _chebyshev(k::Int, S::Sym, C::Sym)
+    k < 0 && ((s, c) = _chebyshev(-k, S, C); return (-s, c))
+    k == 0 && return (ZERO, ONE)
+    s0, c0, s1, c1 = ZERO, ONE, S, C
+    for _ in 2:k
+        s0, c0, s1, c1 = s1, c1, expand(2C * s1 - s0), expand(2C * c1 - c0)
+    end
+    s1, c1
+end
+
+# p reduced modulo S^2 + C^2 = 1 for each base: S^(2m+r) -> S^r (1 - C^2)^m when the
+# order says S, else C^(2m+r) -> C^r (1 - S^2)^m
+function _trig_reduce(p::Sym, vars, order)
+    p = expand(p)
+    for ((S, C), elimS) in zip(vars, order)
+        has(p, S) || has(p, C) || continue
+        P = try Poly{Sym}(p, [S, C]) catch; return p end
+        a, b = elimS ? (S, C) : (C, S)
+        ia = elimS ? 1 : 2
+        acc = ZERO
+        for (ev, cf) in zip(exponent_vectors(P), coefficients(P))
+            ka, kb = ev[ia], ev[3 - ia]
+            acc += cf * a^(ka % 2) * (1 - b^2)^(ka ÷ 2) * b^kb
+        end
+        p = expand(acc)
+    end
+    p
+end
+
+_ispolyin(p::Sym, vs::Vector{Sym}) = (try Poly{Sym}(expand(p), vs); true catch; false end)
+
+# a polynomial in Sᵢ = sin(gᵢ), Cᵢ = cos(gᵢ) as a combination of sines and cosines of
+# k·g = Σ kᵢ gᵢ: with Sᵢ = (zᵢ - 1/zᵢ)/(2i), Cᵢ = (zᵢ + 1/zᵢ)/2 it is a Laurent
+# polynomial in zᵢ = exp(i gᵢ), whose terms z^k and z^-k pair into cos(k·g), sin(k·g)
+function _trig_linear(p::Sym, vars, bases::Vector{Sym})
+    zs = [Sym(Symbol("_trigz", i)) for i in eachindex(bases)]
+    p = expand(p)
+    D = Int[]
+    for (S, C) in vars
+        P = Poly{Sym}(p, [S, C])
+        push!(D, maximum(sum, exponent_vectors(P); init = 0))
+    end
+    sub = [v => w for ((S, C), z) in zip(vars, zs) for (v, w) in ((S, (z^2 - 1) / (2IM * z)), (C, (z^2 + 1) / (2z)))]
+    q = expand(subs(p, sub...) * prod(z^d for (z, d) in zip(zs, D)))
+    Q = Poly{Sym}(q, zs)
+    a = Dict{Vector{Int},Sym}()
+    for (ev, cf) in zip(exponent_vectors(Q), coefficients(Q))
+        a[collect(ev) .- D] = cf
+    end
+    out = get(a, zeros(Int, length(zs)), ZERO)
+    for (k, ak) in a
+        i = findfirst(!iszero, k)
+        (i === nothing || k[i] < 0) && continue             # each pair once, from k > 0
+        am = get(a, -k, ZERO)
+        θ = expand(sum(kj * g for (kj, g) in zip(k, bases)))
+        out += expand(ak + am) * cos(θ) + expand(IM * (ak - am)) * sin(θ)
+    end
+    expand(out)
+end
+
+# sin(u)^a * cos(u)^-a written tan(u)^a (cot for the reverse)
+function _trig_tan(e::Sym)
+    isempty(e.args) && return e
+    if e.kind == MUL
+        fs = [(_trig_tan(b), p) for (b, p) in zip(e.args, e.exps)]
+        out = Sym(e.num)
+        used = falses(length(fs))
+        for (i, (b, p)) in enumerate(fs)
+            used[i] && continue
+            if b.kind == FN && b.name in (:sin, :cos)
+                other = b.name === :sin ? :cos : :sin
+                j = findfirst(j -> !used[j] && j != i && fs[j][1].kind == FN && fs[j][1].name === other &&
+                                   _eq(fs[j][1].args[1], b.args[1]) && iszero(expand(fs[j][2] + p)), eachindex(fs))
+                if j !== nothing
+                    used[i] = used[j] = true
+                    out *= apply_function(b.name === :sin ? :tan : :cot, b.args)^p
+                    continue
+                end
+            end
+            used[i] = true
+            out *= b^p
+        end
+        return out
+    end
+    _rebuild_node(e, Sym[_trig_tan(a) for a in e.args])
 end

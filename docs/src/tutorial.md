@@ -373,6 +373,16 @@ a fact says otherwise, so these need assumptions:
 simplify(sqrt(x^2)), simplify(sqrt(x^2); assume = @assume(x > 0)), simplify(sqrt(x^2); assume = @assume(x in Reals))
 ```
 
+Trigonometric identities are recognised, including multiple angles and sums of angles:
+
+```@example tut
+simplify(1 - cos(x)^2), simplify(2sin(x) * cos(x)), simplify(sin(x) * cos(y) + cos(x) * sin(y))
+```
+
+```@example tut
+simplify(sin(3x) - 3sin(x) + 4sin(x)^3), simplify(1 / (1 + tan(x)^2))
+```
+
 `refine` applies only those identities, without trying anything else:
 
 ```@example tut
@@ -381,7 +391,7 @@ refine(log(exp(x)); assume = @assume(x in Reals)), refine(sin(x + 2n*Sym(π)); a
 ```
 
 The transformations `simplify` tries are also available on their own, unexported:
-`SymJ.simplify_rational` and `SymJ.simplify_powers`.
+`SymJ.simplify_rational`, `SymJ.simplify_powers` and `SymJ.simplify_trig`.
 
 ## Solving equations
 

@@ -862,16 +862,23 @@ three rounds each, taking each workload's best time.
   `log(exp(x)) = x`, `sin(x + n*π)` for integer `n`), each where the assumptions decide
   its condition, bottom up.
 - **`simplify`** refines, simplifies function arguments, then searches: specialized
-  routines (`simplify_rational`, `simplify_powers`, expansion, factoring) each give a
+  routines (`simplify_rational`, `simplify_powers`, `simplify_trig`, expansion,
+  factoring) each give a
   candidate, and the one with the fewest nodes is kept, the input if none is smaller.
   As in SymPy and Mathematica, a front end over specialized routines; their names start
   with `simplify_`, and only `simplify` and `refine` are exported.
 - **Rules are Julia functions** on the canonical form, not a general pattern matcher:
   the canonical form already orders sums and products, which is most of what a matcher's
   associative-commutative matching is for, and the rule sets are small.
-- **Still to come:** `simplify_trig` (a normal form modulo `sin² + cos² = 1` through
-  `groebner`, then presentation rules after Fu), `simplify_log` and
-  `simplify_radicals` (denesting).
+- **`simplify_trig`.** Arguments are grouped into base angles (multiples of one
+  another share a base), and sines and cosines of multiples written as polynomials in
+  `S = sin g`, `C = cos g` (Chebyshev). Reducing modulo `S² + C² - 1` is a normal form;
+  with one relation per base, whose leading term is `S²` or `C²`, the reduction is the
+  substitution `S² → 1 - C²` (or the reverse), both tried. Linearizing through
+  `S = (z - 1/z)/2i`, `C = (z + 1/z)/2`, `z = exp(i g)`, turns products into sines and
+  cosines of sums of multiples of the bases (Fu's product-to-sum rule), which gives
+  multiple and sum angles. The smallest candidate is kept, `sin/cos` shown as `tan`.
+- **Still to come:** `simplify_log` and `simplify_radicals` (denesting).
 
 ## Assumptions
 

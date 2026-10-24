@@ -1482,6 +1482,19 @@ using Latexify: latexify
         @test SymJ.simplify_powers(sqrt(Sym(2)) * sqrt(Sym(8))) == 4 && SymJ.simplify_rational(1 / x + 1 / y) == (x + y) / (x * y)
         @test SymJ._nodes(sqrt(x * y)) < SymJ._nodes(sqrt(x) * sqrt(y))
         @test simplify((x + y)^30 - (x + y)^30) == 0 && simplify((x + y)^30) == (x + y)^30   # no expansion tried
+        # trigonometric: a normal form modulo sin^2 + cos^2 = 1, and linearization
+        T = SymJ.simplify_trig
+        @test T(sin(x)^2 + cos(x)^2) == 1 && T(1 - cos(x)^2) == sin(x)^2 && T(sec(x)^2 - tan(x)^2) == 1
+        @test T(2sin(x) * cos(x)) == sin(2x) && T(cos(x)^2 - sin(x)^2) == cos(2x) && T(sin(2x) / sin(x)) == 2cos(x)
+        @test T(tan(x) * cos(x)) == sin(x) && T((1 - cos(x)^2) / sin(x)) == sin(x) && T(sin(x) / cos(x)) == tan(x)
+        @test T(1 / (1 + tan(x)^2)) == cos(x)^2 && T(sin(x)^4 - cos(x)^4) == -cos(2x)
+        @test T(sin(x / 2) * cos(x / 2)) == sin(x) / 2 && T(cos(2x) + 2sin(x)^2) == 1
+        @test T(sin(3x) - 3sin(x) + 4sin(x)^3) == 0 && T(x * sin(x)^2 + x * cos(x)^2) == x
+        @test T(sin(x) * cos(y) + cos(x) * sin(y)) == sin(x + y) && T(cos(x) * cos(y) - sin(x) * sin(y)) == cos(x + y)
+        @test T(cos(x) * cos(y) + sin(x) * sin(y)) == cos(x - y) && T(sin(x) * cos(y) - cos(x) * sin(y)) == sin(x - y)
+        @test T(sin(x + y) - sin(x) * cos(y) - cos(x) * sin(y)) == 0
+        @test T(sin(x) + 1) == sin(x) + 1 && T(x^2) == x^2                  # nothing to do
+        @test simplify(sin(x)^2 + cos(x)^2 + x) == x + 1 && simplify((1 - cos(x)^2) / sin(x)^2) == 1
     end
 
     @testset "Latexify" begin

@@ -42,8 +42,8 @@ LaTeX output.
 
 | Capability | SymPy | Giac | SymJ |
 |:--|:--|:--|:--|
-| General simplification | `simplify` | `simplify`, `simplifier` | ◐ ★ `simplify` (the smallest of several transformations) and `refine` (identities under assumptions); trigonometric and logarithmic routines to come |
-| Trigonometric | `trigsimp`, `exptrigsimp` | `tlin`, `tcollect`, `texpand` | ❌ |
+| General simplification | `simplify` | `simplify`, `simplifier` | ◐ ★ `simplify` (the smallest of several transformations: rational, powers, trigonometric, expansion, factoring) and `refine` (identities under assumptions); logarithmic and radical routines to come |
+| Trigonometric | `trigsimp`, `exptrigsimp` | `tlin`, `tcollect`, `texpand` | ✅ through `simplify` (`SymJ.simplify_trig`): normal form modulo `sin² + cos² = 1`, multiple and sum angles; ❌ hyperbolic, exp ↔ trig |
 | Powers and logarithms | `powsimp`, `powdenest`, `logcombine` | `lncollect`, `lnexpand` | ◐ powers combined and denested under assumptions (`refine`, `simplify`); no `logcombine` yet (`exp(x)*exp(y) == exp(x + y)` is canonical) |
 | Gamma and combinatorial | `gammasimp`, `combsimp` | — | ❌ |
 | Rational functions | `cancel`, `together`, `apart`, `ratsimp` | `normal`, `ratnormal`, `partfrac`, `propfrac` | ✅ `cancel`, `apart`, `numer_denom` (◐ no separate `together`) |
