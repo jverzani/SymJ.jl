@@ -227,6 +227,28 @@ and sparse ones 4 and up, so Zippel is chosen above 3 (and above an absolute min
 The 14-variable gcd now takes 0.05 s and the 20-variable one 0.18 s, while dense gcds
 are unchanged. `method = :dense` and `method = :zippel` force a choice.
 
+## Resultants
+
+A resultant is the determinant of the Sylvester matrix, which is never formed. There are
+two methods, and `resultant` chooses between them:
+
+- **Modular, for dense inputs in few variables.** The resultant is computed modulo
+  word-size primes, up to a bound on its coefficients. For each prime, the other
+  variables are evaluated on a grid of points, each point takes Euclid's algorithm in
+  `Z_p[x]`, and the values are interpolated back.
+  - Keeping the degrees formal makes every prime and point usable. Where a leading
+    coefficient vanishes, the Euclidean recurrence still gives the determinant of the
+    full Sylvester matrix, so there are no unlucky cases to detect.
+  - The coefficient bound is Hadamard's, with the 1-norms of the coefficient
+    polynomials: they bound the polynomials on the unit torus, and the coefficients of
+    the resultant are averages over it.
+- **Subresultant PRS, for sparse inputs in many variables.** With symbolic coefficients
+  the grid is far larger than the answer: two cubics `a x³ + …` and `e x³ + …` give
+  4⁸ points and 34 terms. Here the subresultant algorithm on sparse polynomials is
+  several hundred times faster.
+
+The choice compares the grid with the product of the input sizes.
+
 ## Factorization
 
 Factoring over the rationals starts with the **squarefree decomposition**, by Yun's

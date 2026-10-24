@@ -15,7 +15,7 @@ import TermInterface: isexpr, iscall, head, children, operation, arguments, make
 export AbstractSymbolic, Sym, SymNumber, SymFunction
 export @syms, symbols, subs, evaluate, lambdify, lambdify_expr, expand, free_symbols, has, N
 export register_function!
-export numer_denom, cancel, factor_squarefree, squarefree_part, factor, apart
+export numer_denom, cancel, factor_squarefree, squarefree_part, factor, apart, resultant, discriminant
 export solve, lambertw, series
 export Relation, lhs, rhs, Eq, Lt, Le, Gt, Ge, Ne, ⩵, ≪, ≦, ≫, ≧, ≶, ≷
 export Poly, gens, nterms, coefficients, exponent_vectors, degree, divides, divexact
@@ -47,6 +47,7 @@ include("intervals.jl")
 include("linsolve.jl")
 include("ineqsystems.jl")
 include("series.jl")
+include("resultant.jl")
 include("lambdify.jl")
 include("show.jl")
 include("precompile.jl")

@@ -253,6 +253,22 @@ The greatest common divisor of polynomials:
 gcd(expand((x - 1)^2 * (x + y)), expand((x - 1) * (x + y)^2))
 ```
 
+### Resultants
+
+The resultant of two polynomials in `x` is zero exactly when they have a common root.
+It is a polynomial in the other variables, so it eliminates `x` from a system:
+
+```@example tut
+resultant(x^2 + y^2 - 1, x - y, x)
+```
+
+The discriminant is zero exactly when a polynomial has a repeated root:
+
+```@example tut
+@syms a b c
+discriminant(a*x^2 + b*x + c, x), discriminant(x^3 + a*x + b, x)
+```
+
 ### Roots
 
 `solve` finds the roots of a polynomial. Degrees up to four are solved exactly, with
