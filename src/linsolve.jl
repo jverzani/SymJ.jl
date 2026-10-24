@@ -8,7 +8,8 @@
 
 Solve a system of equations (written with `~`) for the variables `vars`. The result is a
 vector of solutions, each a `Dict` from variables to values; an inconsistent system
-gives an empty vector.
+gives an empty vector. Both arguments must be vectors (or tuples): one equation in one
+unknown is `solve(eq, x)`, which gives a vector of values instead.
 
 - **Linear systems** are solved by Gauss–Jordan elimination. An underdetermined system
   has one solution, with the pivot variables given in terms of the free ones, which are

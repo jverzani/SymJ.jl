@@ -784,6 +784,13 @@ import ForwardDiff
         end
         @test_throws ArgumentError solve([sin(x) ~ y, x ~ y^2], [x, y])
         @test solve([1 / x ~ 1], [x]) == [Dict(x => 1)]
+        # the call's form fixes the result's: one equation and one unknown, or vectors of both
+        @test solve(x ~ 2, x) == [Sym(2)]
+        @test solve([x ~ 2], [x]) == [Dict(x => 2)]
+        @test_throws ArgumentError solve(x ~ 2, [x])
+        @test_throws ArgumentError solve([x ~ 2], x)
+        @test_throws ArgumentError solve((x ~ 2,), x)
+        @test_throws ArgumentError solve(x + y ~ 2, x, y)
         @test string(solve([x ≪ 1], [x])) == "(-∞, 1)"                # a one-unknown system
 
         # < and friends compare constants as numbers; with symbols, a pointer to ≪
