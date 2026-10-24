@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Design notes — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=f0281f76">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=f7de8013">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Design notes — SymJ.jl">
   <meta property="og:title" content="Design notes — SymJ.jl">
@@ -1029,6 +1029,21 @@ end</code></pre>
 <li><p><code class="md-code-inline">free_symbols</code> became 1.8x faster, because loops replaced the closure-based recursion.</p>
 </li>
 </ul>
+<h2 id="Simplification" class="md-heading">Simplification<a href="#Simplification" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<ul class="md-list-tight">
+<li><p><strong><code class="md-code-inline">refine</code></strong> applies the identities that need facts (<code class="md-code-inline">sqrt(x^2) = abs(x)</code> for real <code class="md-code-inline">x</code>, <code class="md-code-inline">log(exp(x)) = x</code>, <code class="md-code-inline">sin(x + n*π)</code> for integer <code class="md-code-inline">n</code>), each where the assumptions decide its condition, bottom up.</p>
+</li>
+<li><p><strong><code class="md-code-inline">simplify</code></strong> refines, simplifies function arguments, then searches: specialized routines (<code class="md-code-inline">simplify_rational</code>, <code class="md-code-inline">simplify_powers</code>, <code class="md-code-inline">simplify_trig</code>, expansion, factoring) each give a candidate, and the one with the fewest nodes is kept, the input if none is smaller. As in SymPy and Mathematica, a front end over specialized routines; their names start with <code class="md-code-inline">simplify_</code>, and only <code class="md-code-inline">simplify</code> and <code class="md-code-inline">refine</code> are exported.</p>
+</li>
+<li><p><strong>Rules are Julia functions</strong> on the canonical form, not a general pattern matcher: the canonical form already orders sums and products, which is most of what a matcher&#39;s associative-commutative matching is for, and the rule sets are small.</p>
+</li>
+<li><p><strong><code class="md-code-inline">simplify_trig</code>.</strong> Arguments are grouped into base angles (multiples of one another share a base), and sines and cosines of multiples written as polynomials in <code class="md-code-inline">S = sin g</code>, <code class="md-code-inline">C = cos g</code> (Chebyshev). Reducing modulo <code class="md-code-inline">S² + C² - 1</code> is a normal form; with one relation per base, whose leading term is <code class="md-code-inline">S²</code> or <code class="md-code-inline">C²</code>, the reduction is the substitution <code class="md-code-inline">S² → 1 - C²</code> (or the reverse), both tried. Linearizing through <code class="md-code-inline">S = (z - 1/z)/2i</code>, <code class="md-code-inline">C = (z + 1/z)/2</code>, <code class="md-code-inline">z = exp(i g)</code>, turns products into sines and cosines of sums of multiples of the bases (Fu&#39;s product-to-sum rule), which gives multiple and sum angles. The smallest candidate is kept, <code class="md-code-inline">sin/cos</code> shown as <code class="md-code-inline">tan</code>.</p>
+</li>
+<li><p><strong><code class="md-code-inline">simplify_log</code></strong> combines logarithms of positive arguments into one, or expands a logarithm over its positive factors (a positive factor does not change the argument of a product, so the rest may be anything), whichever is smaller.</p>
+</li>
+<li><p><strong><code class="md-code-inline">simplify_radicals</code></strong> denests square roots of <code class="md-code-inline">a + b sqrt(c)</code> when <code class="md-code-inline">a² - b²c</code> is a rational square, rationalizes denominators <code class="md-code-inline">a + b sqrt(c)</code> by the conjugate, and factors radicands so that <code class="md-code-inline">refine</code> can take a power out of the root.</p>
+</li>
+</ul>
 <h2 id="Assumptions" class="md-heading">Assumptions<a href="#Assumptions" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p>Assumptions are passed per call or for a block, never stored on symbols. This keeps canonical form context-free: <code class="md-code-inline">x</code> is always the same node with the same hash, and construction never consults assumptions. The trade-off is that identities such as <code class="md-code-inline">sqrt(x^2) = x</code> apply only inside the operations that take assumptions, never during construction.</p>
 <ul class="md-list-tight">
@@ -1074,7 +1089,7 @@ end</code></pre>
 </li>
 <li><p><strong>Cases.</strong> As in GruntzLimit&#39;s <code class="md-code-inline">limit</code>: an operation returns a plain answer when the assumptions decide it, and otherwise a <code class="md-code-inline">Cases</code>. That is a vector of <code class="md-code-inline">conditions =&gt; answer</code> pairs; calling it with parameter values gives the answer for those values, and indexing with them gives their case.</p>
 </li>
-<li><p><strong>First users.</strong> <code class="md-code-inline">solve</code> (filtering roots, and splitting on the signs of parameters) and <code class="md-code-inline">limit</code>, which hands the assumptions to GruntzLimit as signs and returns SymJ&#39;s answers. <code class="md-code-inline">simplify</code>/<code class="md-code-inline">refine</code> come later.</p>
+<li><p><strong>First users.</strong> <code class="md-code-inline">solve</code> (filtering roots, and splitting on the signs of parameters) and <code class="md-code-inline">limit</code>, which hands the assumptions to GruntzLimit as signs and returns SymJ&#39;s answers; <code class="md-code-inline">refine</code> and <code class="md-code-inline">simplify</code>.</p>
 </li>
 <li><p><strong><code class="md-code-inline">@assume</code></strong>, named after the keyword, writes facts with Julia&#39;s operators: <code class="md-code-inline">@assume(x &gt; 0 &amp;&amp; 1 &lt; y &lt;= 2, n in Integers)</code>. Chained comparisons are split, and <code class="md-code-inline">&amp;&amp;</code>, <code class="md-code-inline">||</code>, <code class="md-code-inline">!</code> combine. The number sets have ASCII names, <code class="md-code-inline">Integers</code>, <code class="md-code-inline">Rationals</code>, <code class="md-code-inline">Reals</code> and <code class="md-code-inline">Complexes</code>.</p>
 </li>
@@ -1154,7 +1169,7 @@ end</code></pre>
 </li>
 <li><p><strong>Relations.</strong> <code class="md-code-inline">==</code> is structural and returns <code class="md-code-inline">Bool</code>. Symbolic <code class="md-code-inline">Eq</code>, <code class="md-code-inline">&lt;</code>, etc. need their own constructors.</p>
 </li>
-<li><p><strong>Combining radicals.</strong> <code class="md-code-inline">sqrt(2)*sqrt(3)</code> is not combined into <code class="md-code-inline">sqrt(6)</code>, and <code class="md-code-inline">72^(1/3)</code> prints as <code class="md-code-inline">2*9^(1/3)</code> rather than <code class="md-code-inline">2*3^(2/3)</code>. Prime-base normalization would fix the latter.</p>
+<li><p><strong>Combining radicals.</strong> Construction does not combine <code class="md-code-inline">sqrt(2)*sqrt(3)</code> into <code class="md-code-inline">sqrt(6)</code>; <code class="md-code-inline">simplify</code> does. <code class="md-code-inline">72^(1/3)</code> prints as <code class="md-code-inline">2*9^(1/3)</code> rather than <code class="md-code-inline">2*3^(2/3)</code>. Prime-base normalization would fix the latter.</p>
 </li>
 <li><p><strong>Polynomials, next steps.</strong></p>
 <ul class="md-list-tight">
@@ -1205,6 +1220,7 @@ end</code></pre>
           <a class="md-toc-link md-toc-h2" href="#Relations">Relations</a>
           <a class="md-toc-link md-toc-h2" href="#Solving">Solving</a>
           <a class="md-toc-link md-toc-h2" href="#Parameters-(internal)">Parameters (internal)</a>
+          <a class="md-toc-link md-toc-h2" href="#Simplification">Simplification</a>
           <a class="md-toc-link md-toc-h2" href="#Assumptions">Assumptions</a>
           <a class="md-toc-link md-toc-h2" href="#Performance-snapshot">Performance snapshot</a>
           <a class="md-toc-link md-toc-h2" href="#Not-yet-done-/-open-questions">Not yet done / open questions</a>
@@ -1217,6 +1233,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=f0281f76"></script>
+  <script src="../assets/materialdocs.js?v=f7de8013"></script>
 </body>
 </html>

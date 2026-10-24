@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=79d89f27">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=a1daa996">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -523,6 +523,86 @@ cancel(r)</code></pre>
 \[\frac{-1}{\left(  - a + b \right) \cdot \left(  - a + x \right)} + \frac{1}{\left(  - a + b \right) \cdot \left(  - b + x \right)}\]
 </div>
 </div>
+<h2 id="Simplification" class="md-heading">Simplification<a href="#Simplification" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>Expressions are kept in a canonical form as they are built, but that form does not cancel fractions, combine radicals or apply identities that need facts. <code class="md-code-inline">simplify</code> tries several transformations and keeps the smallest result:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">simplify((x^2 - 1) / (x - 1)), simplify((x + 1)^2 - x^2), simplify(sqrt(Sym(2)) * sqrt(Sym(3)))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( x + 1, \; 2 \cdot x + 1, \; \sqrt{6} \right)\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">simplify(x / (x + 1) + 1 / (x + 1)), simplify(x^2 + 2x + 1)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( 1, \; \left( x + 1 \right)^{2} \right)\]
+</div>
+</div>
+<p>Identities such as <code class="md-code-inline">sqrt(x^2) = x</code> hold only for some values. Symbols are complex unless a fact says otherwise, so these need assumptions:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">simplify(sqrt(x^2)), simplify(sqrt(x^2); assume = @assume(x &gt; 0)), simplify(sqrt(x^2); assume = @assume(x in Reals))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \sqrt{x^{2}}, \; x, \; \left|x\right| \right)\]
+</div>
+</div>
+<p>Trigonometric identities are recognised, including multiple angles and sums of angles:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">simplify(1 - cos(x)^2), simplify(2sin(x) * cos(x)), simplify(sin(x) * cos(y) + cos(x) * sin(y))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \sin^{2}\left( x \right), \; \sin\left( 2 \cdot x \right), \; \sin\left( x + y \right) \right)\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">simplify(sin(3x) - 3sin(x) + 4sin(x)^3), simplify(1 / (1 + tan(x)^2))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( 0, \; \cos^{2}\left( x \right) \right)\]
+</div>
+</div>
+<p>Logarithms combine and radicals denest; with symbols, where the assumptions allow:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">simplify(log(Sym(2)) + log(Sym(3))), simplify(sqrt(3 + 2sqrt(Sym(2)))), simplify(1 / (1 + sqrt(Sym(2))))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \log\left( 6 \right), \; \sqrt{2} + 1, \; \sqrt{2} - 1 \right)\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">simplify(log(x) + log(y); assume = @assume(x &gt; 0, y &gt; 0)), simplify(sqrt(x^2 + 2x + 1); assume = @assume(x &gt; -1))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \log\left( x \cdot y \right), \; x + 1 \right)\]
+</div>
+</div>
+<p><code class="md-code-inline">refine</code> applies only those identities, without trying anything else:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms n
+refine(log(exp(x)); assume = @assume(x in Reals)), refine(sin(x + 2n*Sym(π)); assume = @assume(n in Integers))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( x, \; \sin\left( x \right) \right)\]
+</div>
+</div>
+<p>The transformations <code class="md-code-inline">simplify</code> tries are also available on their own, unexported: <code class="md-code-inline">SymJ.simplify_rational</code>, <code class="md-code-inline">SymJ.simplify_powers</code>, <code class="md-code-inline">SymJ.simplify_trig</code>, <code class="md-code-inline">SymJ.simplify_log</code> and <code class="md-code-inline">SymJ.simplify_radicals</code>.</p>
 <h2 id="Solving-equations" class="md-heading">Solving equations<a href="#Solving-equations" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p>An equation is written with <code class="md-code-inline">~</code>, which binds more loosely than everything else, so no parentheses are needed:</p>
 <div class="md-multi-output">
@@ -1039,6 +1119,7 @@ G(x =&gt; Sym(π)) - G(x =&gt; 0)</code></pre>
             <a class="md-toc-link md-toc-h3" href="#Roots">Roots</a>
           <a class="md-toc-link md-toc-h2" href="#Rational-functions">Rational functions</a>
             <a class="md-toc-link md-toc-h3" href="#Partial-fractions">Partial fractions</a>
+          <a class="md-toc-link md-toc-h2" href="#Simplification">Simplification</a>
           <a class="md-toc-link md-toc-h2" href="#Solving-equations">Solving equations</a>
             <a class="md-toc-link md-toc-h3" href="#Inequalities">Inequalities</a>
             <a class="md-toc-link md-toc-h3" href="#Systems">Systems</a>
@@ -1067,6 +1148,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=79d89f27"></script>
+  <script src="../assets/materialdocs.js?v=a1daa996"></script>
 </body>
 </html>
