@@ -25,6 +25,9 @@ The function computes what calling the expression computes, at the speed of comp
 Julia code: `lambdify(x^2 + 1)(3) === 10`, and `lambdify(sin(x) * y, x, y)(1.0, 2.0)`.
 Arguments may be any number type (`BigFloat`, dual numbers, intervals, ...).
 
+A function of several variables can also be called with them in one tuple or vector,
+`f((1.0, 2.0))`; calling it with the wrong number of values is an error.
+
 `lambdify_expr` gives the generated Julia expression.
 """
 lambdify(ex, vars::Sym...) = _lambdify(ex, collect(Sym, vars))
@@ -36,7 +39,28 @@ function lambdify(ex)
     _lambdify(ex, vcat(vars, free_parameters(ex)))
 end
 
-_lambdify(ex, vars::Vector{Sym}) = RuntimeGeneratedFunction(@__MODULE__, @__MODULE__, lambdify_expr(ex, vars))
+function _lambdify(ex, vars::Vector{Sym})
+    f = RuntimeGeneratedFunction(@__MODULE__, @__MODULE__, lambdify_expr(ex, vars))
+    LambdifiedFunction{length(vars),typeof(f)}(f, vars)
+end
+
+# The compiled function, called with its number of arguments. (A RuntimeGeneratedFunction
+# does not check that number: called with too few it reads past its arguments.)
+struct LambdifiedFunction{N,F} <: Function
+    f::F
+    vars::Vector{Sym}
+end
+@inline (l::LambdifiedFunction{N})(args::Vararg{Any,N}) where {N} = l.f(args...)
+# several values in one tuple or vector (for one variable, the value as it is)
+function (l::LambdifiedFunction{N})(v::Union{Tuple,AbstractVector}) where {N}
+    length(v) == N || _arity_error(l, length(v))
+    l.f(v...)
+end
+@inline (l::LambdifiedFunction{1})(v::Union{Tuple,AbstractVector}) = l.f(v)
+(l::LambdifiedFunction{N})(args...) where {N} = _arity_error(l, length(args))
+_arity_error(l::LambdifiedFunction{N}, n) where {N} = throw(ArgumentError(
+    "this function of ($(join(l.vars, ", "))) takes $N value$(N == 1 ? "" : "s"), got $n"))
+Base.show(io::IO, l::LambdifiedFunction) = print(io, "lambdified function of (", join(l.vars, ", "), ")")
 
 """
     lambdify_expr(ex, vars)

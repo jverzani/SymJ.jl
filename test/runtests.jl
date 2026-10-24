@@ -605,6 +605,13 @@ import ForwardDiff
         J = lambdify([diff(w, x) x * y; y 1], x, y)
         @test J(1.0, 2.0) ≈ [diff(w, x)(1.0) 2.0; 2.0 1.0] && size(J(1.0, 2.0)) == (2, 2)
         @test lambdify((x + 1, x * y), (x, y))(1, 2) == (2, 2)
+        u = lambdify(x^2 * y, (x, y))                       # values in one tuple or vector
+        @test u((1, 2)) == u([1, 2]) == u(1, 2) == 2
+        @test_throws ArgumentError u(1)
+        @test_throws ArgumentError u(1, 2, 3)
+        @test_throws ArgumentError u((1, 2, 3))
+        @test lambdify(x^2)([1 2; 3 4]) == [7 10; 15 22]   # one variable: the value as it is
+        @test string(u) == "lambdified function of (x, y)"
         code = string(lambdify_expr(sin(x) * y + sin(x)^2 + cos(sin(x)), (x, y)))
         @test count("Base.sin(arg1)", code) == 1           # computed once
 
