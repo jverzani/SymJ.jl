@@ -1348,11 +1348,28 @@ import ForwardDiff
         end
         @test J._assumptions(nothing) === nothing
         @test Assumptions(A, z ≫ 0).facts[end] == (z ≫ 0)
+        # @assume: Julia's operators; ASCII names of the sets
+        B = @assume(x > 0 && 1 < y <= 2, n in Integers, a != 0)
+        @test B.facts == Any[x ≫ 0, 1 ≪ y, y ≦ 2, n ∈ ℤ, a ≶ 0]
+        @test string(B) == "Assumptions(x > 0, 1 < y, y <= 2, n ∈ ℤ, a != 0)"
+        @test string(@assume(!(0 <= x < 1)).sets[x]) == "(-∞, 0) ∪ [1, ∞)"
+        @test @assume(x ≥ 1, x ≠ 2, x == y + 1).subst == Dict(x => y + 1)
+        @test_throws ArgumentError @assume(x > 1 && x < 0)
+        @test Integers === ℤ && Rationals === ℚ && Reals === ℝ && Complexes === ℂ
+        @test Sym(2) in Integers && (n in Reals) isa SymJ.Membership
     end
 
     @testset "solve with assumptions" begin
         @syms a n
-        @test solve(x^2 ~ 4, x; assume = (x ≫ 0,)) == [2]
+        @test solve(x^2 ~ 4, x; assume = (x ≫ 0,)) == [2] == solve(x^2 ~ 4, x; assume = @assume(x > 0))
+        @test solve(x^2 ~ 2, x; assume = @assume(x in Rationals)) == Sym[]
+        @test (@assuming x > 0 begin
+            solve(x^2 ~ 4, x)
+        end) == [2]
+        @test @assuming(x > 0, x != 2, begin solve(x^2 ~ 4, x) end) == Sym[]
+        @test (@assuming x >= 1 begin
+            @assuming x < 3 begin solve(x^2 ~ 9, x) end              # nested: both apply
+        end) == Sym[]
         @test solve(x^2 ~ 4, x; assume = Assumptions(x ≶ 2)) == [-2]
         @test solve(x^2 ~ -1, x; assume = (x ∈ ℝ,)) == Sym[]
         @test solve(x^3 ~ 8, x; assume = (x ∈ ℝ,)) == [2]

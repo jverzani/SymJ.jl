@@ -19,8 +19,9 @@
 """
     NumberSet
 
-One of the number sets `ℤ ⊂ ℚ ⊂ ℝ ⊂ ℂ`, for facts such as `n ∈ ℤ` in
-[`Assumptions`](@ref). On a number, `∈` is a `Bool` (`2 ∈ ℤ`); on a symbol it is a fact.
+One of the number sets `ℤ ⊂ ℚ ⊂ ℝ ⊂ ℂ`, also named `Integers`, `Rationals`, `Reals` and
+`Complexes`, for facts such as `n ∈ ℤ` (or `n in Integers`) in [`Assumptions`](@ref). On
+a number, `∈` is a `Bool` (`2 ∈ ℤ`); on a symbol it is a fact.
 """
 struct NumberSet
     rank::Int8                        # 1 ℤ, 2 ℚ, 3 ℝ, 4 ℂ
@@ -29,6 +30,8 @@ const ℤ = NumberSet(1)
 const ℚ = NumberSet(2)
 const ℝ = NumberSet(3)
 const ℂ = NumberSet(4)
+# ASCII names (Mathematica's)
+const Integers, Rationals, Reals, Complexes = ℤ, ℚ, ℝ, ℂ
 const _SETNAMES = ("ℤ", "ℚ", "ℝ", "ℂ")
 const _ZR, _QR, _RR, _CR = Int8(1), Int8(2), Int8(3), Int8(4)
 Base.show(io::IO, S::NumberSet) = print(io, _SETNAMES[S.rank])
@@ -201,7 +204,8 @@ struct Assumptions
     cache::Dict{Sym,Union{Nothing,UInt8}}   # sign masks found
 end
 
-Base.show(io::IO, A::Assumptions) = (print(io, "Assumptions("); join(io, A.facts, ", "); print(io, ")"))
+# with Julia's operators, as the facts are written in @assume
+Base.show(io::IO, A::Assumptions) = (print(io, "Assumptions("); join(io, map(_condstring, A.facts), ", "); print(io, ")"))
 
 Assumptions(A::Assumptions, facts...) = Assumptions(A.facts..., facts...)
 
@@ -882,6 +886,48 @@ function _fm_prune(cons::Vector{_ACon})
     append!(out, values(best))
 end
 
+## the macro: facts written with Julia's comparison and Boolean operators
+
+"""
+    @assume(facts...)
+
+[`Assumptions`](@ref) from facts written with Julia's own operators: `<`, `<=`, `>`,
+`>=`, `==`, `!=` (and `≤`, `≥`, `≠`) make relations, chained comparisons such as
+`1 < y <= 2` are split into their parts, and `&&`, `||` and `!` combine facts. Anything
+else is used as it is, such as `n in Integers` or a fact made earlier.
+
+```julia
+A = @assume(x > 0 && 1 < y <= 2, n in Integers, a != 0)
+solve(x^2 ~ 4, x; assume = @assume(x > 0))
+assuming(@assume(x >= 1)) do … end
+```
+"""
+macro assume(facts...)
+    esc(Expr(:call, GlobalRef(SymJ, :Assumptions), map(_assume_fact, facts)...))
+end
+
+const _ASSUME_OPS = Dict(:< => :lt, :<= => :le, :≤ => :le, :> => :gt, :>= => :ge, :≥ => :ge,
+                         :(==) => :eq, :!= => :ne, :≠ => :ne)
+_assume_rel(op::Symbol, a, b) = Expr(:call, GlobalRef(SymJ, :_mkrel), QuoteNode(op), a, b)
+_mkrel(op::Symbol, a, b) = Relation(op, Sym(a), Sym(b))
+
+function _assume_fact(ex)
+    ex isa Expr || return ex
+    h, as = ex.head, ex.args
+    h === :&& && return Expr(:call, GlobalRef(Base, :&), map(_assume_fact, as)...)
+    h === :|| && return Expr(:call, GlobalRef(Base, :|), map(_assume_fact, as)...)
+    if h === :comparison                         # a < b <= c: (a < b) & (b <= c)
+        parts = [_assume_rel(_ASSUME_OPS[as[i]], as[i-1], as[i+1]) for i in 2:2:length(as)]
+        return length(parts) == 1 ? parts[1] : Expr(:call, GlobalRef(Base, :&), parts...)
+    end
+    if h === :call
+        f = as[1]
+        f === :! && length(as) == 2 && return Expr(:call, GlobalRef(Base, :!), _assume_fact(as[2]))
+        haskey(_ASSUME_OPS, f) && length(as) == 3 && return _assume_rel(_ASSUME_OPS[f], as[2], as[3])
+    end
+    ex
+end
+
 ## scope: a block of assumptions, and the `assume` keyword
 
 const _ASSUMING = ScopedValue{Union{Nothing,Assumptions}}(nothing)
@@ -905,6 +951,28 @@ function assuming(f, facts...)
     cur = _ASSUMING[]
     A = cur === nothing ? Assumptions(facts...) : Assumptions(cur, facts...)
     with(f, _ASSUMING => A)
+end
+
+"""
+    @assuming facts... begin … end
+    @assuming(facts..., begin … end)
+
+Run the block with the facts assumed, the facts written as in [`@assume`](@ref);
+`assuming(@assume(facts...)) do … end` in one step. The block's value is returned; as
+with `do`, the block is a function body, so variables assigned in it are local to it.
+
+```julia
+@assuming x > 0 begin
+    solve(x^2 ~ 4, x)       # [2]
+end
+```
+"""
+macro assuming(args...)
+    (length(args) >= 1 && args[end] isa Expr && args[end].head === :block) ||
+        throw(ArgumentError("@assuming facts... begin … end: the last argument must be a begin … end block"))
+    facts, body = args[1:end-1], args[end]
+    esc(Expr(:call, GlobalRef(SymJ, :assuming), Expr(:->, Expr(:tuple), body),
+             Expr(:call, GlobalRef(SymJ, :Assumptions), map(_assume_fact, facts)...)))
 end
 
 # the assumptions for a call: the block's, with the keyword's added; nothing if none

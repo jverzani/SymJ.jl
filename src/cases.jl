@@ -73,6 +73,8 @@ Base.hash(n::_NotFact, h::UInt) = hash(n.f, hash(:not, h))
 const _ASCII_REL = Dict(:eq => "==", :ne => "!=", :lt => "<", :le => "<=", :gt => ">", :ge => ">=")
 _condstring(c::Relation) = string(c.lhs, " ", _ASCII_REL[c.op], " ", c.rhs)
 _condstring(c::_NotFact) = "!(" * _condstring(c.f) * ")"
+_condstring(c::FactAnd) = join(("(" * _condstring(g) * ")" for g in c.facts), " && ")
+_condstring(c::FactOr) = join(("(" * _condstring(g) * ")" for g in c.facts), " || ")
 _condstring(c) = string(c)
 # a lower and an upper bound of the same expression chained: -3 < a < 3
 function _condsstring(conds)

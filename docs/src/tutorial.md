@@ -445,35 +445,45 @@ solve([x ≧ 0, y ≧ 0, x + y ≦ 1], [x, y])
 ### Assumptions
 
 Symbols are complex numbers unless a fact says otherwise. Facts are relations, such as
-`x ≫ 0`, or membership in one of `ℤ ⊂ ℚ ⊂ ℝ ⊂ ℂ`, such as `n ∈ ℤ`. They are given to
+`x > 0`, or membership in one of `Integers ⊂ Rationals ⊂ Reals ⊂ Complexes` (also
+written `ℤ ⊂ ℚ ⊂ ℝ ⊂ ℂ`), such as `n in Integers`. The `@assume` macro writes them with
+Julia's operators, including `&&`, `||`, `!` and chained comparisons. They are given to
 `solve` with the `assume` keyword, and only the solutions they allow are kept:
 
 ```@example tut
-solve(x^2 ~ 4, x; assume = (x ≫ 0,))
+solve(x^2 ~ 4, x; assume = @assume(x > 0))
 ```
 
 ```@example tut
-solve(x^2 + 1 ~ 0, x; assume = (x ∈ ℝ,))
+solve(x^2 + 1 ~ 0, x; assume = @assume(x in Reals))
 ```
 
-`assuming` gives facts for a block of code:
+Without the macro, relations use the symbolic operators: `x ≫ 0` (or `Gt(x, 0)`), and
+`n ∈ ℤ` for membership.
 
 ```@example tut
-assuming(x ≫ 0) do
-    solve(x^3 ~ 8, x), solve(x^2 - 5x + 6 ~ 0, x; assume = (x ≫ 2,))
+solve(x^2 ~ 2, x; assume = (x ∈ ℚ,))
+```
+
+`@assuming` gives facts for a block of code (as does the function `assuming`, with a
+`do` block):
+
+```@example tut
+@assuming x > 0 begin
+    solve(x^3 ~ 8, x), solve(x^2 - 5x + 6 ~ 0, x; assume = @assume(x > 2))
 end
 ```
 
 When the answer depends on something the facts leave open, the result lists the cases:
 
 ```@example tut
-solve(x^2 ~ a, x; assume = (x ∈ ℝ, a ∈ ℝ))
+solve(x^2 ~ a, x; assume = @assume(x in Reals, a in Reals))
 ```
 
 Without `a ∈ ℝ`, `a` may be complex, so the cases are a fact and its negation:
 
 ```@example tut
-cs = solve(x^2 ~ a, x; assume = (x ≫ 0,))
+cs = solve(x^2 ~ a, x; assume = @assume(x > 0))
 ```
 
 Calling the cases with a value gives the answer for it:
@@ -482,8 +492,9 @@ Calling the cases with a value gives the answer for it:
 cs(a => 4), cs(a => -1)
 ```
 
-Contradictory facts are an error (`Assumptions(x ≫ 1, x ≪ 0)`), and an `Assumptions`
-value made once can be reused: `A = Assumptions(x ≫ 0, n ∈ ℤ)`, then `assume = A`.
+Contradictory facts are an error (`@assume(x > 1 && x < 0)`), and the `Assumptions`
+value `@assume` makes can be reused: `A = @assume(x > 0, n in Integers)`, then
+`assume = A`.
 
 ## Limits
 

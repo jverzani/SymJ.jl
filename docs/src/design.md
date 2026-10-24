@@ -869,7 +869,7 @@ construction.
   - *Membership:* `n ∈ ℤ`, with `ℂ ⊃ ℝ ⊃ ℚ ⊃ ℤ`. On a number, `∈` is still a `Bool`.
   - *Combining:* a list of facts is their conjunction, and `!` negates a fact.
   - *Intervals:* `0 ≦ x ≪ 1` cannot be written as a chain, because Julia lowers chains
-    through `&&`; it is two facts.
+    through `&&`; it is two facts, or a chain inside `@assume`.
 - **Domains.** Symbols are complex by default, so every identity that holds over ℂ is
   safe. Any order fact about a symbol makes it real.
 - **Deciding power.**
@@ -885,8 +885,8 @@ construction.
   contradiction, and caches sign queries, so reusing it is cheap.
 - **Scope.** As in Mathematica:
   - per call: `solve(eq, x; assume = A)`, where a tuple of facts also works;
-  - for a block: `assuming(facts...) do … end`, through a `ScopedValue`, so it nests
-    and is thread-safe;
+  - for a block: `assuming(facts...) do … end`, or `@assuming facts... begin … end`,
+    through a `ScopedValue`, so it nests and is thread-safe;
   - a keyword's facts inside a block are added to the block's.
 - **Cases.** As in GruntzLimit's `limit`: an operation returns a plain answer when the
   assumptions decide it, and otherwise a `Cases`. That is a vector of
@@ -894,8 +894,10 @@ construction.
   those values, and indexing with them gives their case.
 - **First users.** `solve` (filtering roots, and splitting on the signs of
   parameters) and a native `limit`. `simplify`/`refine` come later.
-- **Later: a macro** named after the keyword (`@assume(x > 0 && 1 < y <= 2)`), so
-  facts can be written with ASCII operators, `&&`, `||`, `!` and chained comparisons.
+- **`@assume`**, named after the keyword, writes facts with Julia's operators:
+  `@assume(x > 0 && 1 < y <= 2, n in Integers)`. Chained comparisons are split, and
+  `&&`, `||`, `!` combine. The number sets have ASCII names, `Integers`, `Rationals`,
+  `Reals` and `Complexes`.
 
 ## Performance snapshot
 
