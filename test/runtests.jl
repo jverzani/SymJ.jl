@@ -1291,6 +1291,58 @@ import ForwardDiff
         @test x .+ [1, 2] == [x + 1, x + 2]
     end
 
+    @testset "assumptions" begin
+        @syms a b n
+        J = SymJ
+        sg(e, A) = (m = J._signs(e, A); m === nothing ? nothing :
+                    Set(s for (bit, s) in ((0x01, -1), (0x02, 0), (0x04, 1)) if m & bit != 0))
+        A = Assumptions(x ≫ 1, n ∈ ℤ, n ≫ 0, a ≦ b, y ∈ ℝ)
+        @test sg(x, A) == sg(x - 1, A) == sg(x^2 - 1, A) == sg(1 / x, A) == sg(log(x), A) == Set([1])
+        @test sg(x^3 - x, A) == Set([1])                       # through its factors
+        @test sg(sqrt(x - 1), A) == sg(exp(y), A) == sg(y^2 + 1, A) == Set([1])
+        @test sg(y^2, A) == sg(b - a, A) == Set([0, 1])
+        @test sg(a - b, A) == Set([-1, 0])
+        @test sg(a, A) == Set([-1, 0, 1]) && sg(z, A) === nothing   # z complex
+        @test sg(n - 1, A) == Set([0, 1])                     # n ≥ 1
+        @test J._isinteger(2n + 1, A) === true && J._isinteger(x, A) === nothing
+        @test J._isreal(y, A) === true && J._isreal(z, A) === nothing
+        @test J._isreal(z, Assumptions(z ∉ ℝ)) === false
+        @test J._isinteger(x, Assumptions(x ∉ ℤ)) === false
+        # linear relations among several symbols
+        B = Assumptions(x ≫ 0, y ≫ 0, x + y ≪ 1)
+        @test sg(x + y - 1, B) == sg(x - 1, B) == sg(x + 2y - 2, B) == Set([-1])
+        @test sg(x * y, B) == Set([1])
+        # equalities are substituted, the lone symbol on the left
+        C = Assumptions(x ~ 2y + 1, y ≫ 0)
+        @test C.subst == Dict(x => 2y + 1) && sg(x - 1, C) == Set([1])
+        # sets: Not and Or about one symbol; integers narrowed
+        @test string(Assumptions(!(Sym(0) ≦ x) | (x ≫ 1)).sets[x]) == "(-∞, 0) ∪ (1, ∞)"
+        @test string(Assumptions(n ∈ ℤ, n ≫ 0, n ≪ 3).sets[n]) == "[1, 2]"
+        @test_throws ArgumentError Assumptions((x ≫ 0) | (y ≫ 0))       # Or across symbols
+        # contradictions
+        for bad in ((x ≫ 1, x ≪ 0), (n ∈ ℤ, n ≫ 0, n ≪ 1), (x ≫ 0, y ≫ 0, x + y ≪ 0),
+                    (x ~ 2, x ≶ 2), (n ∈ ℤ, n ∉ ℚ), (exp(x) ≫ 2, x ≪ 0), (z ∉ ℝ, z ≫ 0))
+            @test_throws ArgumentError Assumptions(bad...)
+        end
+        # ≠ on a complex symbol
+        F = Assumptions(a ≶ 0)
+        @test J._isnonzero(a, F) === true && J._isnonzero(a^2, F) === true && sg(abs(a), F) == Set([1])
+        G = Assumptions(x ∈ ℝ)
+        @test sg(abs(x), G) == Set([0, 1]) && sg(exp(x) - 1, G) == Set([-1, 0, 1])
+        # membership on numbers is a Bool
+        @test 2 ∈ ℤ && !(Sym(1) / 2 ∈ ℤ) && Sym(π) ∈ ℝ && 1.5 ∈ ℚ && !(π ∈ ℚ) && im ∉ ℝ
+        @test (x ∈ ℤ) isa SymJ.Membership && string(x ∉ ℤ) == "x ∉ ℤ"
+        # blocks nest and add to the keyword
+        assuming(x ≫ 0) do
+            @test J._assumptions(nothing).facts == Any[x ≫ 0]
+            assuming(y ≫ 0) do
+                @test length(J._assumptions((n ∈ ℤ,)).facts) == 3
+            end
+        end
+        @test J._assumptions(nothing) === nothing
+        @test Assumptions(A, z ≫ 0).facts[end] == (z ≫ 0)
+    end
+
     @testset "ambiguities" begin
         @test isempty(Test.detect_ambiguities(SymJ; recursive = true))
     end

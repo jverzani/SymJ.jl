@@ -858,11 +858,44 @@ three rounds each, taking each workload's best time.
 
 ## Assumptions
 
-Assumptions (real, positive, integer) will be passed per call, e.g.
-`simplify(ex; assume = …)`, not stored on symbols. This keeps canonical form
-context-free: `x` is always the same node with the same hash, and construction never
-consults assumptions. The trade-off is that identities such as `sqrt(x^2) = x` apply
-only inside the operations that take assumptions, never during construction.
+Assumptions are passed per call or for a block, never stored on symbols. This keeps
+canonical form context-free: `x` is always the same node with the same hash, and
+construction never consults assumptions. The trade-off is that identities such as
+`sqrt(x^2) = x` apply only inside the operations that take assumptions, never during
+construction.
+
+- **Facts.**
+  - *Relations:* `x ≫ 0`, `a ≦ b + 1`, `a ≶ 0` (≠).
+  - *Membership:* `n ∈ ℤ`, with `ℂ ⊃ ℝ ⊃ ℚ ⊃ ℤ`. On a number, `∈` is still a `Bool`.
+  - *Combining:* a list of facts is their conjunction, and `!` negates a fact.
+  - *Intervals:* `0 ≦ x ≪ 1` cannot be written as a chain, because Julia lowers chains
+    through `&&`; it is two facts.
+- **Domains.** Symbols are complex by default, so every identity that holds over ℂ is
+  safe. Any order fact about a symbol makes it real.
+- **Deciding power.**
+  - Facts about one symbol, each a domain and a `SymSet`. Within one symbol, And, Not
+    and Or all reduce to one set, so they cost nothing extra.
+  - Propagation of sign, reality and integrality through expressions.
+  - Linear relations among symbols, treating nonlinear monomials as atoms (`a*b > 0`
+    is linear in the atom `a*b`), decided by Fourier–Motzkin elimination.
+  - No Or across symbols, which would multiply cases, and no CAD.
+  - Queries are three-valued: true, false or unknown.
+- **`Assumptions`.** `Assumptions(facts...)` normalizes the facts once: per-symbol
+  domains and sets, plus linear relations. It checks consistency, throwing on a
+  contradiction, and caches sign queries, so reusing it is cheap.
+- **Scope.** As in Mathematica:
+  - per call: `solve(eq, x; assume = A)`, where a tuple of facts also works;
+  - for a block: `assuming(facts...) do … end`, through a `ScopedValue`, so it nests
+    and is thread-safe;
+  - a keyword's facts inside a block are added to the block's.
+- **Cases.** As in GruntzLimit's `limit`: an operation returns a plain answer when the
+  assumptions decide it, and otherwise a `Cases`. That is a vector of
+  `conditions => answer` pairs; calling it with parameter values gives the answer for
+  those values, and indexing with them gives their case.
+- **First users.** `solve` (filtering roots, and splitting on the signs of
+  parameters) and a native `limit`. `simplify`/`refine` come later.
+- **Later: a macro** named after the keyword (`@assume(x > 0 && 1 < y <= 2)`), so
+  facts can be written with ASCII operators, `&&`, `||`, `!` and chained comparisons.
 
 ## Performance snapshot
 
@@ -893,8 +926,8 @@ and a finalizer per operation), which dominates the small benchmarks.
   See Parameters above.
 - **Complex numbers.** `im` is the exact power `(-1)^(1/2)`. That covers the basics, but
   there is no `re`/`im` decomposition or `conj`, and `Sym(z::Complex)` builds `a + b*im`.
-- **Assumptions.** These will be passed per call, as described above. Neither the API
-  nor the rules exist yet.
+- **Assumptions.** The design is settled (see Assumptions above); the implementation is
+  under way. Integer congruences (`mod(n, 3) ~ 1`) are to follow the core.
 - **Relations.** `==` is structural and returns `Bool`. Symbolic `Eq`, `<`, etc. need
   their own constructors.
 - **Combining radicals.** `sqrt(2)*sqrt(3)` is not combined into `sqrt(6)`, and
