@@ -4,11 +4,11 @@ What SymPy and Giac provide, area by area, and where SymJ stands. Written 2026-1
 against SymPy 1.14 and Giac (through Giac.jl 0.14), with SymJ 0.1.0 plus GruntzLimit
 (limits) and RischIntegrate (integrals). Every SymPy name below was checked to exist in
 SymPy 1.14, and every Giac command in Giac.jl's command table; SymJ's column was checked
-against its source and by running it. Updated 2026-10-24 for assumptions (`solve`) and
-LaTeX output.
+against its source and by running it. Updated 2026-10-25: series, assumptions, `limit`
+with assumptions, `refine` and `simplify`, complex parts and LaTeX output are done.
 
-**Legend:** ✅ has · ◐ partial · ❌ missing · ★ planned (series, assumptions, a basic
-`simplify`, summation, differential equations)
+**Legend:** ✅ has · ◐ partial · ❌ missing · ★ planned (summation, differential
+equations; done: series, assumptions, a basic `simplify`)
 
 ## Numbers and the core
 
@@ -20,7 +20,7 @@ LaTeX output.
 | Complex numbers: `re`, `im`, `conj`, `arg` | `re`, `im`, `conjugate`, `arg` | `re`, `im`, `conj`, `arg` | ✅ `real`, `imag`, `conj`, `angle`, `reim` (exact for constants; identities for every complex value as built; parts under assumptions through `refine`); `adjoint` for matrices of expressions |
 | Symbolic infinity and undefined | `oo`, `zoo`, `nan` | `infinity`, `undef` | ◐ limits return `Sym(Inf)`; no symbolic infinity in expressions |
 | Numeric evaluation | `evalf(n)` | `evalf` | ✅ `N` (Float64), calling with `BigFloat`, dual numbers, … |
-| Assumptions on symbols | `symbols(positive=True)`, `ask`, `refine`, `Q` | `assume` | ◐ ★ `Assumptions`, `@assume`, `assuming`/`@assuming`, per call or per block, not stored on symbols; used by `solve`, `limit`, `refine` and `simplify` (`sqrt(x^2) = x` for `x > 0`); not yet by `integrate` |
+| Assumptions on symbols | `symbols(positive=True)`, `ask`, `refine`, `Q` | `assume` | ✅ `Assumptions`, `@assume`, `assuming`/`@assuming`, per call or per block, not stored on symbols; used by `solve`, `limit`, `refine` and `simplify` (`sqrt(x^2) = x` for `x > 0`); ◐ not yet by `integrate`, systems of equations, or integer congruences (`mod(n, 3) == 1`) |
 | Parameters (named constants) | — | — | ◐ implemented, hidden until the shared-name question is settled |
 
 ## Expressions
@@ -148,25 +148,28 @@ permutation groups (`sympy.combinatorics`), tensors and differential geometry
 (`sympy.tensor`, `sympy.diffgeom`), graph theory (Giac), holonomic functions
 (`sympy.holonomic`).
 
-## Gaps worth considering, beyond the planned five
+## Gaps worth considering
 
-The planned work (★) is series, assumptions, a basic `simplify`, summation and
-differential equations. Of the rest, in rough order of value for calculus-level use:
+The planned work (★) still to do is summation and differential equations; series,
+assumptions and a basic `simplify` are done. Of the rest, in rough order of value for
+calculus-level use:
 
-1. **Symbolic linear algebra**: determinant, inverse, solving, row reduction and
-   eigenvalues for matrices of expressions. Matrices are common in coursework, and
-   SymJ's exact linear-system solver (Gauss–Jordan over `RatFun`) is most of the work.
-2. ~~**LaTeX output**~~: done, through a Latexify extension.
-3. **Piecewise functions, Heaviside and Dirac**, which also matter for Laplace
+1. **Symbolic linear algebra** (next): determinant, inverse and LU first, then solving,
+   row reduction, null space, rank and eigenvalues for matrices of expressions. Matrices
+   are common in coursework, and SymJ's exact linear-system solver (Gauss–Jordan over
+   `RatFun`) is most of the work.
+2. **Piecewise functions, Heaviside and Dirac**, which also matter for Laplace
    transforms and differential equations.
-4. **Definite integrals done properly**: improper integrals through GruntzLimit, and
+3. **Definite integrals done properly**: improper integrals through `limit`, and
    detecting singularities inside the interval, building on RischIntegrate's
    antiderivatives.
-5. **Laplace transforms**, natural companions to the differential equation work.
-6. ~~**Resultants**, then **Gröbner bases**~~: done, and polynomial systems are solved.
-7. ~~**Real and imaginary parts and `conj`**, and **simplification under
-   assumptions**~~: done (`real`, `imag`, `conj`, `angle`; `refine`, `simplify`).
-8. **Numeric root finding for any equation**, for when `solve` has no closed form.
-9. **Utilities**: `collect`, `coeff`, Horner form, a user-level `cse`, `nsimplify`.
-10. **Rewriting between forms** (exp ↔ trig, half-angle), which a `simplify` will want
-    anyway.
+4. **Laplace transforms**, natural companions to the differential equation work.
+5. **Numeric root finding for any equation**, for when `solve` has no closed form.
+6. **Utilities**: `collect`, `coeff`, Horner form, a user-level `cse`, `nsimplify`, and a
+   user-level `rewrite` (exp ↔ trig, half-angle; `simplify` already rewrites inside).
+7. **Assumptions, the remaining pieces**: integer congruences, `assume` for systems of
+   equations, and assumptions in `integrate`.
+
+Done since the first audit: LaTeX output (a Latexify extension), resultants and Gröbner
+bases (polynomial systems are solved), real and imaginary parts and `conj`, and
+simplification under assumptions (`refine`, `simplify`).
