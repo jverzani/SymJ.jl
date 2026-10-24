@@ -343,6 +343,7 @@ end
 function _add_fact!(A::Assumptions, f)
     if f isa FactOr || f isa FactAnd
         vs = _factsyms(f)
+        isempty(vs) && return _constfact(f) !== false        # (a substituted by a value)
         if length(vs) != 1
             f isa FactAnd && return all(g -> _add_fact!(A, g), f.facts)
             throw(ArgumentError("`|` of facts about different symbols is not supported: $f"))
@@ -388,6 +389,18 @@ function _add_fact!(A::Assumptions, f)
         push!(A.lin, _ACon(sa, k * Sym(s), r.op in (:lt, :gt)))
     end
     true
+end
+
+# a combination of facts with no symbols: true, false, or nothing when undecided
+function _constfact(f)
+    if f isa Relation
+        v = _decide(Relation(f.op, expand(f.lhs - f.rhs), ZERO))
+        return v isa Bool ? v : nothing
+    end
+    f isa Membership && return nothing
+    vs = map(_constfact, f.facts)
+    f isa FactAnd ? (any(==(false), vs) ? false : all(==(true), vs) ? true : nothing) :
+                    (any(==(true), vs) ? true : all(==(false), vs) ? false : nothing)
 end
 
 function _factsyms(f)

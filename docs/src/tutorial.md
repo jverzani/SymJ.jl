@@ -16,10 +16,10 @@ SymJ is one of several ways to do symbolic mathematics in Julia:
 - [SymEngine.jl](https://github.com/symengine/SymEngine.jl) wraps SymEngine, a fast
   symbolic manipulation library written in C++.
 
-SymJ is written in Julia, aims to be fast, and keeps numbers exact. Limits come from
-[GruntzLimit](https://github.com/jverzani/GruntzLimit.jl) and integrals from
-[RischIntegrate](https://github.com/jverzani/RischIntegrate.jl), two packages that work on
-the expressions of several symbolic systems, SymJ's among them.
+SymJ is written in Julia, aims to be fast, and keeps numbers exact. Limits are computed
+by [GruntzLimit](https://github.com/jverzani/GruntzLimit.jl) (a dependency) and integrals
+by [RischIntegrate](https://github.com/jverzani/RischIntegrate.jl), two packages that work
+on the expressions of several symbolic systems, SymJ's among them.
 
 !!! note "Julia versions"
     SymJ and GruntzLimit support Julia 1.10 and later. RischIntegrate needs Julia 1.12 or
@@ -27,7 +27,6 @@ the expressions of several symbolic systems, SymJ's among them.
 
 ```@example tut
 using SymJ
-import GruntzLimit: limit
 using RischIntegrate
 ```
 
@@ -498,9 +497,9 @@ value `@assume` makes can be reused: `A = @assume(x > 0, n in Integers)`, then
 
 ## Limits
 
-Limits are computed by `limit` from GruntzLimit, which implements Gruntz's algorithm.
 `limit(f, x => x0)` is the limit of `f` as `x` tends to `x0`, a number, an expression or
-`Inf`:
+`Inf`. It is computed by Gruntz's algorithm, through GruntzLimit. An infinite limit is
+`Sym(Inf)` or `Sym(-Inf)`:
 
 ```@example tut
 limit(sin(x) / x, x => 0)
@@ -532,10 +531,17 @@ Other symbols may appear:
 limit((1 + a / x)^(b * x), x => Inf)
 ```
 
-When the limit depends on the values of the other symbols, `limit` gives it for each case:
+The other symbols are taken to be real numbers. When the limit depends on their values,
+`limit` gives it for each case:
 
 ```@example tut
 limit(x^a, x => Inf)
+```
+
+Assumptions, as in the section on solving, settle cases:
+
+```@example tut
+limit(x^a, x => Inf; assume = @assume(a > 1)), limit((a^x + b^x)^(1 / x), x => Inf; assume = @assume(a > b > 0))
 ```
 
 ## Derivatives
