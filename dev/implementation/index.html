@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Implementation — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=c068b54a">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=4e98d23a">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Implementation — SymJ.jl">
   <meta property="og:title" content="Implementation — SymJ.jl">
@@ -178,6 +178,24 @@ end</code></pre>
 </li>
 </ul>
 <p>The choice compares the grid with the product of the input sizes.</p>
+<h2 id="Gröbner-bases" class="md-heading">Gröbner bases<a href="#Gröbner-bases" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p><code class="md-code-inline">groebner</code> runs Buchberger&#39;s algorithm, with the Gebauer–Möller criteria to discard pairs and the sugar strategy to choose them.</p>
+<ul class="md-list-tight">
+<li><p><strong>Monomials</strong> are packed into one word, like <code class="md-code-inline">Poly</code>&#39;s, with a guard bit above each exponent field. Divisibility is one subtraction tested against the guard bits, and an exponent that outgrows its field sets a guard bit, which reruns the computation with wider words.</p>
+</li>
+<li><p><strong>The monomial order</strong> is a second packed word, linear in the exponents, so multiplying by a monomial adds to both words.</p>
+<ul class="md-list-tight">
+<li><p>grlex packs the degree above the exponents.</p>
+</li>
+<li><p>grevlex packs the degree above the prefix sums <code class="md-code-inline">e₁ + … + eₖ</code>. At equal degree, a smaller last exponent is a larger prefix sum.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Reduction is fraction-free</strong> over the integers, taking primitive parts after each reduction. With parameters, the coefficients are integer polynomials in them.</p>
+</li>
+<li><p><strong>Lex bases go through FGLM when there are finitely many solutions.</strong> A lex basis computed directly suffers coefficient growth: Katsura-4 took over five minutes. A grevlex basis is cheap, and FGLM converts it by linear algebra on normal forms, computed with multiplication matrices. Katsura-4 then takes 3 ms, and Katsura-5 0.12 s.</p>
+</li>
+</ul>
 <h2 id="Factorization" class="md-heading">Factorization<a href="#Factorization" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p>Factoring over the rationals starts with the <strong>squarefree decomposition</strong>, by Yun&#39;s algorithm: a few gcds with a derivative separate the factors by multiplicity, and each squarefree part is then factored into irreducibles.</p>
 <p><strong>Univariate polynomials</strong> use the Zassenhaus approach: factor modulo a small prime chosen to keep the number of factors small, lift the factors by Hensel lifting past a bound on the true factors&#39; coefficients, then recombine the lifted factors into true ones, checking each candidate by exact division.</p>
@@ -215,7 +233,14 @@ end</code></pre>
 </li>
 <li><p><strong>Inequalities</strong> are solved exactly through the real roots of the numerator and denominator, between which the sign is constant. The result is a union of intervals.</p>
 </li>
-<li><p><strong>Systems.</strong> Linear systems are solved by Gauss–Jordan elimination over an exact field. Linear inequalities in several unknowns are solved by Fourier–Motzkin elimination, giving each unknown&#39;s bounds in terms of the unknowns after it.</p>
+<li><p><strong>Systems.</strong> Linear systems are solved by Gauss–Jordan elimination over an exact field. Polynomial systems are solved through their lex Gröbner basis, by back-substitution from the last variable. At each level, the basis polynomials in that variable, with the values found so far substituted, are solved and their common roots kept.</p>
+<ul class="md-list-tight">
+<li><p>The last variable&#39;s polynomial is factored, and the basis is recomputed with each factor. The other polynomials are then reduced modulo that factor, which keeps the substituted values simple.</p>
+</li>
+<li><p>Where a root is numeric, the levels above it are solved numerically too. Linear inequalities in several unknowns are solved by Fourier–Motzkin</p>
+</li>
+</ul>
+<p>elimination, giving each unknown&#39;s bounds in terms of the unknowns after it.</p>
 </li>
 </ul>
 <p><code class="md-code-inline">&lt;</code> and friends are not used for symbolic inequalities: they keep returning <code class="md-code-inline">true</code> or <code class="md-code-inline">false</code>, which generic code relies on, and raise an error naming the symbolic operator (<code class="md-code-inline">≪</code>, <code class="md-code-inline">≦</code>, …) when given a symbol.</p>
@@ -256,6 +281,7 @@ end</code></pre>
             <a class="md-toc-link md-toc-h3" href="#Why-a-modular-algorithm">Why a modular algorithm</a>
             <a class="md-toc-link md-toc-h3" href="#Sparse-gcds:-Zippel&#39;s-method">Sparse gcds: Zippel&#39;s method</a>
           <a class="md-toc-link md-toc-h2" href="#Resultants">Resultants</a>
+          <a class="md-toc-link md-toc-h2" href="#Gröbner-bases">Gröbner bases</a>
           <a class="md-toc-link md-toc-h2" href="#Factorization">Factorization</a>
           <a class="md-toc-link md-toc-h2" href="#Rational-functions-and-partial-fractions">Rational functions and partial fractions</a>
           <a class="md-toc-link md-toc-h2" href="#Solving">Solving</a>
@@ -271,6 +297,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=c068b54a"></script>
+  <script src="../assets/materialdocs.js?v=4e98d23a"></script>
 </body>
 </html>

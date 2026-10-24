@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=aec04df9">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=ef755e60">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -361,6 +361,35 @@ discriminant(a*x^2 + b*x + c, x), discriminant(x^3 + a*x + b, x)</code></pre>
 </div>
 <pre class="md-output md-output-text"><code class="nohighlight ansi">(-4*a*c + b^2, -4*a^3 - 27*b^2)</code></pre>
 </div>
+<h3 id="Gröbner-bases" class="md-heading">Gröbner bases<a href="#Gröbner-bases" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p>A Gröbner basis of a set of polynomials generates the same ideal and has the same common zeros. In the lex order, the default, it is triangular: the last polynomials involve only the last variables.</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">groebner([x^2 + y^2 - 1, x*y - 1//4], x, y)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">2-element Vector{Sym}:
+ 4*y^3 + x - 4*y
+ y^4 - y^2 + 1/16</code></pre>
+</div>
+<p>The basis is <code class="md-code-inline">[1]</code> exactly when the polynomials have no common zero:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">groebner([x^2 + y^2 - 1, x^2 + y^2 - 4], x, y)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">1-element Vector{Sym}:
+ 1</code></pre>
+</div>
+<p><code class="md-code-inline">reduced</code> divides by the basis. The remainder is zero exactly when a polynomial is in the ideal:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">G = groebner([x^2 + y^2 - 1, x - y], x, y)
+reduced(x^2 - y^2, G, x, y), reduced(x^3, G, x, y)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">((Sym[x + y, 0], 0), (Sym[x*y + x^2 + y^2, y], y/2))</code></pre>
+</div>
 <h3 id="Roots" class="md-heading">Roots<a href="#Roots" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <p><code class="md-code-inline">solve</code> finds the roots of a polynomial. Degrees up to four are solved exactly, with real roots of cubics given in trigonometric form (no complex numbers needed):</p>
 <div class="md-multi-output">
@@ -530,24 +559,51 @@ cancel(r)</code></pre>
 <pre class="md-output md-output-text"><code class="nohighlight ansi">(-∞, -2) ∪ [1, ∞)</code></pre>
 </div>
 <h3 id="Systems" class="md-heading">Systems<a href="#Systems" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
-<p>A list of linear equations in several unknowns gives a <code class="md-code-inline">Dict</code>:</p>
+<p>A system of equations gives a vector of solutions, each a <code class="md-code-inline">Dict</code> from the unknowns to their values. A linear system has at most one:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve([x + y ~ 3, x - y ~ 1], [x, y])</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">Dict{Sym, Sym} with 2 entries:
-  y =&gt; 1
-  x =&gt; 2</code></pre>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">1-element Vector{Dict{Sym, Sym}}:
+ Dict(y =&gt; 1, x =&gt; 2)</code></pre>
 </div>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve([a * x + y ~ 1, x - y ~ b], [x, y])</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">Dict{Sym, Sym} with 2 entries:
-  y =&gt; (-a*b + 1)/(a + 1)
-  x =&gt; (b + 1)/(a + 1)</code></pre>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">1-element Vector{Dict{Sym, Sym}}:
+ Dict(y =&gt; (-a*b + 1)/(a + 1), x =&gt; (b + 1)/(a + 1))</code></pre>
+</div>
+<p>Polynomial systems are solved through a lex Gröbner basis, which is triangular:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve([x^2 + y^2 ~ 1, x ~ y], [x, y])</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">2-element Vector{Dict{Sym, Sym}}:
+ Dict(y =&gt; -sqrt(2)/2, x =&gt; -sqrt(2)/2)
+ Dict(y =&gt; sqrt(2)/2, x =&gt; sqrt(2)/2)</code></pre>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve([x*y ~ 1, x + y ~ 3], [x, y])</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">2-element Vector{Dict{Sym, Sym}}:
+ Dict(y =&gt; -sqrt(5)/2 + 3/2, x =&gt; sqrt(5)/2 + 3/2)
+ Dict(y =&gt; sqrt(5)/2 + 3/2, x =&gt; -sqrt(5)/2 + 3/2)</code></pre>
+</div>
+<p>With infinitely many solutions, the unknowns left free map to themselves:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve([x^2 + y^2 ~ 1], [x, y])</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">2-element Vector{Dict{Sym, Sym}}:
+ Dict(y =&gt; y, x =&gt; -sqrt(-y^2 + 1))
+ Dict(y =&gt; y, x =&gt; sqrt(-y^2 + 1))</code></pre>
 </div>
 <p>A system of linear inequalities gives a description of the region, each unknown between bounds in the ones after it:</p>
 <div class="md-multi-output">
@@ -788,7 +844,7 @@ G(x =&gt; Sym(π)) - G(x =&gt; 0)</code></pre>
 </li>
 <li><p><strong>Matrices and noncommutative algebra.</strong></p>
 </li>
-<li><p><strong>Nonlinear systems of equations</strong>, and equations in several unrelated functions of the unknown, such as <code class="md-code-inline">sin(x) + cos(x) ~ 1</code>.</p>
+<li><p><strong>Transcendental systems of equations</strong>, such as <code class="md-code-inline">sin(x) ~ y, x ~ y^2</code> (polynomial and rational systems are solved), and equations in several unrelated functions of the unknown, such as <code class="md-code-inline">sin(x) + cos(x) ~ 1</code>.</p>
 </li>
 </ul>
       </article>
@@ -811,6 +867,7 @@ G(x =&gt; Sym(π)) - G(x =&gt; 0)</code></pre>
             <a class="md-toc-link md-toc-h3" href="#Evaluation-and-shifts">Evaluation and shifts</a>
             <a class="md-toc-link md-toc-h3" href="#Factoring">Factoring</a>
             <a class="md-toc-link md-toc-h3" href="#Resultants">Resultants</a>
+            <a class="md-toc-link md-toc-h3" href="#Gröbner-bases">Gröbner bases</a>
             <a class="md-toc-link md-toc-h3" href="#Roots">Roots</a>
           <a class="md-toc-link md-toc-h2" href="#Rational-functions">Rational functions</a>
             <a class="md-toc-link md-toc-h3" href="#Partial-fractions">Partial fractions</a>
@@ -834,6 +891,6 @@ G(x =&gt; Sym(π)) - G(x =&gt; 0)</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=aec04df9"></script>
+  <script src="../assets/materialdocs.js?v=ef755e60"></script>
 </body>
 </html>

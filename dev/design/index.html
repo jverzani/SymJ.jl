@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Design notes — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=46db823f">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=a5c98faf">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Design notes — SymJ.jl">
   <meta property="og:title" content="Design notes — SymJ.jl">
@@ -907,11 +907,13 @@ end</code></pre>
 </li>
 </ul>
 </li>
-<li><p><strong>Linear systems.</strong> <code class="md-code-inline">solve(eqs, vars)</code> returns a <code class="md-code-inline">Dict</code> from variables to values.</p>
-<ul class="md-list-tight">
-<li><p><strong>Underdetermined systems</strong> give the pivot variables in terms of the free ones, which are not keys: <code class="md-code-inline">solve([x + y + z ~ 1, x - z ~ 0], [x, y, z]) == Dict(x =&gt; z, y =&gt; 1 − 2z)</code>.</p>
+<li><p><strong>Systems.</strong> <code class="md-code-inline">solve(eqs, vars)</code> returns a vector of solutions, each a <code class="md-code-inline">Dict</code> from variables to values, for linear and nonlinear systems alike. Every unknown is a key of every solution; one left free maps to itself. One rule means generic code can loop over the result; SymPy&#39;s return type depends on the kind of system.</p>
 </li>
-<li><p><strong>Inconsistent systems</strong> give <code class="md-code-inline">nothing</code>.</p>
+<li><p><strong>Linear systems</strong> have at most one solution in that vector.</p>
+<ul class="md-list-tight">
+<li><p><strong>Underdetermined systems</strong> give the pivot variables in terms of the free ones, which map to themselves: <code class="md-code-inline">solve([x + y + z ~ 1, x - z ~ 0], [x, y, z]) == [Dict(x =&gt; z, y =&gt; 1 − 2z, z =&gt; z)]</code>.</p>
+</li>
+<li><p><strong>Inconsistent systems</strong> give an empty vector.</p>
 </li>
 <li><p><strong>Method.</strong> Gauss–Jordan elimination over an exact field: <code class="md-code-inline">SymNumber</code> when the coefficients are numeric, otherwise <code class="md-code-inline">RatFun</code> in the other symbols and parameters. Its canonical form makes the pivot zero tests exact.</p>
 </li>
@@ -1167,6 +1169,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=46db823f"></script>
+  <script src="../assets/materialdocs.js?v=a5c98faf"></script>
 </body>
 </html>

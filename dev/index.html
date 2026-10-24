@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SymJ — SymJ.jl</title>
-  <link rel="stylesheet" href="./assets/materialdocs.css?v=ccb4755b">
+  <link rel="stylesheet" href="./assets/materialdocs.css?v=79e26389">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="SymJ — SymJ.jl">
   <meta property="og:title" content="SymJ — SymJ.jl">
@@ -213,9 +213,8 @@ degree(q), degree(q, y), nterms(q)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve([x + y ~ 3, x - y ~ 1], [x, y])</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">Dict{Sym, Sym} with 2 entries:
-  y =&gt; 1
-  x =&gt; 2</code></pre>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">1-element Vector{Dict{Sym, Sym}}:
+ Dict(y =&gt; 1, x =&gt; 2)</code></pre>
 </div>
 <h3 id="Calculus" class="md-heading">Calculus<a href="#Calculus" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <p><code class="md-code-inline">diff</code> differentiates; <code class="md-code-inline">diff(f, x, n)</code> gives the <code class="md-code-inline">n</code>-th derivative.</p>
@@ -273,6 +272,6 @@ limit(sin(x) / x, x =&gt; 0), limit((1 + 1 / x)^x, x =&gt; Inf)</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="./siteinfo.js"></script>
   <script src="./../versions.js"></script>
-  <script src="./assets/materialdocs.js?v=ccb4755b"></script>
+  <script src="./assets/materialdocs.js?v=79e26389"></script>
 </body>
 </html>
