@@ -7,24 +7,25 @@
     solve(eqs::AbstractVector{<:Relation}, vars)
 
 Solve a system of equations (written with `~`) for the variables `vars`. The result is a
-vector of solutions, each a `Dict` from variables to values; an inconsistent system
+vector of solutions, each a `Dict` with every one of `vars` as a key; an inconsistent system
 gives an empty vector. Both arguments must be vectors (or tuples): one equation in one
 unknown is `solve(eq, x)`, which gives a vector of values instead.
 
 - **Linear systems** are solved by Gauss–Jordan elimination. An underdetermined system
-  has one solution, with the pivot variables given in terms of the free ones, which are
-  not keys.
+  has one solution, with the pivot variables given in terms of the free ones, which map
+  to themselves.
 - **Polynomial (and rational) systems** are solved through a lex Gröbner basis
   ([`groebner`](@ref)), which is triangular, by back-substitution. The values are exact
   where the equations in one variable along the way can be solved exactly, numeric
-  otherwise. With infinitely many solutions, the variables left free are not keys.
+  otherwise. With infinitely many solutions, the variables left free map to
+  themselves.
 
 Coefficients may involve other symbols; the solutions are then the generic ones (for
 example, assuming `a ≠ 0` in `a*x + y ~ 1`).
 
 ```julia
 solve([x + y ~ 3, x - y ~ 1], [x, y])          # [Dict(x => 2, y => 1)]
-solve([x + y + z ~ 1, x - z ~ 0], [x, y, z])    # [Dict(x => z, y => 1 - 2z)]
+solve([x + y + z ~ 1, x - z ~ 0], [x, y, z])    # [Dict(x => z, y => 1 - 2z, z => z)]
 solve([x^2 + y^2 ~ 1, x ~ y], [x, y])          # [Dict(x => -√2/2, y => -√2/2), Dict(x => √2/2, y => √2/2)]
 solve([x*y ~ 1, x + y ~ 3], [x, y])
 ```
@@ -33,9 +34,17 @@ function solve(eqs::AbstractVector{<:Relation}, vars::Union{AbstractVector,Tuple
     vars = Sym[Sym(v) for v in vars]
     all(_isnamed, vars) || throw(ArgumentError("solve: the unknowns must be symbols or parameters"))
     all(e -> e.op === :eq, eqs) || return _solve_ineq_system(eqs, vars)
-    _islinear(eqs, vars) || return _solve_nonlinear(collect(Relation, eqs), vars)
-    sol = _solve_linear(eqs, vars)
-    sol === nothing ? Dict{Sym,Sym}[] : [sol]
+    sols = if _islinear(eqs, vars)
+        sol = _solve_linear(eqs, vars)
+        sol === nothing ? Dict{Sym,Sym}[] : [sol]
+    else
+        _solve_nonlinear(collect(Relation, eqs), vars)
+    end
+    # every solution has every unknown as a key; a free one stands for itself
+    for s in sols, v in vars
+        haskey(s, v) || (s[v] = v)
+    end
+    sols
 end
 
 # every equation of degree at most 1 in the unknowns, with no unknown in a denominator

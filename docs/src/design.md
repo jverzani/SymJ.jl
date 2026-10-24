@@ -753,12 +753,13 @@ interface works with SymJ equations.
   - **Limits.** Numeric coefficients only: with parameters, the order of the endpoints
     depends on their values, which needs assumptions.
 - **Systems.** `solve(eqs, vars)` returns a vector of solutions, each a `Dict` from
-  variables to values, for linear and nonlinear systems alike. One rule means generic
+  variables to values, for linear and nonlinear systems alike. Every unknown is a key
+  of every solution; one left free maps to itself. One rule means generic
   code can loop over the result; SymPy's return type depends on the kind of system.
 - **Linear systems** have at most one solution in that vector.
   - **Underdetermined systems** give the pivot variables in terms of the free ones,
-    which are not keys: `solve([x + y + z ~ 1, x - z ~ 0], [x, y, z]) ==
-    [Dict(x => z, y => 1 − 2z)]`.
+    which map to themselves: `solve([x + y + z ~ 1, x - z ~ 0], [x, y, z]) ==
+    [Dict(x => z, y => 1 − 2z, z => z)]`.
   - **Inconsistent systems** give an empty vector.
   - **Method.** Gauss–Jordan elimination over an exact field: `SymNumber` when the
     coefficients are numeric, otherwise `RatFun` in the other symbols and parameters.

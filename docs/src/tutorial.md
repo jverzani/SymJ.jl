@@ -429,7 +429,7 @@ solve([x^2 + y^2 ~ 1, x ~ y], [x, y])
 solve([x*y ~ 1, x + y ~ 3], [x, y])
 ```
 
-With infinitely many solutions, the unknowns left free are not keys:
+With infinitely many solutions, the unknowns left free map to themselves:
 
 ```@example tut
 solve([x^2 + y^2 ~ 1], [x, y])

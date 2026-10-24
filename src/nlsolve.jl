@@ -3,7 +3,7 @@
 # variable is x_k, with the values found so far substituted, are equations in x_k
 # alone: the one of least degree is solved (by `solve` for one equation) and its roots
 # kept where the others vanish too. A level with no such polynomial is a free
-# variable (infinitely many solutions), left symbolic and not a key of the result.
+# variable (infinitely many solutions), left symbolic (`solve` maps it to itself).
 #
 # The last variable's polynomial is factored first, and the basis recomputed with each
 # irreducible factor: then the other polynomials are reduced modulo that factor, so the
