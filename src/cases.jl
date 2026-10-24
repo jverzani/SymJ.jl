@@ -159,6 +159,7 @@ end
 function _isrational(e::Sym, A::Assumptions)
     _isinteger(e, A) === true && return true
     e.kind == NUMBER && return isexact(e.num)
+    _hassymbol(e) || return _const_rational(e)
     _isnamed(e) && return get(A.dom, e, _CR) <= _QR ? true : get(A.notin, e, Int8(0)) >= _QR ? false : nothing
     nothing
 end

@@ -1379,6 +1379,17 @@ import ForwardDiff
         @test cs(a => -5) == [-3, 3] && cs(a => 0) == [3] && cs(a => 4) == Sym[]
         cs = solve(x^2 - 3x + 2 ~ 0, x; assume = (n ∈ ℤ, x ≪ n))
         @test cs(n => 1) == Sym[] && cs(n => 2) == [1] && cs(n => 5) == [1, 2]
+        # rationality of constants: radicals, π and ℯ
+        @test solve(x^2 ~ 2, x; assume = (x ∈ ℚ,)) == Sym[] == solve(x^2 ~ 2, x; assume = (x ∈ ℤ,))
+        @test solve(4x^2 ~ 1, x; assume = (x ∈ ℚ,)) == [-1 // 2, 1 // 2]
+        @test solve(4x^2 ~ 1, x; assume = (x ∈ ℤ,)) == Sym[]
+        @test solve(x^2 - x - 1 ~ 0, x; assume = (x ∈ ℚ,)) == Sym[]
+        @test solve(x^3 ~ 2, x; assume = (x ∈ ℚ,)) == Sym[]          # complex roots too
+        s2, s3, s6 = sqrt(Sym(2)), sqrt(Sym(3)), sqrt(Sym(6))
+        @test SymJ._const_rational(s2 * s3 * s6) === true && SymJ._const_rational(s2 * s3) === false
+        @test SymJ._const_rational(2 + 3 * PI) === false && SymJ._const_rational(PI * E) === nothing
+        @test SymJ._const_rational(s2 + s3) === nothing                # several radicals: unknown
+        @test !(s2 ∈ ℚ) && !(PI ∈ ℤ) && (s2 * s3 * s6 ∈ ℤ)
         cs = solve(2x ~ n, x; assume = (x ∈ ℤ,))
         @test length(cs) == 2 && cs[1].second == [n / 2]
         @test occursin("a > 0  =>  [sqrt(a)]", sprint(show, MIME"text/plain"(), solve(x^2 ~ a, x; assume = (x ≫ 0,))))

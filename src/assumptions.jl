@@ -61,9 +61,80 @@ function Base.in(x::Sym, S::NumberSet)
     r === nothing && throw(ArgumentError("cannot decide whether $x ∈ $S"))
     S.rank == _RR && return r
     r || return false
+    q = _const_rational(x)
+    q === false && return false
+    S.rank == _QR && q === true && return true
     v = _evalc(x)
     S.rank == _ZR && !isinteger(round(real(v); digits = 9)) && return false
+    S.rank == _ZR && q === true && return true          # a rational at an integer
     throw(ArgumentError("cannot decide whether $x ∈ $S"))
+end
+
+# Is a constant rational? true or false where that is provable, else nothing:
+#   - a product of powers of rationals: rational exactly when, over a coprime basis of
+#     the bases (gcds, no factoring), each base's power is (√2·√3·√6 = 6, √2·√3 is not);
+#   - not real: not rational;
+#   - a sum: rational terms and one irrational term is irrational (1 + √2, (1 + √5)/2);
+#     with several irrational terms, unknown;
+#   - π or ℯ to a rational power times an algebraic number is transcendental (one
+#     of them; π·ℯ is unknown). Functions such as log(2): unknown.
+function _const_rational(e::Sym)::Union{Nothing,Bool}
+    e = expand(e)
+    e.kind == NUMBER && return isexact(e.num)
+    _isreal_const(e) === false && return false             # not even real
+    irrational = 0
+    for t in (e.kind == ADD ? e.args : (e,))
+        r = _monomial_rational(t)
+        r === nothing && return nothing
+        r || (irrational += 1)
+    end
+    irrational == 0 ? true : irrational == 1 ? false : nothing
+end
+
+function _monomial_rational(t::Sym)::Union{Nothing,Bool}
+    fs = t.kind == MUL ? collect(zip(t.args, t.exps)) : t.kind == POW ? [(t.args[1], t.args[2])] :
+         t.kind == CONSTANT ? [(t, ONE)] : return nothing
+    exps = Dict{BigInt,Rational{BigInt}}()               # integer base => exponent
+    transc = Symbol[]
+    for (b, x) in fs
+        (x.kind == NUMBER && isexact(x.num)) || return nothing
+        q = Rational{BigInt}(_numerator(x.num), _denominator(x.num))
+        if b.kind == CONSTANT && b.name in (:pi, :E)
+            iszero(q) || push!(transc, b.name)
+        elseif b.kind == NUMBER && isexact(b.num) && b.num > N0
+            for (n, s) in ((_numerator(b.num), q), (_denominator(b.num), -q))
+                isone(n) || (exps[BigInt(n)] = get(exps, BigInt(n), 0) + s)
+            end
+        else
+            return nothing
+        end
+    end
+    length(unique(transc)) > 1 && return nothing
+    isempty(transc) || return false                     # π^q or ℯ^q times an algebraic number
+    _coprime_basis!(exps)
+    all(((n, q),) -> isinteger(q) || _perfect_root(n, Int(denominator(q))) !== nothing, exps)
+end
+
+# bases made pairwise coprime, exponents carried along (a^s b^t with g = gcd(a, b) is
+# g^(s+t) (a/g)^s (b/g)^t)
+function _coprime_basis!(exps::Dict{BigInt,Rational{BigInt}})
+    while true
+        ks = collect(keys(exps))
+        pair = nothing
+        for i in eachindex(ks), j in (i+1):length(ks)
+            g = gcd(ks[i], ks[j])
+            g > 1 && (pair = (ks[i], ks[j], g); break)
+        end
+        pair === nothing && break
+        a, b, g = pair
+        s, t = pop!(exps, a), pop!(exps, b)
+        for (n, q) in ((g, s + t), (a ÷ g, s), (b ÷ g, t))
+            isone(n) && continue
+            exps[n] = get(exps, n, 0) + q
+        end
+        filter!(p -> !iszero(p.second), exps)
+    end
+    exps
 end
 
 ## compound facts: & and | (Or only about one symbol), ! on any fact
@@ -613,6 +684,7 @@ function _isinteger(e::Sym, A::Assumptions)::Union{Nothing,Bool}
     isempty(A.subst) || (e = expand(subs(e, A.subst...)))
     k = e.kind
     k == NUMBER && return isexact(e.num) && isone(_denominator(e.num))
+    _hassymbol(e) || return _const_rational(e) === false ? false : nothing
     if _isnamed(e)
         get(A.dom, e, _CR) == _ZR && return true
         get(A.notin, e, Int8(0)) >= _ZR && return false
