@@ -1449,6 +1449,11 @@ using Latexify: latexify
         @test (@assuming a > 0 begin limit(x^a, x => Inf) end) == Sym(Inf)
         @test_throws ArgumentError limit(x^a, x => Inf; assume = @assume(!(a in Reals)))
         @test limit((1 + a / x)^(b * x), x => Inf) == exp(a * b)
+        # generic answers where there is one, as gruntz_limit gives them (no cases on
+        # where the expression is defined, or on constants that may vanish)
+        f = (sqrt(2 * a^3 * x - x^4) - a * cbrt(a^2 * x)) / (a - a^(1 // 4) * x^(3 // 4))
+        @test limit(f, x => 1) == SymJ.GruntzLimit.gruntz_limit(f, x, 1) isa Sym
+        @test limit(f, x => a) == 16a / 9                       # the classic L'Hôpital example
     end
 
     @testset "Latexify" begin

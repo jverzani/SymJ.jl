@@ -1,6 +1,10 @@
 # Limits: SymJ's `limit`, computed by GruntzLimit (Gruntz's algorithm) on SymJ's
 # expressions, with SymJ's assumptions and answers.
 #
+# The answer is gruntz_limit's generic one where there is one (constants that may vanish
+# taken to be nonzero); only when the limit depends on a sign it cannot decide is it
+# given by cases, through gruntz_cases.
+#
 # The assumptions are handed to GruntzLimit as `signs` (c => :positive and the like):
 # equalities are substituted; a parameter's range gives its bounds and excluded points;
 # linear relations and ≠ facts are signs of expressions. What `signs` cannot say (a gap
@@ -18,10 +22,11 @@ two-sided unless `dir` is `:+` (from above) or `:-` (from below). Computed by Gr
 algorithm ([GruntzLimit](https://github.com/jverzani/GruntzLimit.jl)), which handles
 exponentials and logarithms that cancel in ways numerical evaluation cannot follow.
 
-The other symbols are real numbers. Facts about them can be given with `assume` (or in
-an [`assuming`](@ref) block, see [`Assumptions`](@ref)); when the limit depends on
-something they leave open, the answer is a `Cases` value, one limit for each case, which
-can be called with values (`cs(a => 2)`). The limit is a `Sym`, `Sym(Inf)` or
+The other symbols are real numbers, and the answer is the generic one: a constant that
+may vanish is taken to be nonzero. Facts about them can be given with `assume` (or in
+an [`assuming`](@ref) block, see [`Assumptions`](@ref)). When the limit depends on the
+sign of something the facts leave open, the answer is a `Cases` value, one limit for each
+case, which can be called with values (`cs(a => 2)`). The limit is a `Sym`, `Sym(Inf)` or
 `Sym(-Inf)` for an infinite one. A limit that does not exist (`sin(x)` at `Inf`) throws
 a `GruntzError`.
 
@@ -55,6 +60,16 @@ function limit(f, xx0::Pair; dir = :both, assume = nothing)
         signs = _gruntz_signs(A, x)
     end
     x0g = x0 isa Real ? x0 : Sym(x0)
+    # the generic answer, as gruntz_limit gives it (a constant that may vanish taken to be
+    # nonzero, where the expression is defined); by cases only when the limit depends on a
+    # sign that is not decided
+    L = try
+        GruntzLimit.gruntz_limit(f, x, x0g; dir, signs)
+    catch err
+        (err isa GruntzError && occursin("gruntz_cases", err.msg)) || rethrow()
+        nothing
+    end
+    L === nothing || return _limit_value(L)
     cs = GruntzLimit.gruntz_cases(f, x, x0g; dir, signs)
     cases = Pair{Vector{Any},Any}[]
     for (conds, v) in cs
