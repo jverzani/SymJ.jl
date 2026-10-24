@@ -1495,6 +1495,21 @@ using Latexify: latexify
         @test T(sin(x + y) - sin(x) * cos(y) - cos(x) * sin(y)) == 0
         @test T(sin(x) + 1) == sin(x) + 1 && T(x^2) == x^2                  # nothing to do
         @test simplify(sin(x)^2 + cos(x)^2 + x) == x + 1 && simplify((1 - cos(x)^2) / sin(x)^2) == 1
+        # logarithms: combined or expanded where the arguments are positive
+        @test S(log(Sym(2)) + log(Sym(3))) == log(Sym(6)) && S(2log(Sym(2)) - log(Sym(4))) == 0
+        @test S(log(x) + log(y)) == log(x) + log(y) && S(log(x) + log(y), x ≫ 0, y ≫ 0) == log(x * y)
+        @test S(log(x * y) - log(x), x ≫ 0) == log(y) && S(log(x^3) - 3log(x), x ≫ 0) == 0
+        @test S(log(2x) - log(Sym(2))) == log(x)                                 # 2 > 0: always
+        @test S(exp(log(x) + log(y)), x ≫ 0, y ≫ 0) == x * y
+        @test SymJ.simplify_log(log(x * y); assume = Assumptions(x ≫ 0, y ≫ 0)) == log(x * y)  # the smaller
+        # radicals: denested, denominators rationalized, radicands factored
+        @test S(sqrt(3 + 2sqrt(Sym(2)))) == 1 + sqrt(Sym(2)) && S(sqrt(5 - 2sqrt(Sym(6)))) == sqrt(Sym(3)) - sqrt(Sym(2))
+        @test S(1 / (1 + sqrt(Sym(2)))) == sqrt(Sym(2)) - 1 && S(1 / (sqrt(Sym(3)) - 1)) == (sqrt(Sym(3)) + 1) / 2
+        @test S(2 / (1 + sqrt(Sym(5)))^2) == (3 - sqrt(Sym(5))) / 4
+        @test S(sqrt(x^2 + 2x + 1), x ∈ ℝ) == abs(x + 1) && S(sqrt(x^2 + 2x + 1), x ≫ -1) == x + 1
+        @test S(sqrt(4x^2 + 4x + 1) / (2x + 1), x ≫ 0) == 1
+        @test SymJ.simplify_radicals(sqrt(2 + sqrt(Sym(3)))) == sqrt(Sym(6)) / 2 + sqrt(Sym(2)) / 2
+        @test S(sqrt(2 + sqrt(Sym(3)))) == sqrt(2 + sqrt(Sym(3)))               # denested is larger
     end
 
     @testset "Latexify" begin

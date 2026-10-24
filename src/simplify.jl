@@ -7,7 +7,8 @@
 # for every value the assumptions allow.
 #
 # `simplify` refines, then searches: each specialized routine (simplify_rational,
-# simplify_powers, simplify_trig, expansion, factoring) gives a candidate, and the one with the fewest
+# simplify_powers, simplify_trig, simplify_log, simplify_radicals, expansion,
+# factoring) gives a candidate, and the one with the fewest
 # nodes is kept, the input itself if none is smaller. Function arguments are simplified
 # first. The routines are Julia functions on the canonical form; there is no general
 # pattern matcher, as the canonical form already orders sums and products.
@@ -178,11 +179,16 @@ transformations are tried and the smallest result kept (`ex` itself if none is s
 - trigonometric identities: a normal form modulo `sin^2 + cos^2 = 1`, multiple angles
   and sums of angles (`2sin(x)cos(x) = sin(2x)`, `sin(x)cos(y) + cos(x)sin(y) =
   sin(x + y)`);
+- logarithms combined or expanded where their arguments are positive
+  (`log(2) + log(3) = log(6)`);
+- radicals denested (`sqrt(3 + 2sqrt(2)) = 1 + sqrt(2)`), denominators rationalized
+  (`1/(1 + sqrt(2)) = sqrt(2) - 1`), radicands factored (`sqrt(x^2 + 2x + 1)`);
 - expansion and factoring.
 
 The transformations are also available on their own, unexported:
-`SymJ.simplify_rational`, `SymJ.simplify_powers` and `SymJ.simplify_trig`. Assumptions
-are given as for `refine`.
+`SymJ.simplify_rational`, `SymJ.simplify_powers`, `SymJ.simplify_trig`,
+`SymJ.simplify_log` and `SymJ.simplify_radicals`. Assumptions are given as for
+`refine`.
 
 ```julia
 simplify((x^2 - 1) / (x - 1))                    # x + 1
@@ -206,9 +212,11 @@ function _simplify(e::Sym, A::Assumptions)
     e = _map_fn_args(a -> _simplify(a, A), e)
     best, size = e, _nodes(e)
     powers(x) = simplify_powers(x; assume = A)
+    logs(x) = simplify_log(x; assume = A)
+    radicals(x) = simplify_radicals(x; assume = A)
     expansion(x) = _bigpower(x) ? nothing : expand(x)   # (x + y)^30 expanded never wins
-    for g in (simplify_rational, powers, expansion, _factor_or_nothing, simplify_trig,
-              simplify_rational ∘ powers, expansion ∘ simplify_rational)
+    for g in (simplify_rational, powers, expansion, _factor_or_nothing, simplify_trig, logs, radicals,
+              simplify_rational ∘ powers, expansion ∘ simplify_rational, expansion ∘ radicals)
         c = try g(e) catch err; err isa InterruptException && rethrow(); nothing end
         c isa Sym || continue
         c = _refine(c, A)
@@ -217,9 +225,15 @@ function _simplify(e::Sym, A::Assumptions)
     end
     best
 end
+# a constant: powers, logarithms and radicals of numbers
 function _simplify_const(e::Sym, A::Assumptions)
-    c = try simplify_powers(e; assume = A) catch; e end
-    _nodes(c) < _nodes(e) ? c : e
+    best = e
+    for g in (simplify_powers, simplify_log, simplify_radicals)
+        c = try g(e; assume = A) catch err; err isa InterruptException && rethrow(); e end
+        c = try expand(c) catch; c end
+        _nodes(c) < _nodes(best) && (best = c)
+    end
+    best
 end
 
 _bigpower(e::Sym) = (e.kind == POW && e.args[1].kind == ADD && e.args[2].kind == NUMBER && abs(e.args[2].num) > SymNumber(10)) ||
@@ -507,4 +521,165 @@ function _trig_tan(e::Sym)
         return out
     end
     _rebuild_node(e, Sym[_trig_tan(a) for a in e.args])
+end
+
+## logarithms
+
+"""
+    SymJ.simplify_log(ex; assume = nothing)
+
+`ex` with its logarithms combined or expanded, whichever is smaller:
+
+- combined, `c₁ log(u₁) + c₂ log(u₂) = log(u₁^c₁ u₂^c₂)` for `uᵢ > 0` and real `cᵢ`
+  (`log(2) + log(3) = log(6)`; positive numbers need no assumptions);
+- expanded, `log(a*b) = log(a) + log(b)` for `a > 0` (a positive factor does not change
+  the argument of the product, so `b` may be anything), `log(a^p) = p*log(a)` for `a > 0`
+  and real `p`.
+
+Not exported; used by [`simplify`](@ref).
+"""
+function simplify_log(ex; assume = nothing)
+    A = assume isa Assumptions ? assume : (a = _assumptions(assume); a === nothing ? Assumptions() : a)
+    e = _refine(Sym(ex), A)
+    best = e
+    for c in (_log_combine(e, A), _log_combine(_log_expand(e, A), A), _log_expand(e, A))
+        _nodes(c) < _nodes(best) && (best = c)
+    end
+    best
+end
+
+_logpos(u::Sym, A) = u.kind == NUMBER ? u.num > N0 : _ispos(u, A)
+
+function _log_combine(e::Sym, A::Assumptions)
+    isempty(e.args) && return e
+    if e.kind == ADD
+        args = Sym[_log_combine(a, A) for a in e.args]
+        prodarg, rest = ONE, ZERO
+        n = 0
+        for (c, t) in zip(e.coefs, args)
+            k, l = t.kind == MUL && length(t.args) == 1 && _eq(t.exps[1], ONE) ? (t.num, t.args[1]) : (N1, t)
+            if l.kind == FN && l.name === :log && length(l.args) == 1 && _logpos(l.args[1], A)
+                prodarg *= l.args[1]^Sym(c * k)
+                n += 1
+            else
+                rest += Sym(c) * t
+            end
+        end
+        n >= 1 && return Sym(e.num) + rest + (n == 1 && isone(prodarg) ? ZERO : log(prodarg))
+        return Sym(e.num) + rest
+    end
+    if e.kind == MUL && length(e.args) == 1 && _eq(e.exps[1], ONE)        # c log(u) = log(u^c)
+        l = _log_combine(e.args[1], A)
+        if l.kind == FN && l.name === :log && _logpos(l.args[1], A) && isexact(e.num) && isone(_denominator(e.num))
+            return log(l.args[1]^Sym(e.num))
+        end
+    end
+    e.kind == MUL && return Sym(e.num) * prod((_log_combine(b, A)^_log_combine(p, A) for (b, p) in zip(e.args, e.exps)); init = ONE)
+    _rebuild_node(e, Sym[_log_combine(a, A) for a in e.args])
+end
+
+function _log_expand(e::Sym, A::Assumptions)
+    isempty(e.args) && return e
+    if e.kind == FN && e.name === :log && length(e.args) == 1
+        u = _log_expand(e.args[1], A)
+        if u.kind == MUL
+            out, rest = ZERO, Sym(u.num)
+            _logpos(Sym(u.num), A) && !isone(u.num) ? (out += log(Sym(u.num)); rest = ONE) : nothing
+            for (b, p) in zip(u.args, u.exps)
+                if _logpos(b, A) && _isreal(p, A) === true
+                    out += p * log(b)
+                else
+                    rest *= b^p
+                end
+            end
+            return out + (isone(rest) ? ZERO : log(rest))
+        elseif u.kind == POW && _logpos(u.args[1], A) && _isreal(u.args[2], A) === true
+            return u.args[2] * log(u.args[1])
+        end
+        return log(u)
+    end
+    e.kind == MUL && return Sym(e.num) * prod((_log_expand(b, A)^_log_expand(p, A) for (b, p) in zip(e.args, e.exps)); init = ONE)
+    _rebuild_node(e, Sym[_log_expand(a, A) for a in e.args])
+end
+
+## radicals
+
+"""
+    SymJ.simplify_radicals(ex; assume = nothing)
+
+`ex` with radicals simplified:
+
+- denested: `sqrt(a + b*sqrt(c)) = sqrt(x) + sqrt(y)` when `a^2 - b^2 c` is the square
+  of a rational (`sqrt(3 + 2sqrt(2)) = 1 + sqrt(2)`);
+- denominators rationalized: `1/(a + b*sqrt(c))` multiplied by the conjugate
+  (`1/(1 + sqrt(2)) = sqrt(2) - 1`);
+- radicands factored, so that a power under a root comes out as `refine` allows
+  (`sqrt(x^2 + 2x + 1) = abs(x + 1)` for real `x`, `x + 1` for `x ≥ -1`).
+
+Not exported; used by [`simplify`](@ref).
+"""
+function simplify_radicals(ex; assume = nothing)
+    A = assume isa Assumptions ? assume : (a = _assumptions(assume); a === nothing ? Assumptions() : a)
+    _refine(_radicals(_refine(Sym(ex), A), A), A)
+end
+
+function _radicals(e::Sym, A::Assumptions)
+    isempty(e.args) && return e
+    if e.kind == MUL
+        return Sym(e.num) * prod((_radicals(b^p, A) for (b, p) in zip(e.args, e.exps)); init = ONE)
+    end
+    if e.kind == POW
+        b, q = _radicals(e.args[1], A), e.args[2]
+        if q.kind == NUMBER && isexact(q.num)
+            if q.num == SymNumber(1 // 2) && (d = _denest(b)) !== nothing
+                return d
+            end
+            if isone(_denominator(q.num)) && q.num < N0 && (c = _conjugate(b)) !== nothing
+                conj, norm = c                                  # 1/b = conj/norm
+                return expand((conj / norm)^Sym(-q.num))
+            end
+            if !isone(_denominator(q.num)) && _hassymbol(b) && _ispolylike(b)
+                f = try factor(b) catch; b end                  # a power under the root
+                return f^q
+            end
+        end
+        return b^q
+    end
+    _rebuild_node(e, Sym[_radicals(a, A) for a in e.args])
+end
+
+# b = p + r sqrt(c) with rational p, r, c (c not a square): (p, r, c), or nothing
+function _quadratic_surd(b::Sym)
+    b.kind == ADD && length(b.args) == 1 && isexact(b.num) || return nothing
+    t, r = b.args[1], b.coefs[1]
+    s = t.kind == MUL && length(t.args) == 1 ? (r *= t.num; t.args[1]^t.exps[1]) : t
+    (s.kind == POW && s.args[1].kind == NUMBER && isexact(s.args[1].num) && s.args[2] == Sym(1 // 2)) || return nothing
+    isexact(r) || return nothing
+    (b.num, r, s.args[1].num)
+end
+
+# sqrt(p + r sqrt(c)) = sqrt(x) + sign(r) sqrt(y), x + y = p, 4xy = r^2 c, when
+# p^2 - r^2 c is a rational square
+function _denest(b::Sym)
+    t = _quadratic_surd(b)
+    t === nothing && return nothing
+    p, r, c = t
+    p > N0 || return nothing
+    disc = Sym(p * p - r * r * c)
+    disc.kind == NUMBER && disc.num >= N0 || return nothing
+    s = sqrt(disc)
+    s.kind == NUMBER || return nothing                         # not a rational square
+    x, y = (Sym(p) + s) / 2, (Sym(p) - s) / 2
+    (x.num >= N0 && y.num >= N0) || return nothing
+    _powers(sqrt(x) + (r > N0 ? 1 : -1) * sqrt(y), Assumptions())   # sqrt(3/2) as sqrt(6)/2
+end
+
+# (p - r sqrt(c), p^2 - r^2 c) for b = p + r sqrt(c)
+function _conjugate(b::Sym)
+    t = _quadratic_surd(b)
+    t === nothing && return nothing
+    p, r, c = t
+    norm = Sym(p * p - r * r * c)
+    iszero(norm) && return nothing
+    Sym(p) - Sym(r) * sqrt(Sym(c)), norm
 end

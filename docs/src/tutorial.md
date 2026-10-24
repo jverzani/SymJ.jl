@@ -383,6 +383,16 @@ simplify(1 - cos(x)^2), simplify(2sin(x) * cos(x)), simplify(sin(x) * cos(y) + c
 simplify(sin(3x) - 3sin(x) + 4sin(x)^3), simplify(1 / (1 + tan(x)^2))
 ```
 
+Logarithms combine and radicals denest; with symbols, where the assumptions allow:
+
+```@example tut
+simplify(log(Sym(2)) + log(Sym(3))), simplify(sqrt(3 + 2sqrt(Sym(2)))), simplify(1 / (1 + sqrt(Sym(2))))
+```
+
+```@example tut
+simplify(log(x) + log(y); assume = @assume(x > 0, y > 0)), simplify(sqrt(x^2 + 2x + 1); assume = @assume(x > -1))
+```
+
 `refine` applies only those identities, without trying anything else:
 
 ```@example tut
@@ -391,7 +401,8 @@ refine(log(exp(x)); assume = @assume(x in Reals)), refine(sin(x + 2n*Sym(π)); a
 ```
 
 The transformations `simplify` tries are also available on their own, unexported:
-`SymJ.simplify_rational`, `SymJ.simplify_powers` and `SymJ.simplify_trig`.
+`SymJ.simplify_rational`, `SymJ.simplify_powers`, `SymJ.simplify_trig`,
+`SymJ.simplify_log` and `SymJ.simplify_radicals`.
 
 ## Solving equations
 

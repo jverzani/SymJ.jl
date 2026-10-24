@@ -878,7 +878,12 @@ three rounds each, taking each workload's best time.
   `S = (z - 1/z)/2i`, `C = (z + 1/z)/2`, `z = exp(i g)`, turns products into sines and
   cosines of sums of multiples of the bases (Fu's product-to-sum rule), which gives
   multiple and sum angles. The smallest candidate is kept, `sin/cos` shown as `tan`.
-- **Still to come:** `simplify_log` and `simplify_radicals` (denesting).
+- **`simplify_log`** combines logarithms of positive arguments into one, or expands a
+  logarithm over its positive factors (a positive factor does not change the argument
+  of a product, so the rest may be anything), whichever is smaller.
+- **`simplify_radicals`** denests square roots of `a + b sqrt(c)` when `a² - b²c` is a
+  rational square, rationalizes denominators `a + b sqrt(c)` by the conjugate, and
+  factors radicands so that `refine` can take a power out of the root.
 
 ## Assumptions
 
