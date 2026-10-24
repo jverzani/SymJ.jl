@@ -143,14 +143,14 @@ solve([x + y ~ 3, x - y ~ 1], [x, y])
 diff(x^x, x), diff(sin(x)^2, x, 2)
 ```
 
-Limits and integrals come from two companion packages, which work on SymJ expressions:
+Limits are computed by GruntzLimit and integrals by RischIntegrate, two companion
+packages that work on SymJ expressions; `limit` comes with SymJ:
 
 !!! note "Julia versions"
-    SymJ and GruntzLimit support Julia 1.10 and later. RischIntegrate needs Julia 1.12 or
-    later, so the integrals here need that version.
+    SymJ supports Julia 1.10 and later. RischIntegrate needs Julia 1.12 or later, so the
+    integrals here need that version.
 
 ```@example usage
-import GruntzLimit: limit
 using RischIntegrate
 limit(sin(x) / x, x => 0), limit((1 + 1 / x)^x, x => Inf)
 ```

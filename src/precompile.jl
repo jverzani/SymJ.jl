@@ -41,5 +41,13 @@ using PrecompileTools: @setup_workload, @compile_workload
         p = Poly((x + y + 1)^3, x, y)
         p * p; p + p; p - p; divrem(p, Poly(x + 1, x, y)); gcd(p, Poly((x + y + 1) * (x - 1), x, y))
         Sym(p)
+        # limits (GruntzLimit's code for SymJ terms)
+        limit(sin(x) / x, x => 0); limit((1 - cos(x)) / x^2, x => 0; dir = :-)
+        limit(x * exp(1 / x), x => 0; dir = :-); limit(x^x, x => 0; dir = :+)
+        limit(exp(x) * (exp(1 / x - exp(-x)) - exp(1 / x)), x => Inf)
+        limit(log(x)^2 / sqrt(x), x => Inf); limit(x * ((1 + 1 / x)^x - ℯ), x => Inf)
+        limit(sqrt(x^2 + x) - x, x => Inf); limit((1 + a / x)^x, x => Inf)
+        limit(x + sqrt(x^2 + x), x => -Inf); limit((x - Sym(π) / 2) * tan(x), x => Sym(π) / 2)
+        limit(x^a, x => Inf); limit(x^a, x => Inf; assume = Assumptions(a ≫ 1))
     end
 end

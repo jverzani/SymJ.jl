@@ -18,9 +18,9 @@ LaTeX output.
 | Exact radicals, π, ℯ, exact function values | `sqrt`, `pi`, `E` | built in | ✅ `sqrt(Sym(8)) == 2sqrt(2)`, `sin(π/3) == sqrt(3)/2` |
 | Combining and denesting radicals | `radsimp`, `sqrtdenest` | `simplify` | ❌ `sqrt(2)*sqrt(3)` stays; `cancel` handles square roots of rationals |
 | Complex numbers: `re`, `im`, `conj`, `arg` | `re`, `im`, `conjugate`, `arg` | `re`, `im`, `conj`, `arg` | ◐ `im` is exact; no real/imaginary parts yet (assumptions now exist to decide them) |
-| Symbolic infinity and undefined | `oo`, `zoo`, `nan` | `infinity`, `undef` | ❌ limits return Julia's `Inf` |
+| Symbolic infinity and undefined | `oo`, `zoo`, `nan` | `infinity`, `undef` | ◐ limits return `Sym(Inf)`; no symbolic infinity in expressions |
 | Numeric evaluation | `evalf(n)` | `evalf` | ✅ `N` (Float64), calling with `BigFloat`, dual numbers, … |
-| Assumptions on symbols | `symbols(positive=True)`, `ask`, `refine`, `Q` | `assume` | ◐ ★ `Assumptions`, `@assume`, `assuming`/`@assuming`, per call or per block, not stored on symbols; used by `solve` (answers by cases); not yet by simplification (`sqrt(x^2)` for `x > 0` stays), `limit` or `integrate` |
+| Assumptions on symbols | `symbols(positive=True)`, `ask`, `refine`, `Q` | `assume` | ◐ ★ `Assumptions`, `@assume`, `assuming`/`@assuming`, per call or per block, not stored on symbols; used by `solve` and `limit` (answers by cases); not yet by simplification (`sqrt(x^2)` for `x > 0` stays) or `integrate` |
 | Parameters (named constants) | — | — | ◐ implemented, hidden until the shared-name question is settled |
 
 ## Expressions
@@ -90,7 +90,7 @@ LaTeX output.
 | Capability | SymPy | Giac | SymJ |
 |:--|:--|:--|:--|
 | Derivatives, higher and mixed | `diff` | `diff` | ✅ `diff(f, x, n)`, `diff(f, x, y, …)` |
-| Limits, one-sided, at ∞ | `limit` (Gruntz) | `limit` | ✅ GruntzLimit (66/66 of its benchmark; answers by case of a parameter, which neither offers) |
+| Limits, one-sided, at ∞ | `limit` (Gruntz) | `limit` | ✅ `limit`, through GruntzLimit (66/66 of its benchmark; answers by case of a parameter, which neither offers; assumptions settle cases) |
 | Series, Taylor, asymptotic, `O` | `series`, `fps`, `O` | `series`, `taylor` | ✅ Taylor, Laurent, Puiseux, at ∞, log terms (no `fps`, no `O` in expressions) |
 | Padé approximants | — | `pade` | ❌ |
 | Indefinite integrals | `integrate` | `integrate` | ✅ RischIntegrate (175/175 of the Apostol set, more than either) |

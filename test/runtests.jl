@@ -1426,6 +1426,31 @@ using Latexify: latexify
         @test_throws ArgumentError solve(x^2 ~ 4, x; assume = (x ≫ 1, x ≪ 0))   # contradictory
     end
 
+    @testset "limit" begin
+        @syms a b
+        @test limit(sin(x) / x, x => 0) == 1 && limit((1 + 1 / x)^x, x => Inf) == E
+        @test limit(1 / x, x => 0; dir = :+) == Sym(Inf) && limit(-x, x => Inf) == Sym(-Inf)
+        @test limit(1 / x, x => 0; dir = :+) isa Sym && limit(x^2, x => Sym(Inf)) == Sym(Inf)
+        @test limit(x * exp(1 / x), x => 0; dir = -) == 0
+        @test_throws GruntzError limit(sin(x), x => Inf)
+        @test_throws ArgumentError limit(x, x => 0; dir = :up)
+        # cases become Cases, with relations as conditions
+        cs = limit(x^a, x => Inf)
+        @test cs isa SymJ.Cases && length(cs) == 3 && cs[1].first == Any[a ≪ 0]
+        @test cs(a => 2) == Sym(Inf) && cs(a => -1) == 0 && cs(a => 0) == 1
+        # assumptions: signs for GruntzLimit, then cases filtered and conditions simplified
+        @test limit(x^a, x => Inf; assume = @assume(a > 1)) == Sym(Inf)
+        @test limit(x^a, x => Inf; assume = @assume(a == 3)) == Sym(Inf)          # substituted
+        cs = limit(x^(a - 2), x => Inf; assume = @assume(a != 2))
+        @test length(cs) == 2 && cs(a => 3) == Sym(Inf) && cs(a => 1) == 0
+        @test limit((a^x + b^x)^(1 / x), x => Inf; assume = @assume(a > b > 0)) == a
+        cs = limit(exp(a * x), x => Inf; assume = @assume(a < 0 || a > 1))   # a gap: filtered
+        @test length(cs) == 2 && cs(a => 2) == Sym(Inf) && cs(a => -1) == 0
+        @test (@assuming a > 0 begin limit(x^a, x => Inf) end) == Sym(Inf)
+        @test_throws ArgumentError limit(x^a, x => Inf; assume = @assume(!(a in Reals)))
+        @test limit((1 + a / x)^(b * x), x => Inf) == exp(a * b)
+    end
+
     @testset "Latexify" begin
         @syms a
         L(v) = repr(MIME"text/latex"(), v)

@@ -893,7 +893,8 @@ construction.
   `conditions => answer` pairs; calling it with parameter values gives the answer for
   those values, and indexing with them gives their case.
 - **First users.** `solve` (filtering roots, and splitting on the signs of
-  parameters) and a native `limit`. `simplify`/`refine` come later.
+  parameters) and `limit`, which hands the assumptions to GruntzLimit as signs and
+  returns SymJ's answers. `simplify`/`refine` come later.
 - **`@assume`**, named after the keyword, writes facts with Julia's operators:
   `@assume(x > 0 && 1 < y <= 2, n in Integers)`. Chained comparisons are split, and
   `&&`, `||`, `!` combine. The number sets have ASCII names, `Integers`, `Rationals`,
