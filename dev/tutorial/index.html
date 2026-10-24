@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=cac27043">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=f4ae11a2">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -97,7 +97,9 @@ using RischIntegrate</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">@syms x y</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(x, y)</code></pre>
+<div class="md-math md-math-display">
+\[\left( x, \; y \right)\]
+</div>
 </div>
 <p><code class="md-code-inline">Sym(:z)</code> makes one without binding a name, and <code class="md-code-inline">symbols</code> makes several from a string:</p>
 <div class="md-multi-output">
@@ -106,7 +108,9 @@ using RischIntegrate</code></pre>
 <pre><code class="language-julia">z = Sym(:z)
 a, b, c = symbols(&quot;a b c&quot;)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(a, b, c)</code></pre>
+<div class="md-math md-math-display">
+\[\left( a, \; b, \; c \right)\]
+</div>
 </div>
 <p>A symbolic function, with no rules of its own, is made with <code class="md-code-inline">@syms f()</code>:</p>
 <div class="md-multi-output">
@@ -115,7 +119,9 @@ a, b, c = symbols(&quot;a b c&quot;)</code></pre>
 <pre><code class="language-julia">@syms f()
 f(x^2)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">f(x^2)</code></pre>
+<div class="md-math md-math-display">
+\[f\left( x^{2} \right)\]
+</div>
 </div>
 <h2 id="Symbolic-numbers" class="md-heading">Symbolic numbers<a href="#Symbolic-numbers" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p>When a symbolic value meets a Julia integer or rational, the number becomes an exact symbolic number:</p>
@@ -124,7 +130,9 @@ f(x^2)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">2x, x / 3, (1 // 2) * x</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(2*x, x/3, x/2)</code></pre>
+<div class="md-math md-math-display">
+\[\left( 2 \cdot x, \; \frac{x}{3}, \; \frac{x}{2} \right)\]
+</div>
 </div>
 <p><code class="md-code-inline">Sym</code> makes an exact number directly. Exact numbers keep radicals and π exact, and simplify standard values:</p>
 <div class="md-multi-output">
@@ -132,7 +140,9 @@ f(x^2)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">Sym(1 // 3), sqrt(Sym(8)), cos(Sym(π) / 6), Sym(2)^100</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(1/3, 2*sqrt(2), sqrt(3)/2, 1267650600228229401496703205376)</code></pre>
+<div class="md-math md-math-display">
+\[\left( \frac{1}{3}, \; 2 \cdot \sqrt{2}, \; \frac{\sqrt{3}}{2}, \; 1267650600228229401496703205376 \right)\]
+</div>
 </div>
 <h3 id="Watch-out-for-early-conversion" class="md-heading">Watch out for early conversion<a href="#Watch-out-for-early-conversion" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <p>Julia evaluates <code class="md-code-inline">1/2</code> before SymJ sees it, giving the float <code class="md-code-inline">0.5</code>. A float in an expression makes the result a float, so <code class="md-code-inline">x * (1/2)</code> is not <code class="md-code-inline">x/2</code>:</p>
@@ -149,7 +159,9 @@ f(x^2)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">sqrt(2) * x, sqrt(Sym(2)) * x, 2 * (pi * x)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(1.4142135623730951*x, sqrt(2)*x, 2*x*π)</code></pre>
+<div class="md-math md-math-display">
+\[\left( 1.4142135623730951 \cdot x, \; \sqrt{2} \cdot x, \; 2 \cdot x \cdot \pi \right)\]
+</div>
 </div>
 <h2 id="Expressions" class="md-heading">Expressions<a href="#Expressions" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p>Expressions are built by applying functions to variables. They are kept in a canonical form: like terms are collected, numbers are combined, and products of powers merge.</p>
@@ -158,14 +170,18 @@ f(x^2)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">ex = x + 2x - y + x * y * x</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">x^2*y + 3*x - y</code></pre>
+<div class="md-math md-math-display">
+\[x^{2} \cdot y + 3 \cdot x - y\]
+</div>
 </div>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">exp(x) * exp(2x), (x * y)^3, sin(-x)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(exp(3*x), x^3*y^3, -sin(x))</code></pre>
+<div class="md-math md-math-display">
+\[\left( e^{3 \cdot x}, \; x^{3} \cdot y^{3}, \;  - \sin\left( x \right) \right)\]
+</div>
 </div>
 <p>Functions with no numeric argument stay unevaluated, while exact values at standard points are simplified:</p>
 <div class="md-multi-output">
@@ -193,14 +209,18 @@ operation(F), arguments(F)</code></pre>
 <pre><code class="language-julia">ex = a * x^2 + b * x + c
 subs(ex, x =&gt; y - 1)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">a*(y - 1)^2 + b*(y - 1) + c</code></pre>
+<div class="md-math md-math-display">
+\[a \cdot \left( y - 1 \right)^{2} + b \cdot \left( y - 1 \right) + c\]
+</div>
 </div>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">subs(ex, a =&gt; 1, b =&gt; -2, c =&gt; 1)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">x^2 - 2*x + 1</code></pre>
+<div class="md-math md-math-display">
+\[x^{2} - 2 \cdot x + 1\]
+</div>
 </div>
 <p>Calling an expression with pairs does the same:</p>
 <div class="md-multi-output">
@@ -208,7 +228,9 @@ subs(ex, x =&gt; y - 1)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">ex(x =&gt; 2)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">4*a + 2*b + c</code></pre>
+<div class="md-math md-math-display">
+\[4 \cdot a + 2 \cdot b + c\]
+</div>
 </div>
 <h2 id="Numerical-evaluation" class="md-heading">Numerical evaluation<a href="#Numerical-evaluation" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p>Calling an expression with a number evaluates it with Julia&#39;s arithmetic on that number, so the result is a Julia number of the matching type:</p>
@@ -286,7 +308,9 @@ plot(sin(x)^2 * exp(-x / 4), 0, 4pi)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">p = expand((x - 1) * (x - 2) * (x + 3))</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">x^3 - 7*x + 6</code></pre>
+<div class="md-math md-math-display">
+\[x^{3} - 7 \cdot x + 6\]
+</div>
 </div>
 <p><code class="md-code-inline">Poly</code> converts an expression into a polynomial in given generators. Its coefficients and exponents are available, and <code class="md-code-inline">Sym</code> converts it back:</p>
 <div class="md-multi-output">
@@ -304,10 +328,9 @@ coefficients(P), exponent_vectors(P), degree(P)</code></pre>
 <pre><code class="language-julia">Q = Poly(a * x^2 + b * x + c, x)
 coefficients(Q)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">3-element Vector{Sym}:
- a
- b
- c</code></pre>
+<div class="md-math md-math-display">
+\[\left[ a, \; b, \; c \right]\]
+</div>
 </div>
 <h3 id="Evaluation-and-shifts" class="md-heading">Evaluation and shifts<a href="#Evaluation-and-shifts" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <p>A polynomial is evaluated by calling it; a shift is a substitution:</p>
@@ -325,7 +348,9 @@ coefficients(Q)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">factor(p), factor(x^4 + 4), factor(x^6 - y^6)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">((x + 3)*(x - 1)*(x - 2), (x^2 + 2*x + 2)*(x^2 - 2*x + 2), (-x*y + x^2 + y^2)*(x + y)*(x - y)*(x*y + x^2 + y^2))</code></pre>
+<div class="md-math md-math-display">
+\[\left( \left( x + 3 \right) \cdot \left( x - 1 \right) \cdot \left( x - 2 \right), \; \left( x^{2} + 2 \cdot x + 2 \right) \cdot \left( x^{2} - 2 \cdot x + 2 \right), \; \left(  - x \cdot y + x^{2} + y^{2} \right) \cdot \left( x + y \right) \cdot \left( x - y \right) \cdot \left( x \cdot y + x^{2} + y^{2} \right) \right)\]
+</div>
 </div>
 <p><code class="md-code-inline">factor_squarefree</code> only separates repeated factors, which is cheaper:</p>
 <div class="md-multi-output">
@@ -333,7 +358,9 @@ coefficients(Q)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">factor_squarefree(expand((x - 1)^3 * (x + 2)^2))</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(x + 2)^2*(x - 1)^3</code></pre>
+<div class="md-math md-math-display">
+\[\left( x + 2 \right)^{2} \cdot \left( x - 1 \right)^{3}\]
+</div>
 </div>
 <p>The greatest common divisor of polynomials:</p>
 <div class="md-multi-output">
@@ -341,7 +368,9 @@ coefficients(Q)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">gcd(expand((x - 1)^2 * (x + y)), expand((x - 1) * (x + y)^2))</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">x*y + x^2 - x - y</code></pre>
+<div class="md-math md-math-display">
+\[x \cdot y + x^{2} - x - y\]
+</div>
 </div>
 <h3 id="Resultants" class="md-heading">Resultants<a href="#Resultants" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <p>The resultant of two polynomials in <code class="md-code-inline">x</code> is zero exactly when they have a common root. It is a polynomial in the other variables, so it eliminates <code class="md-code-inline">x</code> from a system:</p>
@@ -350,7 +379,9 @@ coefficients(Q)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">resultant(x^2 + y^2 - 1, x - y, x)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">2*y^2 - 1</code></pre>
+<div class="md-math md-math-display">
+\[2 \cdot y^{2} - 1\]
+</div>
 </div>
 <p>The discriminant is zero exactly when a polynomial has a repeated root:</p>
 <div class="md-multi-output">
@@ -359,7 +390,9 @@ coefficients(Q)</code></pre>
 <pre><code class="language-julia">@syms a b c
 discriminant(a*x^2 + b*x + c, x), discriminant(x^3 + a*x + b, x)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(-4*a*c + b^2, -4*a^3 - 27*b^2)</code></pre>
+<div class="md-math md-math-display">
+\[\left( -4 \cdot a \cdot c + b^{2}, \; -4 \cdot a^{3} - 27 \cdot b^{2} \right)\]
+</div>
 </div>
 <h3 id="Gröbner-bases" class="md-heading">Gröbner bases<a href="#Gröbner-bases" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <p>A Gröbner basis of a set of polynomials generates the same ideal and has the same common zeros. In the lex order, the default, it is triangular: the last polynomials involve only the last variables.</p>
@@ -368,9 +401,9 @@ discriminant(a*x^2 + b*x + c, x), discriminant(x^3 + a*x + b, x)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">groebner([x^2 + y^2 - 1, x*y - 1//4], x, y)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">2-element Vector{Sym}:
- 4*y^3 + x - 4*y
- y^4 - y^2 + 1/16</code></pre>
+<div class="md-math md-math-display">
+\[\left[ 4 \cdot y^{3} + x - 4 \cdot y, \; y^{4} - y^{2} + \frac{1}{16} \right]\]
+</div>
 </div>
 <p>The basis is <code class="md-code-inline">[1]</code> exactly when the polynomials have no common zero:</p>
 <div class="md-multi-output">
@@ -378,8 +411,9 @@ discriminant(a*x^2 + b*x + c, x), discriminant(x^3 + a*x + b, x)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">groebner([x^2 + y^2 - 1, x^2 + y^2 - 4], x, y)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">1-element Vector{Sym}:
- 1</code></pre>
+<div class="md-math md-math-display">
+\[\left[ 1 \right]\]
+</div>
 </div>
 <p><code class="md-code-inline">reduced</code> divides by the basis. The remainder is zero exactly when a polynomial is in the ideal:</p>
 <div class="md-multi-output">
@@ -397,31 +431,27 @@ reduced(x^2 - y^2, G, x, y), reduced(x^3, G, x, y)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve(p ~ 0, x)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">3-element Vector{Sym}:
- -3
- 1
- 2</code></pre>
+<div class="md-math md-math-display">
+\[\left[ -3, \; 1, \; 2 \right]\]
+</div>
 </div>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve(x^3 - 3x + 1 ~ 0, x)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">3-element Vector{Sym}:
- 2*cos(10*π/9)
- 2*cos(4*π/9)
- 2*cos(2*π/9)</code></pre>
+<div class="md-math md-math-display">
+\[\left[ 2 \cdot \cos\left( \frac{10 \cdot \pi}{9} \right), \; 2 \cdot \cos\left( \frac{4 \cdot \pi}{9} \right), \; 2 \cdot \cos\left( \frac{2 \cdot \pi}{9} \right) \right]\]
+</div>
 </div>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve(x^4 - 10x^2 + 1 ~ 0, x)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">4-element Vector{Sym}:
- -sqrt(2*sqrt(6) + 5)
- -sqrt(-2*sqrt(6) + 5)
- sqrt(-2*sqrt(6) + 5)
- sqrt(2*sqrt(6) + 5)</code></pre>
+<div class="md-math md-math-display">
+\[\left[  - \sqrt{2 \cdot \sqrt{6} + 5}, \;  - \sqrt{-2 \cdot \sqrt{6} + 5}, \; \sqrt{-2 \cdot \sqrt{6} + 5}, \; \sqrt{2 \cdot \sqrt{6} + 5} \right]\]
+</div>
 </div>
 <p>From degree five, roots are computed numerically:</p>
 <div class="md-multi-output">
@@ -429,12 +459,9 @@ reduced(x^2 - y^2, G, x, y), reduced(x^3, G, x, y)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve(x^5 - x + 1 ~ 0, x)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">5-element Vector{Sym}:
- -1.1673039782614187
- -1.0839541013177105*im - 0.18123244446987538
- 1.0839541013177105*im - 0.18123244446987538
- -0.35247154603172637*im + 0.7648844336005848
- 0.3524715460317261*im + 0.7648844336005848</code></pre>
+<div class="md-math md-math-display">
+\[\left[ -1.1673039782614187, \; -1.0839541013177105 \cdot i - 0.18123244446987538, \; 1.0839541013177105 \cdot i - 0.18123244446987538, \; -0.35247154603172637 \cdot i + 0.7648844336005848, \; 0.3524715460317261 \cdot i + 0.7648844336005848 \right]\]
+</div>
 </div>
 <h2 id="Rational-functions" class="md-heading">Rational functions<a href="#Rational-functions" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p><code class="md-code-inline">cancel</code> reduces a rational expression to lowest terms:</p>
@@ -444,14 +471,18 @@ reduced(x^2 - y^2, G, x, y), reduced(x^3, G, x, y)</code></pre>
 <pre><code class="language-julia">r = (x^3 - 1) / (x^2 - 1)
 cancel(r)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(x^2 + x + 1)/(x + 1)</code></pre>
+<div class="md-math md-math-display">
+\[\frac{x^{2} + x + 1}{x + 1}\]
+</div>
 </div>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">cancel(1 / x + 1 / (x + 1))</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(2*x + 1)/(x^2 + x)</code></pre>
+<div class="md-math md-math-display">
+\[\frac{2 \cdot x + 1}{x^{2} + x}\]
+</div>
 </div>
 <p><code class="md-code-inline">numer_denom</code> gives the numerator and denominator without reducing:</p>
 <div class="md-multi-output">
@@ -459,7 +490,9 @@ cancel(r)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">numer_denom(r)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(x^3 - 1, x^2 - 1)</code></pre>
+<div class="md-math md-math-display">
+\[\left( x^{3} - 1, \; x^{2} - 1 \right)\]
+</div>
 </div>
 <h3 id="Partial-fractions" class="md-heading">Partial fractions<a href="#Partial-fractions" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <p><code class="md-code-inline">apart</code> decomposes a rational function into a polynomial part and simple fractions:</p>
@@ -468,14 +501,18 @@ cancel(r)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">apart((x^3 + 1) / (x^2 - 1), x)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">x + 1/(x - 1)</code></pre>
+<div class="md-math md-math-display">
+\[x + \frac{1}{x - 1}\]
+</div>
 </div>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">apart(1 / (x^4 - 1), x)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">-1/(4*(x + 1)) + 1/(4*(x - 1)) - 1/(2*(x^2 + 1))</code></pre>
+<div class="md-math md-math-display">
+\[\frac{-1}{4 \cdot \left( x + 1 \right)} + \frac{1}{4 \cdot \left( x - 1 \right)} - \frac{1}{2 \cdot \left( x^{2} + 1 \right)}\]
+</div>
 </div>
 <p>Other symbols are allowed in the coefficients:</p>
 <div class="md-multi-output">
@@ -483,7 +520,9 @@ cancel(r)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">apart(1 / ((x - a) * (x - b)), x)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">-1/((-a + b)*(-a + x)) + 1/((-a + b)*(-b + x))</code></pre>
+<div class="md-math md-math-display">
+\[\frac{-1}{\left(  - a + b \right) \cdot \left(  - a + x \right)} + \frac{1}{\left(  - a + b \right) \cdot \left(  - b + x \right)}\]
+</div>
 </div>
 <h2 id="Solving-equations" class="md-heading">Solving equations<a href="#Solving-equations" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p>An equation is written with <code class="md-code-inline">~</code>, which binds more loosely than everything else, so no parentheses are needed:</p>
@@ -492,9 +531,9 @@ cancel(r)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve(x^2 + 2x ~ 3, x)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">2-element Vector{Sym}:
- -3
- 1</code></pre>
+<div class="md-math md-math-display">
+\[\left[ -3, \; 1 \right]\]
+</div>
 </div>
 <p>Equations in which <code class="md-code-inline">x</code> appears through one function are solved by solving for that function first:</p>
 <div class="md-multi-output">
@@ -502,17 +541,18 @@ cancel(r)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve(exp(2x) - 3exp(x) + 2 ~ 0, x)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">2-element Vector{Sym}:
- 0
- log(2)</code></pre>
+<div class="md-math md-math-display">
+\[\left[ 0, \; \log\left( 2 \right) \right]\]
+</div>
 </div>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve(sqrt(x + 1) ~ x - 1, x)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">1-element Vector{Sym}:
- 3</code></pre>
+<div class="md-math md-math-display">
+\[\left[ 3 \right]\]
+</div>
 </div>
 <p>Several logarithms of the unknown are combined; roots where a logarithm would be complex (here <code class="md-code-inline">x = -2</code>) are dropped:</p>
 <div class="md-multi-output">
@@ -520,8 +560,9 @@ cancel(r)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve(log(x) + log(x - 1) ~ log(Sym(6)), x)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">1-element Vector{Sym}:
- 3</code></pre>
+<div class="md-math md-math-display">
+\[\left[ 3 \right]\]
+</div>
 </div>
 <p>Some equations need the Lambert W function:</p>
 <div class="md-multi-output">
@@ -529,8 +570,9 @@ cancel(r)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve(x * exp(x) ~ 1, x)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">1-element Vector{Sym}:
- lambertw(1)</code></pre>
+<div class="md-math md-math-display">
+\[\left[ \mathrm{lambertw}\left( 1 \right) \right]\]
+</div>
 </div>
 <p>Symbols other than the unknown are allowed:</p>
 <div class="md-multi-output">
@@ -538,9 +580,9 @@ cancel(r)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve(a * x^2 + b * x + c ~ 0, x)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">2-element Vector{Sym}:
- (-b - sqrt(-4*a*c + b^2))/(2*a)
- (-b + sqrt(-4*a*c + b^2))/(2*a)</code></pre>
+<div class="md-math md-math-display">
+\[\left[ \frac{ - b - \sqrt{-4 \cdot a \cdot c + b^{2}}}{2 \cdot a}, \; \frac{ - b + \sqrt{-4 \cdot a \cdot c + b^{2}}}{2 \cdot a} \right]\]
+</div>
 </div>
 <h3 id="Inequalities" class="md-heading">Inequalities<a href="#Inequalities" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <p><code class="md-code-inline">&lt;</code> and its relatives compare numbers and return <code class="md-code-inline">true</code> or <code class="md-code-inline">false</code>, so inequalities use other operators: <code class="md-code-inline">≪</code> (typed <code class="md-code-inline">\ll</code>), <code class="md-code-inline">≦</code> (<code class="md-code-inline">\leqq</code>), <code class="md-code-inline">≫</code> (<code class="md-code-inline">\gg</code>), <code class="md-code-inline">≧</code> (<code class="md-code-inline">\geqq</code>) and <code class="md-code-inline">≶</code> (<code class="md-code-inline">\lessgtr</code>). The solution is a union of intervals:</p>
@@ -549,14 +591,18 @@ cancel(r)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve(x^2 - 1 ≫ 0, x)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(-∞, -1) ∪ (1, ∞)</code></pre>
+<div class="md-math md-math-display">
+\[\left( -\infty, -1 \right) \cup \left( 1, \infty \right)\]
+</div>
 </div>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve((x - 1) / (x + 2) ≧ 0, x)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(-∞, -2) ∪ [1, ∞)</code></pre>
+<div class="md-math md-math-display">
+\[\left( -\infty, -2 \right) \cup \left[ 1, \infty \right)\]
+</div>
 </div>
 <h3 id="Systems" class="md-heading">Systems<a href="#Systems" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <p>A system of equations gives a vector of solutions, each a <code class="md-code-inline">Dict</code> from the unknowns to their values. A linear system has at most one:</p>
@@ -565,16 +611,18 @@ cancel(r)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve([x + y ~ 3, x - y ~ 1], [x, y])</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">1-element Vector{Dict{Sym, Sym}}:
- Dict(y =&gt; 1, x =&gt; 2)</code></pre>
+<div class="md-math md-math-display">
+\[\left[ \begin{array}{l} \left\{ x = 2, \; y = 1 \right\} \end{array} \right]\]
+</div>
 </div>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve([a * x + y ~ 1, x - y ~ b], [x, y])</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">1-element Vector{Dict{Sym, Sym}}:
- Dict(y =&gt; (-a*b + 1)/(a + 1), x =&gt; (b + 1)/(a + 1))</code></pre>
+<div class="md-math md-math-display">
+\[\left[ \begin{array}{l} \left\{ x = \frac{b + 1}{a + 1}, \; y = \frac{ - a \cdot b + 1}{a + 1} \right\} \end{array} \right]\]
+</div>
 </div>
 <p>Polynomial systems are solved through a lex Gröbner basis, which is triangular:</p>
 <div class="md-multi-output">
@@ -582,18 +630,18 @@ cancel(r)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve([x^2 + y^2 ~ 1, x ~ y], [x, y])</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">2-element Vector{Dict{Sym, Sym}}:
- Dict(y =&gt; -sqrt(2)/2, x =&gt; -sqrt(2)/2)
- Dict(y =&gt; sqrt(2)/2, x =&gt; sqrt(2)/2)</code></pre>
+<div class="md-math md-math-display">
+\[\left[ \begin{array}{l} \left\{ x = \frac{ - \sqrt{2}}{2}, \; y = \frac{ - \sqrt{2}}{2} \right\} \\ \left\{ x = \frac{\sqrt{2}}{2}, \; y = \frac{\sqrt{2}}{2} \right\} \end{array} \right]\]
+</div>
 </div>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve([x*y ~ 1, x + y ~ 3], [x, y])</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">2-element Vector{Dict{Sym, Sym}}:
- Dict(y =&gt; -sqrt(5)/2 + 3/2, x =&gt; sqrt(5)/2 + 3/2)
- Dict(y =&gt; sqrt(5)/2 + 3/2, x =&gt; -sqrt(5)/2 + 3/2)</code></pre>
+<div class="md-math md-math-display">
+\[\left[ \begin{array}{l} \left\{ x = \frac{\sqrt{5}}{2} + \frac{3}{2}, \; y = \frac{ - \sqrt{5}}{2} + \frac{3}{2} \right\} \\ \left\{ x = \frac{ - \sqrt{5}}{2} + \frac{3}{2}, \; y = \frac{\sqrt{5}}{2} + \frac{3}{2} \right\} \end{array} \right]\]
+</div>
 </div>
 <p>With infinitely many solutions, the unknowns left free map to themselves:</p>
 <div class="md-multi-output">
@@ -601,9 +649,9 @@ cancel(r)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve([x^2 + y^2 ~ 1], [x, y])</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">2-element Vector{Dict{Sym, Sym}}:
- Dict(y =&gt; y, x =&gt; -sqrt(-y^2 + 1))
- Dict(y =&gt; y, x =&gt; sqrt(-y^2 + 1))</code></pre>
+<div class="md-math md-math-display">
+\[\left[ \begin{array}{l} \left\{ x =  - \sqrt{ - y^{2} + 1}, \; y = y \right\} \\ \left\{ x = \sqrt{ - y^{2} + 1}, \; y = y \right\} \end{array} \right]\]
+</div>
 </div>
 <p>A system of linear inequalities gives a description of the region, each unknown between bounds in the ones after it:</p>
 <div class="md-multi-output">
@@ -611,7 +659,9 @@ cancel(r)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve([x ≧ 0, y ≧ 0, x + y ≦ 1], [x, y])</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">y ∈ [0, 1], x ∈ [0, -y + 1]</code></pre>
+<div class="md-math md-math-display">
+\[y \in \left[ 0, 1 \right], \; x \in \left[ 0,  - y + 1 \right]\]
+</div>
 </div>
 <h3 id="Assumptions" class="md-heading">Assumptions<a href="#Assumptions" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <p>Symbols are complex numbers unless a fact says otherwise. Facts are relations, such as <code class="md-code-inline">x &gt; 0</code>, or membership in one of <code class="md-code-inline">Integers ⊂ Rationals ⊂ Reals ⊂ Complexes</code> (also written <code class="md-code-inline">ℤ ⊂ ℚ ⊂ ℝ ⊂ ℂ</code>), such as <code class="md-code-inline">n in Integers</code>. The <code class="md-code-inline">@assume</code> macro writes them with Julia&#39;s operators, including <code class="md-code-inline">&amp;&amp;</code>, <code class="md-code-inline">||</code>, <code class="md-code-inline">!</code> and chained comparisons. They are given to <code class="md-code-inline">solve</code> with the <code class="md-code-inline">assume</code> keyword, and only the solutions they allow are kept:</p>
@@ -620,15 +670,18 @@ cancel(r)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve(x^2 ~ 4, x; assume = @assume(x &gt; 0))</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">1-element Vector{Sym}:
- 2</code></pre>
+<div class="md-math md-math-display">
+\[\left[ 2 \right]\]
+</div>
 </div>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve(x^2 + 1 ~ 0, x; assume = @assume(x in Reals))</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">Sym[]</code></pre>
+<div class="md-math md-math-display">
+\[\left[ \; \right]\]
+</div>
 </div>
 <p>Without the macro, relations use the symbolic operators: <code class="md-code-inline">x ≫ 0</code> (or <code class="md-code-inline">Gt(x, 0)</code>), and <code class="md-code-inline">n ∈ ℤ</code> for membership.</p>
 <div class="md-multi-output">
@@ -636,7 +689,9 @@ cancel(r)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve(x^2 ~ 2, x; assume = (x ∈ ℚ,))</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">Sym[]</code></pre>
+<div class="md-math md-math-display">
+\[\left[ \; \right]\]
+</div>
 </div>
 <p><code class="md-code-inline">@assuming</code> gives facts for a block of code (as does the function <code class="md-code-inline">assuming</code>, with a <code class="md-code-inline">do</code> block):</p>
 <div class="md-multi-output">
@@ -646,7 +701,9 @@ cancel(r)</code></pre>
     solve(x^3 ~ 8, x), solve(x^2 - 5x + 6 ~ 0, x; assume = @assume(x &gt; 2))
 end</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(Sym[2], Sym[3])</code></pre>
+<div class="md-math md-math-display">
+\[\left( \left[ 2 \right], \; \left[ 3 \right] \right)\]
+</div>
 </div>
 <p>When the answer depends on something the facts leave open, the result lists the cases:</p>
 <div class="md-multi-output">
@@ -654,10 +711,9 @@ end</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve(x^2 ~ a, x; assume = @assume(x in Reals, a in Reals))</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">Cases with 3 cases:
-  a &lt; 0  =&gt;  []
-  a == 0  =&gt;  [0]
-  a &gt; 0  =&gt;  [-sqrt(a), sqrt(a)]</code></pre>
+<div class="md-math md-math-display">
+\[\begin{cases} \left[ \; \right] &amp; a &lt; 0 \\ \left[ 0 \right] &amp; a = 0 \\ \left[  - \sqrt{a}, \; \sqrt{a} \right] &amp; a &gt; 0 \end{cases}\]
+</div>
 </div>
 <p>Without <code class="md-code-inline">a ∈ ℝ</code>, <code class="md-code-inline">a</code> may be complex, so the cases are a fact and its negation:</p>
 <div class="md-multi-output">
@@ -665,9 +721,9 @@ end</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">cs = solve(x^2 ~ a, x; assume = @assume(x &gt; 0))</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">Cases with 2 cases:
-  a &gt; 0  =&gt;  [sqrt(a)]
-  !(a &gt; 0)  =&gt;  []</code></pre>
+<div class="md-math md-math-display">
+\[\begin{cases} \left[ \sqrt{a} \right] &amp; a &gt; 0 \\ \left[ \; \right] &amp; \lnot \left( a &gt; 0 \right) \end{cases}\]
+</div>
 </div>
 <p>Calling the cases with a value gives the answer for it:</p>
 <div class="md-multi-output">
@@ -675,7 +731,9 @@ end</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">cs(a =&gt; 4), cs(a =&gt; -1)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(Sym[2], Sym[])</code></pre>
+<div class="md-math md-math-display">
+\[\left( \left[ 2 \right], \; \left[ \; \right] \right)\]
+</div>
 </div>
 <p>Contradictory facts are an error (<code class="md-code-inline">@assume(x &gt; 1 &amp;&amp; x &lt; 0)</code>), and the <code class="md-code-inline">Assumptions</code> value <code class="md-code-inline">@assume</code> makes can be reused: <code class="md-code-inline">A = @assume(x &gt; 0, n in Integers)</code>, then <code class="md-code-inline">assume = A</code>.</p>
 <h2 id="Limits" class="md-heading">Limits<a href="#Limits" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
@@ -692,14 +750,18 @@ end</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">limit((1 + 1 / x)^x, x =&gt; Inf), limit(x * ((1 + 1 / x)^x - ℯ), x =&gt; Inf)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(ℯ, -ℯ/2)</code></pre>
+<div class="md-math md-math-display">
+\[\left( e, \; \frac{ - e}{2} \right)\]
+</div>
 </div>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">limit((sin(x) - sin(Sym(π) / 6)) / (x - Sym(π) / 6), x =&gt; Sym(π) / 6)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">sqrt(3)/2</code></pre>
+<div class="md-math md-math-display">
+\[\frac{\sqrt{3}}{2}\]
+</div>
 </div>
 <p>The limit is two-sided unless <code class="md-code-inline">dir = :+</code> or <code class="md-code-inline">dir = :-</code> asks for a one-sided one:</p>
 <div class="md-multi-output">
@@ -723,7 +785,9 @@ end</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">limit((1 + a / x)^(b * x), x =&gt; Inf)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">exp(a*b)</code></pre>
+<div class="md-math md-math-display">
+\[e^{a \cdot b}\]
+</div>
 </div>
 <p>When the limit depends on the values of the other symbols, <code class="md-code-inline">limit</code> gives it for each case:</p>
 <div class="md-multi-output">
@@ -743,14 +807,18 @@ end</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">diff(sin(x)^2 * exp(x), x)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">2*cos(x)*sin(x)*exp(x) + sin(x)^2*exp(x)</code></pre>
+<div class="md-math md-math-display">
+\[2 \cdot \cos\left( x \right) \cdot \sin\left( x \right) \cdot e^{x} + \sin^{2}\left( x \right) \cdot e^{x}\]
+</div>
 </div>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">diff(x^x, x), diff(atan(x), x, 3)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">((log(x) + 1)*x^x, -2/(x^2 + 1)^2 + 8*x^2/(x^2 + 1)^3)</code></pre>
+<div class="md-math md-math-display">
+\[\left( \left( \log\left( x \right) + 1 \right) \cdot x^{x}, \; \frac{-2}{\left( x^{2} + 1 \right)^{2}} + \frac{8 \cdot x^{2}}{\left( x^{2} + 1 \right)^{3}} \right)\]
+</div>
 </div>
 <p>Mixed partial derivatives take the variables in order: <code class="md-code-inline">diff(f, x, y)</code> differentiates with respect to <code class="md-code-inline">x</code>, then <code class="md-code-inline">y</code>:</p>
 <div class="md-multi-output">
@@ -758,7 +826,9 @@ end</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">diff(x^3 * y^2, x, y), diff(sin(x * y), x, y), diff(x^2 * y * z, x, x, y, z)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(6*x^2*y, -sin(x*y)*x*y + cos(x*y), 2)</code></pre>
+<div class="md-math md-math-display">
+\[\left( 6 \cdot x^{2} \cdot y, \;  - \sin\left( x \cdot y \right) \cdot x \cdot y + \cos\left( x \cdot y \right), \; 2 \right)\]
+</div>
 </div>
 <p>A symbolic function gives an unevaluated derivative:</p>
 <div class="md-multi-output">
@@ -766,7 +836,9 @@ end</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">diff(f(x^2), x)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">Derivative(f(x^2), x)</code></pre>
+<div class="md-math md-math-display">
+\[\mathrm{Derivative}\left( f\left( x^{2} \right), x \right)\]
+</div>
 </div>
 <h3 id="Critical-points" class="md-heading">Critical points<a href="#Critical-points" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <p>The critical points of a function are the zeros of its derivative, and the second derivative classifies them:</p>
@@ -776,9 +848,9 @@ end</code></pre>
 <pre><code class="language-julia">h = x^3 - 6x^2 + 9x + 1
 cps = solve(diff(h, x) ~ 0, x)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">2-element Vector{Sym}:
- 1
- 3</code></pre>
+<div class="md-math md-math-display">
+\[\left[ 1, \; 3 \right]\]
+</div>
 </div>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -799,7 +871,9 @@ cps = solve(diff(h, x) ~ 0, x)</code></pre>
 <pre><code class="language-julia">c₀ = 2
 expand(h(c₀) + diff(h, x)(c₀) * (x - c₀))</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">-3*x + 9</code></pre>
+<div class="md-math md-math-display">
+\[-3 \cdot x + 9\]
+</div>
 </div>
 <h2 id="Series" class="md-heading">Series<a href="#Series" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p><code class="md-code-inline">series(ex, x, x0, n)</code> expands <code class="md-code-inline">ex</code> about <code class="md-code-inline">x0</code> with an error of order <code class="md-code-inline">(x - x0)^n</code>; <code class="md-code-inline">x0</code> defaults to 0 and <code class="md-code-inline">n</code> to 6:</p>
@@ -808,14 +882,18 @@ expand(h(c₀) + diff(h, x)(c₀) * (x - c₀))</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">series(sin(x), x)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">x - x^3/6 + x^5/120 + O(x^6)</code></pre>
+<div class="md-math md-math-display">
+\[x - \frac{x^{3}}{6} + \frac{x^{5}}{120} + O\left( x^{6} \right)\]
+</div>
 </div>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">series(exp(x), x, 1, 3)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">ℯ + ℯ*(x - 1) + ℯ/2*(x - 1)^2 + O((x - 1)^3)</code></pre>
+<div class="md-math md-math-display">
+\[e + e \cdot \left( x - 1 \right) + \frac{e}{2} \cdot \left( x - 1 \right)^{2} + O\left( \left( x - 1 \right)^{3} \right)\]
+</div>
 </div>
 <p>Laurent series (negative powers), Puiseux series (fractional powers), logarithmic terms and expansions at infinity (in powers of <code class="md-code-inline">1/x</code>) are included:</p>
 <div class="md-multi-output">
@@ -823,14 +901,18 @@ expand(h(c₀) + diff(h, x)(c₀) * (x - c₀))</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">series(cot(x), x, 0, 4), series(sqrt(x + x^2), x, 0, 3)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(1/x - x/3 - x^3/45 + O(x^4), sqrt(x) + x^(3/2)/2 - x^(5/2)/8 + O(x^3))</code></pre>
+<div class="md-math md-math-display">
+\[\left( \frac{1}{x} - \frac{x}{3} - \frac{x^{3}}{45} + O\left( x^{4} \right), \; \sqrt{x} + \frac{x^{\frac{3}{2}}}{2} - \frac{x^{\frac{5}{2}}}{8} + O\left( x^{3} \right) \right)\]
+</div>
 </div>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">series(x^x, x, 0, 3), series(sqrt(x^2 + x), x, Inf, 3)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(1 + log(x)*x + log(x)^2*x^2/2 + O(x^3), x + 1/2 - 1/(8*x) + 1/(16*x^2) + O(1/x^3))</code></pre>
+<div class="md-math md-math-display">
+\[\left( 1 + \log\left( x \right) \cdot x + \frac{\left( \log\left( x \right) \right)^{2} \cdot x^{2}}{2} + O\left( x^{3} \right), \; x + \frac{1}{2} - \frac{1}{8 \cdot x} + \frac{1}{16 \cdot x^{2}} + O\left( \frac{1}{x^{3}} \right) \right)\]
+</div>
 </div>
 <p>A series is an object that keeps its error term. Series about the same point can be added, multiplied and divided, with the order tracked, and <code class="md-code-inline">Sym</code> drops the <code class="md-code-inline">O</code> term:</p>
 <div class="md-multi-output">
@@ -839,14 +921,18 @@ expand(h(c₀) + diff(h, x)(c₀) * (x - c₀))</code></pre>
 <pre><code class="language-julia">s, c = series(sin(x), x), series(cos(x), x)
 s / c</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">x + x^3/3 + 2*x^5/15 + O(x^6)</code></pre>
+<div class="md-math md-math-display">
+\[x + \frac{x^{3}}{3} + \frac{2 \cdot x^{5}}{15} + O\left( x^{6} \right)\]
+</div>
 </div>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">Sym(s)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">x^5/120 - x^3/6 + x</code></pre>
+<div class="md-math md-math-display">
+\[\frac{x^{5}}{120} - \frac{x^{3}}{6} + x\]
+</div>
 </div>
 <h2 id="Integrals" class="md-heading">Integrals<a href="#Integrals" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p>Antiderivatives come from <code class="md-code-inline">integrate</code>, from RischIntegrate, an implementation of the Risch algorithm. It decides whether an elementary antiderivative exists, and finds it:</p>
@@ -855,35 +941,45 @@ s / c</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">integrate(x^2 * exp(x), x)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(x^2 - 2*x + 2)*exp(x)</code></pre>
+<div class="md-math md-math-display">
+\[\left( x^{2} - 2 \cdot x + 2 \right) \cdot e^{x}\]
+</div>
 </div>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">integrate(1 / (x^3 + 1), x)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">log(x + 1)/3 - log(x^2 - x + 1)/6 + sqrt(3)*atan(sqrt(3)*(2*x/3 - 1/3))/3</code></pre>
+<div class="md-math md-math-display">
+\[\frac{\log\left( x + 1 \right)}{3} - \frac{\log\left( x^{2} - x + 1 \right)}{6} + \frac{\sqrt{3} \cdot \arctan\left( \sqrt{3} \cdot \left( \frac{2 \cdot x}{3} - \frac{1}{3} \right) \right)}{3}\]
+</div>
 </div>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">integrate(1 / (x^3 - x), x), integrate((2x + 3) / (x^2 + 1), x)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(-log(x) + log(x^2 - 1)/2, 3*atan(x) + log(x^2 + 1))</code></pre>
+<div class="md-math md-math-display">
+\[\left(  - \log\left( x \right) + \frac{\log\left( x^{2} - 1 \right)}{2}, \; 3 \cdot \arctan\left( x \right) + \log\left( x^{2} + 1 \right) \right)\]
+</div>
 </div>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">integrate(sin(x)^3, x), integrate(sqrt(1 - x^2), x)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(cos(3*x)/12 - 3*cos(x)/4, sqrt(-x^2 + 1)*x/2 + asin(x)/2)</code></pre>
+<div class="md-math md-math-display">
+\[\left( \frac{\cos\left( 3 \cdot x \right)}{12} - \frac{3 \cdot \cos\left( x \right)}{4}, \; \frac{\sqrt{ - x^{2} + 1} \cdot x}{2} + \frac{\arcsin\left( x \right)}{2} \right)\]
+</div>
 </div>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">integrate(x * log(x), x), integrate(1 / (x * log(x)), x)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(log(x)*x^2/2 - x^2/4, log(log(x)))</code></pre>
+<div class="md-math md-math-display">
+\[\left( \frac{\log\left( x \right) \cdot x^{2}}{2} - \frac{x^{2}}{4}, \; \log\left( \log\left( x \right) \right) \right)\]
+</div>
 </div>
 <h3 id="Definite-integrals" class="md-heading">Definite integrals<a href="#Definite-integrals" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <p>A definite integral is the difference of an antiderivative&#39;s values at the end points. Calling the antiderivative with exact numbers keeps the answer exact:</p>
@@ -901,17 +997,10 @@ F(3) - F(0)</code></pre>
 <pre><code class="language-julia">G = integrate(sin(x), x)
 G(x =&gt; Sym(π)) - G(x =&gt; 0)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">2</code></pre>
+<div class="md-math md-math-display">
+\[2\]
 </div>
-<h2 id="What-SymJ-does-not-do-yet" class="md-heading">What SymJ does not do yet<a href="#What-SymJ-does-not-do-yet" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
-<ul class="md-list-tight">
-<li><p><strong>Simplification under assumptions.</strong> <code class="md-code-inline">solve</code> takes assumptions, but simplification does not yet, so identities such as <code class="md-code-inline">sqrt(x^2) = x</code> for positive <code class="md-code-inline">x</code> are not applied.</p>
-</li>
-<li><p><strong>Matrices and noncommutative algebra.</strong></p>
-</li>
-<li><p><strong>Transcendental systems of equations</strong>, such as <code class="md-code-inline">sin(x) ~ y, x ~ y^2</code> (polynomial and rational systems are solved), and equations in several unrelated functions of the unknown, such as <code class="md-code-inline">sin(x) + cos(x) ~ 1</code>.</p>
-</li>
-</ul>
+</div>
       </article>
       <footer class="md-footer">
 <p>Built with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and <a href="https://github.com/mthelm85/MaterialDocs.jl">MaterialDocs.jl</a>.</p>
@@ -947,7 +1036,6 @@ G(x =&gt; Sym(π)) - G(x =&gt; 0)</code></pre>
           <a class="md-toc-link md-toc-h2" href="#Series">Series</a>
           <a class="md-toc-link md-toc-h2" href="#Integrals">Integrals</a>
             <a class="md-toc-link md-toc-h3" href="#Definite-integrals">Definite integrals</a>
-          <a class="md-toc-link md-toc-h2" href="#What-SymJ-does-not-do-yet">What SymJ does not do yet</a>
       </div>
     </aside>
   </div>
@@ -955,8 +1043,16 @@ G(x =&gt; Sym(π)) - G(x =&gt; 0)</code></pre>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/julia.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/julia-repl.min.js"></script>
   <script>hljs.highlightAll();</script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.18.6/katex.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.18.6/katex.min.js"></script>
+  <script>var MD_KATEX_OPTIONS = {};
+document.querySelectorAll('.md-math').forEach(function (el) {
+  var tex = el.textContent.trim().replace(/^\\[\[(]/, '').replace(/\\[\])]$/, '');
+  katex.render(tex, el, Object.assign({ throwOnError: false }, MD_KATEX_OPTIONS,
+    { displayMode: el.classList.contains('md-math-display') }));
+});</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=cac27043"></script>
+  <script src="../assets/materialdocs.js?v=f4ae11a2"></script>
 </body>
 </html>

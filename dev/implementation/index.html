@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Implementation — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=20a5c4cf">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=69cc4621">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Implementation — SymJ.jl">
   <meta property="og:title" content="Implementation — SymJ.jl">
@@ -289,6 +289,7 @@ end</code></pre>
 <h2 id="Working-with-other-packages" class="md-heading">Working with other packages<a href="#Working-with-other-packages" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p>SymJ implements TermInterface, so generic code that walks terms with <code class="md-code-inline">operation</code> and <code class="md-code-inline">arguments</code> and rebuilds them with <code class="md-code-inline">maketerm</code> works on its expressions. GruntzLimit and RischIntegrate are written this way, for several symbolic systems.</p>
 <p>Julia compiles code the first time it runs, so the first limit or integral would pay for compiling those packages&#39; code for SymJ&#39;s types: about 3 s for the first limit and 4 s for the first integral. SymJ has package extensions for GruntzLimit and RischIntegrate that run a precompilation workload of limits and integrals on SymJ expressions when those packages are installed. The compiled code then ships with the extension, and the first limit takes about 1 ms.</p>
+<p>With Latexify loaded, an extension gives <code class="md-code-inline">latexify</code> recipes for expressions and relations, and a <code class="md-code-inline">text/latex</code> display for them, for arrays of expressions and for tuples of expressions. Notebooks and these pages then show results typeset. As in SymPyCore, the printed form, which is valid Julia, is handed to Latexify to typeset.</p>
 <h2 id="How-it-compares" class="md-heading">How it compares<a href="#How-it-compares" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p>The <code class="md-code-inline">bench/cas</code> directory compares SymJ (with GruntzLimit and RischIntegrate), Symbolics (with the same two), SymPy and Giac on 311 problems in nine areas, checking every answer numerically. SymJ verifies 309, Giac 305, and Symbolics and SymPy 296 each. The <a href="https://rawcdn.githack.com/jverzani/SymJ.jl/d9f9703f64bef58d1aa11a55ba041a7611429fa2/bench/cas/results/cas_comparison.html">comparison page</a> has the details, the times, and each system&#39;s answer to each problem.</p>
       </article>
@@ -328,6 +329,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=20a5c4cf"></script>
+  <script src="../assets/materialdocs.js?v=69cc4621"></script>
 </body>
 </html>
