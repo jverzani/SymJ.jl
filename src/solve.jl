@@ -20,7 +20,8 @@ its coefficients may involve other symbols. Solutions are exact through
 degree 4 and for equations that factor into such pieces; irreducible factors of higher
 degree with numeric coefficients give numeric (floating point) roots. Numeric
 solutions are sorted, real ones first. An equation with no solution gives an empty
-vector.
+vector. For a system, `solve([eqs...], [vars...])`, giving a vector of `Dict`s;
+mixing the forms (`solve(eq, [x])`, `solve([eq], x)`) is an error.
 
 ```julia
 solve(x^2 - 2 ~ 0, x)          # [-sqrt(2), sqrt(2)]
@@ -44,7 +45,12 @@ function solve(eq::Relation, x::Sym)
     roots = exact ? _solve_exact(n, x, atoms) : _solve_inexact(n, x)
     _sort_roots!(unique(roots))
 end
-solve(eq::Relation, x::Sym, rest...) = throw(ArgumentError("solve: systems are not supported yet"))
+# one equation takes one unknown and a system a vector of unknowns: the form of the call
+# fixes the form of the result (values or Dicts)
+const _SOLVE_FORMS = "solve(eq, x) for one equation (a vector of values), solve([eqs...], [vars...]) for a system (a vector of Dicts)"
+solve(eq::Relation, x::Sym, rest...) = throw(ArgumentError("solve: give the unknowns of a system as a vector; use $_SOLVE_FORMS"))
+solve(eq::Relation, vars::Union{AbstractVector,Tuple}) = throw(ArgumentError("solve: a single equation takes a single unknown; use $_SOLVE_FORMS"))
+solve(eqs::AbstractVector{<:Relation}, x::Sym) = throw(ArgumentError("solve: a system takes a vector of unknowns; use $_SOLVE_FORMS"))
 solve(ex::Sym, x::Sym) = throw(ArgumentError(
     "solve needs an equation, e.g. solve($ex ~ 0, $x); an expression is not taken to mean \"= 0\""))
 

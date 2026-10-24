@@ -249,6 +249,28 @@ two methods, and `resultant` chooses between them:
 
 The choice compares the grid with the product of the input sizes.
 
+## Gröbner bases
+
+`groebner` runs Buchberger's algorithm, with the Gebauer–Möller criteria to discard
+pairs and the sugar strategy to choose them.
+
+- **Monomials** are packed into one word, like `Poly`'s, with a guard bit above each
+  exponent field. Divisibility is one subtraction tested against the guard bits, and an
+  exponent that outgrows its field sets a guard bit, which reruns the computation with
+  wider words.
+- **The monomial order** is a second packed word, linear in the exponents, so
+  multiplying by a monomial adds to both words.
+  - grlex packs the degree above the exponents.
+  - grevlex packs the degree above the prefix sums `e₁ + … + eₖ`. At equal degree, a
+    smaller last exponent is a larger prefix sum.
+- **Reduction is fraction-free** over the integers, taking primitive parts after each
+  reduction. With parameters, the coefficients are integer polynomials in them.
+- **Lex bases go through FGLM when there are finitely many solutions.** A lex basis
+  computed directly suffers coefficient growth: Katsura-4 took over five minutes. A
+  grevlex basis is cheap, and FGLM converts it by linear algebra on normal forms,
+  computed with multiplication matrices. Katsura-4 then takes 3 ms, and Katsura-5
+  0.12 s.
+
 ## Factorization
 
 Factoring over the rationals starts with the **squarefree decomposition**, by Yun's
@@ -328,7 +350,14 @@ exact rational function type kept in canonical form, so that its zero tests are 
 - **Inequalities** are solved exactly through the real roots of the numerator and
   denominator, between which the sign is constant. The result is a union of intervals.
 - **Systems.** Linear systems are solved by Gauss–Jordan elimination over an exact
-  field. Linear inequalities in several unknowns are solved by Fourier–Motzkin
+  field. Polynomial systems are solved through their lex Gröbner basis, by
+  back-substitution from the last variable. At each level, the basis polynomials in that
+  variable, with the values found so far substituted, are solved and their common roots
+  kept.
+  - The last variable's polynomial is factored, and the basis is recomputed with each
+    factor. The other polynomials are then reduced modulo that factor, which keeps the
+    substituted values simple.
+  - Where a root is numeric, the levels above it are solved numerically too. Linear inequalities in several unknowns are solved by Fourier–Motzkin
   elimination, giving each unknown's bounds in terms of the unknowns after it.
 
 `<` and friends are not used for symbolic inequalities: they keep returning `true` or

@@ -269,6 +269,30 @@ The discriminant is zero exactly when a polynomial has a repeated root:
 discriminant(a*x^2 + b*x + c, x), discriminant(x^3 + a*x + b, x)
 ```
 
+### Gröbner bases
+
+A Gröbner basis of a set of polynomials generates the same ideal and has the same
+common zeros. In the lex order, the default, it is triangular: the last polynomials
+involve only the last variables.
+
+```@example tut
+groebner([x^2 + y^2 - 1, x*y - 1//4], x, y)
+```
+
+The basis is `[1]` exactly when the polynomials have no common zero:
+
+```@example tut
+groebner([x^2 + y^2 - 1, x^2 + y^2 - 4], x, y)
+```
+
+`reduced` divides by the basis. The remainder is zero exactly when a polynomial is in
+the ideal:
+
+```@example tut
+G = groebner([x^2 + y^2 - 1, x - y], x, y)
+reduced(x^2 - y^2, G, x, y), reduced(x^3, G, x, y)
+```
+
 ### Roots
 
 `solve` finds the roots of a polynomial. Degrees up to four are solved exactly, with
@@ -384,7 +408,8 @@ solve((x - 1) / (x + 2) ≧ 0, x)
 
 ### Systems
 
-A list of linear equations in several unknowns gives a `Dict`:
+A system of equations gives a vector of solutions, each a `Dict` from the unknowns to
+their values. A linear system has at most one:
 
 ```@example tut
 solve([x + y ~ 3, x - y ~ 1], [x, y])
@@ -392,6 +417,22 @@ solve([x + y ~ 3, x - y ~ 1], [x, y])
 
 ```@example tut
 solve([a * x + y ~ 1, x - y ~ b], [x, y])
+```
+
+Polynomial systems are solved through a lex Gröbner basis, which is triangular:
+
+```@example tut
+solve([x^2 + y^2 ~ 1, x ~ y], [x, y])
+```
+
+```@example tut
+solve([x*y ~ 1, x + y ~ 3], [x, y])
+```
+
+With infinitely many solutions, the unknowns left free map to themselves:
+
+```@example tut
+solve([x^2 + y^2 ~ 1], [x, y])
 ```
 
 A system of linear inequalities gives a description of the region, each unknown between
@@ -576,5 +617,6 @@ G(x => Sym(π)) - G(x => 0)
 - **Simplification under assumptions.** Identities such as `sqrt(x^2) = x` for positive
   `x` need assumptions, which are not implemented.
 - **Matrices and noncommutative algebra.**
-- **Nonlinear systems of equations**, and equations in several unrelated functions of the
+- **Transcendental systems of equations**, such as `sin(x) ~ y, x ~ y^2` (polynomial and
+  rational systems are solved), and equations in several unrelated functions of the
   unknown, such as `sin(x) + cos(x) ~ 1`.

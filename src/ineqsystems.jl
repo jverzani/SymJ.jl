@@ -50,7 +50,8 @@ function _solve_ineq_system(eqs::AbstractVector{<:Relation}, vars::Vector{Sym})
     equalities = Pair{Sym,Sym}[]
     free = vars
     if !isempty(eqns)
-        sol = solve(eqns, vars)
+        _islinear(eqns, vars) || throw(ArgumentError("solve: nonlinear equations in a system of inequalities are not supported"))
+        sol = _solve_linear(eqns, vars)
         sol === nothing && return CylindricalSet(false, [], [], vars, collect(Relation, eqs))
         equalities = [v => sol[v] for v in vars if haskey(sol, v)]
         free = [v for v in vars if !haskey(sol, v)]
