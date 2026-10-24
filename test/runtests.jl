@@ -1565,6 +1565,42 @@ using Latexify: latexify
         @test R(x ≫ real(x) - 1, x ∈ ℝ) === true
     end
 
+    @testset "linear algebra" begin
+        @syms a b c d λ
+        LA = SymJ.LinearAlgebra
+        # det: Bareiss for polynomials, elimination over rational functions otherwise
+        @test LA.det([a b; c d]) == a * d - b * c && LA.det([x 1; 1 x]) == x^2 - 1 && LA.det(Sym[1 2; 3 4]) == -2
+        @test LA.det(Sym[1 2; 2 4]) == 0 && LA.det(Matrix{Sym}(undef, 0, 0)) == 1
+        @test LA.det([1/x 1; 1 x]) == 0 && LA.det([sqrt(Sym(2)) 1; 1 sqrt(Sym(2))]) == 1
+        G = [Sym(Symbol("g", i, j)) for i in 1:5, j in 1:5]
+        @test length(LA.det(G).args) == 120                                # all 5! terms
+        @test LA.det([Sym(1) / (i + j - 1) for i in 1:5, j in 1:5]) == 1 // 266716800000   # Hilbert
+        @test LA.det([x 1; 1 x] - λ * LA.I(2)) == expand((x - λ)^2 - 1)  # characteristic polynomial
+        # inv: the adjugate for polynomial entries, Gauss-Jordan over rational functions else
+        @test inv([a b; c d]) == [d -b; -c a] / (a * d - b * c) && inv(Sym[1 2; 3 4]) == [-2 1; 3//2 -1//2]
+        @test inv([x 1; 1 x]) == [x -1; -1 x] / (x^2 - 1) && inv(Sym[2;;]) == Sym[1//2;;]
+        @test_throws LA.SingularException inv(Sym[1 2; 2 4])
+        @test_throws LA.SingularException inv([1/x 1; 1 x])
+        G3 = G[1:3, 1:3]
+        @test all(iszero, map(simplify, inv(G3) * G3 - LA.I))
+        @test map(simplify, inv([sin(x) cos(x); -cos(x) sin(x)])) == [sin(x) -cos(x); cos(x) sin(x)]
+        # lu: a LinearAlgebra.LU, first-nonzero pivoting
+        F = LA.lu([a b; c d])
+        @test F isa LA.LU && F.L == [1 0; c/a 1] && F.p == [1, 2] && LA.det(F) == a * d - b * c
+        @test map(simplify, F.L * F.U - [a b; c d][F.p, :]) == zeros(Sym, 2, 2)
+        P = LA.lu(Sym[0 1; 1 0])
+        @test P.p == [2, 1] && P.U == Sym[1 0; 0 1]
+        @test_throws LA.SingularException LA.lu(Sym[1 2; 2 4])
+        @test LA.lu(Sym[1 2; 2 4]; check = false).info == 2
+        # \ exactly
+        @test [a b; c d] \ [x, y] == [(d * x - b * y) / (a * d - b * c), (a * y - c * x) / (a * d - b * c)]
+        @test Sym[1 2; 3 4] \ Sym[5, 6] == [-4, 9 // 2]
+        # matrices with I and with expressions as scalars
+        @test [x 1; 1 x] - LA.I == [x-1 1; 1 x-1] && 2x * [x 1; 1 x] == [2x^2 2x; 2x 2x^2]
+        @test [x 1; 1 x] / x == [1 1/x; 1/x 1]
+        @test_throws ArgumentError λ * LA.I
+    end
+
     @testset "Latexify" begin
         @syms a
         L(v) = repr(MIME"text/latex"(), v)

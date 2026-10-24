@@ -107,10 +107,10 @@ equations; done: series, assumptions, a basic `simplify`)
 | Capability | SymPy | Giac | SymJ |
 |:--|:--|:--|:--|
 | Matrices of expressions: products | `Matrix` | built in | ✅ Julia arrays of `Sym` |
-| Determinant, inverse, solving | `Matrix` methods `det`, `inv`, `LUsolve` | `det`, `inverse`, `linsolve` | ❌ Julia's generic LU pivots by comparing values, which SymJ refuses for expressions |
+| Determinant, inverse, solving | `Matrix` methods `det`, `inv`, `LUsolve` | `det`, `inverse`, `linsolve` | ✅ `det` (Bareiss for polynomials), `inv` (adjugate or Gauss–Jordan over rational functions), `A \ b`, exactly with first-nonzero pivoting |
 | Row reduction, null space, rank | `Matrix` methods `rref`, `nullspace`, `rank` | `rref`, `ker`, `rank` | ❌ |
 | Eigenvalues, eigenvectors, Jordan form | `Matrix` methods `eigenvals`, `eigenvects`, `jordan_form` | `eigenvals`, `eigenvects`, `jordan` | ❌ |
-| LU, QR, SVD | `Matrix` methods `LUdecomposition`, `QRdecomposition` | `lu`, `qr`, `svd` | ❌ |
+| LU, QR, SVD | `Matrix` methods `LUdecomposition`, `QRdecomposition` | `lu`, `qr`, `svd` | ◐ `lu` (a `LinearAlgebra.LU`, exact); ❌ QR, SVD |
 
 ## Functions
 
@@ -154,10 +154,9 @@ The planned work (★) still to do is summation and differential equations; seri
 assumptions and a basic `simplify` are done. Of the rest, in rough order of value for
 calculus-level use:
 
-1. **Symbolic linear algebra** (next): determinant, inverse and LU first, then solving,
-   row reduction, null space, rank and eigenvalues for matrices of expressions. Matrices
-   are common in coursework, and SymJ's exact linear-system solver (Gauss–Jordan over
-   `RatFun`) is most of the work.
+1. **Symbolic linear algebra**, continued: `det`, `inv`, `lu` and `\` are done; next are
+   row reduction, null space, rank, and eigenvalues and eigenvectors (through `det(A -
+   λ*I(n))` and `solve`).
 2. **Piecewise functions, Heaviside and Dirac**, which also matter for Laplace
    transforms and differential equations.
 3. **Definite integrals done properly**: improper integrals through `limit`, and

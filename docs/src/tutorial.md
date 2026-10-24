@@ -565,6 +565,35 @@ Contradictory facts are an error (`@assume(x > 1 && x < 0)`), and the `Assumptio
 value `@assume` makes can be reused: `A = @assume(x > 0, n in Integers)`, then
 `assume = A`.
 
+## Matrices
+
+Matrices of expressions are Julia arrays of `Sym`. With `LinearAlgebra`, `det`, `inv`,
+`lu` and `\` work exactly, pivoting on the first nonzero entry rather than comparing
+magnitudes:
+
+```@example tut
+using LinearAlgebra
+@syms d
+A = [a b; c d]
+det(A), inv(A)
+```
+
+```@example tut
+F = lu(A)
+F.L, F.U
+```
+
+```@example tut
+A \ [x, y]
+```
+
+`A - I` works as for numbers; a symbolic multiple of the identity is `λ*I(n)`:
+
+```@example tut
+@syms λ
+det([x 1; 1 x] - λ * I(2))
+```
+
 ## Limits
 
 `limit(f, x => x0)` is the limit of `f` as `x` tends to `x0`, a number, an expression or
