@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Design notes — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=a5c98faf">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=56147409">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Design notes — SymJ.jl">
   <meta property="og:title" content="Design notes — SymJ.jl">
@@ -1030,7 +1030,55 @@ end</code></pre>
 </li>
 </ul>
 <h2 id="Assumptions" class="md-heading">Assumptions<a href="#Assumptions" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
-<p>Assumptions (real, positive, integer) will be passed per call, e.g. <code class="md-code-inline">simplify(ex; assume = …)</code>, not stored on symbols. This keeps canonical form context-free: <code class="md-code-inline">x</code> is always the same node with the same hash, and construction never consults assumptions. The trade-off is that identities such as <code class="md-code-inline">sqrt(x^2) = x</code> apply only inside the operations that take assumptions, never during construction.</p>
+<p>Assumptions are passed per call or for a block, never stored on symbols. This keeps canonical form context-free: <code class="md-code-inline">x</code> is always the same node with the same hash, and construction never consults assumptions. The trade-off is that identities such as <code class="md-code-inline">sqrt(x^2) = x</code> apply only inside the operations that take assumptions, never during construction.</p>
+<ul class="md-list-tight">
+<li><p><strong>Facts.</strong></p>
+<ul class="md-list-tight">
+<li><p><em>Relations:</em> <code class="md-code-inline">x ≫ 0</code>, <code class="md-code-inline">a ≦ b + 1</code>, <code class="md-code-inline">a ≶ 0</code> (≠).</p>
+</li>
+<li><p><em>Membership:</em> <code class="md-code-inline">n ∈ ℤ</code>, with <code class="md-code-inline">ℂ ⊃ ℝ ⊃ ℚ ⊃ ℤ</code>. On a number, <code class="md-code-inline">∈</code> is still a <code class="md-code-inline">Bool</code>.</p>
+</li>
+<li><p><em>Combining:</em> a list of facts is their conjunction, and <code class="md-code-inline">!</code> negates a fact.</p>
+</li>
+<li><p><em>Intervals:</em> <code class="md-code-inline">0 ≦ x ≪ 1</code> cannot be written as a chain, because Julia lowers chains through <code class="md-code-inline">&amp;&amp;</code>; it is two facts, or a chain inside <code class="md-code-inline">@assume</code>.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Domains.</strong> Symbols are complex by default, so every identity that holds over ℂ is safe. Any order fact about a symbol makes it real.</p>
+</li>
+<li><p><strong>Deciding power.</strong></p>
+<ul class="md-list-tight">
+<li><p>Facts about one symbol, each a domain and a <code class="md-code-inline">SymSet</code>. Within one symbol, And, Not and Or all reduce to one set, so they cost nothing extra.</p>
+</li>
+<li><p>Propagation of sign, reality and integrality through expressions.</p>
+</li>
+<li><p>Linear relations among symbols, treating nonlinear monomials as atoms (<code class="md-code-inline">a*b &gt; 0</code> is linear in the atom <code class="md-code-inline">a*b</code>), decided by Fourier–Motzkin elimination.</p>
+</li>
+<li><p>No Or across symbols, which would multiply cases, and no CAD.</p>
+</li>
+<li><p>Queries are three-valued: true, false or unknown.</p>
+</li>
+</ul>
+</li>
+<li><p><strong><code class="md-code-inline">Assumptions</code>.</strong> <code class="md-code-inline">Assumptions(facts...)</code> normalizes the facts once: per-symbol domains and sets, plus linear relations. It checks consistency, throwing on a contradiction, and caches sign queries, so reusing it is cheap.</p>
+</li>
+<li><p><strong>Scope.</strong> As in Mathematica:</p>
+<ul class="md-list-tight">
+<li><p>per call: <code class="md-code-inline">solve(eq, x; assume = A)</code>, where a tuple of facts also works;</p>
+</li>
+<li><p>for a block: <code class="md-code-inline">assuming(facts...) do … end</code>, or <code class="md-code-inline">@assuming facts... begin … end</code>, through a <code class="md-code-inline">ScopedValue</code>, so it nests and is thread-safe;</p>
+</li>
+<li><p>a keyword&#39;s facts inside a block are added to the block&#39;s.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Cases.</strong> As in GruntzLimit&#39;s <code class="md-code-inline">limit</code>: an operation returns a plain answer when the assumptions decide it, and otherwise a <code class="md-code-inline">Cases</code>. That is a vector of <code class="md-code-inline">conditions =&gt; answer</code> pairs; calling it with parameter values gives the answer for those values, and indexing with them gives their case.</p>
+</li>
+<li><p><strong>First users.</strong> <code class="md-code-inline">solve</code> (filtering roots, and splitting on the signs of parameters) and a native <code class="md-code-inline">limit</code>. <code class="md-code-inline">simplify</code>/<code class="md-code-inline">refine</code> come later.</p>
+</li>
+<li><p><strong><code class="md-code-inline">@assume</code></strong>, named after the keyword, writes facts with Julia&#39;s operators: <code class="md-code-inline">@assume(x &gt; 0 &amp;&amp; 1 &lt; y &lt;= 2, n in Integers)</code>. Chained comparisons are split, and <code class="md-code-inline">&amp;&amp;</code>, <code class="md-code-inline">||</code>, <code class="md-code-inline">!</code> combine. The number sets have ASCII names, <code class="md-code-inline">Integers</code>, <code class="md-code-inline">Rationals</code>, <code class="md-code-inline">Reals</code> and <code class="md-code-inline">Complexes</code>.</p>
+</li>
+</ul>
 <h2 id="Performance-snapshot" class="md-heading">Performance snapshot<a href="#Performance-snapshot" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p>Run with <code class="md-code-inline">julia --project=bench bench/bench.jl</code> (Apple Silicon, Julia 1.13, SymEngine.jl 0.13). Times are medians. The ratio is SymJ time / SymEngine time, so lower is better.</p>
 <div class="md-table-wrap">
@@ -1102,7 +1150,7 @@ end</code></pre>
 </li>
 <li><p><strong>Complex numbers.</strong> <code class="md-code-inline">im</code> is the exact power <code class="md-code-inline">(-1)^(1/2)</code>. That covers the basics, but there is no <code class="md-code-inline">re</code>/<code class="md-code-inline">im</code> decomposition or <code class="md-code-inline">conj</code>, and <code class="md-code-inline">Sym(z::Complex)</code> builds <code class="md-code-inline">a + b*im</code>.</p>
 </li>
-<li><p><strong>Assumptions.</strong> These will be passed per call, as described above. Neither the API nor the rules exist yet.</p>
+<li><p><strong>Assumptions.</strong> The design is settled (see Assumptions above); the implementation is under way. Integer congruences (<code class="md-code-inline">mod(n, 3) ~ 1</code>) are to follow the core.</p>
 </li>
 <li><p><strong>Relations.</strong> <code class="md-code-inline">==</code> is structural and returns <code class="md-code-inline">Bool</code>. Symbolic <code class="md-code-inline">Eq</code>, <code class="md-code-inline">&lt;</code>, etc. need their own constructors.</p>
 </li>
@@ -1169,6 +1217,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=a5c98faf"></script>
+  <script src="../assets/materialdocs.js?v=56147409"></script>
 </body>
 </html>

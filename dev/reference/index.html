@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Reference — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=a9621937">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=cccb98c0">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Reference — SymJ.jl">
   <meta property="og:title" content="Reference — SymJ.jl">
@@ -56,7 +56,11 @@
 <ul>
 <li><a href="#SymJ.SymJ"><code>SymJ.SymJ</code></a></li>
 <li><a href="#SymJ.AbstractSymbolic"><code>SymJ.AbstractSymbolic</code></a></li>
+<li><a href="#SymJ.Assumptions"><code>SymJ.Assumptions</code></a></li>
+<li><a href="#SymJ.Cases"><code>SymJ.Cases</code></a></li>
 <li><a href="#SymJ.CylindricalSet"><code>SymJ.CylindricalSet</code></a></li>
+<li><a href="#SymJ.Membership"><code>SymJ.Membership</code></a></li>
+<li><a href="#SymJ.NumberSet"><code>SymJ.NumberSet</code></a></li>
 <li><a href="#SymJ.Poly"><code>SymJ.Poly</code></a></li>
 <li><a href="#SymJ.Relation"><code>SymJ.Relation</code></a></li>
 <li><a href="#SymJ.Sym"><code>SymJ.Sym</code></a></li>
@@ -65,22 +69,23 @@
 <li><a href="#SymJ.SymNumber"><code>SymJ.SymNumber</code></a></li>
 <li><a href="#SymJ.SymSeries"><code>SymJ.SymSeries</code></a></li>
 <li><a href="#SymJ.SymSet"><code>SymJ.SymSet</code></a></li>
-<li><a href="#Base.diff-Union{Tuple{M}, Tuple{C}, Tuple{Poly{C, M}, Sym}} where {C, M}"><code>Base.diff</code></a></li>
-<li><a href="#Base.diff-Tuple{SymJ.SymSeries, Sym}"><code>Base.diff</code></a></li>
 <li><a href="#Base.diff"><code>Base.diff</code></a></li>
+<li><a href="#Base.diff-Tuple{SymJ.SymSeries, Sym}"><code>Base.diff</code></a></li>
+<li><a href="#Base.diff-Union{Tuple{M}, Tuple{C}, Tuple{Poly{C, M}, Sym}} where {C, M}"><code>Base.diff</code></a></li>
 <li><a href="#Base.divrem-Union{Tuple{C}, Tuple{Poly{C}, Poly{C}}} where C"><code>Base.divrem</code></a></li>
 <li><a href="#Base.gcd-Tuple{Sym, Sym}"><code>Base.gcd</code></a></li>
 <li><a href="#Base.lcm-Tuple{Poly{SymNumber}, Poly{SymNumber}}"><code>Base.lcm</code></a></li>
 <li><a href="#Base.sqrt-Tuple{Sym}"><code>Base.sqrt</code></a></li>
-<li><a href="#CommonSolve.solve-Tuple{AbstractVector{&lt;:Relation}, Union{Tuple, AbstractVector}}"><code>CommonSolve.solve</code></a></li>
+<li><a href="#CommonEq.Eq"><code>CommonEq.Eq</code></a></li>
 <li><a href="#CommonSolve.solve-Tuple{Relation, Sym}"><code>CommonSolve.solve</code></a></li>
-<li><a href="#SymJ.Eq"><code>SymJ.Eq</code></a></li>
+<li><a href="#CommonSolve.solve-Tuple{AbstractVector{&lt;:Relation}, Union{Tuple, AbstractVector}}"><code>CommonSolve.solve</code></a></li>
 <li><a href="#SymJ.N-Tuple{Sym}"><code>SymJ.N</code></a></li>
 <li><a href="#SymJ._check_gcd_method-Tuple{Symbol}"><code>SymJ._check_gcd_method</code></a></li>
 <li><a href="#SymJ._cmp-Tuple{Sym, Sym}"><code>SymJ._cmp</code></a></li>
 <li><a href="#SymJ.add-Tuple{Sym, Sym}"><code>SymJ.add</code></a></li>
 <li><a href="#SymJ.apart-Tuple{Sym, Sym}"><code>SymJ.apart</code></a></li>
 <li><a href="#SymJ.apply_function-Tuple{Symbol, Vector{Sym}}"><code>SymJ.apply_function</code></a></li>
+<li><a href="#SymJ.assuming-Tuple{Any, Vararg{Any}}"><code>SymJ.assuming</code></a></li>
 <li><a href="#SymJ.cancel-Tuple{Sym}"><code>SymJ.cancel</code></a></li>
 <li><a href="#SymJ.coefficients-Tuple{Poly}"><code>SymJ.coefficients</code></a></li>
 <li><a href="#SymJ.degree-Tuple{Poly}"><code>SymJ.degree</code></a></li>
@@ -112,13 +117,15 @@
 <li><a href="#SymJ.squarefree_part-Tuple{Poly{SymNumber}}"><code>SymJ.squarefree_part</code></a></li>
 <li><a href="#SymJ.subs-Tuple{Sym, Vararg{Pair}}"><code>SymJ.subs</code></a></li>
 <li><a href="#SymJ.symbols-Tuple{AbstractString}"><code>SymJ.symbols</code></a></li>
+<li><a href="#SymJ.@assume-Tuple"><code>SymJ.@assume</code></a></li>
+<li><a href="#SymJ.@assuming-Tuple"><code>SymJ.@assuming</code></a></li>
 <li><a href="#SymJ.@syms-Tuple"><code>SymJ.@syms</code></a></li>
 </ul>
 </div>
 <div class="md-docstring" id="SymJ.SymJ">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymJ</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/SymJ.jl#L1-L7" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/SymJ.jl#L1-L7" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -131,7 +138,7 @@
 <div class="md-docstring" id="SymJ.AbstractSymbolic">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.AbstractSymbolic</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/types.jl#L11-L31" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/types.jl#L11-L31" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -151,10 +158,56 @@
 </ul>
 </div>
 </div>
+<div class="md-docstring" id="SymJ.Assumptions">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.Assumptions</code></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/assumptions.jl#L173-L194" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">Assumptions(facts...)</code></pre>
+</div>
+<p>Facts about symbols, normalized once so that operations taking them (<code class="md-code-inline">assume = A</code>, or <a href="../reference/#SymJ.assuming-Tuple{Any, Vararg{Any}}"><code class="md-code-inline">assuming</code></a>) can reuse the work. A fact is:</p>
+<ul class="md-list-tight">
+<li><p>a relation: <code class="md-code-inline">x ≫ 0</code>, <code class="md-code-inline">a ≦ b + 1</code>, <code class="md-code-inline">x ~ 2</code>, <code class="md-code-inline">a ≶ 0</code> (≠). An order relation makes the symbols in it real.</p>
+</li>
+<li><p>membership in a number set: <code class="md-code-inline">n ∈ ℤ</code>, <code class="md-code-inline">x ∈ ℝ</code>, <code class="md-code-inline">x ∉ ℤ</code> (<code class="md-code-inline">ℤ ⊂ ℚ ⊂ ℝ ⊂ ℂ</code>). Symbols are complex unless a fact says otherwise.</p>
+</li>
+<li><p>a combination: <code class="md-code-inline">f &amp; g</code>; <code class="md-code-inline">f | g</code> and <code class="md-code-inline">!f</code> for facts about one symbol (<code class="md-code-inline">!(0 ≦ x) | (x ≫ 1)</code>); <code class="md-code-inline">!</code> on a single relation or membership.</p>
+</li>
+</ul>
+<p>Several facts (or a vector of them) are all assumed. Relations among several symbols are used as linear relations, a nonlinear monomial such as <code class="md-code-inline">a*b</code> taken as a quantity of its own. Contradictory facts throw an <code class="md-code-inline">ArgumentError</code>. <code class="md-code-inline">Assumptions(A, facts...)</code> adds facts to <code class="md-code-inline">A</code>.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">A = Assumptions(x ≫ 0, n ∈ ℤ, a ≦ b)</code></pre>
+</div>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.Cases">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.Cases</code></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/cases.jl#L14-L29" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">Cases</code></pre>
+</div>
+<p>The answer of an operation that depends on facts the assumptions do not decide: a vector of <code class="md-code-inline">conditions =&gt; answer</code> pairs, the conditions a vector of facts that all hold in that case. Not exported.</p>
+<p>Calling it with values for the symbols in the conditions, <code class="md-code-inline">cs(a =&gt; 2)</code>, gives the answer for those values; indexing with them, <code class="md-code-inline">cs[a =&gt; 2]</code>, gives their case.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">cs = solve(x^2 ~ a, x; assume = (x ≫ 0,))
+cs[1]          # [a ≫ 0] =&gt; [sqrt(a)]
+cs(a =&gt; 4)     # [2]</code></pre>
+</div>
+</div>
+</div>
 <div class="md-docstring" id="SymJ.CylindricalSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.CylindricalSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/ineqsystems.jl#L13-L25" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/ineqsystems.jl#L13-L25" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -165,10 +218,36 @@
 <p>Calling substitutes into the constraints it was solved from: <code class="md-code-inline">C(x =&gt; 1, y =&gt; 4)</code> is a <code class="md-code-inline">Bool</code> once every unknown has a value; with some unknowns given, <code class="md-code-inline">C(y =&gt; 1)</code> is the solution set in the others (a <code class="md-code-inline">SymSet</code> for one, a <code class="md-code-inline">CylindricalSet</code> for several). <code class="md-code-inline">pt in C</code> for a point given as a <code class="md-code-inline">Dict</code> is the same test.</p>
 </div>
 </div>
+<div class="md-docstring" id="SymJ.Membership">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.Membership</code></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/assumptions.jl#L43-L47" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">Membership</code></pre>
+</div>
+<p>The fact <code class="md-code-inline">x ∈ S</code> (or <code class="md-code-inline">x ∉ S</code>) for a symbol <code class="md-code-inline">x</code> and a <a href="../reference/#SymJ.NumberSet"><code class="md-code-inline">NumberSet</code></a> <code class="md-code-inline">S</code>.</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.NumberSet">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.NumberSet</code></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/assumptions.jl#L19-L25" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">NumberSet</code></pre>
+</div>
+<p>One of the number sets <code class="md-code-inline">ℤ ⊂ ℚ ⊂ ℝ ⊂ ℂ</code>, also named <code class="md-code-inline">Integers</code>, <code class="md-code-inline">Rationals</code>, <code class="md-code-inline">Reals</code> and <code class="md-code-inline">Complexes</code>, for facts such as <code class="md-code-inline">n ∈ ℤ</code> (or <code class="md-code-inline">n in Integers</code>) in <a href="../reference/#SymJ.Assumptions"><code class="md-code-inline">Assumptions</code></a>. On a number, <code class="md-code-inline">∈</code> is a <code class="md-code-inline">Bool</code> (<code class="md-code-inline">2 ∈ ℤ</code>); on a symbol it is a fact.</p>
+</div>
+</div>
 <div class="md-docstring" id="SymJ.Poly">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.Poly</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/poly.jl#L38-L55" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/poly.jl#L38-L55" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -186,7 +265,7 @@
 <div class="md-docstring" id="SymJ.Relation">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.Relation</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/relations.jl#L18-L28" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/relations.jl#L18-L28" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -200,7 +279,7 @@
 <div class="md-docstring" id="SymJ.Sym">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.Sym</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/types.jl#L34-L57" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/types.jl#L34-L57" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -279,7 +358,7 @@
 <div class="md-docstring" id="SymJ.SymFunction">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymFunction</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/functions.jl#L9-L18" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/functions.jl#L9-L18" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -297,7 +376,7 @@ f(x, 2)                 # f(x, 2)</code></pre>
 <div class="md-docstring" id="SymJ.SymInterval">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymInterval</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/intervals.jl#L10-L15" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/intervals.jl#L10-L15" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -310,7 +389,7 @@ f(x, 2)                 # f(x, 2)</code></pre>
 <div class="md-docstring" id="SymJ.SymNumber">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymNumber</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/numbers.jl#L11-L17" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/numbers.jl#L11-L17" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -323,7 +402,7 @@ f(x, 2)                 # f(x, 2)</code></pre>
 <div class="md-docstring" id="SymJ.SymSeries">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymSeries</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/series.jl#L231-L239" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/series.jl#L231-L239" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -336,7 +415,7 @@ f(x, 2)                 # f(x, 2)</code></pre>
 <div class="md-docstring" id="SymJ.SymSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/intervals.jl#L23-L30" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/intervals.jl#L23-L30" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -349,7 +428,7 @@ f(x, 2)                 # f(x, 2)</code></pre>
 <div class="md-docstring" id="Base.diff">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>Base.diff</code> — <span class="md-docstring-sig">Union{Tuple{Sym, Sym}, Tuple{Sym, Sym, Integer}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/calculus.jl#L1-L17" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/calculus.jl#L1-L17" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -370,7 +449,7 @@ diff(sin(x * y), x, y)       # -x*y*sin(x*y) + cos(x*y)</code></pre>
 <div class="md-docstring" id="Base.diff-Tuple{SymJ.SymSeries, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>Base.diff</code> — <span class="md-docstring-sig">Tuple{SymJ.SymSeries, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/series.jl#L362-L366" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/series.jl#L362-L366" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -383,7 +462,7 @@ diff(sin(x * y), x, y)       # -x*y*sin(x*y) + cos(x*y)</code></pre>
 <div class="md-docstring" id="Base.diff-Union{Tuple{M}, Tuple{C}, Tuple{Poly{C, M}, Sym}} where {C, M}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>Base.diff</code> — <span class="md-docstring-sig">Union{Tuple{M}, Tuple{C}, Tuple{Poly{C, M}, Sym}} where {C, M}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/poly.jl#L588-L592" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/poly.jl#L588-L592" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -396,7 +475,7 @@ diff(sin(x * y), x, y)       # -x*y*sin(x*y) + cos(x*y)</code></pre>
 <div class="md-docstring" id="Base.divrem-Union{Tuple{C}, Tuple{Poly{C}, Poly{C}}} where C">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>Base.divrem</code> — <span class="md-docstring-sig">Union{Tuple{C}, Tuple{Poly{C}, Poly{C}}} where C</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/polydiv.jl#L51-L58" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/polydiv.jl#L51-L58" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -409,7 +488,7 @@ diff(sin(x * y), x, y)       # -x*y*sin(x*y) + cos(x*y)</code></pre>
 <div class="md-docstring" id="Base.gcd-Tuple{Sym, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>Base.gcd</code> — <span class="md-docstring-sig">Tuple{Sym, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/polygcd.jl#L168-L174" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/polygcd.jl#L168-L174" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -423,7 +502,7 @@ lcm(a::Sym, b::Sym; method = :auto)</code></pre>
 <div class="md-docstring" id="Base.lcm-Tuple{Poly{SymNumber}, Poly{SymNumber}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>Base.lcm</code> — <span class="md-docstring-sig">Tuple{Poly{SymNumber}, Poly{SymNumber}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/polygcd.jl#L155-L159" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/polygcd.jl#L155-L159" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -436,7 +515,7 @@ lcm(a::Sym, b::Sym; method = :auto)</code></pre>
 <div class="md-docstring" id="Base.sqrt-Tuple{Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>Base.sqrt</code> — <span class="md-docstring-sig">Tuple{Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/arithmetic.jl#L451-L455" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/arithmetic.jl#L451-L455" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -446,10 +525,23 @@ lcm(a::Sym, b::Sym; method = :auto)</code></pre>
 <p><code class="md-code-inline">x^(1//2)</code>, exact for numbers: <code class="md-code-inline">sqrt(Sym(12)) == 2*sqrt(Sym(3))</code>.</p>
 </div>
 </div>
+<div class="md-docstring" id="CommonEq.Eq">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>CommonEq.Eq</code></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/relations.jl#L52-L58" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">Eq(a, b), Lt(a, b), Le(a, b), Gt(a, b), Ge(a, b), Ne(a, b)</code></pre>
+</div>
+<p>The relations <code class="md-code-inline">a = b</code>, <code class="md-code-inline">a &lt; b</code>, <code class="md-code-inline">a ≤ b</code>, <code class="md-code-inline">a &gt; b</code>, <code class="md-code-inline">a ≥ b</code>, <code class="md-code-inline">a ≠ b</code> between expressions (the functions of CommonEq.jl, extended). Infix forms: <code class="md-code-inline">~</code> or <code class="md-code-inline">⩵</code>, <code class="md-code-inline">≪</code>, <code class="md-code-inline">≦</code>, <code class="md-code-inline">≫</code>, <code class="md-code-inline">≧</code>, <code class="md-code-inline">≶</code> or <code class="md-code-inline">≷</code>.</p>
+</div>
+</div>
 <div class="md-docstring" id="CommonSolve.solve-Tuple{AbstractVector{&lt;:Relation}, Union{Tuple, AbstractVector}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>CommonSolve.solve</code> — <span class="md-docstring-sig">Tuple{AbstractVector{&lt;:Relation}, Union{Tuple, AbstractVector}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/linsolve.jl#L6-L32" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/linsolve.jl#L6-L32" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -476,12 +568,12 @@ solve([x*y ~ 1, x + y ~ 3], [x, y])</code></pre>
 <div class="md-docstring" id="CommonSolve.solve-Tuple{Relation, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>CommonSolve.solve</code> — <span class="md-docstring-sig">Tuple{Relation, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/solve.jl#L14-L31" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/solve.jl#L14-L44" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">solve(eq::Relation, x)</code></pre>
+<pre><code class="language-julia">solve(eq::Relation, x; assume = nothing)</code></pre>
 </div>
 <p>The solutions of the equation <code class="md-code-inline">eq</code> (written with <code class="md-code-inline">~</code>, e.g. <code class="md-code-inline">x^2 ~ 4</code>) for <code class="md-code-inline">x</code>, as a vector of distinct expressions. The equation must be polynomial or rational in <code class="md-code-inline">x</code>; its coefficients may involve other symbols. Solutions are exact through degree 4 and for equations that factor into such pieces; irreducible factors of higher degree with numeric coefficients give numeric (floating point) roots. Numeric solutions are sorted, real ones first. An equation with no solution gives an empty vector. For a system, <code class="md-code-inline">solve([eqs...], [vars...])</code>, giving a vector of <code class="md-code-inline">Dict</code>s; mixing the forms (<code class="md-code-inline">solve(eq, [x])</code>, <code class="md-code-inline">solve([eq], x)</code>) is an error.</p>
 <div class="md-code-block">
@@ -490,25 +582,19 @@ solve([x*y ~ 1, x + y ~ 3], [x, y])</code></pre>
 solve(x^2 ~ -1, x)             # [-im, im]
 solve(a*x + b ~ 0, x)          # [-b/a]</code></pre>
 </div>
-</div>
-</div>
-<div class="md-docstring" id="SymJ.Eq">
-<div class="md-docstring-header">
-<h4 class="md-docstring-binding"><code>SymJ.Eq</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/relations.jl#L52-L57" title="View source">source</a>
-</div>
-<div class="md-docstring-content">
+<p>With assumptions (<code class="md-code-inline">assume = (x ≫ 0,)</code>, an <a href="../reference/#SymJ.Assumptions"><code class="md-code-inline">Assumptions</code></a>, or inside <a href="../reference/#SymJ.assuming-Tuple{Any, Vararg{Any}}"><code class="md-code-inline">assuming</code></a>), only the solutions they allow for <code class="md-code-inline">x</code> are kept: those in its number set (<code class="md-code-inline">x ∈ ℝ</code>), its range (<code class="md-code-inline">x ≫ 0</code>), and consistent with its relations to other symbols. Facts about the other symbols are used to decide that. When the answer depends on something the assumptions leave open, the result is a <code class="md-code-inline">Cases</code> value: a list of <code class="md-code-inline">conditions =&gt; solutions</code>, which can be called with values (<code class="md-code-inline">cs(a =&gt; 4)</code>).</p>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">Eq(a, b), Lt(a, b), Le(a, b), Gt(a, b), Ge(a, b), Ne(a, b)</code></pre>
+<pre><code class="language-julia">solve(x^2 ~ 4, x; assume = (x ≫ 0,))                # [2]
+solve(x^2 ~ a, x; assume = (x ∈ ℝ, a ∈ ℝ))         # a &lt; 0 =&gt; [], a == 0 =&gt; [0], a &gt; 0 =&gt; [-√a, √a]
+solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !(a &gt; 0) =&gt; []</code></pre>
 </div>
-<p>The relations <code class="md-code-inline">a = b</code>, <code class="md-code-inline">a &lt; b</code>, <code class="md-code-inline">a ≤ b</code>, <code class="md-code-inline">a &gt; b</code>, <code class="md-code-inline">a ≥ b</code>, <code class="md-code-inline">a ≠ b</code> between expressions (the names of CommonEq.jl). Infix forms: <code class="md-code-inline">~</code> or <code class="md-code-inline">⩵</code>, <code class="md-code-inline">≪</code>, <code class="md-code-inline">≦</code>, <code class="md-code-inline">≫</code>, <code class="md-code-inline">≧</code>, <code class="md-code-inline">≶</code> or <code class="md-code-inline">≷</code>.</p>
 </div>
 </div>
 <div class="md-docstring" id="SymJ.N-Tuple{Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.N</code> — <span class="md-docstring-sig">Tuple{Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/manipulation.jl#L386-L390" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/manipulation.jl#L386-L390" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -521,7 +607,7 @@ solve(a*x + b ~ 0, x)          # [-b/a]</code></pre>
 <div class="md-docstring" id="SymJ._check_gcd_method-Tuple{Symbol}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ._check_gcd_method</code> — <span class="md-docstring-sig">Tuple{Symbol}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/polygcd.jl#L110-L123" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/polygcd.jl#L110-L123" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -535,7 +621,7 @@ solve(a*x + b ~ 0, x)          # [-b/a]</code></pre>
 <div class="md-docstring" id="SymJ._cmp-Tuple{Sym, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ._cmp</code> — <span class="md-docstring-sig">Tuple{Sym, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/types.jl#L156-L162" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/types.jl#L156-L162" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -548,7 +634,7 @@ solve(a*x + b ~ 0, x)          # [-b/a]</code></pre>
 <div class="md-docstring" id="SymJ.add-Tuple{Sym, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.add</code> — <span class="md-docstring-sig">Tuple{Sym, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/arithmetic.jl#L100-L104" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/arithmetic.jl#L100-L104" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -561,7 +647,7 @@ solve(a*x + b ~ 0, x)          # [-b/a]</code></pre>
 <div class="md-docstring" id="SymJ.apart-Tuple{Sym, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.apart</code> — <span class="md-docstring-sig">Tuple{Sym, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/apart.jl#L9-L26" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/apart.jl#L9-L26" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -581,7 +667,7 @@ apart(1/((x - a)*(x - b)), x)   # 1/((a - b)*(x - a)) - 1/((a - b)*(x - b))</cod
 <div class="md-docstring" id="SymJ.apply_function-Tuple{Symbol, Vector{Sym}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.apply_function</code> — <span class="md-docstring-sig">Tuple{Symbol, Vector{Sym}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/functions.jl#L47-L51" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/functions.jl#L47-L51" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -591,10 +677,30 @@ apart(1/((x - a)*(x - b)), x)   # 1/((a - b)*(x - a)) - 1/((a - b)*(x - b))</cod
 <p>Apply the function <code class="md-code-inline">name</code>, simplifying with its registered rule if any.</p>
 </div>
 </div>
+<div class="md-docstring" id="SymJ.assuming-Tuple{Any, Vararg{Any}}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.assuming</code> — <span class="md-docstring-sig">Tuple{Any, Vararg{Any}}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/assumptions.jl#L935-L949" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">assuming(f, facts...)
+assuming(facts...) do … end</code></pre>
+</div>
+<p>Run <code class="md-code-inline">f</code> with the facts assumed by the operations that take assumptions, as if each were given <code class="md-code-inline">assume = …</code>. Blocks nest: an inner block adds its facts to the outer ones, and so does an <code class="md-code-inline">assume</code> keyword inside a block. The facts are normalized once, when the block starts (<a href="../reference/#SymJ.Assumptions"><code class="md-code-inline">Assumptions</code></a>).</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">assuming(x ≫ 0) do
+    solve(x^2 ~ 4, x)       # [2]
+end</code></pre>
+</div>
+</div>
+</div>
 <div class="md-docstring" id="SymJ.cancel-Tuple{Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.cancel</code> — <span class="md-docstring-sig">Tuple{Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/rational.jl#L76-L97" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/rational.jl#L76-L97" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -614,7 +720,7 @@ cancel((sin(x)^2 - 1)/(sin(x) + 1))        # sin(x) - 1</code></pre>
 <div class="md-docstring" id="SymJ.coefficients-Tuple{Poly}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.coefficients</code> — <span class="md-docstring-sig">Tuple{Poly}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/poly.jl#L198-L202" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/poly.jl#L198-L202" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -627,7 +733,7 @@ cancel((sin(x)^2 - 1)/(sin(x) + 1))        # sin(x) - 1</code></pre>
 <div class="md-docstring" id="SymJ.degree-Tuple{Poly}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.degree</code> — <span class="md-docstring-sig">Tuple{Poly}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/poly.jl#L219-L224" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/poly.jl#L219-L224" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -641,7 +747,7 @@ degree(p::Poly, x)</code></pre>
 <div class="md-docstring" id="SymJ.discriminant-Tuple{Poly, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.discriminant</code> — <span class="md-docstring-sig">Tuple{Poly, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/resultant.jl#L398-L409" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/resultant.jl#L398-L409" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -659,7 +765,7 @@ discriminant(x^3 + p*x + q, x)      # -4p^3 - 27q^2</code></pre>
 <div class="md-docstring" id="SymJ.divexact-Tuple{Poly, Poly}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.divexact</code> — <span class="md-docstring-sig">Tuple{Poly, Poly}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/polydiv.jl#L138-L142" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/polydiv.jl#L138-L142" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -672,7 +778,7 @@ discriminant(x^3 + p*x + q, x)      # -4p^3 - 27q^2</code></pre>
 <div class="md-docstring" id="SymJ.divides-Tuple{Poly, Poly}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.divides</code> — <span class="md-docstring-sig">Tuple{Poly, Poly}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/polydiv.jl#L128-L132" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/polydiv.jl#L128-L132" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -685,7 +791,7 @@ discriminant(x^3 + p*x + q, x)      # -4p^3 - 27q^2</code></pre>
 <div class="md-docstring" id="SymJ.evaluate-Tuple{Sym, Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.evaluate</code> — <span class="md-docstring-sig">Tuple{Sym, Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/manipulation.jl#L169-L185" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/manipulation.jl#L169-L185" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -708,7 +814,7 @@ discriminant(x^3 + p*x + q, x)      # -4p^3 - 27q^2</code></pre>
 <div class="md-docstring" id="SymJ.expand-Tuple{Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.expand</code> — <span class="md-docstring-sig">Tuple{Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/manipulation.jl#L266-L271" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/manipulation.jl#L266-L271" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -721,7 +827,7 @@ discriminant(x^3 + p*x + q, x)      # -4p^3 - 27q^2</code></pre>
 <div class="md-docstring" id="SymJ.exponent_vectors-Tuple{Poly}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.exponent_vectors</code> — <span class="md-docstring-sig">Tuple{Poly}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/poly.jl#L205-L209" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/poly.jl#L205-L209" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -734,7 +840,7 @@ discriminant(x^3 + p*x + q, x)      # -4p^3 - 27q^2</code></pre>
 <div class="md-docstring" id="SymJ.factor-Tuple{Poly{SymNumber}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.factor</code> — <span class="md-docstring-sig">Tuple{Poly{SymNumber}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/factor.jl#L22-L45" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/factor.jl#L22-L45" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -756,7 +862,7 @@ factor(x^2*y^2 - 1)             # (x*y - 1)*(x*y + 1)</code></pre>
 <div class="md-docstring" id="SymJ.factor_squarefree-Tuple{Poly{SymNumber}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.factor_squarefree</code> — <span class="md-docstring-sig">Tuple{Poly{SymNumber}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/squarefree.jl#L9-L27" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/squarefree.jl#L9-L27" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -776,7 +882,7 @@ factor_squarefree((x^2 - 1)/(x^2 + 2x + 1)^2)      # (x - 1)/(x + 1)^3</code></p
 <div class="md-docstring" id="SymJ.free_symbols-Tuple{Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.free_symbols</code> — <span class="md-docstring-sig">Tuple{Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/manipulation.jl#L3-L7" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/manipulation.jl#L3-L7" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -789,7 +895,7 @@ factor_squarefree((x^2 - 1)/(x^2 + 2x + 1)^2)      # (x - 1)/(x + 1)^3</code></p
 <div class="md-docstring" id="SymJ.gens-Tuple{Poly}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.gens</code> — <span class="md-docstring-sig">Tuple{Poly}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/poly.jl#L184-L188" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/poly.jl#L184-L188" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -802,7 +908,7 @@ factor_squarefree((x^2 - 1)/(x^2 + 2x + 1)^2)      # (x - 1)/(x + 1)^3</code></p
 <div class="md-docstring" id="SymJ.groebner-Tuple{AbstractVector, Vararg{Sym}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.groebner</code> — <span class="md-docstring-sig">Tuple{AbstractVector, Vararg{Sym}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/groebner.jl#L481-L507" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/groebner.jl#L481-L507" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -825,7 +931,7 @@ groebner([x^2 + y^2 - r^2, x - y], x, y)     # [x - y, y^2 - r^2/2]</code></pre>
 <div class="md-docstring" id="SymJ.has-Tuple{Sym, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.has</code> — <span class="md-docstring-sig">Tuple{Sym, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/manipulation.jl#L37-L41" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/manipulation.jl#L37-L41" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -838,7 +944,7 @@ groebner([x^2 + y^2 - r^2, x - y], x, y)     # [x - y, y^2 - r^2/2]</code></pre>
 <div class="md-docstring" id="SymJ.kind-Tuple{Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.kind</code> — <span class="md-docstring-sig">Tuple{Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/types.jl#L223-L228" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/types.jl#L223-L228" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -851,7 +957,7 @@ groebner([x^2 + y^2 - r^2, x - y], x, y)     # [x - y, y^2 - r^2/2]</code></pre>
 <div class="md-docstring" id="SymJ.lambdify-Tuple{Any, Vararg{Sym}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.lambdify</code> — <span class="md-docstring-sig">Tuple{Any, Vararg{Sym}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/lambdify.jl#L14-L29" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/lambdify.jl#L14-L32" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -862,13 +968,14 @@ lambdify(ex)</code></pre>
 </div>
 <p>Compile <code class="md-code-inline">ex</code> into a Julia function of the symbols <code class="md-code-inline">vars</code>, in that order. With no <code class="md-code-inline">vars</code>, <code class="md-code-inline">ex</code> may have at most one free variable. <code class="md-code-inline">ex</code> may also be an array or tuple of expressions, and the function then returns an array of the same shape (or a tuple), with common subexpressions shared between the entries.</p>
 <p>The function computes what calling the expression computes, at the speed of compiled Julia code: <code class="md-code-inline">lambdify(x^2 + 1)(3) === 10</code>, and <code class="md-code-inline">lambdify(sin(x) * y, x, y)(1.0, 2.0)</code>. Arguments may be any number type (<code class="md-code-inline">BigFloat</code>, dual numbers, intervals, ...).</p>
+<p>A function of several variables can also be called with them in one tuple or vector, <code class="md-code-inline">f((1.0, 2.0))</code>; calling it with the wrong number of values is an error.</p>
 <p><code class="md-code-inline">lambdify_expr</code> gives the generated Julia expression.</p>
 </div>
 </div>
 <div class="md-docstring" id="SymJ.lambdify_expr-Tuple{Any, Union{Tuple, AbstractVector}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.lambdify_expr</code> — <span class="md-docstring-sig">Tuple{Any, Union{Tuple, AbstractVector}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/lambdify.jl#L41-L45" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/lambdify.jl#L65-L69" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -881,7 +988,7 @@ lambdify(ex)</code></pre>
 <div class="md-docstring" id="SymJ.lhs-Tuple{Relation}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.lhs</code> — <span class="md-docstring-sig">Tuple{Relation}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/relations.jl#L35-L39" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/relations.jl#L35-L39" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -894,7 +1001,7 @@ lambdify(ex)</code></pre>
 <div class="md-docstring" id="SymJ.mul-Tuple{Sym, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.mul</code> — <span class="md-docstring-sig">Tuple{Sym, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/arithmetic.jl#L222-L226" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/arithmetic.jl#L222-L226" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -907,7 +1014,7 @@ lambdify(ex)</code></pre>
 <div class="md-docstring" id="SymJ.nterms-Tuple{Poly}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.nterms</code> — <span class="md-docstring-sig">Tuple{Poly}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/poly.jl#L191-L195" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/poly.jl#L191-L195" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -920,7 +1027,7 @@ lambdify(ex)</code></pre>
 <div class="md-docstring" id="SymJ.numer_denom-Tuple{Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.numer_denom</code> — <span class="md-docstring-sig">Tuple{Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/rational.jl#L3-L14" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/rational.jl#L3-L14" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -938,7 +1045,7 @@ numer_denom(3x/4)          # (3*x, 4)</code></pre>
 <div class="md-docstring" id="SymJ.pow-Tuple{Sym, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.pow</code> — <span class="md-docstring-sig">Tuple{Sym, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/arithmetic.jl#L322-L328" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/arithmetic.jl#L322-L328" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -951,7 +1058,7 @@ numer_denom(3x/4)          # (3*x, 4)</code></pre>
 <div class="md-docstring" id="SymJ.reduced-Tuple{Any, AbstractVector, Vararg{Sym}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.reduced</code> — <span class="md-docstring-sig">Tuple{Any, AbstractVector, Vararg{Sym}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/groebner.jl#L534-L546" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/groebner.jl#L534-L546" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -969,7 +1076,7 @@ reduced(x^3 + y, G, x, y)          # ([x^2 + x*y + y^2 + ..., ...], 3y/2) …</c
 <div class="md-docstring" id="SymJ.register_function!-Tuple{Symbol}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.register_function!</code> — <span class="md-docstring-sig">Tuple{Symbol}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/functions.jl#L34-L41" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/functions.jl#L34-L41" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -982,7 +1089,7 @@ reduced(x^3 + y, G, x, y)          # ([x^2 + x*y + y^2 + ..., ...], 3y/2) …</c
 <div class="md-docstring" id="SymJ.resultant-Tuple{Poly{SymNumber}, Poly{SymNumber}, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.resultant</code> — <span class="md-docstring-sig">Tuple{Poly{SymNumber}, Poly{SymNumber}, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/resultant.jl#L249-L267" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/resultant.jl#L249-L267" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -1002,7 +1109,7 @@ resultant(a*x^2 + b*x + c, 2a*x + b, x)     # -a*(b^2 - 4a*c)</code></pre>
 <div class="md-docstring" id="SymJ.rhs-Tuple{Relation}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.rhs</code> — <span class="md-docstring-sig">Tuple{Relation}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/relations.jl#L42-L46" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/relations.jl#L42-L46" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -1015,7 +1122,7 @@ resultant(a*x^2 + b*x + c, 2a*x + b, x)     # -a*(b^2 - 4a*c)</code></pre>
 <div class="md-docstring" id="SymJ.series">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.series</code> — <span class="md-docstring-sig">Union{Tuple{Any, Sym}, Tuple{Any, Sym, Any}, Tuple{Any, Sym, Any, Real}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/series.jl#L247-L268" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/series.jl#L247-L268" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -1039,7 +1146,7 @@ series(x^x, x, 0, 2)           # 1 + log(x)*x + O(x^2)</code></pre>
 <div class="md-docstring" id="SymJ.squarefree_part-Tuple{Poly{SymNumber}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.squarefree_part</code> — <span class="md-docstring-sig">Tuple{Poly{SymNumber}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/squarefree.jl#L43-L48" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/squarefree.jl#L43-L48" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -1052,7 +1159,7 @@ series(x^x, x, 0, 2)           # 1 + log(x)*x + O(x^2)</code></pre>
 <div class="md-docstring" id="SymJ.subs-Tuple{Sym, Vararg{Pair}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.subs</code> — <span class="md-docstring-sig">Tuple{Sym, Vararg{Pair}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/manipulation.jl#L46-L53" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/manipulation.jl#L46-L53" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -1066,7 +1173,7 @@ subs(ex, d::AbstractDict)</code></pre>
 <div class="md-docstring" id="SymJ.symbols-Tuple{AbstractString}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.symbols</code> — <span class="md-docstring-sig">Tuple{AbstractString}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/manipulation.jl#L515-L519" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/manipulation.jl#L515-L519" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -1076,10 +1183,49 @@ subs(ex, d::AbstractDict)</code></pre>
 <p>A tuple of symbols named by a space- or comma-separated string.</p>
 </div>
 </div>
+<div class="md-docstring" id="SymJ.@assume-Tuple">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.@assume</code> — <span class="md-docstring-sig">Tuple</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/assumptions.jl#L891-L904" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@assume(facts...)</code></pre>
+</div>
+<p><a href="../reference/#SymJ.Assumptions"><code class="md-code-inline">Assumptions</code></a> from facts written with Julia&#39;s own operators: <code class="md-code-inline">&lt;</code>, <code class="md-code-inline">&lt;=</code>, <code class="md-code-inline">&gt;</code>, <code class="md-code-inline">&gt;=</code>, <code class="md-code-inline">==</code>, <code class="md-code-inline">!=</code> (and <code class="md-code-inline">≤</code>, <code class="md-code-inline">≥</code>, <code class="md-code-inline">≠</code>) make relations, chained comparisons such as <code class="md-code-inline">1 &lt; y &lt;= 2</code> are split into their parts, and <code class="md-code-inline">&amp;&amp;</code>, <code class="md-code-inline">||</code> and <code class="md-code-inline">!</code> combine facts. Anything else is used as it is, such as <code class="md-code-inline">n in Integers</code> or a fact made earlier.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">A = @assume(x &gt; 0 &amp;&amp; 1 &lt; y &lt;= 2, n in Integers, a != 0)
+solve(x^2 ~ 4, x; assume = @assume(x &gt; 0))
+assuming(@assume(x &gt;= 1)) do … end</code></pre>
+</div>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.@assuming-Tuple">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.@assuming</code> — <span class="md-docstring-sig">Tuple</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/assumptions.jl#L956-L969" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@assuming facts... begin … end
+@assuming(facts..., begin … end)</code></pre>
+</div>
+<p>Run the block with the facts assumed, the facts written as in <a href="../reference/#SymJ.@assume-Tuple"><code class="md-code-inline">@assume</code></a>; <code class="md-code-inline">assuming(@assume(facts...)) do … end</code> in one step. The block&#39;s value is returned; as with <code class="md-code-inline">do</code>, the block is a function body, so variables assigned in it are local to it.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@assuming x &gt; 0 begin
+    solve(x^2 ~ 4, x)       # [2]
+end</code></pre>
+</div>
+</div>
+</div>
 <div class="md-docstring" id="SymJ.@syms-Tuple">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.@syms</code> — <span class="md-docstring-sig">Tuple</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2d91f07953ff07020046984a3879e356a3c3e00d/src/manipulation.jl#L477-L481" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/9c73fbc1efb9d35cd78db1f3b5f37b3173dff30e/src/manipulation.jl#L477-L481" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -1106,6 +1252,6 @@ subs(ex, d::AbstractDict)</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=a9621937"></script>
+  <script src="../assets/materialdocs.js?v=cccb98c0"></script>
 </body>
 </html>

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=ef755e60">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=cac27043">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -613,6 +613,71 @@ cancel(r)</code></pre>
 </div>
 <pre class="md-output md-output-text"><code class="nohighlight ansi">y ∈ [0, 1], x ∈ [0, -y + 1]</code></pre>
 </div>
+<h3 id="Assumptions" class="md-heading">Assumptions<a href="#Assumptions" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p>Symbols are complex numbers unless a fact says otherwise. Facts are relations, such as <code class="md-code-inline">x &gt; 0</code>, or membership in one of <code class="md-code-inline">Integers ⊂ Rationals ⊂ Reals ⊂ Complexes</code> (also written <code class="md-code-inline">ℤ ⊂ ℚ ⊂ ℝ ⊂ ℂ</code>), such as <code class="md-code-inline">n in Integers</code>. The <code class="md-code-inline">@assume</code> macro writes them with Julia&#39;s operators, including <code class="md-code-inline">&amp;&amp;</code>, <code class="md-code-inline">||</code>, <code class="md-code-inline">!</code> and chained comparisons. They are given to <code class="md-code-inline">solve</code> with the <code class="md-code-inline">assume</code> keyword, and only the solutions they allow are kept:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve(x^2 ~ 4, x; assume = @assume(x &gt; 0))</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">1-element Vector{Sym}:
+ 2</code></pre>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve(x^2 + 1 ~ 0, x; assume = @assume(x in Reals))</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">Sym[]</code></pre>
+</div>
+<p>Without the macro, relations use the symbolic operators: <code class="md-code-inline">x ≫ 0</code> (or <code class="md-code-inline">Gt(x, 0)</code>), and <code class="md-code-inline">n ∈ ℤ</code> for membership.</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve(x^2 ~ 2, x; assume = (x ∈ ℚ,))</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">Sym[]</code></pre>
+</div>
+<p><code class="md-code-inline">@assuming</code> gives facts for a block of code (as does the function <code class="md-code-inline">assuming</code>, with a <code class="md-code-inline">do</code> block):</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@assuming x &gt; 0 begin
+    solve(x^3 ~ 8, x), solve(x^2 - 5x + 6 ~ 0, x; assume = @assume(x &gt; 2))
+end</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">(Sym[2], Sym[3])</code></pre>
+</div>
+<p>When the answer depends on something the facts leave open, the result lists the cases:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve(x^2 ~ a, x; assume = @assume(x in Reals, a in Reals))</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">Cases with 3 cases:
+  a &lt; 0  =&gt;  []
+  a == 0  =&gt;  [0]
+  a &gt; 0  =&gt;  [-sqrt(a), sqrt(a)]</code></pre>
+</div>
+<p>Without <code class="md-code-inline">a ∈ ℝ</code>, <code class="md-code-inline">a</code> may be complex, so the cases are a fact and its negation:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">cs = solve(x^2 ~ a, x; assume = @assume(x &gt; 0))</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">Cases with 2 cases:
+  a &gt; 0  =&gt;  [sqrt(a)]
+  !(a &gt; 0)  =&gt;  []</code></pre>
+</div>
+<p>Calling the cases with a value gives the answer for it:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">cs(a =&gt; 4), cs(a =&gt; -1)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">(Sym[2], Sym[])</code></pre>
+</div>
+<p>Contradictory facts are an error (<code class="md-code-inline">@assume(x &gt; 1 &amp;&amp; x &lt; 0)</code>), and the <code class="md-code-inline">Assumptions</code> value <code class="md-code-inline">@assume</code> makes can be reused: <code class="md-code-inline">A = @assume(x &gt; 0, n in Integers)</code>, then <code class="md-code-inline">assume = A</code>.</p>
 <h2 id="Limits" class="md-heading">Limits<a href="#Limits" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p>Limits are computed by <code class="md-code-inline">limit</code> from GruntzLimit, which implements Gruntz&#39;s algorithm. <code class="md-code-inline">limit(f, x =&gt; x0)</code> is the limit of <code class="md-code-inline">f</code> as <code class="md-code-inline">x</code> tends to <code class="md-code-inline">x0</code>, a number, an expression or <code class="md-code-inline">Inf</code>:</p>
 <div class="md-multi-output">
@@ -840,7 +905,7 @@ G(x =&gt; Sym(π)) - G(x =&gt; 0)</code></pre>
 </div>
 <h2 id="What-SymJ-does-not-do-yet" class="md-heading">What SymJ does not do yet<a href="#What-SymJ-does-not-do-yet" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <ul class="md-list-tight">
-<li><p><strong>Simplification under assumptions.</strong> Identities such as <code class="md-code-inline">sqrt(x^2) = x</code> for positive <code class="md-code-inline">x</code> need assumptions, which are not implemented.</p>
+<li><p><strong>Simplification under assumptions.</strong> <code class="md-code-inline">solve</code> takes assumptions, but simplification does not yet, so identities such as <code class="md-code-inline">sqrt(x^2) = x</code> for positive <code class="md-code-inline">x</code> are not applied.</p>
 </li>
 <li><p><strong>Matrices and noncommutative algebra.</strong></p>
 </li>
@@ -874,6 +939,7 @@ G(x =&gt; Sym(π)) - G(x =&gt; 0)</code></pre>
           <a class="md-toc-link md-toc-h2" href="#Solving-equations">Solving equations</a>
             <a class="md-toc-link md-toc-h3" href="#Inequalities">Inequalities</a>
             <a class="md-toc-link md-toc-h3" href="#Systems">Systems</a>
+            <a class="md-toc-link md-toc-h3" href="#Assumptions">Assumptions</a>
           <a class="md-toc-link md-toc-h2" href="#Limits">Limits</a>
           <a class="md-toc-link md-toc-h2" href="#Derivatives">Derivatives</a>
             <a class="md-toc-link md-toc-h3" href="#Critical-points">Critical points</a>
@@ -891,6 +957,6 @@ G(x =&gt; Sym(π)) - G(x =&gt; 0)</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=ef755e60"></script>
+  <script src="../assets/materialdocs.js?v=cac27043"></script>
 </body>
 </html>

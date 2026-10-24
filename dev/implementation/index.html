@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Implementation — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=4e98d23a">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=20a5c4cf">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Implementation — SymJ.jl">
   <meta property="og:title" content="Implementation — SymJ.jl">
@@ -244,6 +244,36 @@ end</code></pre>
 </li>
 </ul>
 <p><code class="md-code-inline">&lt;</code> and friends are not used for symbolic inequalities: they keep returning <code class="md-code-inline">true</code> or <code class="md-code-inline">false</code>, which generic code relies on, and raise an error naming the symbolic operator (<code class="md-code-inline">≪</code>, <code class="md-code-inline">≦</code>, …) when given a symbol.</p>
+<h2 id="Assumptions" class="md-heading">Assumptions<a href="#Assumptions" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>Facts are normalized once, when an <code class="md-code-inline">Assumptions</code> value is made:</p>
+<ul class="md-list-tight">
+<li><p><strong>Equalities are substituted.</strong> <code class="md-code-inline">x ~ 2y + 1</code> replaces <code class="md-code-inline">x</code> in the other facts and in every query.</p>
+</li>
+<li><p><strong>Facts about one symbol become a set.</strong> Each symbol gets the smallest of <code class="md-code-inline">ℤ ⊂ ℚ ⊂ ℝ ⊂ ℂ</code> known to contain it and, if it is real, a union of intervals (<code class="md-code-inline">SymSet</code>), found by solving its facts as one-variable inequalities. And, Or and Not about one symbol are set operations, so they cost nothing extra. An integer&#39;s intervals are narrowed to their integer endpoints.</p>
+</li>
+<li><p><strong>Relations among several symbols are linear constraints.</strong> A nonlinear monomial such as <code class="md-code-inline">a*b</code> counts as a quantity of its own, which is sound but incomplete.</p>
+</li>
+<li><p><strong>Contradictions</strong> are found by the sets coming out empty, by memberships against non-memberships, and by a Fourier–Motzkin feasibility test of the linear constraints.</p>
+</li>
+</ul>
+<p>Queries (the possible signs of an expression, whether it is real, an integer, nonzero) are three-valued: true, false or unknown.</p>
+<ul class="md-list-tight">
+<li><p><strong>Propagation.</strong> Signs are combined through sums, products and powers, and through <code class="md-code-inline">exp</code>, <code class="md-code-inline">log</code>, <code class="md-code-inline">abs</code>, <code class="md-code-inline">atan</code>, <code class="md-code-inline">sinh</code> and the like. A polynomial whose sign is still open is factored, and its factors&#39; signs combined.</p>
+</li>
+<li><p><strong>Fourier–Motzkin.</strong> When propagation leaves more than one sign, each possible sign is tested for feasibility against the linear constraints. The atoms get bounds from their signs, and from their symbols&#39; sets when they are monotone functions of one symbol (<code class="md-code-inline">x &gt; 1</code> gives <code class="md-code-inline">x^2 &gt; 1</code> and <code class="md-code-inline">log(x) &gt; 0</code>).</p>
+</li>
+<li><p>Results are cached in the <code class="md-code-inline">Assumptions</code> value, so reusing it is cheap.</p>
+</li>
+</ul>
+<p><strong>Cases.</strong> An operation asks for each decision it needs (is this root positive? real?). When the assumptions leave one open, the operation is run again for each way it can go:</p>
+<ul class="md-list-tight">
+<li><p>A fact about a real quantity splits by its sign, each case&#39;s condition added to the assumptions. Cases with the same answer are merged, as in GruntzLimit.</p>
+</li>
+<li><p>Otherwise, the split is between the fact and its negation. Symbols are complex by default, so <code class="md-code-inline">!(a &gt; 0)</code> also covers non-real <code class="md-code-inline">a</code>. The negation is recorded as decided, not added as a fact.</p>
+</li>
+<li><p>A fact is first reduced to an equivalent simpler one: <code class="md-code-inline">sqrt(a) &gt; 0</code> to <code class="md-code-inline">a &gt; 0</code>, <code class="md-code-inline">1/a &gt; 0</code> to <code class="md-code-inline">a &gt; 0</code>, <code class="md-code-inline">2a − 1 &gt; 0</code> to <code class="md-code-inline">a &gt; 1/2</code>. Redundant conditions are dropped from each case.</p>
+</li>
+</ul>
 <h2 id="Series" class="md-heading">Series<a href="#Series" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p><code class="md-code-inline">series</code> substitutes <code class="md-code-inline">x = x0 + t</code> (or <code class="md-code-inline">x = 1/t</code> at infinity) and expands by truncated power series arithmetic in <code class="md-code-inline">t</code>, rather than by repeated differentiation, which breaks down at a pole or a branch point:</p>
 <ul class="md-list-tight">
@@ -285,6 +315,7 @@ end</code></pre>
           <a class="md-toc-link md-toc-h2" href="#Factorization">Factorization</a>
           <a class="md-toc-link md-toc-h2" href="#Rational-functions-and-partial-fractions">Rational functions and partial fractions</a>
           <a class="md-toc-link md-toc-h2" href="#Solving">Solving</a>
+          <a class="md-toc-link md-toc-h2" href="#Assumptions">Assumptions</a>
           <a class="md-toc-link md-toc-h2" href="#Series">Series</a>
           <a class="md-toc-link md-toc-h2" href="#Working-with-other-packages">Working with other packages</a>
           <a class="md-toc-link md-toc-h2" href="#How-it-compares">How it compares</a>
@@ -297,6 +328,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=4e98d23a"></script>
+  <script src="../assets/materialdocs.js?v=20a5c4cf"></script>
 </body>
 </html>
