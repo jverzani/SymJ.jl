@@ -1515,7 +1515,10 @@ using Latexify: latexify
         @test H(cosh(x)^2 - sinh(x)^2) == 1 && H(2sinh(x) * cosh(x)) == sinh(2x) && H(cosh(x)^2 + sinh(x)^2) == cosh(2x)
         @test H(cosh(x) + sinh(x)) == exp(x) && H(cosh(x) - sinh(x)) == exp(-x) && H(exp(x) - cosh(x)) == sinh(x)
         @test H(exp(x) + exp(-x)) == 2cosh(x) && H((exp(x) - exp(-x)) / 2) == sinh(x) && H(tanh(x) * cosh(x)) == sinh(x)
-        @test H(1 - tanh(x)^2) == 1 / cosh(x)^2 && H(sinh(2x) / sinh(x)) == 2cosh(x)
+        @test H(1 - tanh(x)^2) == sech(x)^2 && H(sinh(2x) / sinh(x)) == 2cosh(x) && H(coth(x)^2 - 1) == csch(x)^2
+        # reciprocal powers as sec, csc, sech, csch; tan and cot from what pairs
+        @test T(1 + tan(x)^2) == sec(x)^2 && S(1 / sinh(x)^2) == csch(x)^2 && S(cosh(x) / sinh(x)) == coth(x)
+        @test S(sin(x) / cos(x)^2) == tan(x) * sec(x) && S(1 / (sin(x) * cos(x))) == csc(x) * sec(x)
         @test H(sinh(x) * cosh(y) + cosh(x) * sinh(y)) == sinh(x + y)
         @test H((exp(2x) - 1) / (exp(x) - exp(-x))) == exp(x) && H(exp(x)) == exp(x) && H(sinh(x) + 1) == sinh(x) + 1
         @test T((exp(IM * x) + exp(-IM * x)) / 2) == cos(x) && T((exp(IM * x) - exp(-IM * x)) / (2IM)) == sin(x)

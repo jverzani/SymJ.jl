@@ -260,7 +260,10 @@ function _map_fn_args(g, e::Sym)
 end
 
 # the size of an expression: its nodes, a product's exponents other than 1 and its
-# coefficient other than ±1, a sum's coefficients other than ±1 and its constant term
+# coefficient other than ±1, a sum's coefficients other than ±1 and its constant term;
+# a negative exponent counts one more, a division (as SymPy's count_ops counts it)
+_division_cost(p::Sym) = p.kind == NUMBER && p.num < N0 ? 1 : 0
+
 function _nodes(e::Sym)
     k = e.kind
     k == NUMBER && return 1
@@ -274,8 +277,10 @@ function _nodes(e::Sym)
     elseif k == MUL
         n += abs(e.num) == N1 ? 0 : 1
         for (b, p) in zip(e.args, e.exps)
-            n += _nodes(b) + (p == ONE ? 0 : 1 + _nodes(p))
+            n += _nodes(b) + (p == ONE ? 0 : 1 + _nodes(p)) + _division_cost(p)
         end
+    elseif k == POW
+        n += _nodes(e.args[1]) + _nodes(e.args[2]) + _division_cost(e.args[2])
     else
         for a in e.args
             n += _nodes(a)
@@ -616,28 +621,49 @@ function _circ_exp(p::Sym, vars, bases::Vector{Sym}, M::_Circ)
     expand(out)
 end
 
-# s(u)^a * c(u)^-a written as the tangent (cotangent for the reverse)
+# s(u)^a * c(u)^-a written as the tangent (cotangent for the reverse), and a negative
+# power of the cosine (sine) left as a positive power of the secant (cosecant):
+# 1/cosh(x)^2 is sech(x)^2. The sizes are the same; this is the usual presentation.
+function _circ_recip(b::Sym, p::Sym, M::_Circ)
+    if b.kind == FN && length(b.args) == 1 && b.name in (M.fns[1], M.fns[2]) &&
+       p.kind == NUMBER && p.num < N0
+        return apply_function(b.name === M.fns[2] ? M.fns[5] : M.fns[6], b.args)^Sym(-p.num)
+    end
+    b^p
+end
+
 function _circ_tan(e::Sym, M::_Circ)
     isempty(e.args) && return e
     s, c, t, ct = M.fns[1], M.fns[2], M.fns[3], M.fns[4]
+    if e.kind == POW
+        return _circ_recip(_circ_tan(e.args[1], M), e.args[2], M)
+    end
     if e.kind == MUL
         fs = [(_circ_tan(b, M), p) for (b, p) in zip(e.args, e.exps)]
         out = Sym(e.num)
         used = falses(length(fs))
         for (i, (b, p)) in enumerate(fs)
             used[i] && continue
-            if b.kind == FN && b.name in (s, c)
+            if b.kind == FN && b.name in (s, c) && p.kind == NUMBER
                 other = b.name === s ? c : s
                 j = findfirst(j -> !used[j] && j != i && fs[j][1].kind == FN && fs[j][1].name === other &&
-                                   _eq(fs[j][1].args[1], b.args[1]) && iszero(expand(fs[j][2] + p)), eachindex(fs))
+                                   _eq(fs[j][1].args[1], b.args[1]) && fs[j][2].kind == NUMBER &&
+                                   sign(fs[j][2].num) == -sign(p.num), eachindex(fs))
                 if j !== nothing
                     used[i] = used[j] = true
-                    out *= apply_function(b.name === s ? t : ct, b.args)^p
+                    # sin^a cos^b with a, b of opposite signs: tan^m (cot^m) times the rest
+                    a, bb = b.name === s ? (p.num, fs[j][2].num) : (fs[j][2].num, p.num)
+                    m = min(abs(a), abs(bb))
+                    u = b.args
+                    out *= apply_function(a > N0 ? t : ct, u)^Sym(m)
+                    ra, rb = a - (a > N0 ? m : -m), bb + (a > N0 ? m : -m)
+                    iszero(ra) || (out *= _circ_recip(apply_function(s, u), Sym(ra), M))
+                    iszero(rb) || (out *= _circ_recip(apply_function(c, u), Sym(rb), M))
                     continue
                 end
             end
             used[i] = true
-            out *= b^p
+            out *= _circ_recip(b, p, M)
         end
         return out
     end

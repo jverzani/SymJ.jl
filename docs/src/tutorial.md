@@ -389,6 +389,10 @@ Hyperbolic functions are treated the same way, and exponentials combine with bot
 simplify(cosh(x)^2 - sinh(x)^2), simplify(exp(x) + exp(-x)), simplify(cos(x) + im * sin(x))
 ```
 
+```@example tut
+simplify(1 - tanh(x)^2), simplify(1 + tan(x)^2), simplify(cosh(x) / sinh(x))
+```
+
 Logarithms combine and radicals denest; with symbols, where the assumptions allow:
 
 ```@example tut
