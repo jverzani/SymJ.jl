@@ -16,11 +16,11 @@ LaTeX output.
 |:--|:--|:--|:--|
 | Exact integers and rationals of any size | `Integer`, `Rational` | built in | ✅ `SymNumber` (Int fast path, BigInt fallback) |
 | Exact radicals, π, ℯ, exact function values | `sqrt`, `pi`, `E` | built in | ✅ `sqrt(Sym(8)) == 2sqrt(2)`, `sin(π/3) == sqrt(3)/2` |
-| Combining and denesting radicals | `radsimp`, `sqrtdenest` | `simplify` | ❌ `sqrt(2)*sqrt(3)` stays; `cancel` handles square roots of rationals |
+| Combining and denesting radicals | `radsimp`, `sqrtdenest` | `simplify` | ◐ `simplify` combines radicals (`sqrt(2)*sqrt(3) = sqrt(6)`); no denesting; `cancel` handles square roots of rationals |
 | Complex numbers: `re`, `im`, `conj`, `arg` | `re`, `im`, `conjugate`, `arg` | `re`, `im`, `conj`, `arg` | ◐ `im` is exact; no real/imaginary parts yet (assumptions now exist to decide them) |
 | Symbolic infinity and undefined | `oo`, `zoo`, `nan` | `infinity`, `undef` | ◐ limits return `Sym(Inf)`; no symbolic infinity in expressions |
 | Numeric evaluation | `evalf(n)` | `evalf` | ✅ `N` (Float64), calling with `BigFloat`, dual numbers, … |
-| Assumptions on symbols | `symbols(positive=True)`, `ask`, `refine`, `Q` | `assume` | ◐ ★ `Assumptions`, `@assume`, `assuming`/`@assuming`, per call or per block, not stored on symbols; used by `solve` and `limit` (answers by cases); not yet by simplification (`sqrt(x^2)` for `x > 0` stays) or `integrate` |
+| Assumptions on symbols | `symbols(positive=True)`, `ask`, `refine`, `Q` | `assume` | ◐ ★ `Assumptions`, `@assume`, `assuming`/`@assuming`, per call or per block, not stored on symbols; used by `solve`, `limit`, `refine` and `simplify` (`sqrt(x^2) = x` for `x > 0`); not yet by `integrate` |
 | Parameters (named constants) | — | — | ◐ implemented, hidden until the shared-name question is settled |
 
 ## Expressions
@@ -42,9 +42,9 @@ LaTeX output.
 
 | Capability | SymPy | Giac | SymJ |
 |:--|:--|:--|:--|
-| General simplification | `simplify` | `simplify`, `simplifier` | ❌ ★ |
+| General simplification | `simplify` | `simplify`, `simplifier` | ◐ ★ `simplify` (the smallest of several transformations) and `refine` (identities under assumptions); trigonometric and logarithmic routines to come |
 | Trigonometric | `trigsimp`, `exptrigsimp` | `tlin`, `tcollect`, `texpand` | ❌ |
-| Powers and logarithms | `powsimp`, `powdenest`, `logcombine` | `lncollect`, `lnexpand` | ❌ (`exp(x)*exp(y) == exp(x + y)` is canonical) |
+| Powers and logarithms | `powsimp`, `powdenest`, `logcombine` | `lncollect`, `lnexpand` | ◐ powers combined and denested under assumptions (`refine`, `simplify`); no `logcombine` yet (`exp(x)*exp(y) == exp(x + y)` is canonical) |
 | Gamma and combinatorial | `gammasimp`, `combsimp` | — | ❌ |
 | Rational functions | `cancel`, `together`, `apart`, `ratsimp` | `normal`, `ratnormal`, `partfrac`, `propfrac` | ✅ `cancel`, `apart`, `numer_denom` (◐ no separate `together`) |
 | Expansion | `expand`, `expand_trig`, `expand_log` | `expand`, `texpand`, `lnexpand` | ✅ `expand` (fast, multinomial); ❌ trig and log expansion |

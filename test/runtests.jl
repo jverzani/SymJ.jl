@@ -1456,6 +1456,34 @@ using Latexify: latexify
         @test limit(f, x => a) == 16a / 9                       # the classic L'Hôpital example
     end
 
+    @testset "refine and simplify" begin
+        @syms a n
+        R(e, as...) = refine(e; assume = Assumptions(as...))
+        @test R(sqrt(x^2), x ≫ 0) == x && R(sqrt(x^2), x ∈ ℝ) == abs(x) && R(sqrt(x^2)) == sqrt(x^2)
+        @test R(sqrt(x^4), x ∈ ℝ) == x^2 && R((x^3)^(1 // 3), x ≫ 0) == x
+        @test R((x^3)^(1 // 3), x ∈ ℝ) == (x^3)^(1 // 3)          # a real cube root is not x^(1/3)'s branch
+        @test R(abs(x), x ≪ 0) == -x && R(abs(2x * y), x ≫ 0) == 2x * abs(y) && R(sign(x - 1), x ≫ 2) == 1
+        @test R(log(exp(x)), x ∈ ℝ) == x && R(log(exp(x))) == log(exp(x)) && R(log(x^2), x ≫ 0) == 2log(x)
+        @test R((-1)^(2n), n ∈ ℤ) == 1 && R((-1)^(2n + 1), n ∈ ℤ) == -1
+        @test R(sin(n * PI), n ∈ ℤ) == 0 && R(cos(n * PI), n ∈ ℤ) == (-1)^n
+        @test R(sin(x + 2n * PI), n ∈ ℤ) == sin(x) && R(cos(x + n * PI), n ∈ ℤ) == (-1)^n * cos(x)
+        @test R(floor(n), n ∈ ℤ) == n && R(floor(x + n), n ∈ ℤ) == floor(x) + n
+        @test R(sqrt(exp(x)), x ∈ ℝ) == exp(x / 2) && R(x^2 + a, a ~ 3) == x^2 + 3
+        @test R(x ≫ 0, x ≫ 1) === true && R(x ≫ 2, x ≫ 1) == (x ≫ 2) && R(x^2 ≧ 0, x ∈ ℝ) === true
+        @test (@assuming x > 0 begin refine(sqrt(x^2)) end) == x
+        S(e, as...) = simplify(e; assume = Assumptions(as...))
+        @test S((x^2 - 1) / (x - 1)) == x + 1 && S((x + 1)^2 - x^2) == 2x + 1
+        @test S(sqrt(Sym(2)) * sqrt(Sym(3))) == sqrt(Sym(6)) && S(Sym(2)^(1 // 3) * Sym(4)^(1 // 3)) == 2
+        @test S(sqrt(x^2) / x, x ≫ 0) == 1 && S(sin((x^2 - 1) / (x - 1))) == sin(x + 1)
+        @test S(x^2 + 2x + 1) == (x + 1)^2 && S(x / (x + 1) + 1 / (x + 1)) == 1
+        @test S(sqrt(x) * sqrt(y), x ≫ 0, y ≫ 0) == sqrt(x * y) && S(sqrt(x) * sqrt(y)) == sqrt(x) * sqrt(y)
+        @test S((x^3 - 1) / (x^2 + x + 1)) == x - 1 && S(x^2 - 1) == x^2 - 1    # not factored: no smaller
+        @test simplify(x ≫ 0; assume = @assume(x > 1)) === true
+        @test SymJ.simplify_powers(sqrt(Sym(2)) * sqrt(Sym(8))) == 4 && SymJ.simplify_rational(1 / x + 1 / y) == (x + y) / (x * y)
+        @test SymJ._nodes(sqrt(x * y)) < SymJ._nodes(sqrt(x) * sqrt(y))
+        @test simplify((x + y)^30 - (x + y)^30) == 0 && simplify((x + y)^30) == (x + y)^30   # no expansion tried
+    end
+
     @testset "Latexify" begin
         @syms a
         L(v) = repr(MIME"text/latex"(), v)

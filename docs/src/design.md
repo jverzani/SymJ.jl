@@ -856,6 +856,23 @@ three rounds each, taking each workload's best time.
   expression.
 - `free_symbols` became 1.8x faster, because loops replaced the closure-based recursion.
 
+## Simplification
+
+- **`refine`** applies the identities that need facts (`sqrt(x^2) = abs(x)` for real `x`,
+  `log(exp(x)) = x`, `sin(x + n*π)` for integer `n`), each where the assumptions decide
+  its condition, bottom up.
+- **`simplify`** refines, simplifies function arguments, then searches: specialized
+  routines (`simplify_rational`, `simplify_powers`, expansion, factoring) each give a
+  candidate, and the one with the fewest nodes is kept, the input if none is smaller.
+  As in SymPy and Mathematica, a front end over specialized routines; their names start
+  with `simplify_`, and only `simplify` and `refine` are exported.
+- **Rules are Julia functions** on the canonical form, not a general pattern matcher:
+  the canonical form already orders sums and products, which is most of what a matcher's
+  associative-commutative matching is for, and the rule sets are small.
+- **Still to come:** `simplify_trig` (a normal form modulo `sin² + cos² = 1` through
+  `groebner`, then presentation rules after Fu), `simplify_log` and
+  `simplify_radicals` (denesting).
+
 ## Assumptions
 
 Assumptions are passed per call or for a block, never stored on symbols. This keeps
@@ -894,7 +911,7 @@ construction.
   those values, and indexing with them gives their case.
 - **First users.** `solve` (filtering roots, and splitting on the signs of
   parameters) and `limit`, which hands the assumptions to GruntzLimit as signs and
-  returns SymJ's answers. `simplify`/`refine` come later.
+  returns SymJ's answers; `refine` and `simplify`.
 - **`@assume`**, named after the keyword, writes facts with Julia's operators:
   `@assume(x > 0 && 1 < y <= 2, n in Integers)`. Chained comparisons are split, and
   `&&`, `||`, `!` combine. The number sets have ASCII names, `Integers`, `Rationals`,
@@ -933,9 +950,9 @@ and a finalizer per operation), which dominates the small benchmarks.
   under way. Integer congruences (`mod(n, 3) ~ 1`) are to follow the core.
 - **Relations.** `==` is structural and returns `Bool`. Symbolic `Eq`, `<`, etc. need
   their own constructors.
-- **Combining radicals.** `sqrt(2)*sqrt(3)` is not combined into `sqrt(6)`, and
-  `72^(1/3)` prints as `2*9^(1/3)` rather than `2*3^(2/3)`. Prime-base normalization
-  would fix the latter.
+- **Combining radicals.** Construction does not combine `sqrt(2)*sqrt(3)` into
+  `sqrt(6)`; `simplify` does. `72^(1/3)` prints as `2*9^(1/3)` rather than
+  `2*3^(2/3)`. Prime-base normalization would fix the latter.
 - **Polynomials, next steps.**
   - Zippel: transposed Vandermonde solves per degree when the leading coefficient is a
     single term (now one dense solve).

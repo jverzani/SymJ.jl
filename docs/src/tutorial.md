@@ -352,6 +352,37 @@ Other symbols are allowed in the coefficients:
 apart(1 / ((x - a) * (x - b)), x)
 ```
 
+## Simplification
+
+Expressions are kept in a canonical form as they are built, but that form does not
+cancel fractions, combine radicals or apply identities that need facts. `simplify`
+tries several transformations and keeps the smallest result:
+
+```@example tut
+simplify((x^2 - 1) / (x - 1)), simplify((x + 1)^2 - x^2), simplify(sqrt(Sym(2)) * sqrt(Sym(3)))
+```
+
+```@example tut
+simplify(x / (x + 1) + 1 / (x + 1)), simplify(x^2 + 2x + 1)
+```
+
+Identities such as `sqrt(x^2) = x` hold only for some values. Symbols are complex unless
+a fact says otherwise, so these need assumptions:
+
+```@example tut
+simplify(sqrt(x^2)), simplify(sqrt(x^2); assume = @assume(x > 0)), simplify(sqrt(x^2); assume = @assume(x in Reals))
+```
+
+`refine` applies only those identities, without trying anything else:
+
+```@example tut
+@syms n
+refine(log(exp(x)); assume = @assume(x in Reals)), refine(sin(x + 2n*Sym(π)); assume = @assume(n in Integers))
+```
+
+The transformations `simplify` tries are also available on their own, unexported:
+`SymJ.simplify_rational` and `SymJ.simplify_powers`.
+
 ## Solving equations
 
 An equation is written with `~`, which binds more loosely than everything else, so no
