@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Implementation — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=8f5f7d82">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=c068b54a">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Implementation — SymJ.jl">
   <meta property="og:title" content="Implementation — SymJ.jl">
@@ -163,6 +163,21 @@ end</code></pre>
 </li>
 </ul>
 <p>Zippel&#39;s method loses on dense gcds, by up to 33x, and wins on sparse ones, by 6–16x. So the default, <code class="md-code-inline">method = :auto</code>, chooses per call. It estimates Brown&#39;s work as the product of <code class="md-code-inline">(degree + 1)</code> over the variables and compares it with the number of terms of the inputs, a measure of sparsity. On the benchmarks, dense inputs have ratios near 1 and sparse ones 4 and up, so Zippel is chosen above 3 (and above an absolute minimum). The 14-variable gcd now takes 0.05 s and the 20-variable one 0.18 s, while dense gcds are unchanged. <code class="md-code-inline">method = :dense</code> and <code class="md-code-inline">method = :zippel</code> force a choice.</p>
+<h2 id="Resultants" class="md-heading">Resultants<a href="#Resultants" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>A resultant is the determinant of the Sylvester matrix, which is never formed. There are two methods, and <code class="md-code-inline">resultant</code> chooses between them:</p>
+<ul class="md-list-tight">
+<li><p><strong>Modular, for dense inputs in few variables.</strong> The resultant is computed modulo word-size primes, up to a bound on its coefficients. For each prime, the other variables are evaluated on a grid of points, each point takes Euclid&#39;s algorithm in <code class="md-code-inline">Z_p[x]</code>, and the values are interpolated back.</p>
+<ul class="md-list-tight">
+<li><p>Keeping the degrees formal makes every prime and point usable. Where a leading coefficient vanishes, the Euclidean recurrence still gives the determinant of the full Sylvester matrix, so there are no unlucky cases to detect.</p>
+</li>
+<li><p>The coefficient bound is Hadamard&#39;s, with the 1-norms of the coefficient polynomials: they bound the polynomials on the unit torus, and the coefficients of the resultant are averages over it.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Subresultant PRS, for sparse inputs in many variables.</strong> With symbolic coefficients the grid is far larger than the answer: two cubics <code class="md-code-inline">a x³ + …</code> and <code class="md-code-inline">e x³ + …</code> give 4⁸ points and 34 terms. Here the subresultant algorithm on sparse polynomials is several hundred times faster.</p>
+</li>
+</ul>
+<p>The choice compares the grid with the product of the input sizes.</p>
 <h2 id="Factorization" class="md-heading">Factorization<a href="#Factorization" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p>Factoring over the rationals starts with the <strong>squarefree decomposition</strong>, by Yun&#39;s algorithm: a few gcds with a derivative separate the factors by multiplicity, and each squarefree part is then factored into irreducibles.</p>
 <p><strong>Univariate polynomials</strong> use the Zassenhaus approach: factor modulo a small prime chosen to keep the number of factors small, lift the factors by Hensel lifting past a bound on the true factors&#39; coefficients, then recombine the lifted factors into true ones, checking each candidate by exact division.</p>
@@ -240,6 +255,7 @@ end</code></pre>
           <a class="md-toc-link md-toc-h2" href="#Greatest-common-divisors">Greatest common divisors</a>
             <a class="md-toc-link md-toc-h3" href="#Why-a-modular-algorithm">Why a modular algorithm</a>
             <a class="md-toc-link md-toc-h3" href="#Sparse-gcds:-Zippel&#39;s-method">Sparse gcds: Zippel&#39;s method</a>
+          <a class="md-toc-link md-toc-h2" href="#Resultants">Resultants</a>
           <a class="md-toc-link md-toc-h2" href="#Factorization">Factorization</a>
           <a class="md-toc-link md-toc-h2" href="#Rational-functions-and-partial-fractions">Rational functions and partial fractions</a>
           <a class="md-toc-link md-toc-h2" href="#Solving">Solving</a>
@@ -255,6 +271,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=8f5f7d82"></script>
+  <script src="../assets/materialdocs.js?v=c068b54a"></script>
 </body>
 </html>

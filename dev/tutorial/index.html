@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=8ddab6d4">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=aec04df9">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -342,6 +342,24 @@ coefficients(Q)</code></pre>
 <pre><code class="language-julia">gcd(expand((x - 1)^2 * (x + y)), expand((x - 1) * (x + y)^2))</code></pre>
 </div>
 <pre class="md-output md-output-text"><code class="nohighlight ansi">x*y + x^2 - x - y</code></pre>
+</div>
+<h3 id="Resultants" class="md-heading">Resultants<a href="#Resultants" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p>The resultant of two polynomials in <code class="md-code-inline">x</code> is zero exactly when they have a common root. It is a polynomial in the other variables, so it eliminates <code class="md-code-inline">x</code> from a system:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">resultant(x^2 + y^2 - 1, x - y, x)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">2*y^2 - 1</code></pre>
+</div>
+<p>The discriminant is zero exactly when a polynomial has a repeated root:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms a b c
+discriminant(a*x^2 + b*x + c, x), discriminant(x^3 + a*x + b, x)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">(-4*a*c + b^2, -4*a^3 - 27*b^2)</code></pre>
 </div>
 <h3 id="Roots" class="md-heading">Roots<a href="#Roots" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <p><code class="md-code-inline">solve</code> finds the roots of a polynomial. Degrees up to four are solved exactly, with real roots of cubics given in trigonometric form (no complex numbers needed):</p>
@@ -792,6 +810,7 @@ G(x =&gt; Sym(π)) - G(x =&gt; 0)</code></pre>
             <a class="md-toc-link md-toc-h3" href="#Construction">Construction</a>
             <a class="md-toc-link md-toc-h3" href="#Evaluation-and-shifts">Evaluation and shifts</a>
             <a class="md-toc-link md-toc-h3" href="#Factoring">Factoring</a>
+            <a class="md-toc-link md-toc-h3" href="#Resultants">Resultants</a>
             <a class="md-toc-link md-toc-h3" href="#Roots">Roots</a>
           <a class="md-toc-link md-toc-h2" href="#Rational-functions">Rational functions</a>
             <a class="md-toc-link md-toc-h3" href="#Partial-fractions">Partial fractions</a>
@@ -815,6 +834,6 @@ G(x =&gt; Sym(π)) - G(x =&gt; 0)</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=8ddab6d4"></script>
+  <script src="../assets/materialdocs.js?v=aec04df9"></script>
 </body>
 </html>
