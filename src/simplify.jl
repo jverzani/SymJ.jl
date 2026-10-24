@@ -178,7 +178,9 @@ transformations are tried and the smallest result kept (`ex` itself if none is s
   nonnegative quantities (`sqrt(x)*sqrt(y) = sqrt(x*y)` for `x, y ≥ 0`);
 - trigonometric identities: a normal form modulo `sin^2 + cos^2 = 1`, multiple angles
   and sums of angles (`2sin(x)cos(x) = sin(2x)`, `sin(x)cos(y) + cos(x)sin(y) =
-  sin(x + y)`);
+  sin(x + y)`), exponentials of imaginary arguments (`cos(x) + im*sin(x) = exp(im*x)`);
+- hyperbolic identities, likewise, with exponentials (`cosh(x)^2 - sinh(x)^2 = 1`,
+  `exp(x) + exp(-x) = 2cosh(x)`);
 - logarithms combined or expanded where their arguments are positive
   (`log(2) + log(3) = log(6)`);
 - radicals denested (`sqrt(3 + 2sqrt(2)) = 1 + sqrt(2)`), denominators rationalized
@@ -187,8 +189,8 @@ transformations are tried and the smallest result kept (`ex` itself if none is s
 
 The transformations are also available on their own, unexported:
 `SymJ.simplify_rational`, `SymJ.simplify_powers`, `SymJ.simplify_trig`,
-`SymJ.simplify_log` and `SymJ.simplify_radicals`. Assumptions are given as for
-`refine`.
+`SymJ.simplify_hyperbolic`, `SymJ.simplify_log` and `SymJ.simplify_radicals`.
+Assumptions are given as for `refine`.
 
 ```julia
 simplify((x^2 - 1) / (x - 1))                    # x + 1
@@ -215,7 +217,7 @@ function _simplify(e::Sym, A::Assumptions)
     logs(x) = simplify_log(x; assume = A)
     radicals(x) = simplify_radicals(x; assume = A)
     expansion(x) = _bigpower(x) ? nothing : expand(x)   # (x + y)^30 expanded never wins
-    for g in (simplify_rational, powers, expansion, _factor_or_nothing, simplify_trig, logs, radicals,
+    for g in (simplify_rational, powers, expansion, _factor_or_nothing, simplify_trig, simplify_hyperbolic, logs, radicals,
               simplify_rational ∘ powers, expansion ∘ simplify_rational, expansion ∘ radicals)
         c = try g(e) catch err; err isa InterruptException && rethrow(); nothing end
         c isa Sym || continue
@@ -329,7 +331,21 @@ function _powers(e::Sym, A::Assumptions)
     _rebuild_node(e, Sym[_powers(a, A) for a in e.args])
 end
 
-## trigonometric simplification
+## trigonometric and hyperbolic simplification
+#
+# One method for both, with a mode: the functions of a base angle g are polynomials in
+# S and C (sin g, cos g; or sinh g, cosh g), reduced modulo the relation (S² + C² = 1;
+# C² - S² = 1), and linearized through z = exp(i g) (or exp(g)). Exponentials join in:
+# exp(i k g) = cos(kg) + i sin(kg), exp(k g) = cosh(kg) + sinh(kg); and the exponential
+# form itself, z substituted back as exp(i g) or exp(g), is a candidate.
+
+struct _Circ
+    fns::NTuple{6,Symbol}          # sin cos tan cot sec csc, or the hyperbolic ones
+    hyp::Bool
+end
+const _TRIGMODE = _Circ((:sin, :cos, :tan, :cot, :sec, :csc), false)
+const _HYPMODE = _Circ((:sinh, :cosh, :tanh, :coth, :sech, :csch), true)
+const _TRIGFNS = _TRIGMODE.fns
 
 """
     SymJ.simplify_trig(ex)
@@ -337,65 +353,113 @@ end
 `ex` with its trigonometric functions simplified. The arguments are grouped into base
 angles (`2x` and `x` share the base `x`); `sin` and `cos` of multiples of a base are
 written as polynomials in `S = sin(g)` and `C = cos(g)`, and `tan`, `cot`, `sec`, `csc`
-through them. The resulting rational function is reduced modulo `S^2 + C^2 = 1` (once
-eliminating `S^2`, once `C^2`) and cancelled, which is a normal form: an expression equal
-to zero by trigonometric identities becomes `0`. The products are also linearized into
-sines and cosines of multiples of the base (`2*sin(x)*cos(x)` is `sin(2x)`). The smallest
-candidate is returned, with `sin/cos` written as `tan`. Not exported; used by
-[`simplify`](@ref).
+through them, as are exponentials of imaginary multiples (`exp(i*x) = cos(x) + i*sin(x)`).
+The resulting rational function is reduced modulo `S^2 + C^2 = 1` (once eliminating
+`S^2`, once `C^2`) and cancelled, which is a normal form: an expression equal to zero by
+trigonometric identities becomes `0`. The products are also linearized into sines and
+cosines of multiples of the base (`2*sin(x)*cos(x)` is `sin(2x)`), and written in
+exponentials. The smallest candidate is returned, with `sin/cos` written as `tan`. Not
+exported; used by [`simplify`](@ref).
 
 ```julia
 SymJ.simplify_trig(sin(x)^2 + cos(x)^2)          # 1
 SymJ.simplify_trig(1 - cos(x)^2)                 # sin(x)^2
 SymJ.simplify_trig(2*sin(x)*cos(x))              # sin(2x)
-SymJ.simplify_trig(sin(2x) / sin(x))             # 2cos(x)
+SymJ.simplify_trig((exp(im*x) + exp(-im*x)) / 2) # cos(x)
 ```
 """
-function simplify_trig(ex)
-    e = Sym(ex)
-    bases = _trig_bases(e)
+simplify_trig(ex) = _circ_simplify(Sym(ex), _TRIGMODE)
+
+"""
+    SymJ.simplify_hyperbolic(ex)
+
+`ex` with its hyperbolic functions and exponentials simplified, as
+[`SymJ.simplify_trig`](@ref) does for trigonometric ones: polynomials in `sinh` and
+`cosh` of base arguments reduced modulo `cosh^2 - sinh^2 = 1`, linearized, or written in
+exponentials, whichever is smallest (`cosh(x)^2 - sinh(x)^2 = 1`, `2sinh(x)cosh(x) =
+sinh(2x)`, `cosh(x) + sinh(x) = exp(x)`, `exp(x) + exp(-x) = 2cosh(x)`). Not exported;
+used by [`simplify`](@ref).
+"""
+simplify_hyperbolic(ex) = _circ_simplify(Sym(ex), _HYPMODE)
+
+function _circ_simplify(e::Sym, M::_Circ)
+    bases = _circ_bases(e, M)
     isempty(bases) && return e
     length(bases) > 3 && return e                    # 2^k orders of elimination
-    vars = [(Sym(Symbol("_trigS", i)), Sym(Symbol("_trigC", i))) for i in eachindex(bases)]
-    p = _trig_poly(e, bases, vars)
+    vars = [(Sym(Symbol("_circS", i)), Sym(Symbol("_circC", i))) for i in eachindex(bases)]
+    p = _circ_poly(e, bases, vars, M)
     p === nothing && return e
     n, d = numer_denom(cancel(p))
     best, size = e, _nodes(e)
-    back(q) = _trig_tan(subs(q, (v => f(g) for ((s, c), g) in zip(vars, bases) for (v, f) in ((s, sin), (c, cos)))...))
+    consider(r) = (k = _nodes(r); k < size && ((best, size) = (r, k)))
+    s, c = M.fns[1], M.fns[2]
+    back(q) = _circ_tan(subs(q, (v => apply_function(f, Sym[g]) for ((S, C), g) in zip(vars, bases)
+                                       for (v, f) in ((S, s), (C, c)))...), M)
     for order in Iterators.product(((true, false) for _ in bases)...)
-        ns = _trig_reduce(n, vars, order)
-        ds = _trig_reduce(d, vars, order)
+        ns = _circ_reduce(n, vars, order, M)
+        ds = _circ_reduce(d, vars, order, M)
         for q in (cancel(ns / ds), ns / ds)
             r = try back(q) catch; continue end
-            k = _nodes(r)
-            k < size && ((best, size) = (r, k))
+            consider(r)
         end
     end
-    # linearized: products of sines and cosines as sines and cosines of sums of multiples
-    # of the bases (2 sin(x) cos(x) = sin(2x), sin(x) cos(y) + cos(x) sin(y) = sin(x + y))
     allv = Sym[v for sc in vars for v in sc]
     if _ispolyin(n, allv) && _ispolyin(d, allv)
-        r = try _trig_tan(_trig_linear(n, vars, bases) / _trig_linear(d, vars, bases)) catch; nothing end
-        r === nothing || (k = _nodes(r); k < size && ((best, size) = (r, k)))
+        # linearized: products as functions of sums of multiples of the bases
+        r = try _circ_tan(_circ_linear(n, vars, bases, M) / _circ_linear(d, vars, bases, M), M) catch; nothing end
+        r === nothing || consider(r)
+        # in exponentials: z = exp(i g) (exp(g)) substituted back
+        r = try _circ_exp(n, vars, bases, M) / _circ_exp(d, vars, bases, M) catch; nothing end
+        r === nothing || consider(cancel(r))
     end
     best
 end
 
-const _TRIGFNS = (:sin, :cos, :tan, :cot, :sec, :csc)
+# exp(u) in the mode: (multiple, h) with u = multiple * i * h (trig) or multiple * h
+# (hyperbolic); nothing if u is not of that kind
+function _circ_expsplit(u::Sym, M::_Circ)
+    if M.hyp
+        has(u, IM) && return nothing
+        return _trig_split(u)
+    end
+    v = expand(u / IM)
+    has(v, IM) && return nothing
+    _trig_split(v)
+end
+
+# the exponentials in e as (u, node): exp(u) nodes, and a product's factors ℯ^u
+function _circ_exps!(out, n::Sym)
+    if n.kind == POW && _eq(n.args[1], E)
+        push!(out, n.args[2])
+    elseif n.kind == MUL
+        for (b, p) in zip(n.args, n.exps)
+            _eq(b, E) && push!(out, p)
+        end
+    end
+    out
+end
 
 # the base angles: arguments with their numeric content taken out, each with the gcd of
 # the multiples it appears with (args x/2 and x: base x/2)
-function _trig_bases(e::Sym)
+function _circ_bases(e::Sym, M::_Circ)
     seen = Dict{Sym,Rational{BigInt}}()
+    nfn = Ref(0)
+    add!(q, h) = (seen[h] = haskey(seen, h) ? gcd(seen[h], q) : q)
     function walk(n::Sym)
-        if n.kind == FN && n.name in _TRIGFNS && length(n.args) == 1
-            q, h = _trig_split(n.args[1])
-            seen[h] = haskey(seen, h) ? gcd(seen[h], q) : q
+        if n.kind == FN && n.name in M.fns && length(n.args) == 1
+            nfn[] += 1
+            add!(_trig_split(n.args[1])...)
+        end
+        for u in _circ_exps!(Sym[], n)
+            t = _circ_expsplit(u, M)
+            t === nothing || add!(t...)
         end
         foreach(walk, n.args)
         foreach(walk, n.exps)
     end
     walk(e)
+    # exponentials alone are left to the canonical form unless they could combine
+    nfn[] == 0 && length(seen) == 0 && return Sym[]
     Sym[expand(Sym(SymNumber(q)) * h) for (h, q) in seen]
 end
 # u = q * h, q the numeric content of u (2x + 2 is 2*(x + 1))
@@ -412,30 +476,61 @@ function _trig_split(u::Sym)
     q, expand(u / Sym(SymNumber(q)))
 end
 
-# e with trigonometric functions of multiples of the bases as polynomials (and
-# quotients) in S, C; nothing if an argument is not a multiple of a base
-function _trig_poly(e::Sym, bases::Vector{Sym}, vars)
+# the multiple k of a base that u is, or nothing
+_circ_multiple(u::Sym, g::Sym) = (r = expand(u / g); r.kind == NUMBER && isexact(r.num) && isone(_denominator(r.num)) ? Int(_numerator(r.num)) : nothing)
+
+# e with the functions (and exponentials) of multiples of the bases as polynomials and
+# quotients in S, C; nothing if an argument is not a multiple of a base
+function _circ_poly(e::Sym, bases::Vector{Sym}, vars, M::_Circ)
     ok = Ref(true)
+    function find(u)
+        for (i, g) in enumerate(bases)
+            k = _circ_multiple(u, g)
+            k === nothing || return i, k
+        end
+        nothing
+    end
+    function expof(u)                       # exp(u), u = k i g (trig) or k g
+        t = _circ_expsplit(u, M)
+        t === nothing && return nothing
+        f = find(expand(Sym(SymNumber(t[1])) * t[2]))
+        f === nothing && return nothing
+        i, k = f
+        S, C = vars[i]
+        s, c = _chebyshev(k, S, C)
+        M.hyp ? c + s : c + IM * s
+    end
     function tr(n::Sym)
         isempty(n.args) && return n
-        if n.kind == FN && n.name in _TRIGFNS && length(n.args) == 1
-            u = n.args[1]
-            i = findfirst(g -> (r = expand(u / g); r.kind == NUMBER && isexact(r.num) && isone(_denominator(r.num))), bases)
-            i === nothing && (ok[] = false; return n)
-            k = Int(_numerator(expand(u / bases[i]).num))
+        if n.kind == POW && _eq(n.args[1], E)
+            r = expof(n.args[2])
+            r === nothing || return r
+        end
+        if n.kind == FN && n.name in M.fns && length(n.args) == 1
+            f = find(n.args[1])
+            f === nothing && (ok[] = false; return n)
+            i, k = f
             S, C = vars[i]
             s, c = _chebyshev(k, S, C)
-            f = n.name
-            return f === :sin ? s : f === :cos ? c : f === :tan ? s / c : f === :cot ? c / s : f === :sec ? 1 / c : 1 / s
+            j = findfirst(==(n.name), M.fns)
+            return (s, c, s / c, c / s, 1 / c, 1 / s)[j]
         end
-        n.kind == MUL && return Sym(n.num) * prod((tr(b)^tr(p) for (b, p) in zip(n.args, n.exps)); init = ONE)
+        if n.kind == MUL
+            out = Sym(n.num)
+            for (b, p) in zip(n.args, n.exps)
+                r = _eq(b, E) ? expof(p) : nothing
+                out *= r === nothing ? tr(b)^tr(p) : r
+            end
+            return out
+        end
         _rebuild_node(n, Sym[tr(a) for a in n.args])
     end
     r = tr(e)
     ok[] ? r : nothing
 end
 
-# (sin(k g), cos(k g)) as polynomials in S = sin(g), C = cos(g)
+# (f(k g) for f the sine, the cosine) as polynomials in S, C: the recurrence
+# f(kg) = 2C f((k-1)g) - f((k-2)g) holds for sin, cos and sinh, cosh alike
 function _chebyshev(k::Int, S::Sym, C::Sym)
     k < 0 && ((s, c) = _chebyshev(-k, S, C); return (-s, c))
     k == 0 && return (ZERO, ONE)
@@ -446,19 +541,20 @@ function _chebyshev(k::Int, S::Sym, C::Sym)
     s1, c1
 end
 
-# p reduced modulo S^2 + C^2 = 1 for each base: S^(2m+r) -> S^r (1 - C^2)^m when the
-# order says S, else C^(2m+r) -> C^r (1 - S^2)^m
-function _trig_reduce(p::Sym, vars, order)
+# p reduced modulo the relation for each base: eliminating S^2 (S^2 = 1 - C^2, or
+# C^2 - 1 hyperbolic) when the order says S, else C^2 (1 - S^2, or 1 + S^2)
+function _circ_reduce(p::Sym, vars, order, M::_Circ)
     p = expand(p)
     for ((S, C), elimS) in zip(vars, order)
         has(p, S) || has(p, C) || continue
         P = try Poly{Sym}(p, [S, C]) catch; return p end
         a, b = elimS ? (S, C) : (C, S)
         ia = elimS ? 1 : 2
+        sq = M.hyp ? (elimS ? b^2 - 1 : 1 + b^2) : 1 - b^2      # a^2 in terms of b
         acc = ZERO
         for (ev, cf) in zip(exponent_vectors(P), coefficients(P))
             ka, kb = ev[ia], ev[3 - ia]
-            acc += cf * a^(ka % 2) * (1 - b^2)^(ka ÷ 2) * b^kb
+            acc += cf * a^(ka % 2) * sq^(ka ÷ 2) * b^kb
         end
         p = expand(acc)
     end
@@ -467,51 +563,76 @@ end
 
 _ispolyin(p::Sym, vs::Vector{Sym}) = (try Poly{Sym}(expand(p), vs); true catch; false end)
 
-# a polynomial in Sᵢ = sin(gᵢ), Cᵢ = cos(gᵢ) as a combination of sines and cosines of
-# k·g = Σ kᵢ gᵢ: with Sᵢ = (zᵢ - 1/zᵢ)/(2i), Cᵢ = (zᵢ + 1/zᵢ)/2 it is a Laurent
-# polynomial in zᵢ = exp(i gᵢ), whose terms z^k and z^-k pair into cos(k·g), sin(k·g)
-function _trig_linear(p::Sym, vars, bases::Vector{Sym})
-    zs = [Sym(Symbol("_trigz", i)) for i in eachindex(bases)]
+# S, C through z = exp(i g) (exp(g)): the Laurent polynomial in the zᵢ, times Π zᵢ^Dᵢ,
+# and the Dᵢ
+function _circ_laurent(p::Sym, vars, M::_Circ)
+    zs = [Sym(Symbol("_circz", i)) for i in eachindex(vars)]
     p = expand(p)
     D = Int[]
     for (S, C) in vars
         P = Poly{Sym}(p, [S, C])
         push!(D, maximum(sum, exponent_vectors(P); init = 0))
     end
-    sub = [v => w for ((S, C), z) in zip(vars, zs) for (v, w) in ((S, (z^2 - 1) / (2IM * z)), (C, (z^2 + 1) / (2z)))]
+    den = M.hyp ? 2 : 2IM
+    sub = [v => w for ((S, C), z) in zip(vars, zs) for (v, w) in ((S, (z^2 - 1) / (den * z)), (C, (z^2 + 1) / (2z)))]
     q = expand(subs(p, sub...) * prod(z^d for (z, d) in zip(zs, D)))
-    Q = Poly{Sym}(q, zs)
+    Poly{Sym}(q, zs), D
+end
+
+# a polynomial in Sᵢ, Cᵢ as a combination of the sine and cosine of k·g = Σ kᵢ gᵢ: the
+# terms z^k and z^-k pair into cos(k·g) and sin(k·g) (cosh, sinh)
+function _circ_linear(p::Sym, vars, bases::Vector{Sym}, M::_Circ)
+    Q, D = _circ_laurent(p, vars, M)
     a = Dict{Vector{Int},Sym}()
     for (ev, cf) in zip(exponent_vectors(Q), coefficients(Q))
         a[collect(ev) .- D] = cf
     end
-    out = get(a, zeros(Int, length(zs)), ZERO)
-    for (k, ak) in a
-        i = findfirst(!iszero, k)
-        (i === nothing || k[i] < 0) && continue             # each pair once, from k > 0
-        am = get(a, -k, ZERO)
+    s, c = M.fns[1], M.fns[2]
+    out = get(a, zeros(Int, length(vars)), ZERO)
+    done = Set{Vector{Int}}()
+    for k0 in keys(a)
+        i = findfirst(!iszero, k0)
+        i === nothing && continue
+        k = k0[i] > 0 ? k0 : -k0                             # each pair once, by its k > 0
+        k in done && continue
+        push!(done, k)
+        ak, am = get(a, k, ZERO), get(a, -k, ZERO)
         θ = expand(sum(kj * g for (kj, g) in zip(k, bases)))
-        out += expand(ak + am) * cos(θ) + expand(IM * (ak - am)) * sin(θ)
+        cs = expand(ak + am)
+        sn = M.hyp ? expand(ak - am) : expand(IM * (ak - am))
+        out += cs * apply_function(c, Sym[θ]) + sn * apply_function(s, Sym[θ])
     end
     expand(out)
 end
 
-# sin(u)^a * cos(u)^-a written tan(u)^a (cot for the reverse)
-function _trig_tan(e::Sym)
+# the polynomial in exponentials: z = exp(i g) (exp(g)) substituted back
+function _circ_exp(p::Sym, vars, bases::Vector{Sym}, M::_Circ)
+    Q, D = _circ_laurent(p, vars, M)
+    out = ZERO
+    for (ev, cf) in zip(exponent_vectors(Q), coefficients(Q))
+        θ = expand(sum((e - d) * g for (e, d, g) in zip(ev, D, bases)))
+        out += cf * exp(M.hyp ? θ : IM * θ)
+    end
+    expand(out)
+end
+
+# s(u)^a * c(u)^-a written as the tangent (cotangent for the reverse)
+function _circ_tan(e::Sym, M::_Circ)
     isempty(e.args) && return e
+    s, c, t, ct = M.fns[1], M.fns[2], M.fns[3], M.fns[4]
     if e.kind == MUL
-        fs = [(_trig_tan(b), p) for (b, p) in zip(e.args, e.exps)]
+        fs = [(_circ_tan(b, M), p) for (b, p) in zip(e.args, e.exps)]
         out = Sym(e.num)
         used = falses(length(fs))
         for (i, (b, p)) in enumerate(fs)
             used[i] && continue
-            if b.kind == FN && b.name in (:sin, :cos)
-                other = b.name === :sin ? :cos : :sin
+            if b.kind == FN && b.name in (s, c)
+                other = b.name === s ? c : s
                 j = findfirst(j -> !used[j] && j != i && fs[j][1].kind == FN && fs[j][1].name === other &&
                                    _eq(fs[j][1].args[1], b.args[1]) && iszero(expand(fs[j][2] + p)), eachindex(fs))
                 if j !== nothing
                     used[i] = used[j] = true
-                    out *= apply_function(b.name === :sin ? :tan : :cot, b.args)^p
+                    out *= apply_function(b.name === s ? t : ct, b.args)^p
                     continue
                 end
             end
@@ -520,7 +641,7 @@ function _trig_tan(e::Sym)
         end
         return out
     end
-    _rebuild_node(e, Sym[_trig_tan(a) for a in e.args])
+    _rebuild_node(e, Sym[_circ_tan(a, M) for a in e.args])
 end
 
 ## logarithms

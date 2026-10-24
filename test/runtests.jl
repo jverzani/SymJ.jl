@@ -1510,6 +1510,29 @@ using Latexify: latexify
         @test S(sqrt(4x^2 + 4x + 1) / (2x + 1), x ≫ 0) == 1
         @test SymJ.simplify_radicals(sqrt(2 + sqrt(Sym(3)))) == sqrt(Sym(6)) / 2 + sqrt(Sym(2)) / 2
         @test S(sqrt(2 + sqrt(Sym(3)))) == sqrt(2 + sqrt(Sym(3)))               # denested is larger
+        # hyperbolic, and exponentials with trigonometric and hyperbolic functions
+        H = SymJ.simplify_hyperbolic
+        @test H(cosh(x)^2 - sinh(x)^2) == 1 && H(2sinh(x) * cosh(x)) == sinh(2x) && H(cosh(x)^2 + sinh(x)^2) == cosh(2x)
+        @test H(cosh(x) + sinh(x)) == exp(x) && H(cosh(x) - sinh(x)) == exp(-x) && H(exp(x) - cosh(x)) == sinh(x)
+        @test H(exp(x) + exp(-x)) == 2cosh(x) && H((exp(x) - exp(-x)) / 2) == sinh(x) && H(tanh(x) * cosh(x)) == sinh(x)
+        @test H(1 - tanh(x)^2) == 1 / cosh(x)^2 && H(sinh(2x) / sinh(x)) == 2cosh(x)
+        @test H(sinh(x) * cosh(y) + cosh(x) * sinh(y)) == sinh(x + y)
+        @test H((exp(2x) - 1) / (exp(x) - exp(-x))) == exp(x) && H(exp(x)) == exp(x) && H(sinh(x) + 1) == sinh(x) + 1
+        @test T((exp(IM * x) + exp(-IM * x)) / 2) == cos(x) && T((exp(IM * x) - exp(-IM * x)) / (2IM)) == sin(x)
+        @test T(cos(x) + IM * sin(x)) == exp(IM * x) && T(cos(x) - IM * sin(x)) == exp(-IM * x)
+        @test T(exp(2IM * x) - 2IM * sin(x) * cos(x)) == cos(2x)
+        @test simplify(cosh(x)^2 - sinh(x)^2 + x) == x + 1 && simplify(exp(x) + exp(-x)) == 2cosh(x)
+        # every simplification agrees with its input numerically
+        for e in (sin(x)^2 + cos(x)^2, 1 - cos(x)^2, 2sin(x) * cos(x), sin(2x) / sin(x), sin(x)^4 - cos(x)^4,
+                  sin(x)^2 * cos(x)^2, cos(x) * cos(y) + sin(x) * sin(y), tan(x) + tan(y), 1 / (1 + tan(x)^2),
+                  cosh(x) - sinh(x), cosh(x)^2 + sinh(x)^2, exp(x) - cosh(x), 1 - tanh(x)^2, exp(2x) - 1,
+                  cos(x) - IM * sin(x), exp(IM * x) - cos(x), log(2x) - log(Sym(2)), (x^3 - 1) / (x - 1),
+                  x / (x + 1) + 1 / (x + 1), (x + 1)^2 - x^2, sqrt(Sym(2)) * sqrt(Sym(6)), sin(x / 2) * cos(x / 2))
+            s = simplify(e)
+            for (vx, vy) in ((0.37, 1.13), (1.9, -0.6))
+                @test isapprox(N(subs(s, x => vx, y => vy)), N(subs(e, x => vx, y => vy)); atol = 1e-12)
+            end
+        end
     end
 
     @testset "Latexify" begin

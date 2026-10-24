@@ -383,6 +383,12 @@ simplify(1 - cos(x)^2), simplify(2sin(x) * cos(x)), simplify(sin(x) * cos(y) + c
 simplify(sin(3x) - 3sin(x) + 4sin(x)^3), simplify(1 / (1 + tan(x)^2))
 ```
 
+Hyperbolic functions are treated the same way, and exponentials combine with both:
+
+```@example tut
+simplify(cosh(x)^2 - sinh(x)^2), simplify(exp(x) + exp(-x)), simplify(cos(x) + im * sin(x))
+```
+
 Logarithms combine and radicals denest; with symbols, where the assumptions allow:
 
 ```@example tut
@@ -402,7 +408,7 @@ refine(log(exp(x)); assume = @assume(x in Reals)), refine(sin(x + 2n*Sym(π)); a
 
 The transformations `simplify` tries are also available on their own, unexported:
 `SymJ.simplify_rational`, `SymJ.simplify_powers`, `SymJ.simplify_trig`,
-`SymJ.simplify_log` and `SymJ.simplify_radicals`.
+`SymJ.simplify_hyperbolic`, `SymJ.simplify_log` and `SymJ.simplify_radicals`.
 
 ## Solving equations
 
