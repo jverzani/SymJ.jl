@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Design notes — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=f7de8013">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=d63dcc79">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Design notes — SymJ.jl">
   <meta property="og:title" content="Design notes — SymJ.jl">
@@ -1039,6 +1039,10 @@ end</code></pre>
 </li>
 <li><p><strong><code class="md-code-inline">simplify_trig</code>.</strong> Arguments are grouped into base angles (multiples of one another share a base), and sines and cosines of multiples written as polynomials in <code class="md-code-inline">S = sin g</code>, <code class="md-code-inline">C = cos g</code> (Chebyshev). Reducing modulo <code class="md-code-inline">S² + C² - 1</code> is a normal form; with one relation per base, whose leading term is <code class="md-code-inline">S²</code> or <code class="md-code-inline">C²</code>, the reduction is the substitution <code class="md-code-inline">S² → 1 - C²</code> (or the reverse), both tried. Linearizing through <code class="md-code-inline">S = (z - 1/z)/2i</code>, <code class="md-code-inline">C = (z + 1/z)/2</code>, <code class="md-code-inline">z = exp(i g)</code>, turns products into sines and cosines of sums of multiples of the bases (Fu&#39;s product-to-sum rule), which gives multiple and sum angles. The smallest candidate is kept, <code class="md-code-inline">sin/cos</code> shown as <code class="md-code-inline">tan</code>.</p>
 </li>
+<li><p><strong><code class="md-code-inline">simplify_hyperbolic</code></strong> is the same method in another mode: <code class="md-code-inline">sinh</code>, <code class="md-code-inline">cosh</code> with <code class="md-code-inline">C² - S² = 1</code>, linearized through <code class="md-code-inline">z = exp(g)</code>. In both modes exponentials join in (<code class="md-code-inline">exp(i k g) = cos(kg) + i sin(kg)</code>, <code class="md-code-inline">exp(kg) = cosh(kg) + sinh(kg)</code>), and the exponential form, <code class="md-code-inline">z</code> substituted back, is one more candidate.</p>
+</li>
+<li><p><strong>Presentation.</strong> Results write <code class="md-code-inline">sin/cos</code> as <code class="md-code-inline">tan</code> (a negative power as <code class="md-code-inline">cot</code>, and a partial match as <code class="md-code-inline">tan·sec</code>), and a remaining negative power of a cosine or sine as a power of <code class="md-code-inline">sec</code>, <code class="md-code-inline">csc</code>, <code class="md-code-inline">sech</code> or <code class="md-code-inline">csch</code>. The size counts a negative exponent as one more node (a division, as SymPy&#39;s <code class="md-code-inline">count_ops</code> counts it), so <code class="md-code-inline">csch(x)^2</code> is smaller than <code class="md-code-inline">1/sinh(x)^2</code>.</p>
+</li>
 <li><p><strong><code class="md-code-inline">simplify_log</code></strong> combines logarithms of positive arguments into one, or expands a logarithm over its positive factors (a positive factor does not change the argument of a product, so the rest may be anything), whichever is smaller.</p>
 </li>
 <li><p><strong><code class="md-code-inline">simplify_radicals</code></strong> denests square roots of <code class="md-code-inline">a + b sqrt(c)</code> when <code class="md-code-inline">a² - b²c</code> is a rational square, rationalizes denominators <code class="md-code-inline">a + b sqrt(c)</code> by the conjugate, and factors radicands so that <code class="md-code-inline">refine</code> can take a power out of the root.</p>
@@ -1233,6 +1237,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=f7de8013"></script>
+  <script src="../assets/materialdocs.js?v=d63dcc79"></script>
 </body>
 </html>

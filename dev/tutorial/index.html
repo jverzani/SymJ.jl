@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=a1daa996">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=afd29397">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -572,6 +572,25 @@ cancel(r)</code></pre>
 \[\left( 0, \; \cos^{2}\left( x \right) \right)\]
 </div>
 </div>
+<p>Hyperbolic functions are treated the same way, and exponentials combine with both:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">simplify(cosh(x)^2 - sinh(x)^2), simplify(exp(x) + exp(-x)), simplify(cos(x) + im * sin(x))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( 1, \; 2 \cdot \cosh\left( x \right), \; e^{i \cdot x} \right)\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">simplify(1 - tanh(x)^2), simplify(1 + tan(x)^2), simplify(cosh(x) / sinh(x))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \mathrm{sech}^{2}\left( x \right), \; \sec^{2}\left( x \right), \; \coth\left( x \right) \right)\]
+</div>
+</div>
 <p>Logarithms combine and radicals denest; with symbols, where the assumptions allow:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -602,7 +621,7 @@ refine(log(exp(x)); assume = @assume(x in Reals)), refine(sin(x + 2n*Sym(π)); a
 \[\left( x, \; \sin\left( x \right) \right)\]
 </div>
 </div>
-<p>The transformations <code class="md-code-inline">simplify</code> tries are also available on their own, unexported: <code class="md-code-inline">SymJ.simplify_rational</code>, <code class="md-code-inline">SymJ.simplify_powers</code>, <code class="md-code-inline">SymJ.simplify_trig</code>, <code class="md-code-inline">SymJ.simplify_log</code> and <code class="md-code-inline">SymJ.simplify_radicals</code>.</p>
+<p>The transformations <code class="md-code-inline">simplify</code> tries are also available on their own, unexported: <code class="md-code-inline">SymJ.simplify_rational</code>, <code class="md-code-inline">SymJ.simplify_powers</code>, <code class="md-code-inline">SymJ.simplify_trig</code>, <code class="md-code-inline">SymJ.simplify_hyperbolic</code>, <code class="md-code-inline">SymJ.simplify_log</code> and <code class="md-code-inline">SymJ.simplify_radicals</code>.</p>
 <h2 id="Solving-equations" class="md-heading">Solving equations<a href="#Solving-equations" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p>An equation is written with <code class="md-code-inline">~</code>, which binds more loosely than everything else, so no parentheses are needed:</p>
 <div class="md-multi-output">
@@ -1148,6 +1167,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=a1daa996"></script>
+  <script src="../assets/materialdocs.js?v=afd29397"></script>
 </body>
 </html>
