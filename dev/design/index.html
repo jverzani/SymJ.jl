@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Design notes — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=e0097e24">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=7ed0c621">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Design notes — SymJ.jl">
   <meta property="og:title" content="Design notes — SymJ.jl">
@@ -254,7 +254,9 @@ end</code></pre>
 </li>
 <li><p><em>Rewrites into existing forms:</em> the degree variants (<code class="md-code-inline">sind</code>, <code class="md-code-inline">asind</code>, …), <code class="md-code-inline">sinpi</code>, <code class="md-code-inline">cospi</code>, <code class="md-code-inline">tanpi</code>, <code class="md-code-inline">log2</code>, <code class="md-code-inline">log10</code>, <code class="md-code-inline">log1p</code>, <code class="md-code-inline">exp2</code>, <code class="md-code-inline">exp10</code>, <code class="md-code-inline">expm1</code>, <code class="md-code-inline">hypot</code>, <code class="md-code-inline">abs2</code>, <code class="md-code-inline">fourthroot</code>, <code class="md-code-inline">cis</code>, <code class="md-code-inline">cispi</code>, <code class="md-code-inline">deg2rad</code>, <code class="md-code-inline">rad2deg</code>, <code class="md-code-inline">div</code>/<code class="md-code-inline">fld</code>/<code class="md-code-inline">cld</code>, <code class="md-code-inline">mod2pi</code>, <code class="md-code-inline">clamp</code>, <code class="md-code-inline">minmax</code>, <code class="md-code-inline">muladd</code>/<code class="md-code-inline">fma</code> (so <code class="md-code-inline">evalpoly</code> works), <code class="md-code-inline">\</code>, and <code class="md-code-inline">numerator</code>/<code class="md-code-inline">denominator</code> (via <code class="md-code-inline">numer_denom</code>).</p>
 </li>
-<li><p><em>Not yet:</em> <code class="md-code-inline">real</code>, <code class="md-code-inline">imag</code>, <code class="md-code-inline">conj</code>, <code class="md-code-inline">angle</code>, <code class="md-code-inline">reim</code>, which need to know whether symbols are real (assumptions), and the bit and integer-representation functions.</p>
+<li><p><em>Complex parts:</em> <code class="md-code-inline">real</code>, <code class="md-code-inline">imag</code>, <code class="md-code-inline">conj</code>, <code class="md-code-inline">angle</code>, <code class="md-code-inline">reim</code>, and <code class="md-code-inline">adjoint</code> and <code class="md-code-inline">transpose</code> for arrays (see Complex numbers below).</p>
+</li>
+<li><p><em>Not yet:</em> the bit and integer-representation functions.</p>
 </li>
 </ul>
 </li>
@@ -1167,7 +1169,7 @@ end</code></pre>
 <ul class="md-list-tight">
 <li><p><strong>Parameters and variables sharing a name.</strong> Prohibit it, or print them distinctly? See Parameters above.</p>
 </li>
-<li><p><strong>Complex numbers.</strong> <code class="md-code-inline">im</code> is the exact power <code class="md-code-inline">(-1)^(1/2)</code>. That covers the basics, but there is no <code class="md-code-inline">re</code>/<code class="md-code-inline">im</code> decomposition or <code class="md-code-inline">conj</code>, and <code class="md-code-inline">Sym(z::Complex)</code> builds <code class="md-code-inline">a + b*im</code>.</p>
+<li><p><strong>Complex numbers.</strong> <code class="md-code-inline">im</code> is the exact power <code class="md-code-inline">(-1)^(1/2)</code>, and <code class="md-code-inline">Sym(z::Complex)</code> builds <code class="md-code-inline">a + b*im</code>. <code class="md-code-inline">real</code>, <code class="md-code-inline">imag</code>, <code class="md-code-inline">conj</code> and <code class="md-code-inline">angle</code> apply, as they are built, only the identities that hold for every complex value: constants are evaluated exactly, <code class="md-code-inline">real</code> and <code class="md-code-inline">imag</code> are linear, and <code class="md-code-inline">conj</code> distributes over sums, products, integer powers and functions without a branch cut (not <code class="md-code-inline">log</code> or fractional powers). Under assumptions, <code class="md-code-inline">refine</code> takes expressions apart into real and imaginary parts (<code class="md-code-inline">real(exp(im*x)) = cos(x)</code> for real <code class="md-code-inline">x</code>).</p>
 </li>
 <li><p><strong>Assumptions.</strong> The design is settled (see Assumptions above); the implementation is under way. Integer congruences (<code class="md-code-inline">mod(n, 3) ~ 1</code>) are to follow the core.</p>
 </li>
@@ -1237,6 +1239,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=e0097e24"></script>
+  <script src="../assets/materialdocs.js?v=7ed0c621"></script>
 </body>
 </html>

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=281fab8d">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=aee7f00f">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -610,6 +610,16 @@ cancel(r)</code></pre>
 \[\left( \log\left( x \cdot y \right), \; x + 1 \right)\]
 </div>
 </div>
+<p><code class="md-code-inline">real</code>, <code class="md-code-inline">imag</code>, <code class="md-code-inline">conj</code> and <code class="md-code-inline">angle</code> evaluate constants exactly; for symbols, which are complex, they take apart what holds for every value, and <code class="md-code-inline">refine</code> does the rest under assumptions:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">real(Sym(2) + 3im), conj(x + im), refine(real(exp(im * x)); assume = @assume(x in Reals))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( 2, \; \mathrm{conj}\left( x \right) - i, \; \cos\left( x \right) \right)\]
+</div>
+</div>
 <p><code class="md-code-inline">refine</code> applies only those identities, without trying anything else:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -1167,6 +1177,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=281fab8d"></script>
+  <script src="../assets/materialdocs.js?v=aee7f00f"></script>
 </body>
 </html>
