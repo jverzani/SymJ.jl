@@ -4,6 +4,7 @@ using SymJ: @parameters, parameter, isparameter, free_parameters   # internal fo
 using TermInterface
 using Test
 import ForwardDiff
+using Latexify: latexify
 
 @syms x y z f() g()
 
@@ -1413,6 +1414,19 @@ import ForwardDiff
         # inequalities: within the unknown's set
         @test string(solve(x^2 ≫ 1, x; assume = (x ≪ 0,))) == "(-∞, -1)"
         @test_throws ArgumentError solve(x^2 ~ 4, x; assume = (x ≫ 1, x ≪ 0))   # contradictory
+    end
+
+    @testset "Latexify" begin
+        @syms a
+        L(v) = repr(MIME"text/latex"(), v)
+        @test L(x^2 + 1) == "\$x^{2} + 1\$" && L(sqrt(Sym(2)) * x) == "\$\\sqrt{2} \\cdot x\$"
+        @test L(exp(x)) == "\$e^{x}\$" && L(IM * x) == "\$i \\cdot x\$"         # ℯ, im as letters
+        @test L(x ~ 2) == "\$x = 2\$" && L(x ≫ 0) == "\$x > 0\$" && L(a ≦ 1) == "\$a \\leq 1\$"
+        @test startswith(L(solve(x^2 ~ 4, x)), "\$\\left[") && L(Sym[]) == "\$\\left[ \\; \\right]\$"
+        @test L((x, x^2)) == "\$\\left( x, \\; x^{2} \\right)\$"
+        @test latexify(x / 2) == latexify(:(x / 2))
+        @test L(Sym(2)^100) == "\$1267650600228229401496703205376\$"   # a big literal
+        @test !showable(MIME"text/latex"(), (x, 1.0))               # mixed tuples: as text
     end
 
     @testset "ambiguities" begin
