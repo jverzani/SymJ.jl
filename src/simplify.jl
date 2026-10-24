@@ -26,6 +26,9 @@
 - `(x^a)^b = x^(a*b)` for `x ≥ 0`, `exp(u)^b = exp(b*u)` for real `u`, and
   `abs(x)^2 = x^2` for real `x`;
 - `log(exp(u)) = u` for real `u`, `log(x^p) = p*log(x)` for `x > 0`;
+- `real`, `imag`, `conj`, `angle` and `abs` from the real and imaginary parts the
+  assumptions give (`real(x) = x` and `conj(x) = x` for real `x`,
+  `real(exp(im*x)) = cos(x)`, `abs(x + im*y) = sqrt(x^2 + y^2)` for real `x`, `y`);
 - `(-1)^n = ±1` for an integer `n` of known parity, `sin`, `cos`, `tan` of `u + n*π` for
   an integer `n` (`sin(n*π) = 0`), and `floor(n) = ceil(n) = n`;
 - equalities in the assumptions are substituted.
@@ -111,6 +114,15 @@ function _refine_rule(e::Sym, A::Assumptions)
         if f === :abs
             _nonneg(u, A) && return u
             _nonpos(u, A) && return -u
+            # |exp(w)| = exp(real(w)); otherwise sqrt(re^2 + im^2) from u's parts
+            if u.kind == POW && _eq(u.args[1], E)
+                return exp(_refine_node(real(u.args[2]), A))
+            end
+            if _isreal(u, A) !== true && (p = _reim(u, A)) !== nothing
+                m2 = expand(p[1]^2 + p[2]^2)
+                m2 = simplify_hyperbolic(simplify_trig(m2))
+                return sqrt(m2)
+            end
             if u.kind == MUL                         # factors of known sign come out
                 out, rest = Sym(abs(u.num)), Sym[]
                 for (b, p) in zip(u.args, u.exps)
@@ -136,6 +148,8 @@ function _refine_rule(e::Sym, A::Assumptions)
             return nothing
         elseif f in (:sin, :cos, :tan)
             return _refine_trig(f, u, A)
+        elseif f in (:real, :imag, :conj, :angle)
+            return _refine_parts(f, u, A)
         elseif f in (:floor, :ceil)
             _isinteger(u, A) === true && return u
             if u.kind == ADD                          # integer terms come out
@@ -148,6 +162,85 @@ function _refine_rule(e::Sym, A::Assumptions)
             end
             return nothing
         end
+    end
+    nothing
+end
+
+# real, imag, conj, angle of u, from u's real and imaginary parts under the assumptions
+function _refine_parts(f::Symbol, u::Sym, A::Assumptions)
+    p = _reim(u, A)
+    p === nothing && return nothing
+    re, im = expand(p[1]), expand(p[2])
+    f === :real && return re
+    f === :imag && return im
+    f === :conj && return iszero(im) ? u : re - IM * im
+    # angle: of a real, 0 or π by its sign; else atan(im/re) by the quadrant
+    if iszero(im)
+        m = _signs(re, A)
+        m == _POS && return ZERO
+        m == _NEG && return PI
+        return nothing
+    end
+    sr, si = _signs(re, A), _signs(im, A)
+    (sr in (_POS, _NEG, _ZER) && si in (_POS, _NEG)) || return nothing
+    sr == _ZER && return si == _POS ? PI / 2 : -PI / 2
+    a = atan(im / re)
+    sr == _POS ? a : si == _POS ? a + PI : a - PI
+end
+
+# (real part, imaginary part) of u under the assumptions, or nothing
+function _reim(u::Sym, A::Assumptions)
+    _isreal(u, A) === true && return (u, ZERO)
+    p = _const_parts(u)
+    p === nothing || return p
+    _isnamed(u) && return nothing
+    k = u.kind
+    mulp((a, b), (c, d)) = (a * c - b * d, a * d + b * c)
+    if k == ADD
+        re, im = Sym(u.num), ZERO
+        for (c, t) in zip(u.coefs, u.args)
+            q = _reim(t, A)
+            q === nothing && return nothing
+            re += Sym(c) * q[1]
+            im += Sym(c) * q[2]
+        end
+        return (re, im)
+    elseif k == MUL
+        acc = (Sym(u.num), ZERO)
+        for (b, e) in zip(u.args, u.exps)
+            q = _reim(b^e, A)
+            q === nothing && return nothing
+            acc = mulp(acc, q)
+        end
+        return acc
+    elseif k == POW
+        b, e = u.args
+        if _eq(b, E)                                           # exp(a + ib)
+            q = _reim(e, A)
+            q === nothing && return nothing
+            return (exp(q[1]) * cos(q[2]), exp(q[1]) * sin(q[2]))
+        end
+        if e.kind == NUMBER && isexact(e.num) && isone(_denominator(e.num)) && N0 < e.num <= SymNumber(8)
+            q = _reim(b, A)
+            q === nothing && return nothing
+            acc = (ONE, ZERO)
+            for _ in 1:Int(_numerator(e.num))
+                acc = mulp(acc, q)
+            end
+            return acc
+        end
+        return nothing
+    elseif k == FN && length(u.args) == 1
+        f = u.name
+        f in _REALFNS && return (u, ZERO)
+        q = _reim(u.args[1], A)
+        q === nothing && return nothing
+        a, b = q
+        f === :conj && return (a, -b)
+        f === :sin && return (sin(a) * cosh(b), cos(a) * sinh(b))
+        f === :cos && return (cos(a) * cosh(b), -sin(a) * sinh(b))
+        f === :sinh && return (sinh(a) * cos(b), cosh(a) * sin(b))
+        f === :cosh && return (cosh(a) * cos(b), sinh(a) * sin(b))
     end
     nothing
 end

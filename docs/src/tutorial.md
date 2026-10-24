@@ -403,6 +403,14 @@ simplify(log(Sym(2)) + log(Sym(3))), simplify(sqrt(3 + 2sqrt(Sym(2)))), simplify
 simplify(log(x) + log(y); assume = @assume(x > 0, y > 0)), simplify(sqrt(x^2 + 2x + 1); assume = @assume(x > -1))
 ```
 
+`real`, `imag`, `conj` and `angle` evaluate constants exactly; for symbols, which are
+complex, they take apart what holds for every value, and `refine` does the rest under
+assumptions:
+
+```@example tut
+real(Sym(2) + 3im), conj(x + im), refine(real(exp(im * x)); assume = @assume(x in Reals))
+```
+
 `refine` applies only those identities, without trying anything else:
 
 ```@example tut

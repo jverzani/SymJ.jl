@@ -193,8 +193,9 @@ register_function!(:sin; julia = sin,                 # numeric evaluation, Term
     `abs2`, `fourthroot`, `cis`, `cispi`, `deg2rad`, `rad2deg`, `div`/`fld`/`cld`,
     `mod2pi`, `clamp`, `minmax`, `muladd`/`fma` (so `evalpoly` works), `\`, and
     `numerator`/`denominator` (via `numer_denom`).
-  - *Not yet:* `real`, `imag`, `conj`, `angle`, `reim`, which need to know whether
-    symbols are real (assumptions), and the bit and integer-representation functions.
+  - *Complex parts:* `real`, `imag`, `conj`, `angle`, `reim`, and `adjoint` and
+    `transpose` for arrays (see Complex numbers below).
+  - *Not yet:* the bit and integer-representation functions.
 - **Package extensions.** These load automatically when the package is loaded with
   SymJ: **SpecialFunctions**, **HypergeometricFunctions** (`_₁F₁`, `_₂F₁`, `_₃F₂`,
   and `pFq` of those sizes) and **PolyLog** (`li0`–`li6`, `li(n, z)`, `reli…`).
@@ -965,8 +966,13 @@ and a finalizer per operation), which dominates the small benchmarks.
 
 - **Parameters and variables sharing a name.** Prohibit it, or print them distinctly?
   See Parameters above.
-- **Complex numbers.** `im` is the exact power `(-1)^(1/2)`. That covers the basics, but
-  there is no `re`/`im` decomposition or `conj`, and `Sym(z::Complex)` builds `a + b*im`.
+- **Complex numbers.** `im` is the exact power `(-1)^(1/2)`, and `Sym(z::Complex)`
+  builds `a + b*im`. `real`, `imag`, `conj` and `angle` apply, as they are built, only
+  the identities that hold for every complex value: constants are evaluated exactly,
+  `real` and `imag` are linear, and `conj` distributes over sums, products, integer
+  powers and functions without a branch cut (not `log` or fractional powers). Under
+  assumptions, `refine` takes expressions apart into real and imaginary parts
+  (`real(exp(im*x)) = cos(x)` for real `x`).
 - **Assumptions.** The design is settled (see Assumptions above); the implementation is
   under way. Integer congruences (`mod(n, 3) ~ 1`) are to follow the core.
 - **Relations.** `==` is structural and returns `Bool`. Symbolic `Eq`, `<`, etc. need

@@ -17,7 +17,7 @@ LaTeX output.
 | Exact integers and rationals of any size | `Integer`, `Rational` | built in | ✅ `SymNumber` (Int fast path, BigInt fallback) |
 | Exact radicals, π, ℯ, exact function values | `sqrt`, `pi`, `E` | built in | ✅ `sqrt(Sym(8)) == 2sqrt(2)`, `sin(π/3) == sqrt(3)/2` |
 | Combining and denesting radicals | `radsimp`, `sqrtdenest` | `simplify` | ✅ through `simplify`: combining (`sqrt(2)*sqrt(3) = sqrt(6)`), denesting square roots of `a + b sqrt(c)`, rationalizing denominators; ◐ no deeper denesting |
-| Complex numbers: `re`, `im`, `conj`, `arg` | `re`, `im`, `conjugate`, `arg` | `re`, `im`, `conj`, `arg` | ◐ `im` is exact; no real/imaginary parts yet (assumptions now exist to decide them) |
+| Complex numbers: `re`, `im`, `conj`, `arg` | `re`, `im`, `conjugate`, `arg` | `re`, `im`, `conj`, `arg` | ✅ `real`, `imag`, `conj`, `angle`, `reim` (exact for constants; identities for every complex value as built; parts under assumptions through `refine`); `adjoint` for matrices of expressions |
 | Symbolic infinity and undefined | `oo`, `zoo`, `nan` | `infinity`, `undef` | ◐ limits return `Sym(Inf)`; no symbolic infinity in expressions |
 | Numeric evaluation | `evalf(n)` | `evalf` | ✅ `N` (Float64), calling with `BigFloat`, dual numbers, … |
 | Assumptions on symbols | `symbols(positive=True)`, `ask`, `refine`, `Q` | `assume` | ◐ ★ `Assumptions`, `@assume`, `assuming`/`@assuming`, per call or per block, not stored on symbols; used by `solve`, `limit`, `refine` and `simplify` (`sqrt(x^2) = x` for `x > 0`); not yet by `integrate` |
@@ -164,8 +164,8 @@ differential equations. Of the rest, in rough order of value for calculus-level 
    antiderivatives.
 5. **Laplace transforms**, natural companions to the differential equation work.
 6. ~~**Resultants**, then **Gröbner bases**~~: done, and polynomial systems are solved.
-7. **Real and imaginary parts and `conj`**, now that assumptions exist; and
-   **simplification under assumptions** (`sqrt(x^2) = x` for `x > 0`).
+7. ~~**Real and imaginary parts and `conj`**, and **simplification under
+   assumptions**~~: done (`real`, `imag`, `conj`, `angle`; `refine`, `simplify`).
 8. **Numeric root finding for any equation**, for when `solve` has no closed form.
 9. **Utilities**: `collect`, `coeff`, Horner form, a user-level `cse`, `nsimplify`.
 10. **Rewriting between forms** (exp ↔ trig, half-angle), which a `simplify` will want
