@@ -1456,6 +1456,62 @@ using Latexify: latexify
         @test limit(f, x => a) == 16a / 9                       # the classic L'Hôpital example
     end
 
+    @testset "refine and simplify" begin
+        @syms a n
+        R(e, as...) = refine(e; assume = Assumptions(as...))
+        @test R(sqrt(x^2), x ≫ 0) == x && R(sqrt(x^2), x ∈ ℝ) == abs(x) && R(sqrt(x^2)) == sqrt(x^2)
+        @test R(sqrt(x^4), x ∈ ℝ) == x^2 && R((x^3)^(1 // 3), x ≫ 0) == x
+        @test R((x^3)^(1 // 3), x ∈ ℝ) == (x^3)^(1 // 3)          # a real cube root is not x^(1/3)'s branch
+        @test R(abs(x), x ≪ 0) == -x && R(abs(2x * y), x ≫ 0) == 2x * abs(y) && R(sign(x - 1), x ≫ 2) == 1
+        @test R(log(exp(x)), x ∈ ℝ) == x && R(log(exp(x))) == log(exp(x)) && R(log(x^2), x ≫ 0) == 2log(x)
+        @test R((-1)^(2n), n ∈ ℤ) == 1 && R((-1)^(2n + 1), n ∈ ℤ) == -1
+        @test R(sin(n * PI), n ∈ ℤ) == 0 && R(cos(n * PI), n ∈ ℤ) == (-1)^n
+        @test R(sin(x + 2n * PI), n ∈ ℤ) == sin(x) && R(cos(x + n * PI), n ∈ ℤ) == (-1)^n * cos(x)
+        @test R(floor(n), n ∈ ℤ) == n && R(floor(x + n), n ∈ ℤ) == floor(x) + n
+        @test R(sqrt(exp(x)), x ∈ ℝ) == exp(x / 2) && R(x^2 + a, a ~ 3) == x^2 + 3
+        @test R(x ≫ 0, x ≫ 1) === true && R(x ≫ 2, x ≫ 1) == (x ≫ 2) && R(x^2 ≧ 0, x ∈ ℝ) === true
+        @test (@assuming x > 0 begin refine(sqrt(x^2)) end) == x
+        S(e, as...) = simplify(e; assume = Assumptions(as...))
+        @test S((x^2 - 1) / (x - 1)) == x + 1 && S((x + 1)^2 - x^2) == 2x + 1
+        @test S(sqrt(Sym(2)) * sqrt(Sym(3))) == sqrt(Sym(6)) && S(Sym(2)^(1 // 3) * Sym(4)^(1 // 3)) == 2
+        @test S(sqrt(x^2) / x, x ≫ 0) == 1 && S(sin((x^2 - 1) / (x - 1))) == sin(x + 1)
+        @test S(x^2 + 2x + 1) == (x + 1)^2 && S(x / (x + 1) + 1 / (x + 1)) == 1
+        @test S(sqrt(x) * sqrt(y), x ≫ 0, y ≫ 0) == sqrt(x * y) && S(sqrt(x) * sqrt(y)) == sqrt(x) * sqrt(y)
+        @test S((x^3 - 1) / (x^2 + x + 1)) == x - 1 && S(x^2 - 1) == x^2 - 1    # not factored: no smaller
+        @test simplify(x ≫ 0; assume = @assume(x > 1)) === true
+        @test SymJ.simplify_powers(sqrt(Sym(2)) * sqrt(Sym(8))) == 4 && SymJ.simplify_rational(1 / x + 1 / y) == (x + y) / (x * y)
+        @test SymJ._nodes(sqrt(x * y)) < SymJ._nodes(sqrt(x) * sqrt(y))
+        @test simplify((x + y)^30 - (x + y)^30) == 0 && simplify((x + y)^30) == (x + y)^30   # no expansion tried
+        # trigonometric: a normal form modulo sin^2 + cos^2 = 1, and linearization
+        T = SymJ.simplify_trig
+        @test T(sin(x)^2 + cos(x)^2) == 1 && T(1 - cos(x)^2) == sin(x)^2 && T(sec(x)^2 - tan(x)^2) == 1
+        @test T(2sin(x) * cos(x)) == sin(2x) && T(cos(x)^2 - sin(x)^2) == cos(2x) && T(sin(2x) / sin(x)) == 2cos(x)
+        @test T(tan(x) * cos(x)) == sin(x) && T((1 - cos(x)^2) / sin(x)) == sin(x) && T(sin(x) / cos(x)) == tan(x)
+        @test T(1 / (1 + tan(x)^2)) == cos(x)^2 && T(sin(x)^4 - cos(x)^4) == -cos(2x)
+        @test T(sin(x / 2) * cos(x / 2)) == sin(x) / 2 && T(cos(2x) + 2sin(x)^2) == 1
+        @test T(sin(3x) - 3sin(x) + 4sin(x)^3) == 0 && T(x * sin(x)^2 + x * cos(x)^2) == x
+        @test T(sin(x) * cos(y) + cos(x) * sin(y)) == sin(x + y) && T(cos(x) * cos(y) - sin(x) * sin(y)) == cos(x + y)
+        @test T(cos(x) * cos(y) + sin(x) * sin(y)) == cos(x - y) && T(sin(x) * cos(y) - cos(x) * sin(y)) == sin(x - y)
+        @test T(sin(x + y) - sin(x) * cos(y) - cos(x) * sin(y)) == 0
+        @test T(sin(x) + 1) == sin(x) + 1 && T(x^2) == x^2                  # nothing to do
+        @test simplify(sin(x)^2 + cos(x)^2 + x) == x + 1 && simplify((1 - cos(x)^2) / sin(x)^2) == 1
+        # logarithms: combined or expanded where the arguments are positive
+        @test S(log(Sym(2)) + log(Sym(3))) == log(Sym(6)) && S(2log(Sym(2)) - log(Sym(4))) == 0
+        @test S(log(x) + log(y)) == log(x) + log(y) && S(log(x) + log(y), x ≫ 0, y ≫ 0) == log(x * y)
+        @test S(log(x * y) - log(x), x ≫ 0) == log(y) && S(log(x^3) - 3log(x), x ≫ 0) == 0
+        @test S(log(2x) - log(Sym(2))) == log(x)                                 # 2 > 0: always
+        @test S(exp(log(x) + log(y)), x ≫ 0, y ≫ 0) == x * y
+        @test SymJ.simplify_log(log(x * y); assume = Assumptions(x ≫ 0, y ≫ 0)) == log(x * y)  # the smaller
+        # radicals: denested, denominators rationalized, radicands factored
+        @test S(sqrt(3 + 2sqrt(Sym(2)))) == 1 + sqrt(Sym(2)) && S(sqrt(5 - 2sqrt(Sym(6)))) == sqrt(Sym(3)) - sqrt(Sym(2))
+        @test S(1 / (1 + sqrt(Sym(2)))) == sqrt(Sym(2)) - 1 && S(1 / (sqrt(Sym(3)) - 1)) == (sqrt(Sym(3)) + 1) / 2
+        @test S(2 / (1 + sqrt(Sym(5)))^2) == (3 - sqrt(Sym(5))) / 4
+        @test S(sqrt(x^2 + 2x + 1), x ∈ ℝ) == abs(x + 1) && S(sqrt(x^2 + 2x + 1), x ≫ -1) == x + 1
+        @test S(sqrt(4x^2 + 4x + 1) / (2x + 1), x ≫ 0) == 1
+        @test SymJ.simplify_radicals(sqrt(2 + sqrt(Sym(3)))) == sqrt(Sym(6)) / 2 + sqrt(Sym(2)) / 2
+        @test S(sqrt(2 + sqrt(Sym(3)))) == sqrt(2 + sqrt(Sym(3)))               # denested is larger
+    end
+
     @testset "Latexify" begin
         @syms a
         L(v) = repr(MIME"text/latex"(), v)

@@ -20,7 +20,7 @@ export AbstractSymbolic, Sym, SymNumber, SymFunction
 export @syms, symbols, subs, evaluate, lambdify, lambdify_expr, expand, free_symbols, has, N
 export register_function!
 export numer_denom, cancel, factor_squarefree, squarefree_part, factor, apart, resultant, discriminant, groebner, reduced
-export solve, lambertw, series, limit, GruntzError
+export solve, lambertw, series, limit, GruntzError, simplify, refine
 export Assumptions, assuming, @assume, @assuming, ℤ, ℚ, ℝ, ℂ, Integers, Rationals, Reals, Complexes
 export Relation, lhs, rhs, Eq, Lt, Le, Gt, Ge, Ne, ⩵, ≪, ≦, ≫, ≧, ≶, ≷
 export Poly, gens, nterms, coefficients, exponent_vectors, degree, divides, divexact
@@ -54,6 +54,7 @@ include("ineqsystems.jl")
 include("assumptions.jl")
 include("cases.jl")
 include("limit.jl")
+include("simplify.jl")
 include("series.jl")
 include("resultant.jl")
 include("groebner.jl")

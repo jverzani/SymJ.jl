@@ -352,6 +352,58 @@ Other symbols are allowed in the coefficients:
 apart(1 / ((x - a) * (x - b)), x)
 ```
 
+## Simplification
+
+Expressions are kept in a canonical form as they are built, but that form does not
+cancel fractions, combine radicals or apply identities that need facts. `simplify`
+tries several transformations and keeps the smallest result:
+
+```@example tut
+simplify((x^2 - 1) / (x - 1)), simplify((x + 1)^2 - x^2), simplify(sqrt(Sym(2)) * sqrt(Sym(3)))
+```
+
+```@example tut
+simplify(x / (x + 1) + 1 / (x + 1)), simplify(x^2 + 2x + 1)
+```
+
+Identities such as `sqrt(x^2) = x` hold only for some values. Symbols are complex unless
+a fact says otherwise, so these need assumptions:
+
+```@example tut
+simplify(sqrt(x^2)), simplify(sqrt(x^2); assume = @assume(x > 0)), simplify(sqrt(x^2); assume = @assume(x in Reals))
+```
+
+Trigonometric identities are recognised, including multiple angles and sums of angles:
+
+```@example tut
+simplify(1 - cos(x)^2), simplify(2sin(x) * cos(x)), simplify(sin(x) * cos(y) + cos(x) * sin(y))
+```
+
+```@example tut
+simplify(sin(3x) - 3sin(x) + 4sin(x)^3), simplify(1 / (1 + tan(x)^2))
+```
+
+Logarithms combine and radicals denest; with symbols, where the assumptions allow:
+
+```@example tut
+simplify(log(Sym(2)) + log(Sym(3))), simplify(sqrt(3 + 2sqrt(Sym(2)))), simplify(1 / (1 + sqrt(Sym(2))))
+```
+
+```@example tut
+simplify(log(x) + log(y); assume = @assume(x > 0, y > 0)), simplify(sqrt(x^2 + 2x + 1); assume = @assume(x > -1))
+```
+
+`refine` applies only those identities, without trying anything else:
+
+```@example tut
+@syms n
+refine(log(exp(x)); assume = @assume(x in Reals)), refine(sin(x + 2n*Sym(π)); assume = @assume(n in Integers))
+```
+
+The transformations `simplify` tries are also available on their own, unexported:
+`SymJ.simplify_rational`, `SymJ.simplify_powers`, `SymJ.simplify_trig`,
+`SymJ.simplify_log` and `SymJ.simplify_radicals`.
+
 ## Solving equations
 
 An equation is written with `~`, which binds more loosely than everything else, so no
