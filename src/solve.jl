@@ -12,7 +12,7 @@
 import CommonSolve: solve
 
 """
-    solve(eq::Relation, x)
+    solve(eq::Relation, x; assume = nothing)
 
 The solutions of the equation `eq` (written with `~`, e.g. `x^2 ~ 4`) for `x`, as a
 vector of distinct expressions. The equation must be polynomial or rational in `x`;
@@ -28,8 +28,25 @@ solve(x^2 - 2 ~ 0, x)          # [-sqrt(2), sqrt(2)]
 solve(x^2 ~ -1, x)             # [-im, im]
 solve(a*x + b ~ 0, x)          # [-b/a]
 ```
+
+With assumptions (`assume = (x ≫ 0,)`, an [`Assumptions`](@ref), or inside
+[`assuming`](@ref)), only the solutions they allow for `x` are kept: those in its
+number set (`x ∈ ℝ`), its range (`x ≫ 0`), and consistent with its relations to other
+symbols. Facts about the other symbols are used to decide that. When the answer
+depends on something the assumptions leave open, the result is a `Cases` value: a
+list of `conditions => solutions`, which can be called with values (`cs(a => 4)`).
+
+```julia
+solve(x^2 ~ 4, x; assume = (x ≫ 0,))                # [2]
+solve(x^2 ~ a, x; assume = (x ∈ ℝ, a ∈ ℝ))         # a < 0 => [], a == 0 => [0], a > 0 => [-√a, √a]
+solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a > 0 => [√a], !(a > 0) => []
+```
 """
-function solve(eq::Relation, x::Sym)
+solve(eq::Relation, x::Sym; assume = nothing) = (A = _assumptions(assume);
+    A === nothing ? _solve_eq(eq, x) : _solve_assumed(eq, x, A))
+
+# the solutions, without assumptions (what internal callers use)
+function _solve_eq(eq::Relation, x::Sym)
     _isnamed(x) || throw(ArgumentError("solve: $x is not a symbol"))
     eq.op === :eq || return _solve_inequality(eq, x)
     _isnamed(x) || throw(ArgumentError("solve: $x is not a symbol"))
@@ -85,8 +102,8 @@ function _solve_through(eq::Relation, n::Sym, x::Sym, bad::Vector{Sym})
         throw(ArgumentError("solve: $eq involves both $x and $g; not supported (it may need, e.g., Lambert W)"))
     end
     out = Sym[]
-    for r in solve(nu ~ 0, u), (arg, val) in _invert(g, r, x)
-        append!(out, solve(arg ~ val, x))
+    for r in _solve_eq(nu ~ 0, u), (arg, val) in _invert(g, r, x)
+        append!(out, _solve_eq(arg ~ val, x))
     end
     filter(r -> _satisfies(eq, x, r), out)
 end
@@ -119,7 +136,7 @@ function _solve_logs(eq::Relation, n::Sym, x::Sym)
         sum(ev) == 1 && (ks[findfirst(==(1), ev)] = Int(_numerator(c.num) * (L ÷ _denominator(c.num))))
     end
     lhs = prod((logs[i].args[1]^ks[i] for i in eachindex(logs) if ks[i] != 0); init = ONE)
-    cands = solve(lhs ~ exp(-Sym(SymNumber(L)) * R), x)
+    cands = _solve_eq(lhs ~ exp(-Sym(SymNumber(L)) * R), x)
     filter(r -> _satisfies(eq, x, r), cands)
 end
 
@@ -181,7 +198,7 @@ function _solve_radical(eq::Relation, nu::Sym, u::Sym, R::Sym, x::Sym)
         k = ev[1]
         iseven(k) ? (A += c * t^(k ÷ 2)) : (B += c * t^((k - 1) ÷ 2))
     end
-    cands = solve(expand(A^2 - B^2 * t) ~ 0, x)
+    cands = _solve_eq(expand(A^2 - B^2 * t) ~ 0, x)
     filter(r -> _satisfies(eq, x, r), cands)
 end
 

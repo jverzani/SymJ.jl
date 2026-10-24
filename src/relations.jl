@@ -3,7 +3,7 @@
 # `==`, `<`, `≤` keep returning Bool (structural equality is what Dicts, `in` and generic
 # code need). Relations are written with `~` (equations; the convention of Symbolics.jl,
 # ModelingToolkit and SimpleExpressions) and with the operators and function names of
-# CommonEq.jl, defined here without depending on it:
+# CommonEq.jl, whose functions are extended here (so SymJ and SymPy share them):
 #
 #   =  : lhs ~ rhs,  lhs ⩵ rhs (\Equal),   Eq(lhs, rhs)
 #   <  : a ≪ b (\ll),                      Lt(a, b)
@@ -53,14 +53,10 @@ const _REL_INFO = Dict(:eq => ("~", ==), :lt => ("≪", <), :le => ("≦", <=),
     Eq(a, b), Lt(a, b), Le(a, b), Gt(a, b), Ge(a, b), Ne(a, b)
 
 The relations `a = b`, `a < b`, `a ≤ b`, `a > b`, `a ≥ b`, `a ≠ b` between expressions
-(the names of CommonEq.jl). Infix forms: `~` or `⩵`, `≪`, `≦`, `≫`, `≧`, `≶` or `≷`.
+(the functions of CommonEq.jl, extended). Infix forms: `~` or `⩵`, `≪`, `≦`, `≫`, `≧`,
+`≶` or `≷`.
 """
-function Eq end
-function Lt end
-function Le end
-function Gt end
-function Ge end
-function Ne end
+Eq
 
 for (f, op) in ((:Eq, :eq), (:Lt, :lt), (:Le, :le), (:Gt, :gt), (:Ge, :ge), (:Ne, :ne))
     for (S, T) in ((Sym, Sym), (Sym, Number), (Number, Sym))
@@ -92,14 +88,6 @@ for (S, T) in ((Sym, Sym), (Sym, Real), (Real, Sym))
     @eval Base.:>=(a::$S, b::$T) = _compare(:>=, Sym(a), Sym(b))
     @eval Base.isless(a::$S, b::$T) = _compare(:<, Sym(a), Sym(b))
 end
-
-const ⩵ = Eq
-const ≪ = Lt
-const ≦ = Le
-const ≫ = Gt
-const ≧ = Ge
-const ≶ = Ne
-const ≷ = Ne
 
 Base.:(==)(a::Relation, b::Relation) = a.op === b.op && a.lhs == b.lhs && a.rhs == b.rhs
 Base.hash(r::Relation, h::UInt) = hash(r.rhs, hash(r.lhs, hash(r.op, h)))

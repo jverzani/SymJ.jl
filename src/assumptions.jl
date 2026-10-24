@@ -48,6 +48,8 @@ struct Membership
     negated::Bool
 end
 Base.:!(m::Membership) = Membership(m.x, m.set, !m.negated)
+Base.:(==)(a::Membership, b::Membership) = a.set == b.set && a.negated == b.negated && _eq(a.x, b.x)
+Base.hash(m::Membership, h::UInt) = hash(m.x, hash(m.set.rank, hash(m.negated, h)))
 Base.show(io::IO, m::Membership) = print(io, m.x, m.negated ? " ∉ " : " ∈ ", m.set)
 
 function Base.in(x::Sym, S::NumberSet)
@@ -133,11 +135,16 @@ Base.show(io::IO, A::Assumptions) = (print(io, "Assumptions("); join(io, A.facts
 Assumptions(A::Assumptions, facts...) = Assumptions(A.facts..., facts...)
 
 function Assumptions(facts...)
-    flat = Any[]
-    _flatten!(flat, facts)
+    flat = _flatten!(Any[], facts)
+    A = _build(flat)
+    A === nothing && throw(ArgumentError("the assumptions are contradictory: " * join(string.(flat), ", ")))
+    A
+end
+
+# the normalized facts, or nothing when they are contradictory
+function _build(flat::Vector{Any})
     A = Assumptions(flat, Dict{Sym,Sym}(), Dict{Sym,Int8}(), Dict{Sym,Int8}(), Dict{Sym,SymSet}(),
                     Dict{Sym,Vector{Sym}}(), Sym[], _ACon[], Dict{Sym,Union{Nothing,UInt8}}())
-    _contradiction() = throw(ArgumentError("the assumptions are contradictory: " * join(string.(flat), ", ")))
     # membership facts first: equalities then avoid solving for those symbols
     mems = [f for f in flat if f isa Membership]
     for m in mems
@@ -159,7 +166,7 @@ function Assumptions(facts...)
         if x !== nothing
             v = x in m.set
             v isa Bool || throw(ArgumentError("$(m.x) ∈ $(m.set) together with $(m.x) ~ $x is not supported"))
-            v == m.negated && _contradiction()
+            v == m.negated && return nothing
             continue
         end
         if m.negated
@@ -175,13 +182,13 @@ function Assumptions(facts...)
         if g isa Relation && g.op === :ne
             push!(nes, g)
         else
-            _add_fact!(A, g) || _contradiction()
+            _add_fact!(A, g) || return nothing
         end
     end
     for g in nes
-        _add_ne!(A, g) || _contradiction()
+        _add_ne!(A, g) || return nothing
     end
-    _check!(A) || _contradiction()
+    _check!(A) || return nothing
     A
 end
 
@@ -192,7 +199,7 @@ function _flatten!(out, fs)
         elseif f isa FactAnd
             _flatten!(out, f.facts)
         elseif f isa Bool
-            f || throw(ArgumentError("the assumptions are contradictory: a fact is false"))
+            f || push!(out, Relation(:eq, ONE, ZERO))     # false: contradicts
         elseif f isa Assumptions
             _flatten!(out, f.facts)
         elseif f isa _Fact
@@ -214,22 +221,25 @@ _ismarkedreal(A, x) = get(A.dom, x, _CR) <= _RR || haskey(A.sets, x)
 _markreal!(A, x) = (A.dom[x] = min(get(A.dom, x, _CR), _RR))
 _restrict!(A, x, S::SymSet) = (A.sets[x] = haskey(A.sets, x) ? A.sets[x] ∩ S : S; _markreal!(A, x))
 
-# an equality solved for a symbol (one with no membership fact), added to subst;
-# false when it cannot be (nonlinear in several symbols: kept as a relation)
+# an equality solved for a symbol, added to subst (for a symbol with a membership fact,
+# only a constant value, which the membership is checked against); false when it cannot
+# be (nonlinear in several symbols: kept as a relation)
 function _add_equality!(A::Assumptions, f::Relation, avoid)
     d = expand(isempty(A.subst) ? f.lhs - f.rhs : subs(f.lhs - f.rhs, A.subst...))
     vs = _named(d)
     isempty(vs) && return false                      # a constant: decided with the others
     # x ~ rhs is taken as giving x
     x = isempty(A.subst) ? f.lhs : expand(subs(f.lhs, A.subst...))
-    if _isnamed(x) && !(x in avoid) && !has(f.rhs, x)
-        _setsubst!(A, x, expand(isempty(A.subst) ? f.rhs : subs(f.rhs, A.subst...)))
-        return true
+    if _isnamed(x) && !has(f.rhs, x)
+        v = expand(isempty(A.subst) ? f.rhs : subs(f.rhs, A.subst...))
+        if !(x in avoid) || !_hassymbol(v)
+            _setsubst!(A, x, v)
+            return true
+        end
     end
     if length(vs) == 1
         x = only(vs)
-        x in avoid && return false
-        rs = try solve(d ~ 0, x) catch; return false end
+        rs = try _solve_eq(d ~ 0, x) catch; return false end
         length(rs) == 1 || return false              # several values: a set
         _setsubst!(A, x, only(rs))
         return true
@@ -239,9 +249,9 @@ function _add_equality!(A::Assumptions, f::Relation, avoid)
     a, k = lf
     for x in vs
         c = get(a, x, nothing)
-        (c === nothing || x in avoid) && continue
+        c === nothing && continue
         rest = d - Sym(c) * x
-        has(rest, x) && continue
+        (has(rest, x) || (x in avoid && _hassymbol(rest))) && continue
         _setsubst!(A, x, expand(-rest / Sym(c)))
         return true
     end
@@ -276,7 +286,7 @@ function _add_fact!(A::Assumptions, f)
     end
     if r.op === :eq && length(vs) == 1              # several values: real roots as points
         x = only(vs)
-        rs = solve(d ~ 0, x)
+        rs = _solve_eq(d ~ 0, x)
         isempty(_real_roots(rs)) && isempty(rs) && return false
         length(_real_roots(rs)) == length(rs) ||
             throw(ArgumentError("$r: values that are not all real are not supported"))
@@ -315,7 +325,7 @@ function _factset(f, x::Sym)::SymSet
     f isa FactOr && return reduce(∪, (_factset(g, x) for g in f.facts))
     f isa Membership && throw(ArgumentError("membership in a combination of facts is not supported: $f"))
     r = f::Relation
-    r.op === :eq && return _set_from(_real_roots(solve(r.lhs - r.rhs ~ 0, x)), (v, atpoint) -> atpoint)
+    r.op === :eq && return _set_from(_real_roots(_solve_eq(r.lhs - r.rhs ~ 0, x)), (v, atpoint) -> atpoint)
     r.op === :ne && return setdiff(_REALS, _factset(!r, x))
     _solve_inequality(Relation(r.op, expand(r.lhs - r.rhs), ZERO), x)
 end
@@ -333,7 +343,7 @@ function _add_ne!(A::Assumptions, r::Relation)
         if _ismarkedreal(A, x)
             _restrict!(A, x, _factset(Relation(:ne, d, ZERO), x))
         else
-            for v in solve(d ~ 0, x)
+            for v in _solve_eq(d ~ 0, x)
                 push!(get!(A.excluded, x, Sym[]), v)
             end
         end
@@ -578,6 +588,23 @@ function _isreal(e::Sym, A::Assumptions)::Union{Nothing,Bool}
     isempty(A.subst) || (e = expand(subs(e, A.subst...)))
     _isnamed(e) && return get(A.notin, e, Int8(0)) >= _RR ? false : nothing
     _hassymbol(e) || return _isreal_const(e)
+    if e.kind == POW
+        # b^q, q not an integer, |q| < 1: real exactly when b ≥ 0 (principal branch)
+        b, q = e.args
+        if q.kind == NUMBER && isexact(q.num) && !isone(_denominator(q.num)) && abs(q.num) < N1
+            mb = _signs(b, A)
+            mb !== nothing && mb & _NEG != 0 && mb & (_ZER | _POS) == 0 && return false
+            _isreal(b, A) === false && return false
+        end
+    elseif e.kind == MUL || e.kind == ADD
+        # real parts and one that is not real
+        parts = e.kind == MUL ? [b^x for (b, x) in zip(e.args, e.exps)] : e.args
+        rs = [_isreal(p, A) for p in parts]
+        if count(==(false), rs) == 1 && all(!=(nothing), rs)
+            e.kind == ADD && return false
+            return all(i -> rs[i] == false || _isnonzero(parts[i], A) === true, eachindex(parts)) ? false : nothing
+        end
+    end
     nothing
 end
 

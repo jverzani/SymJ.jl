@@ -1343,6 +1343,43 @@ import ForwardDiff
         @test Assumptions(A, z ≫ 0).facts[end] == (z ≫ 0)
     end
 
+    @testset "solve with assumptions" begin
+        @syms a n
+        @test solve(x^2 ~ 4, x; assume = (x ≫ 0,)) == [2]
+        @test solve(x^2 ~ 4, x; assume = Assumptions(x ≶ 2)) == [-2]
+        @test solve(x^2 ~ -1, x; assume = (x ∈ ℝ,)) == Sym[]
+        @test solve(x^3 ~ 8, x; assume = (x ∈ ℝ,)) == [2]
+        @test solve(x^2 - 5x + 6 ~ 0, x; assume = (x ≫ 2,)) == [3]
+        @test solve(x^2 ~ a, x; assume = (x ≫ 0, a ≫ 0)) == [sqrt(a)]
+        @test solve(x^2 ~ a, x; assume = (x ≫ 0, a ~ 9)) == [3]        # a substituted
+        @test solve(x^2 ~ -1, x) == [-IM, IM]                          # none: unchanged
+        assuming(x ≫ 0) do
+            @test solve(x^2 ~ 4, x) == [2]
+            @test solve(x^2 ~ 4, x; assume = (x ≪ 1,)) == Sym[]       # the keyword adds
+            @test string(solve(x^2 ≫ 1, x)) == "(1, ∞)"
+        end
+        # cases: a sign split when a is real, the fact and its negation when not
+        cs = solve(x^2 ~ a, x; assume = (x ∈ ℝ, a ∈ ℝ))
+        @test cs isa SymJ.Cases && length(cs) == 3
+        @test cs[1] == (Any[a ≪ 0] => Sym[]) && cs[2] == (Any[a ~ 0] => [Sym(0)])
+        @test cs(a => 4) == [-2, 2] && cs(a => 0) == [0] && cs(a => -1) == Sym[]
+        cs = solve(x^2 ~ a, x; assume = (x ≫ 0,))
+        @test length(cs) == 2 && cs[1] == (Any[a ≫ 0] => [sqrt(a)])
+        @test cs(a => 4) == [2] && cs(a => -1) == Sym[] && cs[a => 4] == cs[1]
+        @test length(solve(a * x ~ 1, x; assume = (x ≫ 0,))) == 2
+        cs = solve(x^2 ~ 9, x; assume = (x ≫ a,))
+        @test [c.second for c in cs] == [[-3, 3], [3], [3], Sym[]]
+        @test cs(a => -5) == [-3, 3] && cs(a => 0) == [3] && cs(a => 4) == Sym[]
+        cs = solve(x^2 - 3x + 2 ~ 0, x; assume = (n ∈ ℤ, x ≪ n))
+        @test cs(n => 1) == Sym[] && cs(n => 2) == [1] && cs(n => 5) == [1, 2]
+        cs = solve(2x ~ n, x; assume = (x ∈ ℤ,))
+        @test length(cs) == 2 && cs[1].second == [n / 2]
+        @test occursin("a > 0  =>  [sqrt(a)]", sprint(show, MIME"text/plain"(), solve(x^2 ~ a, x; assume = (x ≫ 0,))))
+        # inequalities: within the unknown's set
+        @test string(solve(x^2 ≫ 1, x; assume = (x ≪ 0,))) == "(-∞, -1)"
+        @test_throws ArgumentError solve(x^2 ~ 4, x; assume = (x ≫ 1, x ≪ 0))   # contradictory
+    end
+
     @testset "ambiguities" begin
         @test isempty(Test.detect_ambiguities(SymJ; recursive = true))
     end

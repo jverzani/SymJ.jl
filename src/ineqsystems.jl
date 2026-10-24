@@ -66,10 +66,10 @@ function _solve_ineq_1(eqs, x::Sym)
     S = SymSet([SymInterval(nothing, nothing, false, false)], x)
     for r in eqs
         T = if r.op === :eq
-            pts = _real_roots(solve(r, x))
+            pts = _real_roots(_solve_eq(r, x))
             _set_from(pts, (v, atpoint) -> atpoint && any(p -> p == v, pts))
         else
-            solve(r, x)
+            _solve_eq(r, x)
         end
         S = S ∩ T
     end

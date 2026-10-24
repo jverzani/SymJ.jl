@@ -364,6 +364,46 @@ exact rational function type kept in canonical form, so that its zero tests are 
 `false`, which generic code relies on, and raise an error naming the symbolic operator
 (`≪`, `≦`, …) when given a symbol.
 
+## Assumptions
+
+Facts are normalized once, when an `Assumptions` value is made:
+
+- **Equalities are substituted.** `x ~ 2y + 1` replaces `x` in the other facts and in
+  every query.
+- **Facts about one symbol become a set.** Each symbol gets the smallest of
+  `ℤ ⊂ ℚ ⊂ ℝ ⊂ ℂ` known to contain it and, if it is real, a union of intervals
+  (`SymSet`), found by solving its facts as one-variable inequalities. And, Or and Not
+  about one symbol are set operations, so they cost nothing extra. An integer's
+  intervals are narrowed to their integer endpoints.
+- **Relations among several symbols are linear constraints.** A nonlinear monomial such
+  as `a*b` counts as a quantity of its own, which is sound but incomplete.
+- **Contradictions** are found by the sets coming out empty, by memberships against
+  non-memberships, and by a Fourier–Motzkin feasibility test of the linear constraints.
+
+Queries (the possible signs of an expression, whether it is real, an integer, nonzero)
+are three-valued: true, false or unknown.
+
+- **Propagation.** Signs are combined through sums, products and powers, and through
+  `exp`, `log`, `abs`, `atan`, `sinh` and the like. A polynomial whose sign is still
+  open is factored, and its factors' signs combined.
+- **Fourier–Motzkin.** When propagation leaves more than one sign, each possible sign is
+  tested for feasibility against the linear constraints. The atoms get bounds from their
+  signs, and from their symbols' sets when they are monotone functions of one symbol
+  (`x > 1` gives `x^2 > 1` and `log(x) > 0`).
+- Results are cached in the `Assumptions` value, so reusing it is cheap.
+
+**Cases.** An operation asks for each decision it needs (is this root positive? real?).
+When the assumptions leave one open, the operation is run again for each way it can go:
+
+- A fact about a real quantity splits by its sign, each case's condition added to the
+  assumptions. Cases with the same answer are merged, as in GruntzLimit.
+- Otherwise, the split is between the fact and its negation. Symbols are complex by
+  default, so `!(a > 0)` also covers non-real `a`. The negation is recorded as decided,
+  not added as a fact.
+- A fact is first reduced to an equivalent simpler one: `sqrt(a) > 0` to `a > 0`,
+  `1/a > 0` to `a > 0`, `2a − 1 > 0` to `a > 1/2`. Redundant conditions are dropped from
+  each case.
+
 ## Series
 
 `series` substitutes `x = x0 + t` (or `x = 1/t` at infinity) and expands by truncated

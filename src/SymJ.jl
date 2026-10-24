@@ -10,6 +10,7 @@ module SymJ
 using TermInterface
 using RuntimeGeneratedFunctions
 using ScopedValues: ScopedValue, with
+import CommonEq: Eq, Lt, Le, Gt, Ge, Ne, ⩵, ≪, ≦, ≫, ≧, ≶, ≷
 RuntimeGeneratedFunctions.init(@__MODULE__)
 import TermInterface: isexpr, iscall, head, children, operation, arguments, maketerm
 
@@ -49,6 +50,7 @@ include("intervals.jl")
 include("linsolve.jl")
 include("ineqsystems.jl")
 include("assumptions.jl")
+include("cases.jl")
 include("series.jl")
 include("resultant.jl")
 include("groebner.jl")
