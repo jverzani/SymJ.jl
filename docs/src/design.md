@@ -878,6 +878,15 @@ three rounds each, taking each workload's best time.
   `S = (z - 1/z)/2i`, `C = (z + 1/z)/2`, `z = exp(i g)`, turns products into sines and
   cosines of sums of multiples of the bases (Fu's product-to-sum rule), which gives
   multiple and sum angles. The smallest candidate is kept, `sin/cos` shown as `tan`.
+- **`simplify_hyperbolic`** is the same method in another mode: `sinh`, `cosh` with
+  `C² - S² = 1`, linearized through `z = exp(g)`. In both modes exponentials join in
+  (`exp(i k g) = cos(kg) + i sin(kg)`, `exp(kg) = cosh(kg) + sinh(kg)`), and the
+  exponential form, `z` substituted back, is one more candidate.
+- **Presentation.** Results write `sin/cos` as `tan` (a negative power as `cot`, and a
+  partial match as `tan·sec`), and a remaining negative power of a cosine or sine as a
+  power of `sec`, `csc`, `sech` or `csch`. The size counts a negative exponent as one
+  more node (a division, as SymPy's `count_ops` counts it), so `csch(x)^2` is smaller
+  than `1/sinh(x)^2`.
 - **`simplify_log`** combines logarithms of positive arguments into one, or expands a
   logarithm over its positive factors (a positive factor does not change the argument
   of a product, so the rest may be anything), whichever is smaller.

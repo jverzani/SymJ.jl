@@ -35,7 +35,7 @@ LaTeX output.
 | Collect by powers, coefficients | `collect`, `coeff` | `collect`, `coeff` | ◐ through `Poly` (`coefficients`, `exponent_vectors`) |
 | Horner form | `horner` | `horner` | ❌ |
 | Common subexpressions | `cse` | — | ◐ `lambdify` shares them; no user-level `cse` |
-| Rewriting between forms (exp ↔ trig, …) | `ex.rewrite(...)` | `exp2pow`, `pow2exp`, `halftan`, `sincos`, `tan2sincos` | ❌ |
+| Rewriting between forms (exp ↔ trig, …) | `ex.rewrite(...)` | `exp2pow`, `pow2exp`, `halftan`, `sincos`, `tan2sincos` | ◐ inside `simplify` (exponentials ↔ trig and hyperbolic, whichever is smaller); no user-level `rewrite` |
 | Floats to exact numbers | `nsimplify` | — | ❌ |
 
 ## Simplification ★
@@ -43,7 +43,7 @@ LaTeX output.
 | Capability | SymPy | Giac | SymJ |
 |:--|:--|:--|:--|
 | General simplification | `simplify` | `simplify`, `simplifier` | ✅ ★ `simplify` (the smallest of several transformations: rational, powers, trigonometric, logarithms, radicals, expansion, factoring) and `refine` (identities under assumptions) |
-| Trigonometric | `trigsimp`, `exptrigsimp` | `tlin`, `tcollect`, `texpand` | ✅ through `simplify` (`SymJ.simplify_trig`): normal form modulo `sin² + cos² = 1`, multiple and sum angles; ❌ hyperbolic, exp ↔ trig |
+| Trigonometric | `trigsimp`, `exptrigsimp` | `tlin`, `tcollect`, `texpand` | ✅ through `simplify` (`SymJ.simplify_trig`, `SymJ.simplify_hyperbolic`): normal form modulo `sin² + cos² = 1` (`cosh² - sinh² = 1`), multiple and sum angles, exponentials ↔ trig and hyperbolic |
 | Powers and logarithms | `powsimp`, `powdenest`, `logcombine` | `lncollect`, `lnexpand` | ✅ through `simplify` and `refine`, under assumptions: powers combined and denested, logarithms combined or expanded (`exp(x)*exp(y) == exp(x + y)` is canonical) |
 | Gamma and combinatorial | `gammasimp`, `combsimp` | — | ❌ |
 | Rational functions | `cancel`, `together`, `apart`, `ratsimp` | `normal`, `ratnormal`, `partfrac`, `propfrac` | ✅ `cancel`, `apart`, `numer_denom` (◐ no separate `together`) |

@@ -53,6 +53,8 @@ using PrecompileTools: @setup_workload, @compile_workload
         simplify((x^2 - 1) / (x - 1)); simplify(sqrt(Sym(2)) * sqrt(Sym(3))); simplify(x^2 + 2x + 1)
         simplify(sin(x)^2 + cos(x)^2); simplify(1 - cos(x)^2); simplify(2sin(x) * cos(x))
         simplify(sin(x) * cos(y) + cos(x) * sin(y)); simplify(tan(x) * cos(x))
+        simplify(cosh(x)^2 - sinh(x)^2); simplify(exp(x) + exp(-x)); simplify(log(Sym(2)) + log(Sym(3)))
+        simplify(sqrt(3 + 2sqrt(Sym(2))))
         refine(sqrt(x^2); assume = Assumptions(x ≫ 0)); simplify(sqrt(x^2) / x; assume = Assumptions(x ∈ ℝ))
     end
 end
