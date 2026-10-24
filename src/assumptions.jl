@@ -538,6 +538,9 @@ function _signs(e::Sym, A::Assumptions)::Union{Nothing,UInt8}
     isempty(A.subst) || (e = expand(subs(e, A.subst...)))
     haskey(A.cache, e) && return A.cache[e]
     m = _smask(e, A)
+    # the structural answer is cached first: refining may ask about e again (a's sign
+    # through the bounds of the atom a*b), and gets this sound, weaker answer
+    A.cache[e] = m
     if m !== nothing && count_ones(m) > 1 && _hassymbol(e)
         m = _fm_refine(e, m, A)
     end

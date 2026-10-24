@@ -1361,7 +1361,7 @@ using Latexify: latexify
     end
 
     @testset "solve with assumptions" begin
-        @syms a n
+        @syms a b n
         @test solve(x^2 ~ 4, x; assume = (x ≫ 0,)) == [2] == solve(x^2 ~ 4, x; assume = @assume(x > 0))
         @test solve(x^2 ~ 2, x; assume = @assume(x in Rationals)) == Sym[]
         @test (@assuming x > 0 begin
@@ -1413,6 +1413,16 @@ using Latexify: latexify
         @test occursin("a > 0  =>  [sqrt(a)]", sprint(show, MIME"text/plain"(), solve(x^2 ~ a, x; assume = (x ≫ 0,))))
         # inequalities: within the unknown's set
         @test string(solve(x^2 ≫ 1, x; assume = (x ≪ 0,))) == "(-∞, -1)"
+        # a fact about a product: no recursion (a's sign through the bounds of a*b)
+        P = @assume(a * b > 0, a in Reals, b in Reals)
+        @test SymJ._signs(a, P) == 0x07 && SymJ._signs(a * b, P) == 0x04
+        @test solve(x^2 ~ a * b, x; assume = P) == [-sqrt(a * b), sqrt(a * b)]
+        # a product's zero split one factor at a time; linear conditions solved for a symbol
+        @test SymJ._solved_for(Relation(:lt, a - b, Sym(0))) in (a ≪ b, b ≫ a)
+        @test SymJ._zero_factor(a * b, Assumptions()) in (a, b)
+        cs = solve(x^2 ~ 9, x; assume = @assume(x > a - b))
+        @test length(cs) == 4 && cs(a => 0, b => 5) == [-3, 3] && cs(a => 5, b => 0) == Sym[]
+        @test occursin("a - 3 < b < a + 3", sprint(show, MIME"text/plain"(), cs))
         @test_throws ArgumentError solve(x^2 ~ 4, x; assume = (x ≫ 1, x ≪ 0))   # contradictory
     end
 

@@ -82,13 +82,16 @@ function _condsstring(conds)
     for (i, c) in enumerate(conds)
         used[i] && continue
         used[i] = true
-        if c isa Relation && c.op in (:gt, :ge)
-            j = findfirst(k -> !used[k] && conds[k] isa Relation && conds[k].op in (:lt, :le) &&
+        if c isa Relation && c.op in (:gt, :ge, :lt, :le)       # in either order
+            lower = c.op in (:gt, :ge)
+            j = findfirst(k -> !used[k] && conds[k] isa Relation &&
+                               conds[k].op in (lower ? (:lt, :le) : (:gt, :ge)) &&
                                _eq(conds[k].lhs, c.lhs), eachindex(conds))
             if j !== nothing
                 used[j] = true
-                lo, hi = c.op === :gt ? "<" : "<=", conds[j].op === :lt ? "<" : "<="
-                push!(parts, string(c.rhs, " ", lo, " ", c.lhs, " ", hi, " ", conds[j].rhs))
+                l, u = lower ? (c, conds[j]) : (conds[j], c)
+                lo, hi = l.op === :gt ? "<" : "<=", u.op === :lt ? "<" : "<="
+                push!(parts, string(l.rhs, " ", lo, " ", l.lhs, " ", hi, " ", u.rhs))
                 continue
             end
         end
@@ -217,20 +220,36 @@ function _reduce_once(r::Relation)
     nothing
 end
 
-# c ⋈ 0 with c linear in one symbol: the symbol against a value (2a - 1 > 0 to a > 1/2)
+# c ⋈ 0 with c linear in a symbol: that symbol against the rest (2a - 1 > 0 to a > 1/2,
+# a - b < 0 to a < b)
 function _solved_for(r::Relation)
     vs = _named(r.lhs)
-    length(vs) == 1 || return r
-    p = only(vs)
+    isempty(vs) && return r
     a, k = _linform(r.lhs)
-    (length(a) == 1 && haskey(a, p)) || return r
+    i = findfirst(v -> haskey(a, v), vs)
+    i === nothing && return r
+    p = vs[i]
     c = a[p]
+    rest = expand(r.lhs - Sym(c) * p)
+    has(rest, p) && return r
+    k = rest
     op = c < N0 && r.op in (:lt, :le, :gt, :ge) ?
         Dict(:lt => :gt, :le => :ge, :gt => :lt, :ge => :le)[r.op] : r.op
     Relation(op, p, -k / Sym(c))
 end
 
 ## running an operation by cases
+
+# the first factor of a product whose zero the assumptions leave open, or nothing
+function _zero_factor(c::Sym, A::Assumptions)
+    c.kind == MUL || return nothing
+    count(_hassymbol, c.args) >= 2 || return nothing
+    for (b, p) in zip(c.args, c.exps)
+        _hassymbol(b) && p.kind == NUMBER && p.num > N0 || continue
+        _isnonzero(b, A) === nothing && return b
+    end
+    nothing
+end
 
 # A with the fact g, nothing if they contradict; A itself when g cannot be added (a
 # membership of an expression, a relation not supported), its answer then only decided
@@ -299,6 +318,13 @@ function _case_tree(run, A::Assumptions, decided::Dict{Any,Bool}, count::Ref{Int
             d = copy(decided)
             d[f] = d[g] = _REL_INFO[g.op][2](s, 0)   # f ⇔ g, and g at this sign
             push!(branches, h => (B, d))
+        end
+    elseif g isa Relation && g.op in (:eq, :ne) && (h = _zero_factor(c, A)) !== nothing
+        # a product is zero when a factor is: split on one factor at a time (a = 0 or
+        # not, then b), not on the product, whose zero is not a fact about the symbols
+        for op in (:eq, :ne)
+            B = _with_fact(A, Relation(op, h, ZERO))
+            B === nothing || push!(branches, _solved_for(Relation(op, h, ZERO)) => (B, decided))
         end
     elseif g isa Relation && g.op in (:eq, :ne)
         for op in (:eq, :ne)
