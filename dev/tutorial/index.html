@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=27df17dc">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=a3443471">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -64,7 +64,7 @@
 <li><p><a href="https://github.com/symengine/SymEngine.jl">SymEngine.jl</a> wraps SymEngine, a fast symbolic manipulation library written in C++.</p>
 </li>
 </ul>
-<p>SymJ is written in Julia, aims to be fast, and keeps numbers exact. Limits come from <a href="https://github.com/jverzani/GruntzLimit.jl">GruntzLimit</a> and integrals from <a href="https://github.com/jverzani/RischIntegrate.jl">RischIntegrate</a>, two packages that work on the expressions of several symbolic systems, SymJ&#39;s among them.</p>
+<p>SymJ is written in Julia, aims to be fast, and keeps numbers exact. Limits are computed by <a href="https://github.com/jverzani/GruntzLimit.jl">GruntzLimit</a> (a dependency) and integrals by <a href="https://github.com/jverzani/RischIntegrate.jl">RischIntegrate</a>, two packages that work on the expressions of several symbolic systems, SymJ&#39;s among them.</p>
 <div class="md-admonition md-admonition-note">
 <p class="md-admonition-title">Julia versions</p>
 <div class="md-admonition-body">
@@ -75,7 +75,6 @@
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">using SymJ
-import GruntzLimit: limit
 using RischIntegrate</code></pre>
 </div>
 </div>
@@ -737,13 +736,15 @@ end</code></pre>
 </div>
 <p>Contradictory facts are an error (<code class="md-code-inline">@assume(x &gt; 1 &amp;&amp; x &lt; 0)</code>), and the <code class="md-code-inline">Assumptions</code> value <code class="md-code-inline">@assume</code> makes can be reused: <code class="md-code-inline">A = @assume(x &gt; 0, n in Integers)</code>, then <code class="md-code-inline">assume = A</code>.</p>
 <h2 id="Limits" class="md-heading">Limits<a href="#Limits" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
-<p>Limits are computed by <code class="md-code-inline">limit</code> from GruntzLimit, which implements Gruntz&#39;s algorithm. <code class="md-code-inline">limit(f, x =&gt; x0)</code> is the limit of <code class="md-code-inline">f</code> as <code class="md-code-inline">x</code> tends to <code class="md-code-inline">x0</code>, a number, an expression or <code class="md-code-inline">Inf</code>:</p>
+<p><code class="md-code-inline">limit(f, x =&gt; x0)</code> is the limit of <code class="md-code-inline">f</code> as <code class="md-code-inline">x</code> tends to <code class="md-code-inline">x0</code>, a number, an expression or <code class="md-code-inline">Inf</code>. It is computed by Gruntz&#39;s algorithm, through GruntzLimit. An infinite limit is <code class="md-code-inline">Sym(Inf)</code> or <code class="md-code-inline">Sym(-Inf)</code>:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">limit(sin(x) / x, x =&gt; 0)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">1</code></pre>
+<div class="md-math md-math-display">
+\[1\]
+</div>
 </div>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -769,7 +770,9 @@ end</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">limit(x * exp(1 / x), x =&gt; 0; dir = :-), limit(x^x, x =&gt; 0; dir = :+)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(0, 1)</code></pre>
+<div class="md-math md-math-display">
+\[\left( 0, \; 1 \right)\]
+</div>
 </div>
 <p>The algorithm handles cancellations that numerical evaluation cannot follow:</p>
 <div class="md-multi-output">
@@ -777,7 +780,9 @@ end</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">limit(exp(x) * (exp(1 / x - exp(-x)) - exp(1 / x)), x =&gt; Inf)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">-1</code></pre>
+<div class="md-math md-math-display">
+\[-1\]
+</div>
 </div>
 <p>Other symbols may appear:</p>
 <div class="md-multi-output">
@@ -789,16 +794,25 @@ end</code></pre>
 \[e^{a \cdot b}\]
 </div>
 </div>
-<p>When the limit depends on the values of the other symbols, <code class="md-code-inline">limit</code> gives it for each case:</p>
+<p>The other symbols are taken to be real numbers. When the limit depends on their values, <code class="md-code-inline">limit</code> gives it for each case:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">limit(x^a, x =&gt; Inf)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">LimitCases with 3 cases:
-  a &lt; 0  =&gt;  0
-  a == 0  =&gt;  1
-  a &gt; 0  =&gt;  Inf</code></pre>
+<div class="md-math md-math-display">
+\[\begin{cases} 0 &amp; a &lt; 0 \\ 1 &amp; a = 0 \\ \infty &amp; a &gt; 0 \end{cases}\]
+</div>
+</div>
+<p>Assumptions, as in the section on solving, settle cases:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">limit(x^a, x =&gt; Inf; assume = @assume(a &gt; 1)), limit((a^x + b^x)^(1 / x), x =&gt; Inf; assume = @assume(a &gt; b &gt; 0))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \infty, \; a \right)\]
+</div>
 </div>
 <h2 id="Derivatives" class="md-heading">Derivatives<a href="#Derivatives" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p><code class="md-code-inline">diff(f, x)</code> differentiates with respect to <code class="md-code-inline">x</code>, and <code class="md-code-inline">diff(f, x, n)</code> gives the <code class="md-code-inline">n</code>-th derivative:</p>
@@ -1053,6 +1067,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=27df17dc"></script>
+  <script src="../assets/materialdocs.js?v=a3443471"></script>
 </body>
 </html>

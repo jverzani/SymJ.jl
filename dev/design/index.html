@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Design notes — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=70b386e0">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=d185628d">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Design notes — SymJ.jl">
   <meta property="og:title" content="Design notes — SymJ.jl">
@@ -1074,7 +1074,7 @@ end</code></pre>
 </li>
 <li><p><strong>Cases.</strong> As in GruntzLimit&#39;s <code class="md-code-inline">limit</code>: an operation returns a plain answer when the assumptions decide it, and otherwise a <code class="md-code-inline">Cases</code>. That is a vector of <code class="md-code-inline">conditions =&gt; answer</code> pairs; calling it with parameter values gives the answer for those values, and indexing with them gives their case.</p>
 </li>
-<li><p><strong>First users.</strong> <code class="md-code-inline">solve</code> (filtering roots, and splitting on the signs of parameters) and a native <code class="md-code-inline">limit</code>. <code class="md-code-inline">simplify</code>/<code class="md-code-inline">refine</code> come later.</p>
+<li><p><strong>First users.</strong> <code class="md-code-inline">solve</code> (filtering roots, and splitting on the signs of parameters) and <code class="md-code-inline">limit</code>, which hands the assumptions to GruntzLimit as signs and returns SymJ&#39;s answers. <code class="md-code-inline">simplify</code>/<code class="md-code-inline">refine</code> come later.</p>
 </li>
 <li><p><strong><code class="md-code-inline">@assume</code></strong>, named after the keyword, writes facts with Julia&#39;s operators: <code class="md-code-inline">@assume(x &gt; 0 &amp;&amp; 1 &lt; y &lt;= 2, n in Integers)</code>. Chained comparisons are split, and <code class="md-code-inline">&amp;&amp;</code>, <code class="md-code-inline">||</code>, <code class="md-code-inline">!</code> combine. The number sets have ASCII names, <code class="md-code-inline">Integers</code>, <code class="md-code-inline">Rationals</code>, <code class="md-code-inline">Reals</code> and <code class="md-code-inline">Complexes</code>.</p>
 </li>
@@ -1217,6 +1217,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=70b386e0"></script>
+  <script src="../assets/materialdocs.js?v=d185628d"></script>
 </body>
 </html>
