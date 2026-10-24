@@ -107,10 +107,11 @@ equations; done: series, assumptions, a basic `simplify`)
 | Capability | SymPy | Giac | SymJ |
 |:--|:--|:--|:--|
 | Matrices of expressions: products | `Matrix` | built in | ✅ Julia arrays of `Sym` |
+| Matrix functions | `Matrix.exp`, `analytic_func` | `exp` (matrix), `matpow` | ✅ `exp`, `sin`, `cos`, `A^n` (symbolic `n`) through the Jordan form |
 | Determinant, inverse, solving | `Matrix` methods `det`, `inv`, `LUsolve` | `det`, `inverse`, `linsolve` | ✅ `det` (Bareiss for polynomials), `inv` (adjugate or Gauss–Jordan over rational functions), `A \ b`, exactly with first-nonzero pivoting |
 | Row reduction, null space, rank | `Matrix` methods `rref`, `nullspace`, `rank` | `rref`, `ker`, `rank` | ✅ `rref`, `nullspace`, `rank` (generic: symbolic pivots nonzero) |
-| Eigenvalues, eigenvectors, Jordan form | `Matrix` methods `eigenvals`, `eigenvects`, `jordan_form` | `eigenvals`, `eigenvects`, `jordan` | ✅ `eigvals` (with multiplicity), `eigvecs`, `eigen` (diagonalizable), `SymJ.charpoly`; ❌ Jordan form |
-| LU, QR, SVD | `Matrix` methods `LUdecomposition`, `QRdecomposition` | `lu`, `qr`, `svd` | ◐ `lu` (a `LinearAlgebra.LU`, exact); ❌ QR, SVD |
+| Eigenvalues, eigenvectors, Jordan form | `Matrix` methods `eigenvals`, `eigenvects`, `jordan_form` | `eigenvals`, `eigenvects`, `jordan` | ✅ `eigvals` (with multiplicity), `eigvecs`, `eigen` (diagonalizable), `SymJ.charpoly`, `SymJ.jordan_form` |
+| LU, QR, SVD | `Matrix` methods `LUdecomposition`, `QRdecomposition` | `lu`, `qr`, `svd` | ◐ `lu` (a `LinearAlgebra.LU`), `qr` (exact Gram–Schmidt); ❌ SVD |
 
 ## Functions
 
@@ -155,8 +156,8 @@ assumptions and a basic `simplify` are done. Of the rest, in rough order of valu
 calculus-level use:
 
 1. **Symbolic linear algebra**, continued: `det`, `inv`, `lu`, `\`, `rref`, `rank`,
-   `nullspace`, and eigenvalues and eigenvectors are done; QR, the Jordan form and
-   matrix functions (`exp(A)`) remain.
+   `nullspace`, eigenvalues and eigenvectors, QR, the Jordan form and matrix functions
+   are done; the SVD (singular values are square roots of eigenvalues of `AᵀA`) remains.
 2. **Piecewise functions, Heaviside and Dirac**, which also matter for Laplace
    transforms and differential equations.
 3. **Definite integrals done properly**: improper integrals through `limit`, and

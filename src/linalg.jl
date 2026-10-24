@@ -1,4 +1,5 @@
-# Linear algebra for matrices of expressions: det, inv, lu.
+# Linear algebra for matrices of expressions: det, inv, lu, \, rref, rank, nullspace,
+# eigvals, eigvecs, eigen, qr, the Jordan form, exp, sin, cos and A^n.
 #
 # Julia's generic routines pivot by comparing magnitudes (abs(a) > abs(b)), which has no
 # meaning for expressions. These eliminate exactly instead, over a field with an exact
@@ -30,9 +31,10 @@ Base.one(::Type{_AlgF}) = _AlgF(ONE)
 Base.zero(::_AlgF) = _AlgF(ZERO)
 Base.one(::_AlgF) = _AlgF(ONE)
 
-# an atom that is an algebraic number: a radical of a number, im
-_isalgebraic_atom(a::Sym) = !_hassymbol(a) && a.kind == POW && a.args[1].kind == NUMBER &&
-    a.args[2].kind == NUMBER && !isone(_denominator(a.args[2].num))
+# an atom that is algebraic over the others: a radical (sqrt(2), im, sqrt(-t^2)), whose
+# powers reduce in the canonical form
+_isalgebraic_atom(a::Sym) = a.kind == POW && a.args[2].kind == NUMBER && isexact(a.args[2].num) &&
+    !isone(_denominator(a.args[2].num))
 
 # the entries over a field: (matrix, back) with back converting an entry to a Sym
 function _field_matrix(A::AbstractMatrix)
@@ -410,12 +412,48 @@ function _eigen_mult(A::AbstractMatrix)
     for (f, k) in fs
         has(f, λ) || continue
         m = Int(_numerator(k.num))
-        for r in solve(f ~ 0, λ)
+        for r in _eig_roots(f, λ)
             i = findfirst(q -> iszero(expand(q.first - r)), out)
             i === nothing ? push!(out, r => m) : (out[i] = r => out[i].second + m)
         end
     end
+    # constants in a definite order (by real part, then imaginary): the factors' order
+    # is not the same on every Julia version
+    if all(p -> !_hassymbol(p.first), out)
+        key(p) = (v = _evalc(p.first); (real(v), imag(v)))
+        sort!(out; by = key)
+    end
     out
+end
+
+# the roots of a factor of the characteristic polynomial; a quadratic whose
+# discriminant is minus a square, -u^2, has the roots (-b ± i u)/2a (rather than with
+# sqrt(-u^2); both roots change together, so the pair is the same)
+function _eig_roots(f::Sym, λ::Sym)
+    P = try Poly{Sym}(expand(f), [λ]) catch; nothing end
+    if P !== nothing && degree(P, λ) == 2
+        c = Dict(ev[1] => cf for (ev, cf) in zip(exponent_vectors(P), coefficients(P)))
+        a2, b1, c0 = get(c, 2, ZERO), get(c, 1, ZERO), get(c, 0, ZERO)
+        u = _square_root(expand(4 * a2 * c0 - b1^2))           # -D = u^2
+        u === nothing || return Sym[(-b1 - IM * u) / (2a2), (-b1 + IM * u) / (2a2)]
+    end
+    solve(f ~ 0, λ)
+end
+# u with e == u^2 (a square of a polynomial times a rational square), else nothing
+function _square_root(e::Sym)
+    _hassymbol(e) || return nothing
+    q = factor(e)
+    fs = q.kind == MUL ? collect(zip(q.args, q.exps)) : q.kind == POW ? [(q.args[1], q.args[2])] : [(q, ONE)]
+    c = q.kind == MUL ? Sym(q.num) : ONE
+    out = ONE
+    for (b, k) in fs
+        (k.kind == NUMBER && isexact(k.num) && isone(_denominator(k.num)) && iseven(_numerator(k.num))) || return nothing
+        out *= b^(k / 2)
+    end
+    c.kind == NUMBER && c.num > N0 || return nothing
+    r = sqrt(c)
+    r.kind == NUMBER || return nothing
+    r * out
 end
 
 """
@@ -472,3 +510,178 @@ function LinearAlgebra.eigen(A::AbstractMatrix{Sym})
     length(vals) == n || throw(ArgumentError("not all eigenvalues of the matrix were found"))
     LinearAlgebra.Eigen(vals, reduce(hcat, vecs))
 end
+
+## QR
+
+"""
+    SymQR
+
+The QR factorization of a matrix of expressions from [`qr`](@ref LinearAlgebra.qr):
+`F.Q` with orthonormal columns and `F.R` upper triangular, `A == Q * R`; `Q, R = F`
+destructures it. Not exported.
+"""
+struct SymQR
+    Q::Matrix{Sym}
+    R::Matrix{Sym}
+end
+Base.iterate(F::SymQR, s = 1) = s == 1 ? (F.Q, 2) : s == 2 ? (F.R, 3) : nothing
+Base.show(io::IO, ::MIME"text/plain", F::SymQR) = (println(io, "SymQR, Q:"); show(io, MIME"text/plain"(), F.Q);
+    println(io, "\nR:"); show(io, MIME"text/plain"(), F.R))
+
+# the inner product of columns: symbols taken as real, numbers with im conjugated
+_dot(u, v) = _add_many((_has_im(a) ? conj(a) : a) * b for (a, b) in zip(u, v))
+_has_im(e::Sym) = has(e, IM)
+_qrnorm(e::Sym) = (c = cancel(expand(e)); simplify(c))
+
+"""
+    qr(A::AbstractMatrix{Sym})
+
+The (thin) QR factorization of a matrix of expressions with linearly independent
+columns, by Gram–Schmidt with exact arithmetic: `Q` has orthonormal columns (their norms
+are square roots), `R` is upper triangular with positive diagonal. Symbols are taken to
+be real in the inner product. Returns a `SymJ.SymQR` (`F.Q`, `F.R`, or `Q, R = qr(A)`).
+
+```julia
+Q, R = qr(Sym[1 1; 1 0])          # Q = [1 1; 1 -1]/sqrt(2), R = [sqrt(2) 1/sqrt(2); 0 1/sqrt(2)]
+```
+"""
+function LinearAlgebra.qr(A::AbstractMatrix{Sym})
+    m, n = size(A)
+    n <= m || throw(ArgumentError("qr of a matrix with more columns than rows is not supported"))
+    Q = Matrix{Sym}(undef, m, n)
+    R = zeros(Sym, n, n)
+    for k in 1:n
+        v = Sym[Sym(a) for a in A[:, k]]
+        for j in 1:(k - 1)
+            r = _qrnorm(_dot(Q[:, j], v))
+            R[j, k] = r
+            iszero(r) || (v = Sym[expand(v[i] - r * Q[i, j]) for i in 1:m])
+        end
+        n2 = _qrnorm(_dot(v, v))
+        iszero(n2) && throw(ArgumentError("qr: the columns are linearly dependent (column $k)"))
+        nv = simplify(sqrt(n2))
+        R[k, k] = nv
+        for i in 1:m
+            Q[i, k] = simplify(v[i] / nv)
+        end
+    end
+    SymQR(Q, R)
+end
+
+## Jordan form
+
+"""
+    SymJ.jordan_form(A)
+
+`(P, J)` with `A == P * J * inv(P)` and `J` the Jordan form of the square matrix of
+expressions `A`: a block for each Jordan chain, the eigenvalue on the diagonal and ones
+above it. The chains are built from the kernels of `(A - λI)^k`, exactly. Not exported.
+
+```julia
+P, J = SymJ.jordan_form(Sym[1 1; 0 1])     # J = [1 1; 0 1]
+```
+"""
+function jordan_form(A::AbstractMatrix)
+    n = _square(A)
+    S = Sym[Sym(a) for a in A]
+    Id = Matrix{Sym}(LinearAlgebra.I(n))
+    blocks = Tuple{Sym,Int}[]
+    cols = Vector{Sym}[]
+    for (λ, m) in _eigen_mult(S)
+        B = S - λ * Id
+        # kernels of B^k until their dimension is the multiplicity
+        Bk, kers = Id, Matrix{Sym}[zeros(Sym, n, 0)]
+        while size(kers[end], 2) < m
+            Bk = map(_algnorm, Bk * B)
+            push!(kers, LinearAlgebra.nullspace(Bk))
+            length(kers) > n + 1 && throw(ArgumentError("jordan_form: could not find the generalized eigenvectors of $λ"))
+        end
+        p = length(kers) - 1
+        chosen = [Vector{Sym}[] for _ in 1:p]        # the chain vectors at each level
+        for k in p:-1:1
+            nblocks = size(kers[k+1], 2) - size(kers[k], 2)       # chains of length ≥ k
+            have = length(chosen[k])
+            for c in 1:size(kers[k+1], 2)
+                have >= nblocks && break
+                v = kers[k+1][:, c]
+                span = hcat(kers[k], chosen[k]..., v)
+                LinearAlgebra.rank(span) > size(kers[k], 2) + length(chosen[k]) || continue
+                # a new chain v, Bv, ..., B^(k-1)v, from level k down to 1
+                w = v
+                chain = Vector{Sym}[]
+                for lev in k:-1:1
+                    push!(chosen[lev], w)
+                    pushfirst!(chain, w)
+                    w = Sym[_algnorm(e) for e in B * w]
+                end
+                append!(cols, chain)
+                push!(blocks, (λ, k))
+                have += 1
+            end
+        end
+    end
+    length(cols) == n || throw(ArgumentError("jordan_form: not all eigenvalues of the matrix were found"))
+    J = zeros(Sym, n, n)
+    i = 1
+    for (λ, k) in blocks
+        for j in 0:(k - 1)
+            J[i + j, i + j] = λ
+            j < k - 1 && (J[i + j, i + j + 1] = ONE)
+        end
+        i += k
+    end
+    reduce(hcat, cols), J
+end
+
+## matrix functions
+
+# f(A) through the Jordan form: on a block for λ of size k, f(J) has f^(j)(λ)/j! on its
+# j-th superdiagonal
+function _matfun(f, A::AbstractMatrix{Sym})
+    n = _square(A)
+    P, J = jordan_form(A)
+    t = Sym(Symbol("_matfun_t"))
+    F = zeros(Sym, n, n)
+    i = 1
+    while i <= n
+        λ = J[i, i]
+        k = 1
+        while i + k <= n && J[i + k - 1, i + k] == ONE
+            k += 1
+        end
+        d = f(t)
+        for j in 0:(k - 1)
+            v = subs(d, t => λ) / factorial(j)
+            for r in i:(i + k - 1 - j)
+                F[r, r + j] = v
+            end
+            d = diff(d, t)
+        end
+        i += k
+    end
+    map(simplify, P * F * inv(P))
+end
+
+"""
+    exp(A::AbstractMatrix{Sym}), sin(A), cos(A)
+
+The matrix exponential (sine, cosine) of a square matrix of expressions, exactly,
+through its Jordan form. `exp(t*A)` solves `x' = A x`.
+
+```julia
+exp(t * Sym[0 1; -1 0])          # [cos(t) sin(t); -sin(t) cos(t)]
+```
+"""
+Base.exp(A::StridedMatrix{Sym}) = _matfun(exp, A)
+Base.exp(A::AbstractMatrix{Sym}) = _matfun(exp, A)
+Base.sin(A::StridedMatrix{Sym}) = _matfun(sin, A)
+Base.cos(A::StridedMatrix{Sym}) = _matfun(cos, A)
+
+"""
+    A^n for a matrix of expressions and a symbolic exponent `n`
+
+`A^n` through the Jordan form, for `n` a symbol (taken to be an integer for a defective
+matrix): `Sym[1 1; 1 0]^n` gives the Fibonacci numbers.
+"""
+Base.:^(A::AbstractMatrix{Sym}, n::Sym) = _matfun(λ -> λ^n, A)
+Base.:^(A::StridedMatrix{Sym}, n::Sym) = _matfun(λ -> λ^n, A)

@@ -911,10 +911,19 @@ three rounds each, taking each workload's best time.
   roots of the factored characteristic polynomial, repeated by multiplicity;
   **`eigvecs`** the null spaces of `A - v*I`; **`eigen`** a `LinearAlgebra.Eigen` for a
   diagonalizable matrix.
+- **`qr`** is Gram–Schmidt with exact arithmetic (norms are square roots, simplified),
+  symbols taken as real in the inner product; it returns a small `SymQR` (Julia's `QR`
+  stores Householder reflectors). **`SymJ.jordan_form`** builds Jordan chains from the
+  kernels of `(A - λI)^k`. **Matrix functions** (`exp`, `sin`, `cos`, `A^n` for a
+  symbolic `n`) go through the Jordan form: on a block for `λ`, `f(J)` has
+  `f^(j)(λ)/j!` on its `j`-th superdiagonal.
 - **Algebraic constants.** As rational functions, `sqrt(2)` or `im` would be
   independent atoms, and `sqrt(2)^2 - 2` would not test zero. A matrix with such
-  constants is eliminated over `Sym` values normalized after each operation (expanded,
-  radicals combined, denominators rationalized), which the canonical form makes exact.
+  constants (radicals of numbers or of expressions, `im`) is eliminated over `Sym`
+  values normalized after each operation (expanded, radicals combined, denominators
+  rationalized), which the canonical form makes exact. A quadratic factor of a
+  characteristic polynomial whose discriminant is `-u²` gets the roots `(-b ± i u)/2a`
+  rather than ones with `sqrt(-u²)`.
 - **`I` and scalars.** `A ± I` works (`Sym ± UniformScaling`); `UniformScaling` needs a
   `Number` scale, so a symbolic multiple is `λ*I(n)`. An expression times an array is
   elementwise, as for numbers.

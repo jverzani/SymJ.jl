@@ -597,6 +597,23 @@ rref(Sym[1 2 3; 4 5 6; 7 8 9]), nullspace(Sym[1 2 3; 4 5 6; 7 8 9])
 eigvals(Sym[1 2; 3 4]), eigvecs([a b; b a])
 ```
 
+QR factorization by exact Gram–Schmidt, and functions of matrices through the Jordan
+form (`SymJ.jordan_form`), such as the exponential that solves `x' = A x`:
+
+```@example tut
+Q, R = qr(Sym[3 1; 4 2])
+Q, R
+```
+
+```@example tut
+@syms t n
+exp(t * Sym[0 1; -1 0]), exp(t * Sym[2 1; 0 2])
+```
+
+```@example tut
+Sym[1 1; 1 0]^n
+```
+
 `A - I` works as for numbers; a symbolic multiple of the identity is `λ*I(n)`:
 
 ```@example tut

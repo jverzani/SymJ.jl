@@ -1622,6 +1622,30 @@ using Latexify: latexify
         # powers of im with the sign outside: im^3 = 1/im = -im
         @test IM^3 == -IM && 1 / IM == -IM && IM^-1 + IM == 0 && (-1)^(-1 // 3 * one(Sym)) == -(-1)^(2 // 3 * one(Sym))
         @test simplify(1 / (1 + IM)) == (1 - IM) / 2
+        @test LA.eigvals([cos(x) -sin(x); sin(x) cos(x)]) == [cos(x) - IM * sin(x), cos(x) + IM * sin(x)]
+        # QR: Gram-Schmidt, exact
+        for A in (Sym[1 1; 1 0], Sym[3 1; 4 2], Sym[1 2; 3 4; 5 6])
+            Q, R = LA.qr(A)
+            @test all(iszero, map(simplify, Q * R - A)) && map(simplify, transpose(Q) * Q) == Matrix{Sym}(LA.I(size(A, 2)))
+            @test all(i -> iszero(R[i, 1]), 2:size(R, 1))
+        end
+        @test LA.qr(Sym[3 1; 4 2]).Q == Sym[3//5 -4//5; 4//5 3//5] && LA.qr(Sym[3 1; 4 2]).R == Sym[5 11//5; 0 2//5]
+        @test_throws ArgumentError LA.qr(Sym[1 2; 2 4])
+        # Jordan form
+        for A in (Sym[1 1; 0 1], Sym[2 1 0; 0 2 0; 0 0 3], Sym[5 4 2 1; 0 1 -1 -1; -1 -1 3 0; 1 1 -1 2], Sym[2 1; 1 2])
+            P, J = SymJ.jordan_form(A)
+            @test all(iszero, map(simplify, P * J * inv(P) - A))
+        end
+        @test SymJ.jordan_form(Sym[5 4 2 1; 0 1 -1 -1; -1 -1 3 0; 1 1 -1 2])[2] == Sym[1 0 0 0; 0 2 0 0; 0 0 4 1; 0 0 0 4]
+        @test LA.eigvals(Sym[2 0 0; 0 3 4; 0 4 9]) == [1, 2, 11]                 # constants sorted
+        # matrix functions through the Jordan form
+        @syms t n
+        @test exp(t * Sym[0 1; -1 0]) == [cos(t) sin(t); -sin(t) cos(t)]
+        @test exp(Sym[1 1; 0 1]) == [E E; 0 E] && exp(t * Sym[2 1; 0 2]) == [exp(2t) t*exp(2t); 0 exp(2t)]
+        @test sin(Sym[0 1; 0 0]) == Sym[0 1; 0 0] && cos(Sym[0 1; 0 0]) == Sym[1 0; 0 1]
+        Fib = Sym[1 1; 1 0]^n
+        @test [round(Int, N(subs(Fib[1, 2], n => k))) for k in 1:10] == [1, 1, 2, 3, 5, 8, 13, 21, 34, 55]
+        @test isapprox(N.(subs.(exp(t * Sym[1 2; 3 4]), t => 0.3)), exp(0.3 * [1 2; 3 4]); rtol = 1e-10)
     end
 
     @testset "Latexify" begin
