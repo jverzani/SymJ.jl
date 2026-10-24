@@ -442,6 +442,60 @@ bounds in the ones after it:
 solve([x ≧ 0, y ≧ 0, x + y ≦ 1], [x, y])
 ```
 
+### Assumptions
+
+Symbols are complex numbers unless a fact says otherwise. Facts are relations, such as
+`x > 0`, or membership in one of `Integers ⊂ Rationals ⊂ Reals ⊂ Complexes` (also
+written `ℤ ⊂ ℚ ⊂ ℝ ⊂ ℂ`), such as `n in Integers`. The `@assume` macro writes them with
+Julia's operators, including `&&`, `||`, `!` and chained comparisons. They are given to
+`solve` with the `assume` keyword, and only the solutions they allow are kept:
+
+```@example tut
+solve(x^2 ~ 4, x; assume = @assume(x > 0))
+```
+
+```@example tut
+solve(x^2 + 1 ~ 0, x; assume = @assume(x in Reals))
+```
+
+Without the macro, relations use the symbolic operators: `x ≫ 0` (or `Gt(x, 0)`), and
+`n ∈ ℤ` for membership.
+
+```@example tut
+solve(x^2 ~ 2, x; assume = (x ∈ ℚ,))
+```
+
+`@assuming` gives facts for a block of code (as does the function `assuming`, with a
+`do` block):
+
+```@example tut
+@assuming x > 0 begin
+    solve(x^3 ~ 8, x), solve(x^2 - 5x + 6 ~ 0, x; assume = @assume(x > 2))
+end
+```
+
+When the answer depends on something the facts leave open, the result lists the cases:
+
+```@example tut
+solve(x^2 ~ a, x; assume = @assume(x in Reals, a in Reals))
+```
+
+Without `a ∈ ℝ`, `a` may be complex, so the cases are a fact and its negation:
+
+```@example tut
+cs = solve(x^2 ~ a, x; assume = @assume(x > 0))
+```
+
+Calling the cases with a value gives the answer for it:
+
+```@example tut
+cs(a => 4), cs(a => -1)
+```
+
+Contradictory facts are an error (`@assume(x > 1 && x < 0)`), and the `Assumptions`
+value `@assume` makes can be reused: `A = @assume(x > 0, n in Integers)`, then
+`assume = A`.
+
 ## Limits
 
 Limits are computed by `limit` from GruntzLimit, which implements Gruntz's algorithm.
@@ -614,8 +668,8 @@ G(x => Sym(π)) - G(x => 0)
 
 ## What SymJ does not do yet
 
-- **Simplification under assumptions.** Identities such as `sqrt(x^2) = x` for positive
-  `x` need assumptions, which are not implemented.
+- **Simplification under assumptions.** `solve` takes assumptions, but simplification
+  does not yet, so identities such as `sqrt(x^2) = x` for positive `x` are not applied.
 - **Matrices and noncommutative algebra.**
 - **Transcendental systems of equations**, such as `sin(x) ~ y, x ~ y^2` (polynomial and
   rational systems are solved), and equations in several unrelated functions of the

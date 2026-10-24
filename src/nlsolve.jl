@@ -100,7 +100,7 @@ end
 # the roots of q in x: numeric when floating point values were substituted into it
 # (complex ones too, which `solve` does not take as coefficients)
 function _solve1(q::Sym, x::Sym)
-    (_isexactex(q) || _hassymbol(subs(q, x => ZERO))) && return solve(q ~ 0, x)
+    (_isexactex(q) || _hassymbol(subs(q, x => ZERO))) && return _solve_eq(q ~ 0, x)
     P = Poly{Sym}(q, [x])
     c = fill(ZERO, degree(P, x) + 1)
     for (ev, cf) in zip(exponent_vectors(P), coefficients(P))

@@ -605,6 +605,13 @@ import ForwardDiff
         J = lambdify([diff(w, x) x * y; y 1], x, y)
         @test J(1.0, 2.0) ≈ [diff(w, x)(1.0) 2.0; 2.0 1.0] && size(J(1.0, 2.0)) == (2, 2)
         @test lambdify((x + 1, x * y), (x, y))(1, 2) == (2, 2)
+        u = lambdify(x^2 * y, (x, y))                       # values in one tuple or vector
+        @test u((1, 2)) == u([1, 2]) == u(1, 2) == 2
+        @test_throws ArgumentError u(1)
+        @test_throws ArgumentError u(1, 2, 3)
+        @test_throws ArgumentError u((1, 2, 3))
+        @test lambdify(x^2)([1 2; 3 4]) == [7 10; 15 22]   # one variable: the value as it is
+        @test string(u) == "lambdified function of (x, y)"
         code = string(lambdify_expr(sin(x) * y + sin(x)^2 + cos(sin(x)), (x, y)))
         @test count("Base.sin(arg1)", code) == 1           # computed once
 
@@ -1289,6 +1296,123 @@ import ForwardDiff
         @test sum(x + y) == x + y        # sum over a one-element iterable
         @test [x; y] == [x, y]
         @test x .+ [1, 2] == [x + 1, x + 2]
+    end
+
+    @testset "assumptions" begin
+        @syms a b n
+        J = SymJ
+        sg(e, A) = (m = J._signs(e, A); m === nothing ? nothing :
+                    Set(s for (bit, s) in ((0x01, -1), (0x02, 0), (0x04, 1)) if m & bit != 0))
+        A = Assumptions(x ≫ 1, n ∈ ℤ, n ≫ 0, a ≦ b, y ∈ ℝ)
+        @test sg(x, A) == sg(x - 1, A) == sg(x^2 - 1, A) == sg(1 / x, A) == sg(log(x), A) == Set([1])
+        @test sg(x^3 - x, A) == Set([1])                       # through its factors
+        @test sg(sqrt(x - 1), A) == sg(exp(y), A) == sg(y^2 + 1, A) == Set([1])
+        @test sg(y^2, A) == sg(b - a, A) == Set([0, 1])
+        @test sg(a - b, A) == Set([-1, 0])
+        @test sg(a, A) == Set([-1, 0, 1]) && sg(z, A) === nothing   # z complex
+        @test sg(n - 1, A) == Set([0, 1])                     # n ≥ 1
+        @test J._isinteger(2n + 1, A) === true && J._isinteger(x, A) === nothing
+        @test J._isreal(y, A) === true && J._isreal(z, A) === nothing
+        @test J._isreal(z, Assumptions(z ∉ ℝ)) === false
+        @test J._isinteger(x, Assumptions(x ∉ ℤ)) === false
+        # linear relations among several symbols
+        B = Assumptions(x ≫ 0, y ≫ 0, x + y ≪ 1)
+        @test sg(x + y - 1, B) == sg(x - 1, B) == sg(x + 2y - 2, B) == Set([-1])
+        @test sg(x * y, B) == Set([1])
+        # equalities are substituted, the lone symbol on the left
+        C = Assumptions(x ~ 2y + 1, y ≫ 0)
+        @test C.subst == Dict(x => 2y + 1) && sg(x - 1, C) == Set([1])
+        # sets: Not and Or about one symbol; integers narrowed
+        @test string(Assumptions(!(Sym(0) ≦ x) | (x ≫ 1)).sets[x]) == "(-∞, 0) ∪ (1, ∞)"
+        @test string(Assumptions(n ∈ ℤ, n ≫ 0, n ≪ 3).sets[n]) == "[1, 2]"
+        @test_throws ArgumentError Assumptions((x ≫ 0) | (y ≫ 0))       # Or across symbols
+        # contradictions
+        for bad in ((x ≫ 1, x ≪ 0), (n ∈ ℤ, n ≫ 0, n ≪ 1), (x ≫ 0, y ≫ 0, x + y ≪ 0),
+                    (x ~ 2, x ≶ 2), (n ∈ ℤ, n ∉ ℚ), (exp(x) ≫ 2, x ≪ 0), (z ∉ ℝ, z ≫ 0))
+            @test_throws ArgumentError Assumptions(bad...)
+        end
+        # ≠ on a complex symbol
+        F = Assumptions(a ≶ 0)
+        @test J._isnonzero(a, F) === true && J._isnonzero(a^2, F) === true && sg(abs(a), F) == Set([1])
+        G = Assumptions(x ∈ ℝ)
+        @test sg(abs(x), G) == Set([0, 1]) && sg(exp(x) - 1, G) == Set([-1, 0, 1])
+        # membership on numbers is a Bool
+        @test 2 ∈ ℤ && !(Sym(1) / 2 ∈ ℤ) && Sym(π) ∈ ℝ && 1.5 ∈ ℚ && !(π ∈ ℚ) && im ∉ ℝ
+        @test (x ∈ ℤ) isa SymJ.Membership && string(x ∉ ℤ) == "x ∉ ℤ"
+        # blocks nest and add to the keyword
+        assuming(x ≫ 0) do
+            @test J._assumptions(nothing).facts == Any[x ≫ 0]
+            assuming(y ≫ 0) do
+                @test length(J._assumptions((n ∈ ℤ,)).facts) == 3
+            end
+        end
+        @test J._assumptions(nothing) === nothing
+        @test Assumptions(A, z ≫ 0).facts[end] == (z ≫ 0)
+        # @assume: Julia's operators; ASCII names of the sets
+        B = @assume(x > 0 && 1 < y <= 2, n in Integers, a != 0)
+        @test B.facts == Any[x ≫ 0, 1 ≪ y, y ≦ 2, n ∈ ℤ, a ≶ 0]
+        @test string(B) == "Assumptions(x > 0, 1 < y, y <= 2, n ∈ ℤ, a != 0)"
+        @test string(@assume(!(0 <= x < 1)).sets[x]) == "(-∞, 0) ∪ [1, ∞)"
+        @test @assume(x ≥ 1, x ≠ 2, x == y + 1).subst == Dict(x => y + 1)
+        @test_throws ArgumentError @assume(x > 1 && x < 0)
+        @test Integers === ℤ && Rationals === ℚ && Reals === ℝ && Complexes === ℂ
+        @test Sym(2) in Integers && (n in Reals) isa SymJ.Membership
+    end
+
+    @testset "solve with assumptions" begin
+        @syms a n
+        @test solve(x^2 ~ 4, x; assume = (x ≫ 0,)) == [2] == solve(x^2 ~ 4, x; assume = @assume(x > 0))
+        @test solve(x^2 ~ 2, x; assume = @assume(x in Rationals)) == Sym[]
+        @test (@assuming x > 0 begin
+            solve(x^2 ~ 4, x)
+        end) == [2]
+        @test @assuming(x > 0, x != 2, begin solve(x^2 ~ 4, x) end) == Sym[]
+        @test (@assuming x >= 1 begin
+            @assuming x < 3 begin solve(x^2 ~ 9, x) end              # nested: both apply
+        end) == Sym[]
+        @test solve(x^2 ~ 4, x; assume = Assumptions(x ≶ 2)) == [-2]
+        @test solve(x^2 ~ -1, x; assume = (x ∈ ℝ,)) == Sym[]
+        @test solve(x^3 ~ 8, x; assume = (x ∈ ℝ,)) == [2]
+        @test solve(x^2 - 5x + 6 ~ 0, x; assume = (x ≫ 2,)) == [3]
+        @test solve(x^2 ~ a, x; assume = (x ≫ 0, a ≫ 0)) == [sqrt(a)]
+        @test solve(x^2 ~ a, x; assume = (x ≫ 0, a ~ 9)) == [3]        # a substituted
+        @test solve(x^2 ~ -1, x) == [-IM, IM]                          # none: unchanged
+        assuming(x ≫ 0) do
+            @test solve(x^2 ~ 4, x) == [2]
+            @test solve(x^2 ~ 4, x; assume = (x ≪ 1,)) == Sym[]       # the keyword adds
+            @test string(solve(x^2 ≫ 1, x)) == "(1, ∞)"
+        end
+        # cases: a sign split when a is real, the fact and its negation when not
+        cs = solve(x^2 ~ a, x; assume = (x ∈ ℝ, a ∈ ℝ))
+        @test cs isa SymJ.Cases && length(cs) == 3
+        @test cs[1] == (Any[a ≪ 0] => Sym[]) && cs[2] == (Any[a ~ 0] => [Sym(0)])
+        @test cs(a => 4) == [-2, 2] && cs(a => 0) == [0] && cs(a => -1) == Sym[]
+        cs = solve(x^2 ~ a, x; assume = (x ≫ 0,))
+        @test length(cs) == 2 && cs[1] == (Any[a ≫ 0] => [sqrt(a)])
+        @test cs(a => 4) == [2] && cs(a => -1) == Sym[] && cs[a => 4] == cs[1]
+        @test length(solve(a * x ~ 1, x; assume = (x ≫ 0,))) == 2
+        cs = solve(x^2 ~ 9, x; assume = (x ≫ a,))
+        @test [c.second for c in cs] == [[-3, 3], [3], [3], Sym[]]
+        @test cs(a => -5) == [-3, 3] && cs(a => 0) == [3] && cs(a => 4) == Sym[]
+        cs = solve(x^2 - 3x + 2 ~ 0, x; assume = (n ∈ ℤ, x ≪ n))
+        @test cs(n => 1) == Sym[] && cs(n => 2) == [1] && cs(n => 5) == [1, 2]
+        # rationality of constants: radicals, π and ℯ
+        @test solve(x^2 ~ 2, x; assume = (x ∈ ℚ,)) == Sym[] == solve(x^2 ~ 2, x; assume = (x ∈ ℤ,))
+        @test solve(4x^2 ~ 1, x; assume = (x ∈ ℚ,)) == [-1 // 2, 1 // 2]
+        @test solve(4x^2 ~ 1, x; assume = (x ∈ ℤ,)) == Sym[]
+        @test solve(x^2 - x - 1 ~ 0, x; assume = (x ∈ ℚ,)) == Sym[]
+        @test solve(x^3 ~ 2, x; assume = (x ∈ ℚ,)) == Sym[]          # complex roots too
+        s2, s3, s6 = sqrt(Sym(2)), sqrt(Sym(3)), sqrt(Sym(6))
+        @test SymJ._const_rational(s2 * s3 * s6) === true && SymJ._const_rational(s2 * s3) === false
+        @test SymJ._const_rational(2 + 3 * PI) === false && SymJ._const_rational(PI * E) === nothing
+        @test SymJ._const_rational(s2 + s3) === nothing                # several radicals: unknown
+        @test !(s2 ∈ ℚ) && !(PI ∈ ℤ) && (s2 * s3 * s6 ∈ ℤ)
+        cs = solve(2x ~ n, x; assume = (x ∈ ℤ,))
+        @test length(cs) == 2 && cs[1].second == [n / 2]
+        @test occursin("a > 0  =>  [sqrt(a)]", sprint(show, MIME"text/plain"(), solve(x^2 ~ a, x; assume = (x ≫ 0,))))
+        # inequalities: within the unknown's set
+        @test string(solve(x^2 ≫ 1, x; assume = (x ≪ 0,))) == "(-∞, -1)"
+        @test_throws ArgumentError solve(x^2 ~ 4, x; assume = (x ≫ 1, x ≪ 0))   # contradictory
     end
 
     @testset "ambiguities" begin

@@ -142,8 +142,8 @@ function _solve_inequality(r::Relation, x::Sym)
         throw(ArgumentError("solve: an inequality with inexact coefficients is not supported yet"))
     all(a -> _eq(a, x) || !has(a, x), atoms) ||
         throw(ArgumentError("solve: only polynomial and rational inequalities are supported yet"))
-    zs = has(n, x) ? _real_roots(solve(n ~ 0, x)) : Sym[]
-    ps = has(d, x) ? _real_roots(solve(d ~ 0, x)) : Sym[]
+    zs = has(n, x) ? _real_roots(_solve_eq(n ~ 0, x)) : Sym[]
+    ps = has(d, x) ? _real_roots(_solve_eq(d ~ 0, x)) : Sym[]
     pole(v) = any(p -> p == v, ps)
     _set_from(vcat(zs, ps), (v, atpoint) -> begin
         atpoint && pole(v) && return false
