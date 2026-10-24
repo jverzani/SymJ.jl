@@ -434,6 +434,11 @@ RischIntegrate that run a precompilation workload of limits and integrals on Sym
 expressions when those packages are installed. The compiled code then ships with the
 extension, and the first limit takes about 1 ms.
 
+With Latexify loaded, an extension gives `latexify` recipes for expressions and
+relations, and a `text/latex` display for them, for arrays of expressions and for
+tuples of expressions. Notebooks and these pages then show results typeset. As in
+SymPyCore, the printed form, which is valid Julia, is handed to Latexify to typeset.
+
 ## How it compares
 
 The `bench/cas` directory compares SymJ (with GruntzLimit and RischIntegrate), Symbolics

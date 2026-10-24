@@ -4,6 +4,7 @@ using SymJ: @parameters, parameter, isparameter, free_parameters   # internal fo
 using TermInterface
 using Test
 import ForwardDiff
+using Latexify: latexify
 
 @syms x y z f() g()
 
@@ -1413,6 +1414,32 @@ import ForwardDiff
         # inequalities: within the unknown's set
         @test string(solve(x^2 ≫ 1, x; assume = (x ≪ 0,))) == "(-∞, -1)"
         @test_throws ArgumentError solve(x^2 ~ 4, x; assume = (x ≫ 1, x ≪ 0))   # contradictory
+    end
+
+    @testset "Latexify" begin
+        @syms a
+        L(v) = repr(MIME"text/latex"(), v)
+        @test L(x^2 + 1) == raw"$x^{2} + 1$" && L(sqrt(Sym(2)) * x) == raw"$\sqrt{2} \cdot x$"
+        @test L(exp(x)) == raw"$e^{x}$" && L(IM * x) == raw"$i \cdot x$"          # ℯ, im as letters
+        @test L(x ~ 2) == raw"$x = 2$" && L(x ≫ 0) == raw"$x > 0$" && L(a ≦ 1) == raw"$a \leq 1$"
+        @test L(Sym(2)^100) == raw"$1267650600228229401496703205376$"           # a big literal
+        @test L(solve(x^2 ~ 4, x)) == raw"$\left[ -2, \; 2 \right]$" && L(Sym[]) == raw"$\left[ \; \right]$"
+        @test startswith(L([x 1; y x]), raw"$\left[")                           # a matrix: an array
+        @test L((x, x^2)) == raw"$\left( x, \; x^{2} \right)$"
+        @test L(SymNumber(3 // 4)) == raw"$\frac{3}{4}$" && L(Poly(x^2 - 1, x)) == raw"$x^{2} - 1$"
+        @test L(series(exp(x), x, 0, 3)) == raw"$1 + x + \frac{x^{2}}{2} + O\left( x^{3} \right)$"
+        @test L(solve([x + y ~ 3, x - y ~ 1], [x, y])) ==
+              raw"$\left[ \begin{array}{l} \left\{ x = 2, \; y = 1 \right\} \end{array} \right]$"
+        @test L(solve(x^2 ≫ 1, x)) == raw"$\left( -\infty, -1 \right) \cup \left( 1, \infty \right)$"
+        @test L(solve([x ≧ 0, y ≧ 0, x + y ≦ 1], [x, y])) ==
+              raw"$y \in \left[ 0, 1 \right], \; x \in \left[ 0,  - y + 1 \right]$"
+        @test L(solve(x^2 ~ a, x; assume = @assume(x > 0))) ==
+              raw"$\begin{cases} \left[ \sqrt{a} \right] & a > 0 \\ \left[ \; \right] & \lnot \left( a > 0 \right) \end{cases}$"
+        @test occursin(raw"-3 < a < 3", L(solve(x^2 ~ 9, x; assume = @assume(x > a))))
+        @test latexify(x / 2) == latexify(:(x / 2))
+        # Julia's numbers and mixed tuples are left to their own display
+        @test !showable(MIME"text/latex"(), 1.5) && !showable(MIME"text/latex"(), (x, 1.0)) &&
+              !showable(MIME"text/latex"(), [1, 2])
     end
 
     @testset "ambiguities" begin

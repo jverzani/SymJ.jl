@@ -1,5 +1,6 @@
 using SymJ
 using Documenter, MaterialDocs
+using Latexify      # results in the examples are shown typeset (SymJLatexifyExt)
 
 DocMeta.setdocmeta!(SymJ, :DocTestSetup, :(using SymJ); recursive=true)
 
