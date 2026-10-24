@@ -1599,6 +1599,29 @@ using Latexify: latexify
         @test [x 1; 1 x] - LA.I == [x-1 1; 1 x-1] && 2x * [x 1; 1 x] == [2x^2 2x; 2x 2x^2]
         @test [x 1; 1 x] / x == [1 1/x; 1/x 1]
         @test_throws ArgumentError λ * LA.I
+        # rref, rank, nullspace (generic: symbolic pivots nonzero)
+        @test rref(Sym[1 2 3; 4 5 6; 7 8 9]) == Sym[1 0 -1; 0 1 2; 0 0 0] && LA.rank(Sym[1 2 3; 4 5 6; 7 8 9]) == 2
+        @test LA.nullspace(Sym[1 2 3; 4 5 6; 7 8 9]) == Sym[1; -2; 1;;]
+        @test LA.rank([a b; 2a 2b]) == 1 && LA.nullspace([a b; 2a 2b]) == [-b/a; 1;;] && rref([a 1; 1 1]) == Sym[1 0; 0 1]
+        # algebraic constants are numbers, not independent atoms: sqrt(2)^2 - 2 is zero
+        s2 = sqrt(Sym(2))
+        @test LA.rank([s2 1; 2 s2]) == 1 && LA.det([s2 1; 2 s2]) == 0 && LA.nullspace([s2 1; 2 s2]) == [-s2/2; 1;;]
+        @test_throws LA.SingularException inv([s2 1; 2 s2])
+        @test inv([s2 1; 1 s2]) == [s2 -1; -1 s2]
+        # eigenvalues with multiplicity; eigenvectors; eigen for diagonalizable matrices
+        @test LA.eigvals(Sym[2 1; 1 2]) == [1, 3] && LA.eigvals(Sym[1 1; 0 1]) == [1, 1]
+        @test LA.eigvals(Sym[1 2 0; 2 1 0; 0 0 3]) == [-1, 3, 3] && Set(LA.eigvals([a b; b a])) == Set([a + b, a - b])
+        @test LA.eigvals(Sym[0 -1; 1 0]) == [-IM, IM] && LA.eigvecs(Sym[3 0; 0 3]) == Sym[1 0; 0 1]
+        @test size(LA.eigvecs(Sym[1 1; 0 1])) == (2, 1)                     # defective
+        @test_throws ArgumentError LA.eigen(Sym[1 1; 0 1])
+        for A in (Sym[2 1; 1 2], [a b; b a], Sym[2 0 0; 0 3 4; 0 4 9], [x 1; 1 x], Sym[1 2; 3 4], Sym[0 -1; 1 0])
+            F = LA.eigen(A)
+            @test F isa LA.Eigen && all(iszero, map(simplify, A * F.vectors - F.vectors * LA.Diagonal(F.values)))
+        end
+        @test SymJ.charpoly([a b; c a], x) == expand((x - a)^2 - b * c)
+        # powers of im with the sign outside: im^3 = 1/im = -im
+        @test IM^3 == -IM && 1 / IM == -IM && IM^-1 + IM == 0 && (-1)^(-1 // 3 * one(Sym)) == -(-1)^(2 // 3 * one(Sym))
+        @test simplify(1 / (1 + IM)) == (1 - IM) / 2
     end
 
     @testset "Latexify" begin

@@ -11,6 +11,29 @@
 #     systems, see linsolve.jl).
 # Results are converted back to Syms in lowest terms.
 
+# An entry of a matrix with algebraic constants (sqrt(33), im): a Sym, normalized after
+# each operation (expanded, radicals combined, denominators rationalized), so that the
+# canonical form decides zero exactly. As rational functions, such constants would be
+# independent atoms, and sqrt(33)^2 - 33 would not be zero.
+struct _AlgF
+    v::Sym
+end
+_algnorm(e::Sym) = expand(simplify_radicals(simplify_powers(expand(e))))
+Base.:+(a::_AlgF, b::_AlgF) = _AlgF(_algnorm(a.v + b.v))
+Base.:-(a::_AlgF, b::_AlgF) = _AlgF(_algnorm(a.v - b.v))
+Base.:-(a::_AlgF) = _AlgF(-a.v)
+Base.:*(a::_AlgF, b::_AlgF) = _AlgF(_algnorm(a.v * b.v))
+Base.inv(a::_AlgF) = _AlgF(_algnorm(cancel(1 / a.v)))
+Base.iszero(a::_AlgF) = iszero(a.v) || iszero(cancel(a.v))
+Base.zero(::Type{_AlgF}) = _AlgF(ZERO)
+Base.one(::Type{_AlgF}) = _AlgF(ONE)
+Base.zero(::_AlgF) = _AlgF(ZERO)
+Base.one(::_AlgF) = _AlgF(ONE)
+
+# an atom that is an algebraic number: a radical of a number, im
+_isalgebraic_atom(a::Sym) = !_hassymbol(a) && a.kind == POW && a.args[1].kind == NUMBER &&
+    a.args[2].kind == NUMBER && !isone(_denominator(a.args[2].num))
+
 # the entries over a field: (matrix, back) with back converting an entry to a Sym
 function _field_matrix(A::AbstractMatrix)
     S = Sym[Sym(a) for a in A]
@@ -23,6 +46,7 @@ function _field_matrix(A::AbstractMatrix)
         (_poly_atoms!(atoms, n) && _poly_atoms!(atoms, d)) ||
             throw(ArgumentError("matrix entries with floating point numbers together with symbols are not supported"))
     end
+    any(_isalgebraic_atom, atoms) && return map(e -> _AlgF(_algnorm(e)), S), (a -> cancel(a.v))
     gens = sort!(collect(atoms); lt = _lt)
     isempty(gens) && (gens = Sym[Sym(:_linalg)])         # constants such as sqrt(2) only
     rf(e) = (nd = numer_denom(e); _ratfun(Poly{SymNumber}(nd[1], gens), Poly{SymNumber}(nd[2], gens)))
@@ -49,6 +73,7 @@ function _poly_matrix(A::AbstractMatrix)
         _poly_atoms!(atoms, e) || return nothing
     end
     isempty(atoms) && return nothing
+    any(_isalgebraic_atom, atoms) && return nothing        # sqrt(2)^2 is not an atom squared
     gens = sort!(collect(atoms); lt = _lt)
     map(e -> Poly{SymNumber}(e, gens), S)
 end
@@ -288,4 +313,162 @@ function Base.:\(A::AbstractMatrix{Sym}, b::AbstractVecOrMat)
     end
     X = Sym[back(M[i, n + j]) for i in 1:n, j in 1:k]
     b isa AbstractVector ? vec(X) : X
+end
+
+## row reduction, rank, null space
+
+# reduced row echelon form over the field: (R, pivot columns)
+function _rref_field(A::AbstractMatrix)
+    M, back = _field_matrix(A)
+    m, n = size(M)
+    r = 1
+    pivots = Int[]
+    for c in 1:n
+        r > m && break
+        p = findfirst(i -> !iszero(M[i, c]), r:m)
+        p === nothing && continue
+        p += r - 1
+        p != r && ((M[r, :], M[p, :]) = (M[p, :], M[r, :]))
+        piv = inv(M[r, c])
+        for j in 1:n
+            M[r, j] *= piv
+        end
+        for i in 1:m
+            (i == r || iszero(M[i, c])) && continue
+            f = M[i, c]
+            for j in 1:n
+                M[i, j] -= f * M[r, j]
+            end
+        end
+        push!(pivots, c)
+        r += 1
+    end
+    Sym[back(e) for e in M], pivots
+end
+
+"""
+    rref(A::AbstractMatrix)
+
+The reduced row echelon form of a matrix of expressions, exactly. As for linear
+systems, a symbolic pivot is taken to be nonzero (the generic case): `rref([a 1; 1 1])`
+divides by `a - 1`.
+
+```julia
+rref(Sym[1 2 3; 4 5 6; 7 8 9])     # [1 0 -1; 0 1 2; 0 0 0]
+```
+"""
+rref(A::AbstractMatrix) = _rref_field(A)[1]
+
+"""
+    rank(A::AbstractMatrix{Sym})
+
+The rank of a matrix of expressions: its number of pivots in exact elimination (for
+symbolic entries, the generic rank).
+"""
+LinearAlgebra.rank(A::AbstractMatrix{Sym}) = length(_rref_field(A)[2])
+
+"""
+    nullspace(A::AbstractMatrix{Sym})
+
+A basis of the null space of a matrix of expressions, as the columns of a matrix: one
+column for each free variable of the reduced row echelon form (generic, as for
+[`rref`](@ref)).
+"""
+function LinearAlgebra.nullspace(A::AbstractMatrix{Sym})
+    R, pivots = _rref_field(A)
+    n = size(A, 2)
+    free = [j for j in 1:n if !(j in pivots)]
+    N = zeros(Sym, n, length(free))
+    for (k, f) in enumerate(free)
+        N[f, k] = ONE
+        for (i, p) in enumerate(pivots)
+            N[p, k] = -R[i, f]
+        end
+    end
+    N
+end
+
+## eigenvalues and eigenvectors
+
+"""
+    SymJ.charpoly(A, λ)
+
+The characteristic polynomial `det(λ*I - A)` of a square matrix of expressions, in `λ`.
+Not exported.
+"""
+function charpoly(A::AbstractMatrix, λ::Sym)
+    n = _square(A)
+    expand(LinearAlgebra.det(λ * LinearAlgebra.I(n) - Sym[Sym(a) for a in A]))
+end
+
+# (eigenvalue, algebraic multiplicity) pairs, from the factored characteristic polynomial
+function _eigen_mult(A::AbstractMatrix)
+    λ = Sym(Symbol("_eigλ"))
+    p = factor(charpoly(A, λ))
+    fs = p.kind == MUL ? collect(zip(p.args, p.exps)) : p.kind == POW ? [(p.args[1], p.args[2])] : [(p, ONE)]
+    out = Pair{Sym,Int}[]
+    for (f, k) in fs
+        has(f, λ) || continue
+        m = Int(_numerator(k.num))
+        for r in solve(f ~ 0, λ)
+            i = findfirst(q -> iszero(expand(q.first - r)), out)
+            i === nothing ? push!(out, r => m) : (out[i] = r => out[i].second + m)
+        end
+    end
+    out
+end
+
+"""
+    eigvals(A::AbstractMatrix{Sym})
+
+The eigenvalues of a matrix of expressions, each repeated by its algebraic multiplicity:
+the roots of the characteristic polynomial, exact where `solve` finds them exactly.
+
+```julia
+eigvals(Sym[2 1; 1 2])       # [1, 3]
+eigvals([a b; b a])          # [a - b, a + b]
+```
+"""
+LinearAlgebra.eigvals(A::AbstractMatrix{Sym}) = Sym[v for (v, m) in _eigen_mult(A) for _ in 1:m]
+
+"""
+    eigvecs(A::AbstractMatrix{Sym})
+
+Eigenvectors of a matrix of expressions as the columns of a matrix: a basis of each
+eigenspace, the null space of `A - v*I`, eigenvalue by eigenvalue (in the order of
+`eigvals`). A defective matrix has fewer columns than rows.
+"""
+function LinearAlgebra.eigvecs(A::AbstractMatrix{Sym})
+    n = _square(A)
+    cols = Vector{Sym}[]
+    for (v, _) in _eigen_mult(A)
+        N = LinearAlgebra.nullspace(Sym[Sym(a) for a in A] - v * LinearAlgebra.I(n))
+        for k in 1:size(N, 2)
+            push!(cols, N[:, k])
+        end
+    end
+    isempty(cols) ? zeros(Sym, n, 0) : reduce(hcat, cols)
+end
+
+"""
+    eigen(A::AbstractMatrix{Sym})
+
+The eigenvalues and eigenvectors of a diagonalizable matrix of expressions, as a
+`LinearAlgebra.Eigen` (`F.values`, `F.vectors`, with `A * F.vectors == F.vectors *
+Diagonal(F.values)`). A defective matrix (too few eigenvectors) is an `ArgumentError`;
+`eigvals` and `eigvecs` still apply.
+"""
+function LinearAlgebra.eigen(A::AbstractMatrix{Sym})
+    n = _square(A)
+    vals, vecs = Sym[], Vector{Sym}[]
+    for (v, m) in _eigen_mult(A)
+        N = LinearAlgebra.nullspace(Sym[Sym(a) for a in A] - v * LinearAlgebra.I(n))
+        size(N, 2) == m || throw(ArgumentError("the matrix is not diagonalizable: the eigenvalue $v has multiplicity $m but $(size(N, 2)) eigenvector$(size(N, 2) == 1 ? "" : "s"); use eigvals and eigvecs"))
+        for k in 1:m
+            push!(vals, v)
+            push!(vecs, N[:, k])
+        end
+    end
+    length(vals) == n || throw(ArgumentError("not all eigenvalues of the matrix were found"))
+    LinearAlgebra.Eigen(vals, reduce(hcat, vecs))
 end

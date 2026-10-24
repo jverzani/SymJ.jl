@@ -384,12 +384,14 @@ function _mulpow_int(M::Sym, e::Sym)
     _finish_mul(c, bases, exps, left)
 end
 
-# (-1)^e with e reduced into (-1, 1]
+# (-1)^e with e reduced into (-1, 1], then a negative exponent written with the sign
+# outside, (-1)^r = -(-1)^(r + 1): im^3 and 1/im are -im, as 1/sqrt(2) is sqrt(2)/2
 function _minus_one_pow(e::SymNumber)
     r = _rat(e)
     r -= 2 * ceil(BigInt, (r - 1) / 2)
     isone(r) && return MINUS_ONE
     iszero(r) && return ONE
+    r < 0 && return mul(MINUS_ONE, _mkpow_node(MINUS_ONE, Sym(_frombig(r + 1))))
     _mkpow_node(MINUS_ONE, Sym(_frombig(r)))
 end
 

@@ -108,8 +108,8 @@ equations; done: series, assumptions, a basic `simplify`)
 |:--|:--|:--|:--|
 | Matrices of expressions: products | `Matrix` | built in | ✅ Julia arrays of `Sym` |
 | Determinant, inverse, solving | `Matrix` methods `det`, `inv`, `LUsolve` | `det`, `inverse`, `linsolve` | ✅ `det` (Bareiss for polynomials), `inv` (adjugate or Gauss–Jordan over rational functions), `A \ b`, exactly with first-nonzero pivoting |
-| Row reduction, null space, rank | `Matrix` methods `rref`, `nullspace`, `rank` | `rref`, `ker`, `rank` | ❌ |
-| Eigenvalues, eigenvectors, Jordan form | `Matrix` methods `eigenvals`, `eigenvects`, `jordan_form` | `eigenvals`, `eigenvects`, `jordan` | ❌ |
+| Row reduction, null space, rank | `Matrix` methods `rref`, `nullspace`, `rank` | `rref`, `ker`, `rank` | ✅ `rref`, `nullspace`, `rank` (generic: symbolic pivots nonzero) |
+| Eigenvalues, eigenvectors, Jordan form | `Matrix` methods `eigenvals`, `eigenvects`, `jordan_form` | `eigenvals`, `eigenvects`, `jordan` | ✅ `eigvals` (with multiplicity), `eigvecs`, `eigen` (diagonalizable), `SymJ.charpoly`; ❌ Jordan form |
 | LU, QR, SVD | `Matrix` methods `LUdecomposition`, `QRdecomposition` | `lu`, `qr`, `svd` | ◐ `lu` (a `LinearAlgebra.LU`, exact); ❌ QR, SVD |
 
 ## Functions
@@ -154,9 +154,9 @@ The planned work (★) still to do is summation and differential equations; seri
 assumptions and a basic `simplify` are done. Of the rest, in rough order of value for
 calculus-level use:
 
-1. **Symbolic linear algebra**, continued: `det`, `inv`, `lu` and `\` are done; next are
-   row reduction, null space, rank, and eigenvalues and eigenvectors (through `det(A -
-   λ*I(n))` and `solve`).
+1. **Symbolic linear algebra**, continued: `det`, `inv`, `lu`, `\`, `rref`, `rank`,
+   `nullspace`, and eigenvalues and eigenvectors are done; QR, the Jordan form and
+   matrix functions (`exp(A)`) remain.
 2. **Piecewise functions, Heaviside and Dirac**, which also matter for Laplace
    transforms and differential equations.
 3. **Definite integrals done properly**: improper integrals through `limit`, and

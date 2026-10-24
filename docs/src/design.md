@@ -906,6 +906,15 @@ three rounds each, taking each workload's best time.
   **`inv`** is the adjugate (Bareiss cofactors over the determinant) for polynomial
   entries up to 6×6, Gauss–Jordan over `RatFun` otherwise. **`lu`** returns a
   `LinearAlgebra.LU`, so `F.L`, `F.U`, `F.p`, `det(F)` and `F \ b` work as usual.
+- **`rref`, `rank`, `nullspace`** come from the same elimination; symbolic pivots are
+  taken to be nonzero (the generic case), as for linear systems. **`eigvals`** are the
+  roots of the factored characteristic polynomial, repeated by multiplicity;
+  **`eigvecs`** the null spaces of `A - v*I`; **`eigen`** a `LinearAlgebra.Eigen` for a
+  diagonalizable matrix.
+- **Algebraic constants.** As rational functions, `sqrt(2)` or `im` would be
+  independent atoms, and `sqrt(2)^2 - 2` would not test zero. A matrix with such
+  constants is eliminated over `Sym` values normalized after each operation (expanded,
+  radicals combined, denominators rationalized), which the canonical form makes exact.
 - **`I` and scalars.** `A ± I` works (`Sym ± UniformScaling`); `UniformScaling` needs a
   `Number` scale, so a symbolic multiple is `λ*I(n)`. An expression times an array is
   elementwise, as for numbers.
