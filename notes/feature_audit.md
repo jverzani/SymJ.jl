@@ -4,7 +4,8 @@ What SymPy and Giac provide, area by area, and where SymJ stands. Written 2026-1
 against SymPy 1.14 and Giac (through Giac.jl 0.14), with SymJ 0.1.0 plus GruntzLimit
 (limits) and RischIntegrate (integrals). Every SymPy name below was checked to exist in
 SymPy 1.14, and every Giac command in Giac.jl's command table; SymJ's column was checked
-against its source and by running it.
+against its source and by running it. Updated 2026-10-24 for assumptions (`solve`) and
+LaTeX output.
 
 **Legend:** ✅ has · ◐ partial · ❌ missing · ★ planned (series, assumptions, a basic
 `simplify`, summation, differential equations)
@@ -16,10 +17,10 @@ against its source and by running it.
 | Exact integers and rationals of any size | `Integer`, `Rational` | built in | ✅ `SymNumber` (Int fast path, BigInt fallback) |
 | Exact radicals, π, ℯ, exact function values | `sqrt`, `pi`, `E` | built in | ✅ `sqrt(Sym(8)) == 2sqrt(2)`, `sin(π/3) == sqrt(3)/2` |
 | Combining and denesting radicals | `radsimp`, `sqrtdenest` | `simplify` | ❌ `sqrt(2)*sqrt(3)` stays; `cancel` handles square roots of rationals |
-| Complex numbers: `re`, `im`, `conj`, `arg` | `re`, `im`, `conjugate`, `arg` | `re`, `im`, `conj`, `arg` | ◐ `im` is exact; no real/imaginary parts (they need assumptions) |
+| Complex numbers: `re`, `im`, `conj`, `arg` | `re`, `im`, `conjugate`, `arg` | `re`, `im`, `conj`, `arg` | ◐ `im` is exact; no real/imaginary parts yet (assumptions now exist to decide them) |
 | Symbolic infinity and undefined | `oo`, `zoo`, `nan` | `infinity`, `undef` | ❌ limits return Julia's `Inf` |
 | Numeric evaluation | `evalf(n)` | `evalf` | ✅ `N` (Float64), calling with `BigFloat`, dual numbers, … |
-| Assumptions on symbols | `symbols(positive=True)`, `ask`, `refine`, `Q` | `assume` | ❌ ★ (to be passed per call, not stored on symbols) |
+| Assumptions on symbols | `symbols(positive=True)`, `ask`, `refine`, `Q` | `assume` | ◐ ★ `Assumptions`, `@assume`, `assuming`/`@assuming`, per call or per block, not stored on symbols; used by `solve` (answers by cases); not yet by simplification (`sqrt(x^2)` for `x > 0` stays), `limit` or `integrate` |
 | Parameters (named constants) | — | — | ◐ implemented, hidden until the shared-name question is settled |
 
 ## Expressions
@@ -75,6 +76,8 @@ against its source and by running it.
 | Linear systems (symbolic coefficients) | `linsolve`, `solve` | `linsolve` | ✅ |
 | Nonlinear systems | `nonlinsolve`, `solve` | `solve` | ◐ polynomial and rational systems, through a lex Gröbner basis; not transcendental ones |
 | Inequalities: one unknown; linear systems | `solve`, `solveset` | `solve` | ✅ unions of intervals; cylindrical description for linear systems |
+| Solutions under assumptions (domain, range, parameter cases) | `solveset(…, domain)`, assumptions on symbols | `assume` | ✅ `solve(…; assume)`: roots filtered by the unknown's facts; a `Cases` result when they depend on open facts. Not yet for systems |
+| Equations in several unrelated functions of the unknown | `solve` | `solve` | ❌ e.g. `sin(x) + cos(x) ~ 1` |
 | Nonlinear inequality systems | partial | partial | ❌ |
 | Numeric root finding, any equation | `nsolve` | `fsolve` | ◐ polynomials only |
 | Diophantine equations | `diophantine` | `isolve` | ❌ |
@@ -132,7 +135,7 @@ against its source and by running it.
 | Solution sets: intervals, unions | `Interval`, `FiniteSet`, `ImageSet` | sets | ◐ `SymSet`, `CylindricalSet` from `solve` (not exported) |
 | Boolean logic, satisfiability | `sympy.logic`, `satisfiable` | — | ❌ |
 | Text output | ✅ | ✅ | ✅ |
-| LaTeX output | `latex` | `latex` | ❌ |
+| LaTeX output | `latex` | `latex` | ✅ with Latexify loaded: `latexify`, and typeset display of results (notebooks, the documentation) |
 | Code generation (C, Fortran, …) | `sympy.codegen` | — | ❌ (`lambdify` covers Julia) |
 | Plotting | `plot` | `plot` | ✅ expressions are callable, so Plots.jl and others plot them directly |
 
@@ -153,15 +156,16 @@ differential equations. Of the rest, in rough order of value for calculus-level 
 1. **Symbolic linear algebra**: determinant, inverse, solving, row reduction and
    eigenvalues for matrices of expressions. Matrices are common in coursework, and
    SymJ's exact linear-system solver (Gauss–Jordan over `RatFun`) is most of the work.
-2. **LaTeX output**, for notebooks and documents. Small, and much asked for.
+2. ~~**LaTeX output**~~: done, through a Latexify extension.
 3. **Piecewise functions, Heaviside and Dirac**, which also matter for Laplace
    transforms and differential equations.
 4. **Definite integrals done properly**: improper integrals through GruntzLimit, and
    detecting singularities inside the interval, building on RischIntegrate's
    antiderivatives.
 5. **Laplace transforms**, natural companions to the differential equation work.
-6. **Resultants**, then **Gröbner bases**, which open nonlinear systems of equations.
-7. **Real and imaginary parts and `conj`**, once assumptions exist.
+6. ~~**Resultants**, then **Gröbner bases**~~: done, and polynomial systems are solved.
+7. **Real and imaginary parts and `conj`**, now that assumptions exist; and
+   **simplification under assumptions** (`sqrt(x^2) = x` for `x > 0`).
 8. **Numeric root finding for any equation**, for when `solve` has no closed form.
 9. **Utilities**: `collect`, `coeff`, Horner form, a user-level `cse`, `nsimplify`.
 10. **Rewriting between forms** (exp ↔ trig, half-angle), which a `simplify` will want

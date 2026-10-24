@@ -665,12 +665,3 @@ F(3) - F(0)
 G = integrate(sin(x), x)
 G(x => Sym(π)) - G(x => 0)
 ```
-
-## What SymJ does not do yet
-
-- **Simplification under assumptions.** `solve` takes assumptions, but simplification
-  does not yet, so identities such as `sqrt(x^2) = x` for positive `x` are not applied.
-- **Matrices and noncommutative algebra.**
-- **Transcendental systems of equations**, such as `sin(x) ~ y, x ~ y^2` (polynomial and
-  rational systems are solved), and equations in several unrelated functions of the
-  unknown, such as `sin(x) + cos(x) ~ 1`.
