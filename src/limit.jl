@@ -66,7 +66,8 @@ function limit(f, xx0::Pair; dir = :both, assume = nothing)
     L = try
         GruntzLimit.gruntz_limit(f, x, x0g; dir, signs)
     catch err
-        (err isa GruntzError && occursin("gruntz_cases", err.msg)) || rethrow()
+        # kind :sign from GruntzLimit 1.0.2 on; before, the message names gruntz_cases
+        (err isa GruntzError && (err.kind === :sign || occursin("gruntz_cases", err.msg))) || rethrow()
         nothing
     end
     L === nothing || return _limit_value(L)
