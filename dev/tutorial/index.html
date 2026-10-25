@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=aee7f00f">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=7e47dcc9">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -844,6 +844,156 @@ end</code></pre>
 </div>
 </div>
 <p>Contradictory facts are an error (<code class="md-code-inline">@assume(x &gt; 1 &amp;&amp; x &lt; 0)</code>), and the <code class="md-code-inline">Assumptions</code> value <code class="md-code-inline">@assume</code> makes can be reused: <code class="md-code-inline">A = @assume(x &gt; 0, n in Integers)</code>, then <code class="md-code-inline">assume = A</code>.</p>
+<h2 id="Matrices" class="md-heading">Matrices<a href="#Matrices" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>Matrices of expressions are Julia arrays of <code class="md-code-inline">Sym</code>. With <code class="md-code-inline">LinearAlgebra</code>, <code class="md-code-inline">det</code>, <code class="md-code-inline">inv</code>, <code class="md-code-inline">lu</code> and <code class="md-code-inline">\</code> work exactly, pivoting on the first nonzero entry rather than comparing magnitudes:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">using LinearAlgebra
+@syms d
+A = [a b; c d]
+det(A), inv(A)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( a \cdot d - b \cdot c, \; \left[
+\begin{array}{cc}
+\frac{d}{a \cdot d - b \cdot c} &amp; \frac{ - b}{a \cdot d - b \cdot c} \\
+\frac{ - c}{a \cdot d - b \cdot c} &amp; \frac{a}{a \cdot d - b \cdot c} \\
+\end{array}
+\right] \right)\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">F = lu(A)
+F.L, F.U</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \left[
+\begin{array}{cc}
+1 &amp; 0 \\
+\frac{c}{a} &amp; 1 \\
+\end{array}
+\right], \; \left[
+\begin{array}{cc}
+a &amp; b \\
+0 &amp; \frac{a \cdot d - b \cdot c}{a} \\
+\end{array}
+\right] \right)\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">A \ [x, y]</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left[ \frac{ - b \cdot y + d \cdot x}{a \cdot d - b \cdot c}, \; \frac{a \cdot y - c \cdot x}{a \cdot d - b \cdot c} \right]\]
+</div>
+</div>
+<p>Row reduction (<code class="md-code-inline">SymJ.rref</code>, not exported, as it is not a LinearAlgebra function), rank, null spaces, and eigenvalues (with multiplicity) and eigenvectors:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.rref(Sym[1 2 3; 4 5 6; 7 8 9]), nullspace(Sym[1 2 3; 4 5 6; 7 8 9])</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \left[
+\begin{array}{ccc}
+1 &amp; 0 &amp; -1 \\
+0 &amp; 1 &amp; 2 \\
+0 &amp; 0 &amp; 0 \\
+\end{array}
+\right], \; \left[
+\begin{array}{c}
+1 \\
+-2 \\
+1 \\
+\end{array}
+\right] \right)\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">eigvals(Sym[1 2; 3 4]), eigvecs([a b; b a])</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \left[ \frac{ - \sqrt{33}}{2} + \frac{5}{2}, \; \frac{\sqrt{33}}{2} + \frac{5}{2} \right], \; \left[
+\begin{array}{cc}
+1 &amp; -1 \\
+1 &amp; 1 \\
+\end{array}
+\right] \right)\]
+</div>
+</div>
+<p>QR factorization by exact Gram–Schmidt, and functions of matrices through the Jordan form (<code class="md-code-inline">SymJ.jordan_form</code>), such as the exponential that solves <code class="md-code-inline">x&#39; = A x</code>:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">Q, R = qr(Sym[3 1; 4 2])
+Q, R</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \left[
+\begin{array}{cc}
+\frac{3}{5} &amp; \frac{-4}{5} \\
+\frac{4}{5} &amp; \frac{3}{5} \\
+\end{array}
+\right], \; \left[
+\begin{array}{cc}
+5 &amp; \frac{11}{5} \\
+0 &amp; \frac{2}{5} \\
+\end{array}
+\right] \right)\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms t n
+exp(t * Sym[0 1; -1 0]), exp(t * Sym[2 1; 0 2])</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \left[
+\begin{array}{cc}
+\cos\left( t \right) &amp; \sin\left( t \right) \\
+ - \sin\left( t \right) &amp; \cos\left( t \right) \\
+\end{array}
+\right], \; \left[
+\begin{array}{cc}
+e^{2 \cdot t} &amp; t \cdot e^{2 \cdot t} \\
+0 &amp; e^{2 \cdot t} \\
+\end{array}
+\right] \right)\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">Sym[1 1; 1 0]^n</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left[
+\begin{array}{cc}
+\frac{\sqrt{5} \cdot \left(  - \left( \frac{ - \sqrt{5}}{2} + \frac{1}{2} \right)^{n + 1} + \left( \frac{\sqrt{5}}{2} + \frac{1}{2} \right)^{n + 1} \right)}{5} &amp; \left( \frac{ - \sqrt{5}}{10} + \frac{1}{2} \right) \cdot \left( \frac{\sqrt{5}}{2} + \frac{1}{2} \right)^{n + 1} + \left( \frac{ - \sqrt{5}}{2} + \frac{1}{2} \right)^{n + 1} \cdot \left( \frac{\sqrt{5}}{10} + \frac{1}{2} \right) \\
+\frac{\sqrt{5} \cdot \left(  - \left( \frac{ - \sqrt{5}}{2} + \frac{1}{2} \right)^{n} + \left( \frac{\sqrt{5}}{2} + \frac{1}{2} \right)^{n} \right)}{5} &amp; \left( \frac{ - \sqrt{5}}{10} + \frac{1}{2} \right) \cdot \left( \frac{\sqrt{5}}{2} + \frac{1}{2} \right)^{n} + \left( \frac{ - \sqrt{5}}{2} + \frac{1}{2} \right)^{n} \cdot \left( \frac{\sqrt{5}}{10} + \frac{1}{2} \right) \\
+\end{array}
+\right]\]
+</div>
+</div>
+<p><code class="md-code-inline">A - I</code> works as for numbers; a symbolic multiple of the identity is <code class="md-code-inline">λ*I(n)</code>:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms λ
+det([x 1; 1 x] - λ * I(2))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[-2 \cdot x \cdot \lambda + x^{2} + \lambda^{2} - 1\]
+</div>
+</div>
 <h2 id="Limits" class="md-heading">Limits<a href="#Limits" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p><code class="md-code-inline">limit(f, x =&gt; x0)</code> is the limit of <code class="md-code-inline">f</code> as <code class="md-code-inline">x</code> tends to <code class="md-code-inline">x0</code>, a number, an expression or <code class="md-code-inline">Inf</code>. It is computed by Gruntz&#39;s algorithm, through GruntzLimit. An infinite limit is <code class="md-code-inline">Sym(Inf)</code> or <code class="md-code-inline">Sym(-Inf)</code>:</p>
 <div class="md-multi-output">
@@ -1153,6 +1303,7 @@ G(x =&gt; Sym(π)) - G(x =&gt; 0)</code></pre>
             <a class="md-toc-link md-toc-h3" href="#Inequalities">Inequalities</a>
             <a class="md-toc-link md-toc-h3" href="#Systems">Systems</a>
             <a class="md-toc-link md-toc-h3" href="#Assumptions">Assumptions</a>
+          <a class="md-toc-link md-toc-h2" href="#Matrices">Matrices</a>
           <a class="md-toc-link md-toc-h2" href="#Limits">Limits</a>
           <a class="md-toc-link md-toc-h2" href="#Derivatives">Derivatives</a>
             <a class="md-toc-link md-toc-h3" href="#Critical-points">Critical points</a>
@@ -1177,6 +1328,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=aee7f00f"></script>
+  <script src="../assets/materialdocs.js?v=7e47dcc9"></script>
 </body>
 </html>

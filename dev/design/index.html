@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Design notes — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=7ed0c621">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=fa607d6b">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Design notes — SymJ.jl">
   <meta property="og:title" content="Design notes — SymJ.jl">
@@ -1050,6 +1050,25 @@ end</code></pre>
 <li><p><strong><code class="md-code-inline">simplify_radicals</code></strong> denests square roots of <code class="md-code-inline">a + b sqrt(c)</code> when <code class="md-code-inline">a² - b²c</code> is a rational square, rationalizes denominators <code class="md-code-inline">a + b sqrt(c)</code> by the conjugate, and factors radicands so that <code class="md-code-inline">refine</code> can take a power out of the root.</p>
 </li>
 </ul>
+<h2 id="Linear-algebra" class="md-heading">Linear algebra<a href="#Linear-algebra" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<ul class="md-list-tight">
+<li><p><strong>Exact elimination, first-nonzero pivoting.</strong> Julia&#39;s generic <code class="md-code-inline">det</code>, <code class="md-code-inline">inv</code> and <code class="md-code-inline">lu</code> pivot by comparing magnitudes, which has no meaning for expressions. SymJ eliminates over a field with an exact zero test: exact rationals for numbers, otherwise rational functions (<code class="md-code-inline">RatFun</code>) in the entries&#39; atoms, whose canonical form makes a zero pivot certain.</p>
+</li>
+<li><p><strong><code class="md-code-inline">det</code></strong> is fraction-free (Bareiss) for polynomial entries, every division exact; <strong><code class="md-code-inline">inv</code></strong> is the adjugate (Bareiss cofactors over the determinant) for polynomial entries up to 6×6, Gauss–Jordan over <code class="md-code-inline">RatFun</code> otherwise. <strong><code class="md-code-inline">lu</code></strong> returns a <code class="md-code-inline">LinearAlgebra.LU</code>, so <code class="md-code-inline">F.L</code>, <code class="md-code-inline">F.U</code>, <code class="md-code-inline">F.p</code>, <code class="md-code-inline">det(F)</code> and <code class="md-code-inline">F \ b</code> work as usual.</p>
+</li>
+<li><p><strong>Names.</strong> Methods extend LinearAlgebra&#39;s functions (<code class="md-code-inline">det</code>, <code class="md-code-inline">inv</code>, <code class="md-code-inline">lu</code>, <code class="md-code-inline">qr</code>, <code class="md-code-inline">rank</code>, <code class="md-code-inline">nullspace</code>, <code class="md-code-inline">eigvals</code>, <code class="md-code-inline">eigvecs</code>, <code class="md-code-inline">eigen</code>) and Base&#39;s (<code class="md-code-inline">exp</code>, <code class="md-code-inline">sin</code>, <code class="md-code-inline">cos</code>, <code class="md-code-inline">^</code>); functions LinearAlgebra does not have stay unexported: <code class="md-code-inline">SymJ.rref</code>, <code class="md-code-inline">SymJ.jordan_form</code>, <code class="md-code-inline">SymJ.charpoly</code>.</p>
+</li>
+<li><p><strong><code class="md-code-inline">SymJ.rref</code>, <code class="md-code-inline">rank</code>, <code class="md-code-inline">nullspace</code></strong> come from the same elimination; symbolic pivots are taken to be nonzero (the generic case), as for linear systems. <strong><code class="md-code-inline">eigvals</code></strong> are the roots of the factored characteristic polynomial, repeated by multiplicity; <strong><code class="md-code-inline">eigvecs</code></strong> the null spaces of <code class="md-code-inline">A - v*I</code>; <strong><code class="md-code-inline">eigen</code></strong> a <code class="md-code-inline">LinearAlgebra.Eigen</code> for a diagonalizable matrix.</p>
+</li>
+<li><p><strong><code class="md-code-inline">qr</code></strong> is Gram–Schmidt with exact arithmetic (norms are square roots, simplified), symbols taken as real in the inner product; it returns a small <code class="md-code-inline">SymQR</code> (Julia&#39;s <code class="md-code-inline">QR</code> stores Householder reflectors). <strong><code class="md-code-inline">SymJ.jordan_form</code></strong> builds Jordan chains from the kernels of <code class="md-code-inline">(A - λI)^k</code>. <strong>Matrix functions</strong> (<code class="md-code-inline">exp</code>, <code class="md-code-inline">sin</code>, <code class="md-code-inline">cos</code>, <code class="md-code-inline">A^n</code> for a symbolic <code class="md-code-inline">n</code>) go through the Jordan form: on a block for <code class="md-code-inline">λ</code>, <code class="md-code-inline">f(J)</code> has <code class="md-code-inline">f^(j)(λ)/j!</code> on its <code class="md-code-inline">j</code>-th superdiagonal.</p>
+</li>
+<li><p><strong>Algebraic constants.</strong> As rational functions, <code class="md-code-inline">sqrt(2)</code> or <code class="md-code-inline">im</code> would be independent atoms, and <code class="md-code-inline">sqrt(2)^2 - 2</code> would not test zero. A matrix with such constants (radicals of numbers or of expressions, <code class="md-code-inline">im</code>) is eliminated over <code class="md-code-inline">Sym</code> values normalized after each operation (expanded, radicals combined, denominators rationalized), which the canonical form makes exact. A quadratic factor of a characteristic polynomial whose discriminant is <code class="md-code-inline">-u²</code> gets the roots <code class="md-code-inline">(-b ± i u)/2a</code> rather than ones with <code class="md-code-inline">sqrt(-u²)</code>.</p>
+</li>
+<li><p><strong><code class="md-code-inline">I</code> and scalars.</strong> <code class="md-code-inline">A ± I</code> works (<code class="md-code-inline">Sym ± UniformScaling</code>); <code class="md-code-inline">UniformScaling</code> needs a <code class="md-code-inline">Number</code> scale, so a symbolic multiple is <code class="md-code-inline">λ*I(n)</code>. An expression times an array is elementwise, as for numbers.</p>
+</li>
+<li><p><strong>LinearAlgebra</strong> is a dependency (a standard library, loaded at startup anyway).</p>
+</li>
+</ul>
 <h2 id="Assumptions" class="md-heading">Assumptions<a href="#Assumptions" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p>Assumptions are passed per call or for a block, never stored on symbols. This keeps canonical form context-free: <code class="md-code-inline">x</code> is always the same node with the same hash, and construction never consults assumptions. The trade-off is that identities such as <code class="md-code-inline">sqrt(x^2) = x</code> apply only inside the operations that take assumptions, never during construction.</p>
 <ul class="md-list-tight">
@@ -1227,6 +1246,7 @@ end</code></pre>
           <a class="md-toc-link md-toc-h2" href="#Solving">Solving</a>
           <a class="md-toc-link md-toc-h2" href="#Parameters-(internal)">Parameters (internal)</a>
           <a class="md-toc-link md-toc-h2" href="#Simplification">Simplification</a>
+          <a class="md-toc-link md-toc-h2" href="#Linear-algebra">Linear algebra</a>
           <a class="md-toc-link md-toc-h2" href="#Assumptions">Assumptions</a>
           <a class="md-toc-link md-toc-h2" href="#Performance-snapshot">Performance snapshot</a>
           <a class="md-toc-link md-toc-h2" href="#Not-yet-done-/-open-questions">Not yet done / open questions</a>
@@ -1239,6 +1259,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=7ed0c621"></script>
+  <script src="../assets/materialdocs.js?v=fa607d6b"></script>
 </body>
 </html>
