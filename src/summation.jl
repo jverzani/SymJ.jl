@@ -438,7 +438,7 @@ end
 # boundaries are the summand's own (binomial(n, k) vanishing for k > n), so a sum whose
 # bounds cut the summand off elsewhere gives no closed form here.
 
-const _ZEIL_MAX_ORDER = 2
+const _ZEIL_MAX_ORDER = 3
 
 function _zeilberger_sum(f::Sym, k::Sym, a::Sym, b::Sym)
     ns = [s for s in _named(b) if !_eq(s, k)]
@@ -459,8 +459,9 @@ function _zeilberger_sum(f::Sym, k::Sym, a::Sym, b::Sym, n::Sym)
     for J in 1:_ZEIL_MAX_ORDER
         rec = _zeilberger(f, k, n, J)
         rec === nothing && continue
-        J == 1 || return nothing                   # higher order: not solved (yet)
-        sol = _first_order_solve(rec, f, k, n, a, b)
+        # first order: a product; higher: the hypergeometric solutions (Hyper) that span S
+        sol = J == 1 ? _first_order_solve(rec, f, k, n, a, b) :
+            _recurrence_solve(rec, n, m -> _direct(f, k, n, a, b, m))
         sol === nothing && return nothing
         S, n0 = sol
         return _zeil_verified(S, f, k, n, a, b, n0) ? S : nothing

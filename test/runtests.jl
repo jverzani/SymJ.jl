@@ -1697,6 +1697,31 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         # a second-order recurrence (Franel numbers), and bounds that cut the summand off
         @test Σ(binomial(n, k)^3, k, 0, n).name === :Sum && Σ(binomial(2n, k), k, 0, n).name === :Sum
         @test Σ(binomial(n, k)^3, k, 0, n)(n => 3) == 56
+        # a second-order recurrence with hypergeometric solutions (Hyper): Binet's formula
+        fib = Σ(binomial(n - k, k), k, 0, n)
+        @test all(m -> simplify(fib(n => m)) == [1, 1, 2, 3, 5, 8, 13, 21][m+1], 0:7)
+    end
+
+    @testset "recurrences (Hyper)" begin
+        @syms n y() a
+        R = SymJ.rsolve
+        φ, ψ = (1 + sqrt(Sym(5))) / 2, (1 - sqrt(Sym(5))) / 2
+        @test simplify(R(y(n + 2) ~ y(n + 1) + y(n), y(n), y(0) => 0, y(1) => 1) - (φ^n - ψ^n) / sqrt(Sym(5))) == 0
+        @test R(y(n + 2) - 4y(n + 1) + 4y(n) ~ 0, y(n), y(0) => 1, y(1) => 4) == (n + 1) * 2^n   # a double root
+        @test R(y(n + 1) ~ (n + 1) * y(n), y(n), y(0) => 1) == factorial(n)
+        @test R((n + 1) * y(n + 1) ~ 2 * (2n + 1) * y(n), y(n), y(0) => 1) == binomial(2n, n)
+        @test R(y(n) ~ a * y(n - 1), y(n)) == a^n * y(0)                                  # shifted; general
+        @test R(y(n + 1) ~ 2y(n), y(n), y(1) => 6) == 3 * 2^n                                 # from y(1)
+        # a hypergeometric right side
+        @test R(y(n + 1) ~ 2y(n) + 1, y(n)) == 2^n * (y(0) + 1) - 1 && R(y(n + 1) ~ 2y(n) + 1, y(n), y(0) => 0) == 2^n - 1
+        @test R(y(n + 1) ~ y(n) + n, y(n), y(0) => 0) == n * (n - 1) / 2
+        @test R(y(n + 1) ~ 3y(n) + 2^n, y(n), y(0) => 0) == 3^n - 2^n
+        # the internal search: solutions of (E - 2)^2, none for the Franel recurrence
+        @test length(SymJ._hyper(Sym[4, -4, 1], n)) == 2
+        @test isempty(SymJ._hyper(Sym[-8(n + 1)^2, -(7n^2 + 21n + 16), (n + 2)^2], n))
+        @test_throws ArgumentError R((n + 2)^2 * y(n + 2) - (7n^2 + 21n + 16) * y(n + 1) - 8(n + 1)^2 * y(n) ~ 0, y(n), y(0) => 1, y(1) => 2)
+        @test_throws ArgumentError R(y(n + 1) ~ y(n)^2, y(n))
+        @test_throws ArgumentError R(y(n + 2) ~ y(n + 1) + y(n), y(n), y(1) => 1)
     end
 
     @testset "piecewise, heaviside, dirac" begin

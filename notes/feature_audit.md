@@ -81,7 +81,7 @@ series, assumptions, a basic `simplify`, summation)
 | Nonlinear inequality systems | partial | partial | ❌ |
 | Numeric root finding, any equation | `nsolve` | `fsolve` | ◐ polynomials only |
 | Diophantine equations | `diophantine` | `isolve` | ❌ |
-| Recurrences | `rsolve` | `rsolve`, `seqsolve` | ❌ |
+| Recurrences | `rsolve` | `rsolve`, `seqsolve` | ✅ `SymJ.rsolve`: linear, polynomial coefficients, by Hyper (hypergeometric solutions, combined), a hypergeometric right side; ◐ not for sums of such right sides, or solutions that are not hypergeometric (Franel), factors over the rationals only |
 | Ordinary differential equations | `dsolve`, `classify_ode`, `checkodesol` | `desolve` | ❌ ★ |
 | Partial differential equations | `pdsolve` | — | ❌ |
 
@@ -162,12 +162,11 @@ calculus-level use:
    (`A'A` for complex entries), whose closed forms quickly become unwieldy, and its
    vectors need orthonormal eigenvectors of `AᵀA` and `AAᵀ`; it is lower priority for
    symbolic use.
-2. **Definite hypergeometric sums**: Zeilberger's algorithm is done, with
-   first-order recurrences solved as products (`Σ_k binomial(n, k)^2 =
-   binomial(2n, n)`, Vandermonde, `Σ_k k*binomial(n, k) = n*2^(n-1)`). Still open:
-   Petkovšek's Hyper algorithm for higher-order recurrences (Franel numbers
-   `Σ binomial(n, k)^3` stay unevaluated), which would also give a general `rsolve`,
-   and inhomogeneous recurrences from non-natural bounds.
+2. **Definite hypergeometric sums and recurrences**: Zeilberger and Hyper are done
+   (`SymJ.rsolve`; second- and third-order Zeilberger recurrences solved by their
+   hypergeometric solutions, Binet's formula from `Σ binomial(n-k, k)`). Open:
+   right sides that are sums of hypergeometric terms, inhomogeneous recurrences from
+   non-natural bounds, and A, B factors needing algebraic numbers.
 3. **Piecewise functions, Heaviside and Dirac**: done. Open: combining sums and
    products of piecewise functions into one (`piecewise(...) - piecewise(...)` from a
    definite integral with a parameter), and ordering breakpoints that involve several
