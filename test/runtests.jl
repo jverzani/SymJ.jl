@@ -1684,6 +1684,19 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test Σ((-1)^k * x^(2k) / factorial(2k), k, 0, Inf) == cos(x) && Σ((-1)^k * x^(2k + 1) / factorial(2k + 1), k, 0, Inf) == sin(x)
         @test Σ(x^(2k) / factorial(2k), k, 0, Inf) == cosh(x)
         @test SymJ._isfn1(Σ(sin(k), k, 1, n), :Sum) || Σ(sin(k), k, 1, n).name === :Sum
+        # Zeilberger: definite sums of hypergeometric terms with no antidifference
+        @syms m
+        @test Σ(binomial(n, k)^2, k, 0, n) == binomial(2n, n)
+        @test Σ(k * binomial(n, k), k, 0, n) == n * 2^(n - 1) && Σ(k^2 * binomial(n, k), k, 0, n) == n * (n + 1) * 2^(n - 2)
+        @test Σ(binomial(n, k) * binomial(m, n - k), k, 0, n) == binomial(m + n, m)            # Vandermonde
+        @test Σ(binomial(n, k) * binomial(m, k), k, 0, n) == binomial(m + n, m)
+        @test Σ(binomial(2k, k) * binomial(2n - 2k, n - k), k, 0, n) == 4^n
+        @test Σ((-1)^k * binomial(2n, k)^2, k, 0, 2n) == (-1)^n * binomial(2n, n)
+        @test Σ(binomial(n + k, k) / 2^k, k, 0, n) == 2^n
+        @test Σ(binomial(n, k)^2, k, 1, n) == binomial(2n, n) - 1                             # from 1
+        # a second-order recurrence (Franel numbers), and bounds that cut the summand off
+        @test Σ(binomial(n, k)^3, k, 0, n).name === :Sum && Σ(binomial(2n, k), k, 0, n).name === :Sum
+        @test Σ(binomial(n, k)^3, k, 0, n)(n => 3) == 56
     end
 
     @testset "Latexify" begin

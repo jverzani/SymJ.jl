@@ -96,7 +96,7 @@ series, assumptions, a basic `simplify`, summation)
 | Indefinite integrals | `integrate` | `integrate` | ✅ RischIntegrate (175/175 of the Apostol set, more than either) |
 | Definite and improper integrals | `integrate(f, (x, a, b))` | `integrate(f, x, a, b)` | ◐ by evaluating an antiderivative; no improper integrals or check for singularities |
 | Numeric integration | `Integral(...).evalf()` | `romberg`, `gaussquad` | ❌ (QuadGK on a `lambdify`'d function) |
-| Sums of series | `summation`, `Sum` | `sum` | ✅ ★ `SymJ.summation`: Faulhaber, Gosper, partial fractions (harmonic, polygamma, `ζ(2n)`), binomial theorem, hypergeometric series; infinite sums by `limit`, convergence by cases; ◐ no Zeilberger (definite hypergeometric sums), unevaluated `Sum` otherwise |
+| Sums of series | `summation`, `Sum` | `sum` | ✅ ★ `SymJ.summation`: Faulhaber, Gosper, partial fractions (harmonic, polygamma, `ζ(2n)`), binomial theorem, hypergeometric series, Zeilberger (definite hypergeometric sums with a first-order recurrence: `Σ binomial(n,k)^2`, Vandermonde); infinite sums by `limit`, convergence by cases; ◐ higher-order recurrences (Hyper) not solved, unevaluated `Sum` otherwise |
 | Products | `product`, `Product` | `product` | ❌ |
 | Laplace, Fourier, Mellin, Z transforms | `laplace_transform`, `inverse_laplace_transform`, `fourier_transform`, `mellin_transform` | `laplace`, `ilaplace`, `fourier`, `ifourier`, `ztrans`, `invztrans` | ❌ |
 | Residues | `residue` | `residue` | ❌ |
@@ -162,16 +162,22 @@ calculus-level use:
    (`A'A` for complex entries), whose closed forms quickly become unwieldy, and its
    vectors need orthonormal eigenvectors of `AᵀA` and `AAᵀ`; it is lower priority for
    symbolic use.
-2. **Piecewise functions, Heaviside and Dirac**, which also matter for Laplace
+2. **Definite hypergeometric sums**: Zeilberger's algorithm is done, with
+   first-order recurrences solved as products (`Σ_k binomial(n, k)^2 =
+   binomial(2n, n)`, Vandermonde, `Σ_k k*binomial(n, k) = n*2^(n-1)`). Still open:
+   Petkovšek's Hyper algorithm for higher-order recurrences (Franel numbers
+   `Σ binomial(n, k)^3` stay unevaluated), which would also give a general `rsolve`,
+   and inhomogeneous recurrences from non-natural bounds.
+3. **Piecewise functions, Heaviside and Dirac**, which also matter for Laplace
    transforms and differential equations.
-3. **Definite integrals done properly**: improper integrals through `limit`, and
+4. **Definite integrals done properly**: improper integrals through `limit`, and
    detecting singularities inside the interval, building on RischIntegrate's
    antiderivatives.
-4. **Laplace transforms**, natural companions to the differential equation work.
-5. **Numeric root finding for any equation**, for when `solve` has no closed form.
-6. **Utilities**: `collect`, `coeff`, Horner form, a user-level `cse`, `nsimplify`, and a
+5. **Laplace transforms**, natural companions to the differential equation work.
+6. **Numeric root finding for any equation**, for when `solve` has no closed form.
+7. **Utilities**: `collect`, `coeff`, Horner form, a user-level `cse`, `nsimplify`, and a
    user-level `rewrite` (exp ↔ trig, half-angle; `simplify` already rewrites inside).
-7. **Assumptions, the remaining pieces**: integer congruences, `assume` for systems of
+8. **Assumptions, the remaining pieces**: integer congruences, `assume` for systems of
    equations, and assumptions in `integrate`.
 
 Done since the first audit: LaTeX output (a Latexify extension), resultants and Gröbner

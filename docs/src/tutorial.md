@@ -579,6 +579,14 @@ SymJ.summation(k^2, k, 1, n), SymJ.summation(r^k, k, 0, n), SymJ.summation(1 / (
 SymJ.summation(1 / k^2, k, 1, Inf), SymJ.summation(x^k / factorial(k), k, 0, Inf)
 ```
 
+Definite sums of binomials, which have no antidifference, come from Zeilberger's
+algorithm:
+
+```@example tut
+@syms m
+SymJ.summation(binomial(n, k)^2, k, 0, n), SymJ.summation(binomial(n, k) * binomial(m, n - k), k, 0, n)
+```
+
 Whether a series converges can depend on a parameter; the answer then has cases, which
 assumptions settle:
 

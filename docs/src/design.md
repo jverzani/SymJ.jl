@@ -906,6 +906,15 @@ three rounds each, taking each workload's best time.
   rational functions without one (harmonic numbers, polygamma, exact `ζ(2n)` by
   Bernoulli numbers); known sums (the binomial theorem; `₀F₀`, `₁F₀`, `₀F₁`
   hypergeometric series: `exp`, `cos`, `sin`, `cosh`, `sinh`).
+- **Zeilberger's algorithm** for a definite sum whose upper bound involves `n` and
+  whose summand has no antidifference: creative telescoping, Gosper's equation with
+  the coefficients `c_j(n)` of a recurrence `Σ_j c_j(n) S(n+j) = 0` as further
+  unknowns of the same linear system. A first-order recurrence is solved as a product
+  (factorials, half-integer shifts through `(2n)!/(4^n n!)`, presented as binomials);
+  higher-order ones are not solved yet. The boundary terms vanish only for natural
+  bounds, so each closed form is checked against direct sums for several `n` (and
+  integer values of other parameters), and a failed check leaves the sum unevaluated.
+  A small positive lower bound is the sum from 0 less its first terms.
 - **Infinite sums** are limits of the antidifference (`limit`). A polynomial times
   `r^k` converges exactly when `-1 < r < 1`, decided by cases on a parameter.
 - **Otherwise** the sum stays unevaluated, `Sum(f, k, a, b)`, which adds up once its
