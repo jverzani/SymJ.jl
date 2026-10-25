@@ -1600,9 +1600,9 @@ using Latexify: latexify
         @test [x 1; 1 x] / x == [1 1/x; 1/x 1]
         @test_throws ArgumentError λ * LA.I
         # rref, rank, nullspace (generic: symbolic pivots nonzero)
-        @test rref(Sym[1 2 3; 4 5 6; 7 8 9]) == Sym[1 0 -1; 0 1 2; 0 0 0] && LA.rank(Sym[1 2 3; 4 5 6; 7 8 9]) == 2
+        @test SymJ.rref(Sym[1 2 3; 4 5 6; 7 8 9]) == Sym[1 0 -1; 0 1 2; 0 0 0] && LA.rank(Sym[1 2 3; 4 5 6; 7 8 9]) == 2
         @test LA.nullspace(Sym[1 2 3; 4 5 6; 7 8 9]) == Sym[1; -2; 1;;]
-        @test LA.rank([a b; 2a 2b]) == 1 && LA.nullspace([a b; 2a 2b]) == [-b/a; 1;;] && rref([a 1; 1 1]) == Sym[1 0; 0 1]
+        @test LA.rank([a b; 2a 2b]) == 1 && LA.nullspace([a b; 2a 2b]) == [-b/a; 1;;] && SymJ.rref([a 1; 1 1]) == Sym[1 0; 0 1]
         # algebraic constants are numbers, not independent atoms: sqrt(2)^2 - 2 is zero
         s2 = sqrt(Sym(2))
         @test LA.rank([s2 1; 2 s2]) == 1 && LA.det([s2 1; 2 s2]) == 0 && LA.nullspace([s2 1; 2 s2]) == [-s2/2; 1;;]

@@ -587,10 +587,11 @@ F.L, F.U
 A \ [x, y]
 ```
 
-Row reduction, rank, null spaces and eigenvalues (with multiplicity) and eigenvectors:
+Row reduction (`SymJ.rref`, not exported, as it is not a LinearAlgebra function), rank,
+null spaces, and eigenvalues (with multiplicity) and eigenvectors:
 
 ```@example tut
-rref(Sym[1 2 3; 4 5 6; 7 8 9]), nullspace(Sym[1 2 3; 4 5 6; 7 8 9])
+SymJ.rref(Sym[1 2 3; 4 5 6; 7 8 9]), nullspace(Sym[1 2 3; 4 5 6; 7 8 9])
 ```
 
 ```@example tut

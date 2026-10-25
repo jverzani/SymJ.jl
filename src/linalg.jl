@@ -349,14 +349,14 @@ function _rref_field(A::AbstractMatrix)
 end
 
 """
-    rref(A::AbstractMatrix)
+    SymJ.rref(A::AbstractMatrix)
 
 The reduced row echelon form of a matrix of expressions, exactly. As for linear
 systems, a symbolic pivot is taken to be nonzero (the generic case): `rref([a 1; 1 1])`
-divides by `a - 1`.
+divides by `a - 1`. Not exported (it is not a LinearAlgebra function).
 
 ```julia
-rref(Sym[1 2 3; 4 5 6; 7 8 9])     # [1 0 -1; 0 1 2; 0 0 0]
+SymJ.rref(Sym[1 2 3; 4 5 6; 7 8 9])     # [1 0 -1; 0 1 2; 0 0 0]
 ```
 """
 rref(A::AbstractMatrix) = _rref_field(A)[1]
@@ -374,7 +374,7 @@ LinearAlgebra.rank(A::AbstractMatrix{Sym}) = length(_rref_field(A)[2])
 
 A basis of the null space of a matrix of expressions, as the columns of a matrix: one
 column for each free variable of the reduced row echelon form (generic, as for
-[`rref`](@ref)).
+[`SymJ.rref`](@ref)).
 """
 function LinearAlgebra.nullspace(A::AbstractMatrix{Sym})
     R, pivots = _rref_field(A)

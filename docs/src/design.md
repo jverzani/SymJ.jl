@@ -906,7 +906,11 @@ three rounds each, taking each workload's best time.
   **`inv`** is the adjugate (Bareiss cofactors over the determinant) for polynomial
   entries up to 6×6, Gauss–Jordan over `RatFun` otherwise. **`lu`** returns a
   `LinearAlgebra.LU`, so `F.L`, `F.U`, `F.p`, `det(F)` and `F \ b` work as usual.
-- **`rref`, `rank`, `nullspace`** come from the same elimination; symbolic pivots are
+- **Names.** Methods extend LinearAlgebra's functions (`det`, `inv`, `lu`, `qr`, `rank`,
+  `nullspace`, `eigvals`, `eigvecs`, `eigen`) and Base's (`exp`, `sin`, `cos`, `^`);
+  functions LinearAlgebra does not have stay unexported: `SymJ.rref`,
+  `SymJ.jordan_form`, `SymJ.charpoly`.
+- **`SymJ.rref`, `rank`, `nullspace`** come from the same elimination; symbolic pivots are
   taken to be nonzero (the generic case), as for linear systems. **`eigvals`** are the
   roots of the factored characteristic polynomial, repeated by multiplicity;
   **`eigvecs`** the null spaces of `A - v*I`; **`eigen`** a `LinearAlgebra.Eigen` for a
