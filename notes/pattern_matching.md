@@ -54,14 +54,15 @@ Slots, as in ACPM and SymbolicUtils:
 | Syntax | With a predicate | Matches |
 |:--|:--|:--|
 | `~x` | `~x::pred` | one argument of a function; one or more terms of a sum or factors of a product |
-| `~!x` | `~!x::pred` | as `~x`, or a default when absent: 0 in a sum, 1 in a product or exponent |
+| `~!x` | `~!x::pred` | one argument, or none, giving a default: 0 in a sum, 1 in a product or exponent |
 | `~~x` | `~~x::pred` | zero or more arguments |
 | `~~~x` | `~~~x::pred` | one or more arguments |
 | `(~f)(…)` | `(~f::pred)(…)` | the head of a function application |
 
 `+` and `*` are associative, so inside a sum or product `~x` is a sequence slot: it takes
 one or more terms (factors) and is bound to their sum (product). There `~x` and `~~~x`
-mean the same, and `~~x` and `~!x` also allow none. In a function's arguments, `~x` takes
+mean the same, and `~~x` also allows none. `~!x` is not a sequence slot: it takes one
+term (factor) or none, even in a sum or product. In a function's arguments, `~x` takes
 exactly one, and the sequence slots bind a vector of arguments.
 
 A name may appear more than once (a non-linear pattern) but with one flavor. A predicate
@@ -78,7 +79,7 @@ match(p, ex)        # Dict{Symbol,Any} of the first match, or nothing
 eachmatch(p, ex)    # an iterator of all the matches
 occursin(p, ex)     # a match anywhere in ex
 
-r = SymJ.@rule sin(~x)^2 + cos(~x)^2 + ~!r => 1 + ~r
+r = SymJ.@rule sin(~x)^2 + cos(~x)^2 + ~~r => 1 + ~r
 r = SymJ.@rule log(~x::ispos) + log(~y::ispos) => log(~x * ~y)
 r = SymJ.@rule (~f)(-~x) => (~f)(~x)       # a head slot, bound to the function
 r = SymJ.@rule ~x^~n => ~n * ~x^(~n - 1)    # the right side is Julia, with ~x the bound values
@@ -137,16 +138,16 @@ Each kind is matched as follows:
 - **Sums and products.** An `ADD` is matched as the multiset of its terms `cᵢ·tᵢ` plus
   its constant, when that is not 0. A `MUL` is matched as the multiset of its factors
   `bᵢ^eᵢ` plus its coefficient, when that is not 1.
-  - Each pattern element takes a group of subject elements, as a whole: a slot takes one
-    or more (or none, for `~~x` and `~!x`), anything else takes one. Order does not
-    matter.
+  - Each pattern element takes a group of subject elements, as a whole: `~x` and `~~~x`
+    take one or more, `~~x` takes any number, `~!x` takes one or none, and anything else
+    takes one. Order does not matter.
   - A subject that is not a sum is a one-element sum for this purpose, and likewise for
-    products. So `~a*~x + ~!b` matches `sin(t)` with `a => 1`, `x => sin(t)`, `b => 0`.
+    products. So `~!a*~x + ~!b` matches `sin(t)` with `a => 1`, `x => sin(t)`, `b => 0`.
 
 This is MatchPy's meaning, and so ACPM's `_eachmatch`: `~x + ~y` against `a + b + c` has
 six matches, one for each way to split the three terms into two non-empty groups, among
 them `x => a + b, y => c`. A pattern that is a sum therefore also matches part of a
-larger sum without any special rule: `sin(~x)^2 + cos(~x)^2 + ~!r` matches
+larger sum without any special rule: `sin(~x)^2 + cos(~x)^2 + ~~r` matches
 `sin(t)^2 + cos(t)^2 + a` with `r => a`, and the identity alone with `r => 0`.
 
 **Numbers.** A number in a pattern matches an equal number, and a numeric coefficient
@@ -223,7 +224,7 @@ the canonical constructors (`_rebuild_node`), so a rewritten expression is canon
 again.
 
 There is no implicit rest. A rule that should rewrite part of a larger sum says so with
-a slot, as in `sin(~x)^2 + cos(~x)^2 + ~!r => 1 + ~r`; associativity does the rest.
+a slot, as in `sin(~x)^2 + cos(~x)^2 + ~~r => 1 + ~r`; associativity does the rest.
 Without the slot, the rule matches only the whole identity.
 
 `SymJ.rewrite` walks bottom-up (`order = :post`) or top-down (`:pre`). With `fixpoint =
