@@ -484,6 +484,73 @@ used by [`simplify`](@ref).
 """
 simplify_hyperbolic(ex) = _circ_simplify(Sym(ex), _HYPMODE)
 
+"""
+    SymJ.expand_trig(ex)
+
+`ex` with its trigonometric and hyperbolic functions of sums and integer multiples
+expanded, bottom up, into functions of the terms: `sin(x + y) = sin(x)cos(y) +
+cos(x)sin(y)`, `cos(2x) = 2cos(x)^2 - 1`, `tan(x + y) = (tan(x) + tan(y))/(1 -
+tan(x)tan(y))`, and likewise `cot`, `sec`, `csc` and the hyperbolic functions. A
+multiple is a polynomial in the sine and cosine of the base (Chebyshev), as is the
+tangent's in the tangent; a rational multiple (`x/2`) is left. The reverse is
+[`SymJ.simplify_trig`](@ref). Not exported.
+
+```julia
+SymJ.expand_trig(sin(2x))         # 2*sin(x)*cos(x)
+SymJ.expand_trig(cos(3x))         # 4*cos(x)^3 - 3*cos(x)
+SymJ.expand_trig(sinh(x + y))     # sinh(x)*cosh(y) + cosh(x)*sinh(y)
+SymJ.expand_trig(tan(2x))         # 2*tan(x)/(1 - tan(x)^2)
+```
+"""
+expand_trig(ex) = _expand_trig(Sym(ex))
+
+# top down: a function is expanded on its argument as it is, then inside what remains
+function _expand_trig(e::Sym)
+    isempty(e.args) && return e
+    if e.kind == FN && length(e.args) == 1
+        for M in (_TRIGMODE, _HYPMODE)
+            e.name in M.fns && return _expand_circ(e.name, e.args[1], M)
+        end
+    end
+    e.kind == MUL && return Sym(e.num) * prod((_expand_trig(b)^_expand_trig(p) for (b, p) in zip(e.args, e.exps)); init = ONE)
+    _rebuild_node(e, Sym[_expand_trig(a) for a in e.args])
+end
+
+# f(u) expanded: u a sum is split into its first term and the rest, an integer multiple
+# k*h of h written through f(h)
+function _expand_circ(f::Symbol, u::Sym, M::_Circ)
+    s, c, t, ct, se, cs = M.fns
+    σ = M.hyp ? 1 : -1                       # cos(a + b) = cos cos + σ sin sin, …
+    f === se && return 1 / _expand_circ(c, u, M)
+    f === cs && return 1 / _expand_circ(s, u, M)
+    ex(g, v) = _expand_circ(g, v, M)
+    if u.kind == ADD
+        a = iszero(u.num) ? Sym(u.coefs[1]) * u.args[1] : Sym(u.num)
+        b = u - a
+        f === s && return expand(ex(s, a) * ex(c, b) + ex(c, a) * ex(s, b))
+        f === c && return expand(ex(c, a) * ex(c, b) + σ * ex(s, a) * ex(s, b))
+        f === t && return (ta = ex(t, a); tb = ex(t, b); (ta + tb) / (1 + σ * ta * tb))
+        return (ca = ex(ct, a); cb = ex(ct, b); (ca * cb + σ) / (ca + cb))
+    end
+    if u.kind == MUL && isexact(u.num) && isone(_denominator(u.num)) && abs(u.num) > N1
+        k = Int(_numerator(u.num))
+        h = u / Sym(u.num)
+        if f in (s, c)
+            sn, cn = _chebyshev(k, ex(s, h), ex(c, h))
+            return f === s ? sn : cn
+        end
+        # tan(k h) (cot) by the sum rule, k - 1 times, cancelled
+        x1 = ex(f, h)
+        r = x1
+        for _ in 2:abs(k)
+            r = f === t ? (r + x1) / (1 + σ * r * x1) : (r * x1 + σ) / (r + x1)
+        end
+        r = cancel(r)
+        return k < 0 ? -r : r
+    end
+    apply_function(f, Sym[_expand_trig(u)])
+end
+
 function _circ_simplify(e::Sym, M::_Circ)
     bases = _circ_bases(e, M)
     isempty(bases) && return e
@@ -822,28 +889,52 @@ function _log_combine(e::Sym, A::Assumptions)
     _rebuild_node(e, Sym[_log_combine(a, A) for a in e.args])
 end
 
-function _log_expand(e::Sym, A::Assumptions)
+# force: every base taken as positive (but a number) and every exponent as real
+function _log_expand(e::Sym, A::Assumptions, force::Bool = false)
     isempty(e.args) && return e
+    pos(b) = b.kind == NUMBER ? b.num > N0 : force || _ispos(b, A)
+    realp(p) = force || _isreal(p, A) === true
     if e.kind == FN && e.name === :log && length(e.args) == 1
-        u = _log_expand(e.args[1], A)
+        u = _log_expand(e.args[1], A, force)
         if u.kind == MUL
             out, rest = ZERO, Sym(u.num)
             _logpos(Sym(u.num), A) && !isone(u.num) ? (out += log(Sym(u.num)); rest = ONE) : nothing
             for (b, p) in zip(u.args, u.exps)
-                if _logpos(b, A) && _isreal(p, A) === true
-                    out += p * log(b)
+                if pos(b) && realp(p)
+                    out += p * _log_expand(log(b), A, force)
                 else
                     rest *= b^p
                 end
             end
             return out + (isone(rest) ? ZERO : log(rest))
-        elseif u.kind == POW && _logpos(u.args[1], A) && _isreal(u.args[2], A) === true
-            return u.args[2] * log(u.args[1])
+        elseif u.kind == POW && pos(u.args[1]) && realp(u.args[2])
+            return u.args[2] * _log_expand(log(u.args[1]), A, force)
         end
         return log(u)
     end
-    e.kind == MUL && return Sym(e.num) * prod((_log_expand(b, A)^_log_expand(p, A) for (b, p) in zip(e.args, e.exps)); init = ONE)
-    _rebuild_node(e, Sym[_log_expand(a, A) for a in e.args])
+    e.kind == MUL && return Sym(e.num) * prod((_log_expand(b, A, force)^_log_expand(p, A, force) for (b, p) in zip(e.args, e.exps)); init = ONE)
+    _rebuild_node(e, Sym[_log_expand(a, A, force) for a in e.args])
+end
+
+"""
+    SymJ.expand_log(ex; assume = nothing, force = false)
+
+`ex` with its logarithms expanded: `log(a*b) = log(a) + log(b)` and `log(a^p) = p*log(a)`
+where the assumptions decide that `a > 0` and `p` is real (a positive number always
+comes out: `log(2x) = log(2) + log(x)`); factors that are not decided stay in one
+logarithm. With `force = true`, every symbolic base is taken as positive and every
+exponent as real, as SymPy's `force` does. The reverse, combining, is part of
+[`SymJ.simplify_log`](@ref). Not exported.
+
+```julia
+SymJ.expand_log(log(x^2 * y); assume = @assume(x > 0, y > 0))   # 2log(x) + log(y)
+SymJ.expand_log(log(x / y); force = true)                       # log(x) - log(y)
+SymJ.expand_log(log(x * y))                                     # log(x*y): undecided
+```
+"""
+function expand_log(ex; assume = nothing, force::Bool = false)
+    A = assume isa Assumptions ? assume : (a = _assumptions(assume); a === nothing ? Assumptions() : a)
+    _log_expand(Sym(ex), A, force)
 end
 
 ## radicals

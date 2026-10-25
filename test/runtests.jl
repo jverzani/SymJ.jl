@@ -1503,6 +1503,26 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test S(log(2x) - log(Sym(2))) == log(x)                                 # 2 > 0: always
         @test S(exp(log(x) + log(y)), x ≫ 0, y ≫ 0) == x * y
         @test SymJ.simplify_log(log(x * y); assume = Assumptions(x ≫ 0, y ≫ 0)) == log(x * y)  # the smaller
+        # expansion: trigonometric and hyperbolic sums and multiples, logarithms
+        X = SymJ.expand_trig
+        @test X(sin(2x)) == 2sin(x) * cos(x) && X(cos(2x)) == 2cos(x)^2 - 1 && X(cos(3x)) == 4cos(x)^3 - 3cos(x)
+        @test X(sin(x + y)) == sin(x) * cos(y) + cos(x) * sin(y) && X(cos(x - y)) == cos(x) * cos(y) + sin(x) * sin(y)
+        @test X(sinh(x + y)) == sinh(x) * cosh(y) + cosh(x) * sinh(y) && X(cosh(2x)) == 2cosh(x)^2 - 1
+        @test cancel(X(tan(2x)) - 2tan(x) / (1 - tan(x)^2)) == 0 && cancel(X(tanh(x + y)) - (tanh(x) + tanh(y)) / (1 + tanh(x) * tanh(y))) == 0
+        @test X(sin(x + Sym(π) / 2)) == cos(x) && X(sin(x / 2)) == sin(x / 2) && X(x^2 + 1) == x^2 + 1
+        @test X(sin(2sin(2x))) == 2sin(2sin(x) * cos(x)) * cos(2sin(x) * cos(x))        # outside in
+        @test T(X(sin(3x))) == sin(3x) && T(X(cos(x + y + z))) == cos(x + y + z)
+        for e in (sin(3x), cos(4x), sin(x + y + z), tan(3x), tan(x - y), cot(2x), cot(x + y), sec(2x), csc(x + y),
+                  sinh(3x), cosh(x - 2y), tanh(3x), coth(x + y), sech(2x), csch(x + y), sin(2x + 1) * exp(cos(2y)))
+            @test isapprox(N(subs(e - X(e), x => 0.3, y => 0.7, z => -1.1)), 0; atol = 1e-12)
+        end
+        LX = SymJ.expand_log
+        @test LX(log(x^2 * y); assume = Assumptions(x ≫ 0, y ≫ 0)) == 2log(x) + log(y)
+        @test LX(log(x * y)) == log(x * y) && LX(log(x * y); assume = Assumptions(x ≫ 0)) == log(x) + log(y)
+        @test LX(log(2x)) == log(Sym(2)) + log(x) && LX(log(x^2); assume = @assume(x in Reals)) == log(x^2)
+        @test LX(log(x / y); force = true) == log(x) - log(y) && LX(log((x * y)^2); force = true) == 2log(x) + 2log(y)
+        @test LX(log(sqrt(x) * y^3); force = true) == log(x) / 2 + 3log(y) && LX(log(x^y); force = true) == y * log(x)
+        @test LX(exp(x) * log(x * y) + 1; force = true) == exp(x) * (log(x) + log(y)) + 1
         # radicals: denested, denominators rationalized, radicands factored
         @test S(sqrt(3 + 2sqrt(Sym(2)))) == 1 + sqrt(Sym(2)) && S(sqrt(5 - 2sqrt(Sym(6)))) == sqrt(Sym(3)) - sqrt(Sym(2))
         @test S(1 / (1 + sqrt(Sym(2)))) == sqrt(Sym(2)) - 1 && S(1 / (sqrt(Sym(3)) - 1)) == (sqrt(Sym(3)) + 1) / 2

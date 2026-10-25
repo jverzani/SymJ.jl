@@ -422,6 +422,20 @@ The transformations `simplify` tries are also available on their own, unexported
 `SymJ.simplify_rational`, `SymJ.simplify_powers`, `SymJ.simplify_trig`,
 `SymJ.simplify_hyperbolic`, `SymJ.simplify_log` and `SymJ.simplify_radicals`.
 
+Expansion goes the other way. `SymJ.expand_trig` writes trigonometric and hyperbolic
+functions of sums and integer multiples through functions of the terms:
+
+```@example tut
+SymJ.expand_trig(sin(x + y)), SymJ.expand_trig(cos(3x)), SymJ.expand_trig(tan(2x))
+```
+
+`SymJ.expand_log` splits logarithms of products and powers where the assumptions allow
+it; `force = true` takes every base as positive:
+
+```@example tut
+SymJ.expand_log(log(x^2 * y); assume = @assume(x > 0, y > 0)), SymJ.expand_log(log(x * y)), SymJ.expand_log(log(x / y); force = true)
+```
+
 ## Solving equations
 
 An equation is written with `~`, which binds more loosely than everything else, so no
