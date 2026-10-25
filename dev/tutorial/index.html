@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=80fbcedf">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=6b0aee3d">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -876,6 +876,27 @@ SymJ.summation(binomial(n, k)^2, k, 0, n), SymJ.summation(binomial(n, k) * binom
 \[\left( \binom{2 \cdot n}{n}, \; \binom{m + n}{m} \right)\]
 </div>
 </div>
+<p>When Zeilberger&#39;s recurrence is of higher order, its hypergeometric solutions (found by Petkovšek&#39;s algorithm Hyper) may still give the sum; here Binet&#39;s formula for the Fibonacci numbers:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.summation(binomial(n - k, k), k, 0, n)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \frac{ - \sqrt{5}}{10} + \frac{1}{2} \right) \cdot \left( \frac{ - \sqrt{5}}{2} + \frac{1}{2} \right)^{n} + \left( \frac{\sqrt{5}}{10} + \frac{1}{2} \right) \cdot \left( \frac{\sqrt{5}}{2} + \frac{1}{2} \right)^{n}\]
+</div>
+</div>
+<p>The same algorithm solves linear recurrences, <code class="md-code-inline">SymJ.rsolve</code> (not exported), from initial values or in terms of them:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms w()
+SymJ.rsolve(w(n + 2) ~ w(n + 1) + w(n), w(n), w(0) =&gt; 0, w(1) =&gt; 1), SymJ.rsolve(w(n + 1) ~ 2w(n) + 1, w(n))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \frac{\sqrt{5} \cdot \left(  - \left( \frac{ - \sqrt{5}}{2} + \frac{1}{2} \right)^{n} + \left( \frac{\sqrt{5}}{2} + \frac{1}{2} \right)^{n} \right)}{5}, \; 2^{n} \cdot \left( w\left( 0 \right) + 1 \right) - 1 \right)\]
+</div>
+</div>
 <p>Whether a series converges can depend on a parameter; the answer then has cases, which assumptions settle:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -1446,6 +1467,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=80fbcedf"></script>
+  <script src="../assets/materialdocs.js?v=6b0aee3d"></script>
 </body>
 </html>
