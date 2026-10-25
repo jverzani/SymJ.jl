@@ -1523,6 +1523,22 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test LX(log(x / y); force = true) == log(x) - log(y) && LX(log((x * y)^2); force = true) == 2log(x) + 2log(y)
         @test LX(log(sqrt(x) * y^3); force = true) == log(x) / 2 + 3log(y) && LX(log(x^y); force = true) == y * log(x)
         @test LX(exp(x) * log(x * y) + 1; force = true) == exp(x) * (log(x) + log(y)) + 1
+        # factorials and binomials: integer shifts combined, ratios as binomials
+        GS = SymJ.simplify_gamma
+        @syms nn kk
+        @test GS(factorial(nn + 2) / factorial(nn)) == (nn + 1) * (nn + 2) && GS(factorial(nn) / factorial(nn - 1)) == nn
+        @test GS(factorial(nn) / factorial(nn + 3)) == 1 / ((nn + 1) * (nn + 2) * (nn + 3))
+        @test GS(binomial(nn + 1, kk) / binomial(nn, kk)) == (nn + 1) / (nn + 1 - kk)
+        @test GS(binomial(nn, kk + 1) / binomial(nn, kk)) == (nn - kk) / (kk + 1)
+        @test GS(factorial(nn) / (factorial(kk) * factorial(nn - kk))) == binomial(nn, kk)
+        @test GS(factorial(2nn) / factorial(nn)^2) == binomial(2nn, nn) && GS(factorial(nn) * (nn + 1)) == factorial(nn + 1)
+        @test GS(factorial(nn + 1) - nn * factorial(nn)) == factorial(nn) && GS(factorial(nn + 1) + factorial(nn)) == (nn + 2) * factorial(nn)
+        @test GS((nn + 1) * binomial(nn, kk) / (nn - kk + 1)) == binomial(nn + 1, kk)
+        @test GS(sin(factorial(nn + 1) / factorial(nn))) == sin(nn + 1) && GS(x^2 + 1) == x^2 + 1
+        @test simplify(factorial(nn + 2) / factorial(nn)) == (nn + 1) * (nn + 2) && simplify(factorial(nn) * (nn + 1)) == factorial(nn + 1)
+        for e in (binomial(2nn + 2, nn + 1) / binomial(2nn, nn), factorial(nn + 1) / factorial(nn - 2) + binomial(nn, kk) / binomial(nn - 1, kk))
+            @test N(subs(e - GS(e), nn => 9, kk => 4)) == 0
+        end
         # radicals: denested, denominators rationalized, radicands factored
         @test S(sqrt(3 + 2sqrt(Sym(2)))) == 1 + sqrt(Sym(2)) && S(sqrt(5 - 2sqrt(Sym(6)))) == sqrt(Sym(3)) - sqrt(Sym(2))
         @test S(1 / (1 + sqrt(Sym(2)))) == sqrt(Sym(2)) - 1 && S(1 / (sqrt(Sym(3)) - 1)) == (sqrt(Sym(3)) + 1) / 2
