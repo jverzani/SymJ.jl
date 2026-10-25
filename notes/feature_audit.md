@@ -7,7 +7,7 @@ SymPy 1.14, and every Giac command in Giac.jl's command table; SymJ's column was
 against its source and by running it. Updated 2026-10-25: series, assumptions, `limit`
 with assumptions, `refine` and `simplify`, complex parts and LaTeX output are done.
 
-**Legend:** ✅ has · ◐ partial · ❌ missing · ★ planned (differential equations; done:
+**Legend:** ✅ has · ◐ partial · ❌ missing · ★ planned (differential equations, under way; done:
 series, assumptions, a basic `simplify`, summation)
 
 ## Numbers and the core
@@ -82,7 +82,7 @@ series, assumptions, a basic `simplify`, summation)
 | Numeric root finding, any equation | `nsolve` | `fsolve` | ◐ polynomials only |
 | Diophantine equations | `diophantine` | `isolve` | ❌ |
 | Recurrences | `rsolve` | `rsolve`, `seqsolve` | ✅ `SymJ.rsolve`: linear, polynomial coefficients, by Hyper (hypergeometric solutions, combined), a hypergeometric right side; ◐ not for sums of such right sides, or solutions that are not hypergeometric (Franel), factors over the rationals only |
-| Ordinary differential equations | `dsolve`, `classify_ode`, `checkodesol` | `desolve` | ❌ ★ |
+| Ordinary differential equations | `dsolve`, `classify_ode`, `checkodesol` | `desolve` | ◐ ★ `SymJ.dsolve`: first order (linear, separable, Bernoulli, exact with integrating factors, homogeneous), linear with constant coefficients of any order (undetermined coefficients, variation of parameters), Cauchy–Euler, `y` missing; initial conditions (`y'(0) => 1`); every solution checked. Not yet: systems, series solutions, Riccati, autonomous reduction, Laplace |
 | Partial differential equations | `pdsolve` | — | ❌ |
 
 ## Calculus
@@ -151,7 +151,8 @@ permutation groups (`sympy.combinatorics`), tensors and differential geometry
 
 ## Gaps worth considering
 
-The planned work (★) still to do is differential equations; series, assumptions, a
+The planned work (★) still to do is differential equations (under way: `SymJ.dsolve` has the
+first-order and linear methods; systems, series solutions and Laplace transforms remain); series, assumptions, a
 basic `simplify` and summation are done. Of the rest, in rough order of value for
 calculus-level use:
 

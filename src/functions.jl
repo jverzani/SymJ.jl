@@ -23,6 +23,26 @@ end
 Base.show(io::IO, f::SymFunction) = print(io, f.name)
 Base.show(io::IO, ::MIME"text/plain", f::SymFunction) = show(io, f)
 
+# f' (f'', …): the derivative of a function of one argument; f'(x) is diff(f(x), x) and
+# f'(0) the derivative at 0 (for initial conditions, `y'(0) => 1`)
+struct SymDerivative <: AbstractSymbolic
+    f::SymFunction
+    k::Int
+end
+Base.adjoint(f::SymFunction) = SymDerivative(f, 1)
+Base.adjoint(d::SymDerivative) = SymDerivative(d.f, d.k + 1)
+function (d::SymDerivative)(a)
+    a = Sym(a)
+    t = a.kind == SYMBOL ? a : Sym(:x)
+    e = d.f(t)
+    for _ in 1:d.k
+        e = _mkfn_node(:Derivative, Sym[e, t])
+    end
+    a.kind == SYMBOL ? e : apply_function(:Derivative, Sym[e.args[1], t, a])
+end
+Base.show(io::IO, d::SymDerivative) = print(io, d.f.name, "'"^d.k)
+Base.show(io::IO, ::MIME"text/plain", d::SymDerivative) = show(io, d)
+
 struct FunctionRule
     julia::Union{Nothing,Function}
     eval::Union{Nothing,Function}
