@@ -54,16 +54,18 @@ Slots, as in ACPM and SymbolicUtils:
 | Syntax | With a predicate | Matches |
 |:--|:--|:--|
 | `~x` | `~x::pred` | one argument of a function; one or more terms of a sum or factors of a product |
-| `~!x` | `~!x::pred` | one argument, or none, giving a default: 0 in a sum, 1 in a product or exponent |
+| `~!x` | `~!x::pred` | one argument, or none, giving a default: 0 in a sum, 1 in a product or exponent; zero or more terms or factors |
 | `~~x` | `~~x::pred` | zero or more arguments |
 | `~~~x` | `~~~x::pred` | one or more arguments |
 | `(~f)(…)` | `(~f::pred)(…)` | the head of a function application |
 
 `+` and `*` are associative, so inside a sum or product `~x` is a sequence slot: it takes
 one or more terms (factors) and is bound to their sum (product). There `~x` and `~~~x`
-mean the same, and `~~x` also allows none. `~!x` is not a sequence slot: it takes one
-term (factor) or none, even in a sum or product. In a function's arguments, `~x` takes
-exactly one, and the sequence slots bind a vector of arguments.
+mean the same. `~!x` is extended the same way: it takes none or one or more, and is
+bound to their sum (product), which is the default 0 (1) when it takes none. There `~!x`
+and `~~x` mean the same. In a function's arguments, `~x` takes exactly one, `~!x` one or
+none (in an exponent, defaulting to 1), and the sequence slots bind a vector of
+arguments.
 
 A name may appear more than once (a non-linear pattern) but with one flavor. A predicate
 gets the bound value and must return `true`, or the match is rejected; an error counts as
@@ -139,8 +141,8 @@ Each kind is matched as follows:
   its constant, when that is not 0. A `MUL` is matched as the multiset of its factors
   `bᵢ^eᵢ` plus its coefficient, when that is not 1.
   - Each pattern element takes a group of subject elements, as a whole: `~x` and `~~~x`
-    take one or more, `~~x` takes any number, `~!x` takes one or none, and anything else
-    takes one. Order does not matter.
+    take one or more, `~~x` and `~!x` take any number (none gives the default 0 or 1),
+    and anything else takes one. Order does not matter.
   - A subject that is not a sum is a one-element sum for this purpose, and likewise for
     products. So `~!a*~x + ~!b` matches `sin(t)` with `a => 1`, `x => sin(t)`, `b => 0`.
 
