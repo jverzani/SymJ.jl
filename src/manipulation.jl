@@ -418,6 +418,7 @@ function _evalc(ex::Sym)::ComplexF64
     elseif k == POW
         return _cpow(ex.args[1], ex.args[2])
     end
+    ex.name === :piecewise && return _evalc_piecewise(ex)
     rule = get(FUNCTION_RULES, ex.name, nothing)
     (rule === nothing || rule.julia === nothing) && throw(ArgumentError("no numeric method for $(ex.name)"))
     # an exact integer argument stays an Int (an order, a kind: besselh(ν, 1, x))

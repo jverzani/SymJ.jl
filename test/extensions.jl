@@ -1,5 +1,7 @@
-# The package extensions for SpecialFunctions, HypergeometricFunctions and PolyLog.
+# The package extensions for SpecialFunctions, HypergeometricFunctions, PolyLog and
+# RischIntegrate.
 import SpecialFunctions as SF
+import RischIntegrate
 import HypergeometricFunctions as HF
 import PolyLog as PL
 
@@ -100,5 +102,18 @@ import PolyLog as PL
         @test PL.li(3, x)(0.3) ≈ PL.li(3, 0.3) && PL.reli(3, x)(0.3) ≈ PL.reli(3, 0.3)
         @test diff(PL.li(n, x), x) == PL.li(n - 1, x) / x
         @test diff(PL.li3(x), x) == PL.li2(x) / x
+    end
+
+    @testset "RischIntegrate: piecewise, heaviside, dirac" begin
+        P, H, D = SymJ.piecewise, SymJ.heaviside, SymJ.dirac
+        ∫ = RischIntegrate.integrate
+        @test ∫(H(x), x) == P(x ≪ 0 => 0, true => x)
+        @test ∫(x * H(x - 1), x) == P(x ≪ 1 => 0, true => x^2 / 2 - 1 // 2)              # continuous
+        @test ∫(H(x) - H(x - 1), x) == P(x ≪ 0 => 0, x ≪ 1 => x, true => 1)
+        @test ∫(P(x ≪ 0 => -x, true => x^2), (x, -1, 2)) == 19 // 6
+        @test ∫(abs(x - 1), (x, 0, 3)) == 5 // 2 && ∫(abs(x), x) == P(x ≪ 0 => -x^2 / 2, true => x^2 / 2)
+        @test ∫(H(x - a), x) == P(x ≪ a => 0, true => x - a)                               # a parameter
+        @test ∫(cos(x) * D(x - 1), x) == cos(Sym(1)) * H(x - 1) && ∫(exp(x) * D(2x - 2), x) == E / 2 * H(x - 1)
+        @test ∫(x^2 * D(x - 2, 1), x) == -4H(x - 2)                                       # δ′: -g′(a)
     end
 end

@@ -60,6 +60,9 @@ using PrecompileTools: @setup_workload, @compile_workload
         summation(k^2, k, 1, n); summation(1 / (k * (k + 1)), k, 1, Inf); summation(1 / k^2, k, 1, Inf)
         summation(y^k, k, 0, n); summation(x^k / factorial(k), k, 0, Inf)
         summation(binomial(n, k)^2, k, 0, n)
+        # piecewise
+        pw = piecewise(x ≪ 0 => -x, true => x^2)
+        pw(x => 2); diff(pw, x); limit(pw, x => 0); diff(heaviside(x - 1), x); piecewise(abs(x))
         # linear algebra
         A = [x y; 1 x]; LinearAlgebra.det(A); inv(A); LinearAlgebra.lu(A); A \ [x, 1]
         LinearAlgebra.det(Sym[1 2; 3 4]); inv(Sym[1 2; 3 4]); inv([sin(x) cos(x); -cos(x) sin(x)])

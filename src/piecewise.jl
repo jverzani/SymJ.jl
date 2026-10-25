@@ -1,0 +1,443 @@
+# Piecewise functions, heaviside and dirac.
+#
+# `piecewise(c₁ => v₁, c₂ => v₂, …)` is an expression: the value of the first piece
+# whose condition holds. It is a function node, `piecewise(c₁, v₁, c₂, v₂, …)`, its
+# conditions themselves nodes: a relation, Lt(a, b) and its kin (Le, Gt, Ge, Eq, Ne),
+# a conjunction And(c, d, …), or 1 (true) and 0 (false), to which a relation between
+# constants evaluates. So a substitution picks the piece, and arithmetic, `diff`, `N`
+# and `lambdify` take a piecewise as they take any function.
+#
+# As built, the pieces whose condition is false are dropped, a true condition ends the
+# list, and a piece with the value of the true one after it is dropped. With no piece
+# left the value is NaN, as for a value outside every condition.
+#
+# `heaviside(x)` (1/2 at 0, or `heaviside(x, h0)`) and `dirac(x)` (`dirac(x, k)`, its
+# k-th derivative) are functions: diff(heaviside(x)) = dirac(x), diff(sign(x)) =
+# 2 dirac(x). `piecewise(ex)` writes heaviside, sign, abs, max and min in ex as
+# piecewise functions (for real arguments); `piecewise(cs)` turns cases into one.
+#
+# Unlike `Cases`, which is an answer for values of the parameters the assumptions do not
+# settle, a piecewise function is an expression in its variable.
+
+const _COND_OPS = Dict(:lt => :Lt, :le => :Le, :gt => :Gt, :ge => :Ge, :eq => :Eq, :ne => :Ne)
+const _COND_RELS = Dict(v => k for (k, v) in _COND_OPS)
+_iscond(c::Sym) = c.kind == FN && (haskey(_COND_RELS, c.name) || c.name === :And)
+
+# a condition as a node: a relation, a Bool, a tuple or vector (all of them hold) or a
+# node already
+_cond(r::Relation) = apply_function(_COND_OPS[r.op], Sym[r.lhs, r.rhs])
+_cond(b::Bool) = b ? ONE : ZERO
+_cond(c::Sym) = (_iscond(c) || c == ONE || c == ZERO) ? c :
+    throw(ArgumentError("piecewise: $c is not a condition"))
+_cond(cs::Union{Tuple,AbstractVector}) = apply_function(:And, Sym[_cond(c) for c in cs])
+_cond(c) = throw(ArgumentError("piecewise: $c is not a condition"))
+
+# a condition evaluated with floats (Lt(0.5, 1.0) is 1.0) as 1 or 0
+_truth(c::Sym) = c.kind == NUMBER ? (iszero(c.num) ? ZERO : ONE) : c
+
+# the node as a relation (for deciding it)
+_relation_of(c::Sym) = Relation(_COND_RELS[c.name], c.args[1], c.args[2])
+
+const _FLIP_OP = Dict(:lt => :gt, :le => :ge, :gt => :lt, :ge => :le, :eq => :eq, :ne => :ne)
+
+for (op, name) in _COND_OPS
+    f = _REL_INFO[op][2]
+    register_function!(name; julia = (a, b) -> Float64(f(real(a), real(b))),
+        eval = args -> begin
+            length(args) == 2 || return nothing
+            d = expand(args[1] - args[2])
+            _hassymbol(d) || return (s = _csign(d); s === nothing ? nothing : f(s, 0) ? ONE : ZERO)
+            # linear in one symbol: solved for it, 1 - x < 0 as x > 1
+            vs = _named(d)
+            length(vs) == 1 || return nothing
+            v = only(vs)
+            c = expand(subs(d, v => ONE) - subs(d, v => ZERO))
+            (c.kind == NUMBER && !iszero(c.num) && iszero(expand(d - c * v - subs(d, v => ZERO)))) || return nothing
+            rhs = expand(-subs(d, v => ZERO) / c)
+            (_eq(args[1], v) && _eq(args[2], rhs)) && return nothing
+            _mkfn_node(_COND_OPS[c.num > N0 ? op : _FLIP_OP[op]], Sym[v, rhs])
+        end)
+end
+
+register_function!(:And; julia = (vs...) -> Float64(all(!iszero, vs)),
+    eval = function (args)
+        args = map(_truth, args)
+        any(==(ZERO), args) && return ZERO
+        rest = Sym[]
+        for a in args
+            a == ONE && continue
+            a.kind == FN && a.name === :And ? append!(rest, a.args) : push!(rest, a)
+        end
+        isempty(rest) && return ONE
+        length(rest) == 1 && return rest[1]
+        length(rest) == length(args) && all(i -> _eq(rest[i], args[i]), eachindex(rest)) && return nothing
+        _mkfn_node(:And, rest)
+    end)
+
+"""
+    SymJ.piecewise(c₁ => v₁, c₂ => v₂, …)
+    SymJ.piecewise(ex)
+    SymJ.piecewise(cs::Cases)
+
+A piecewise function: `v₁` where `c₁` holds, else `v₂` where `c₂` holds, and so on. A
+condition is a relation (`x ≪ 0`), a tuple of them that all hold (`(0 ≦ x, x ≪ 1)`), or
+`true`. Not exported.
+
+With one expression, writes its `heaviside`, `sign`, `abs`, `max` and `min` as piecewise
+functions (taking their arguments to be real); with cases, makes them one expression.
+
+```julia
+f = SymJ.piecewise(x ≪ 0 => -x, true => x^2)
+f(x => -2), diff(f, x)          # 2, piecewise(x ≪ 0 => -1, true => 2x)
+```
+"""
+function piecewise(pairs::Pair...)
+    isempty(pairs) && throw(ArgumentError("piecewise: no pieces"))
+    args = Sym[]
+    for (c, v) in pairs
+        push!(args, _cond(c), Sym(v))
+    end
+    apply_function(:piecewise, args)
+end
+
+_pieces(e::Sym) = [(e.args[i], e.args[i+1]) for i in 1:2:length(e.args)]
+_pwnode(ps) = _mkfn_node(:piecewise, Sym[x for p in ps for x in p])
+
+register_function!(:piecewise;
+    eval = function (args)
+        (iseven(length(args)) && !isempty(args)) || return nothing
+        ps = Tuple{Sym,Sym}[]
+        for i in 1:2:length(args)
+            c, v = _truth(args[i]), args[i+1]
+            c == ZERO && continue
+            push!(ps, (c, v))
+            c == ONE && break
+        end
+        isempty(ps) && return Sym(NaN)
+        # a piece with the same value as the true one after it is not needed
+        while length(ps) >= 2 && ps[end][1] == ONE && _eq(ps[end-1][2], ps[end][2])
+            deleteat!(ps, length(ps) - 1)
+        end
+        ps[1][1] == ONE && return ps[1][2]
+        length(ps) == length(args) ÷ 2 && all(i -> _eq(ps[i][1], args[2i-1]), eachindex(ps)) && return nothing
+        _pwnode(ps)
+    end)
+
+# numeric value: the first piece whose condition holds, the others not evaluated
+function _evalc_piecewise(e::Sym)
+    for (c, v) in _pieces(e)
+        iszero(real(_evalc(c))) || return _evalc(v)
+    end
+    complex(NaN)
+end
+
+## heaviside and dirac
+
+_heaviside(x::Real, h0 = 0.5) = x < 0 ? zero(float(x)) : x > 0 ? one(float(x)) : float(h0)
+_dirac(x::Real, k = 0) = iszero(x) ? Inf : zero(float(x))
+
+"""
+    SymJ.heaviside(x, h0 = 1/2)
+
+The unit step: 0 for `x < 0`, 1 for `x > 0`, and `h0` at 0. Its derivative is
+[`SymJ.dirac`](@ref). Not exported.
+"""
+heaviside(x) = apply_function(:heaviside, Sym[Sym(x)])
+heaviside(x, h0) = apply_function(:heaviside, Sym[Sym(x), Sym(h0)])
+
+"""
+    SymJ.dirac(x, k = 0)
+
+The Dirac delta (with `k`, its `k`-th derivative): 0 away from 0, the derivative of
+[`SymJ.heaviside`](@ref), with `∫ f(x) dirac(x - a) dx = f(a) heaviside(x - a)`. Not
+exported.
+"""
+dirac(x) = apply_function(:dirac, Sym[Sym(x)])
+dirac(x, k::Integer) = apply_function(:dirac, Sym[Sym(x), Sym(k)])
+
+register_function!(:heaviside; julia = _heaviside,
+    eval = function (args)
+        (1 <= length(args) <= 2) || return nothing
+        h0 = length(args) == 2 ? args[2] : Sym(1 // 2)
+        a = args[1]
+        _hassymbol(a) && return nothing
+        s = _csign(a)
+        s === nothing ? nothing : s < 0 ? ZERO : s > 0 ? ONE : h0
+    end,
+    diff = (args, i) -> i == 1 ? dirac(args[1]) : ZERO)
+
+register_function!(:dirac; julia = _dirac,
+    eval = function (args)
+        (1 <= length(args) <= 2) || return nothing
+        length(args) == 2 && args[2] == ZERO && return dirac(args[1])
+        a = args[1]
+        _hassymbol(a) && return nothing
+        s = _csign(a)
+        s === nothing || s == 0 ? nothing : ZERO
+    end,
+    diff = (args, i) -> i == 1 ? dirac(args[1], (length(args) == 2 ? _toint(args[2].num) : 0) + 1) : ZERO)
+
+# sign jumps by 2 at 0
+let r = FUNCTION_RULES[:sign]
+    register_function!(:sign; julia = r.julia, eval = r.eval, diff = (args, i) -> 2dirac(args[1]))
+end
+
+## rewriting as piecewise functions, and cases as one
+
+function piecewise(ex::Sym)
+    isempty(ex.args) && return ex
+    e = _rebuild_node(ex, Sym[piecewise(a) for a in ex.args])
+    e.kind == FN || return e
+    a = isempty(e.args) ? ZERO : e.args[1]
+    if e.name === :heaviside
+        h0 = length(e.args) == 2 ? e.args[2] : Sym(1 // 2)
+        return piecewise(a ≪ 0 => 0, (a ~ 0) => h0, true => 1)
+    elseif e.name === :sign && length(e.args) == 1
+        return piecewise(a ≪ 0 => -1, (a ~ 0) => 0, true => 1)
+    elseif e.name === :abs && length(e.args) == 1
+        return piecewise(a ≪ 0 => -a, true => a)
+    elseif e.name in (:max, :min) && length(e.args) == 2
+        b = e.args[2]
+        return piecewise((e.name === :max ? a ≧ b : a ≦ b) => a, true => b)
+    end
+    e
+end
+piecewise(x::Number) = Sym(x)
+
+function piecewise(cs::Cases)
+    ps = Pair[]
+    for (conds, v) in cs.cases
+        v isa Exception && continue                       # undefined there: no piece
+        v isa Sym || v isa Number || throw(ArgumentError("piecewise: the case answer $v is not an expression"))
+        push!(ps, Any[_case_cond(c) for c in conds] => v)
+    end
+    isempty(ps) && return Sym(NaN)
+    piecewise(ps...)
+end
+_case_cond(r::Relation) = r
+_case_cond(c::_NotFact) = c.f isa Relation ? Relation(_NEGATE_OP[c.f.op], c.f.lhs, c.f.rhs) :
+    throw(ArgumentError("piecewise: cannot write the condition $c"))
+_case_cond(c) = throw(ArgumentError("piecewise: cannot write the condition $c"))
+const _NEGATE_OP = Dict(:lt => :ge, :le => :gt, :gt => :le, :ge => :lt, :eq => :ne, :ne => :eq)
+
+## refine: conditions the assumptions decide
+
+function _refine_cond(e::Sym, A::Assumptions)
+    haskey(_COND_RELS, e.name) || return nothing
+    r = _relation_of(e)
+    v = _holds(Relation(r.op, expand(r.lhs - r.rhs), ZERO), A)
+    v === nothing ? nothing : _cond(v)
+end
+
+# the sign of a heaviside's, sign's or abs's argument, where the assumptions decide it
+function _refine_step(e::Sym, A::Assumptions)
+    e.name in (:heaviside, :sign, :abs) || return nothing
+    u = e.args[1]
+    m = _signs(u, A)
+    m === nothing && return nothing
+    if m == _POS
+        return e.name === :abs ? u : ONE
+    elseif m == _NEG
+        return e.name === :heaviside ? ZERO : e.name === :sign ? -ONE : -u
+    end
+    nothing
+end
+
+## limits: the piece taken on one side of x0
+
+const _PIECEFNS = (:piecewise, :heaviside, :dirac)
+_haspieces(e::Sym, x::Sym) = (e.kind == FN && e.name in _PIECEFNS && has(e, x)) ||
+    any(a -> _haspieces(a, x), e.args) || (e.kind == MUL && any(a -> _haspieces(a, x), e.exps))
+
+# f with each piecewise, heaviside and dirac in x replaced by its value as x → x0 from
+# `side` (for x0 = ±∞, from below or above); an error when a condition is not decided
+function _pieces_near(e::Sym, x::Sym, x0, side::Symbol, assume)
+    _haspieces(e, x) || return e
+    e = _rebuild_node(e, Sym[_pieces_near(a, x, x0, side, assume) for a in e.args])
+    e.kind == FN && e.name in _PIECEFNS || return e
+    if e.name === :piecewise
+        for (c, v) in _pieces(e)
+            _cond_near(c, x, x0, side, assume) && return v
+        end
+        return Sym(NaN)
+    end
+    s = _side_sign(e.args[1], x, x0, side, assume)
+    if e.name === :heaviside
+        return s < 0 ? ZERO : s > 0 ? ONE : length(e.args) == 2 ? e.args[2] : Sym(1 // 2)
+    end
+    s == 0 ? e : ZERO                                    # dirac
+end
+
+function _cond_near(c::Sym, x::Sym, x0, side, assume)
+    c == ONE && return true
+    c == ZERO && return false
+    c.kind == FN && c.name === :And && return all(a -> _cond_near(a, x, x0, side, assume), c.args)
+    r = _relation_of(c)
+    _REL_INFO[r.op][2](_side_sign(r.lhs - r.rhs, x, x0, side, assume), 0)
+end
+
+# the sign (-1, 0, 1) of g for x near x0 on `side`: of its limit, or where that is 0, of
+# g / t^j for t > 0 going to 0 (x - x0 or x0 - x, 1/|x| at ±∞)
+function _side_sign(g::Sym, x::Sym, x0, side, assume)
+    g = expand(g)
+    iszero(g) && return 0
+    inf = x0 isa Real && isinf(x0)
+    t = inf ? (x0 > 0 ? 1 / x : -1 / x) : side === :+ ? x - x0 : x0 - x
+    for j in 0:6
+        L = limit(g / t^j, x => x0; dir = side, assume)
+        L isa Sym || break
+        s = _csign(L)
+        s === nothing && break
+        s != 0 && return s
+    end
+    throw(ArgumentError("limit: cannot tell the sign of $g as $x → $x0 ($side)"))
+end
+
+## antiderivatives (with an integrator, `integ(f)`, from the RischIntegrate extension)
+
+# ∫ e dx for e with piecewise, heaviside or dirac in x:
+#   - a term g(x) dirac(m x + c, k), m a number: (-1)^k g⁽ᵏ⁾(a)/(m^k |m|) heaviside(x - a)
+#     at a = -c/m;
+#   - the rest, between consecutive breakpoints of its conditions: the integrand on each
+#     interval (read at a point inside), its antiderivative, and constants that make the
+#     whole continuous. The breakpoints are real numbers, or one expression in parameters
+#     (heaviside(x - a)); others, which could not be ordered, are an error.
+function _integrate_pieces(e::Sym, x::Sym, integ)
+    terms = e.kind == ADD ? [Sym(c) * t for (c, t) in zip(e.coefs, e.args)] : [e]
+    e.kind == ADD && !iszero(e.num) && push!(terms, Sym(e.num))
+    deltas, rest = Sym[], Sym[]
+    for t in terms
+        r = _integrate_dirac(t, x)
+        r === nothing ? push!(rest, t) : push!(deltas, r)
+    end
+    g = _add_many(rest)
+    out = _add_many(deltas)
+    _haspieces(g, x) || return iszero(g) ? out : out + integ(g)
+    bps = _breakpoints(g, x)
+    bps === nothing && throw(ArgumentError("integrate: the points where the pieces of $g change could not be found and ordered"))
+    # a point inside each interval, the integrand there, its antiderivative
+    pts = Sym[]
+    if length(bps) == 1 && _hassymbol(bps[1])
+        append!(pts, (bps[1] - 1, bps[1] + 1))
+    else
+        vals = [Float64(N(p)) for p in bps]
+        for i in 0:length(bps)
+            lo = i == 0 ? vals[1] - 2 : vals[i]
+            hi = i == length(bps) ? vals[end] + 2 : vals[i+1]
+            push!(pts, Sym(SymNumber(rationalize(BigInt, (lo + hi) / 2; tol = (hi - lo) / 8))))
+        end
+    end
+    Fs = Sym[]
+    for p in pts
+        gi = _pieces_at(g, x, p)
+        gi === nothing && return nothing
+        push!(Fs, integ(gi))
+    end
+    # continuity at each breakpoint
+    K = ZERO
+    ps = Pair[]
+    for i in eachindex(Fs)
+        if i > 1
+            b = bps[i-1]
+            l = limit(Fs[i-1], x => b; dir = :-)
+            r = limit(Fs[i], x => b; dir = :+)
+            (l isa Sym && r isa Sym) || return nothing
+            K = simplify(K + l - r)
+        end
+        F = simplify(Fs[i] + K)
+        push!(ps, (i == length(Fs) ? true : x ≪ bps[i]) => F)
+    end
+    out + piecewise(ps...)
+end
+
+function _integrate_dirac(t::Sym, x::Sym)
+    fs = t.kind == MUL ? [(b, p) for (b, p) in zip(t.args, t.exps)] : [(t, ONE)]
+    i = findfirst(((b, p),) -> b.kind == FN && b.name === :dirac && p == ONE, fs)
+    i === nothing && return nothing
+    d = fs[i][1]
+    k = length(d.args) == 2 ? _toint(d.args[2].num) : 0
+    u = expand(d.args[1])
+    m = expand(subs(u, x => ONE) - subs(u, x => ZERO))
+    (m.kind == NUMBER && !iszero(m.num) && iszero(expand(u - m * x - subs(u, x => ZERO)))) || return nothing
+    a = expand(-subs(u, x => ZERO) / m)
+    g = cancel(t / d)
+    _haspieces(g, x) && return nothing
+    gk = g
+    for _ in 1:k
+        gk = diff(gk, x)
+    end
+    (-1)^k * subs(gk, x => a) / (m^k * abs(m)) * heaviside(x - a)
+end
+
+# the real numbers at which the conditions (and heaviside arguments) in e change, sorted
+function _breakpoints(e::Sym, x::Sym)
+    out = Sym[]
+    ok = Ref(true)
+    function visit(n::Sym)
+        if n.kind == FN && (haskey(_COND_RELS, n.name) || n.name === :heaviside) && has(n, x)
+            u = haskey(_COND_RELS, n.name) ? n.args[1] - n.args[2] : n.args[1]
+            rs = try solve(u ~ 0, x) catch; (ok[] = false; Sym[]) end
+            rs isa AbstractVector || (ok[] = false; return)
+            for r in rs
+                (_hassymbol(r) || _isreal_const(r) === true) && !any(q -> iszero(expand(q - r)), out) && push!(out, r)
+            end
+            n.name === :heaviside && return
+        end
+        foreach(visit, n.args)
+        n.kind == MUL && foreach(visit, n.exps)
+    end
+    visit(e)
+    (ok[] && !isempty(out)) || return nothing
+    any(_hassymbol, out) && return length(out) == 1 ? out : nothing
+    sort!(out; by = r -> real(_evalc(r)))
+end
+
+# e with each piecewise and heaviside in x replaced by its value at x = p (a point
+# inside an interval, so no condition is on its boundary)
+function _pieces_at(e::Sym, x::Sym, p::Sym)
+    _haspieces(e, x) || return e
+    args = Sym[]
+    for a in e.args
+        r = _pieces_at(a, x, p)
+        r === nothing && return nothing
+        push!(args, r)
+    end
+    e = _rebuild_node(e, args)
+    e.kind == FN && e.name in _PIECEFNS || return e
+    if e.name === :piecewise
+        for (c, v) in _pieces(e)
+            cv = subs(c, x => p)
+            cv == ONE && return v
+            cv == ZERO || return nothing
+        end
+        return nothing
+    elseif e.name === :heaviside
+        s = _csign(expand(subs(e.args[1], x => p)))
+        return s === nothing ? nothing : s > 0 ? ONE : ZERO
+    end
+    nothing                                              # dirac in a product
+end
+
+## printing: piecewise(x ≪ 0 => -x, true => x), conditions as relations
+
+function _show_cond(io::IO, c::Sym)
+    if c == ONE || c == ZERO
+        print(io, c == ONE)
+    elseif c.kind == FN && c.name === :And
+        print(io, "(")
+        join(io, (sprint(_show_cond, a) for a in c.args), ", ")
+        print(io, ")")
+    else
+        show(io, _relation_of(c))
+    end
+end
+function _show_piecewise(io::IO, e::Sym)
+    print(io, "piecewise(")
+    for (i, (c, v)) in enumerate(_pieces(e))
+        i > 1 && print(io, ", ")
+        _show_cond(io, c)
+        print(io, " => ")
+        _show(io, v, 0)
+    end
+    print(io, ")")
+end

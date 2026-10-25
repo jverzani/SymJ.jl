@@ -147,6 +147,13 @@ function _code(cg::_Codegen, ex::Sym)
     elseif k == POW
         return _powcode(cg, ex.args[1], ex.args[2])
     end
+    if ex.name === :piecewise                       # an if chain: only the piece taken is evaluated
+        out = :($_CNUM(F, NaN))
+        for (c, v) in reverse(_pieces(ex))
+            out = c == ONE ? _gen(cg, v) : Expr(:if, :(!iszero($(_gen(cg, c)))), _gen(cg, v), out)
+        end
+        return out
+    end
     rule = get(FUNCTION_RULES, ex.name, nothing)
     (rule === nothing || rule.julia === nothing) &&
         throw(ArgumentError("$(ex.name) has no numeric method; register one with `register_function!`"))

@@ -16,12 +16,42 @@ using SymJ: Relation, SymSet, SymInterval, CylindricalSet, Cases, SymSeries, Mem
 using Latexify
 
 # the printed form as a Julia expression, with ℯ and im as the letters e and i, and big
-# integer literals (parsed as @int128_str or @big_str calls) as integers
+# integer literals (parsed as @int128_str or @big_str calls) as integers; a piecewise
+# function as an if chain (typeset as cases), heaviside and dirac as θ and δ
 _expr(x) = _letters(Meta.parse(string(x)))
 _letters(s::Symbol) = s === :ℯ ? :e : s === :im ? :i : s
 function _letters(e::Expr)
     e.head === :macrocall && e.args[end] isa String && return parse(BigInt, e.args[end])
+    if e.head === :call && e.args[1] === :piecewise
+        return _ifchain(map(_letters, e.args[2:end]))
+    elseif e.head === :call && e.args[1] in (:heaviside, :dirac)
+        return Expr(:call, e.args[1] === :heaviside ? :θ : :δ, map(_letters, e.args[2:end])...)
+    elseif e.head === :call && haskey(_RELOPS, e.args[1])
+        return Expr(:call, _RELOPS[e.args[1]], map(_letters, e.args[2:end])...)
+    end
     Expr(e.head, map(_letters, e.args)...)
+end
+const _RELOPS = Dict(:≪ => :<, :≦ => :≤, :≫ => :>, :≧ => :≥, :~ => :(==), :≶ => :≠)
+
+# pieces c => v (Exprs), the last with condition true
+function _ifchain(pairs, head = :if)
+    c, v = pairs[1].args[2], pairs[1].args[3]
+    rest = pairs[2:end]
+    c === true && return v
+    Expr(head, _texcondexpr(c), v, isempty(rest) ? Latexify.LaTeXString("\\text{undefined}") : _ifchain(rest, :elseif))
+end
+# a conjunction: a lower and an upper bound chained, a ≤ x < b, else the conditions
+# with ∧
+function _texcondexpr(c)
+    c isa Expr && c.head === :tuple || return c
+    if length(c.args) == 2 && all(a -> a isa Expr && a.head === :call, c.args)
+        (l, u) = c.args
+        flip = Dict(:> => :<, :≥ => :≤)
+        if l.args[1] in keys(flip) && u.args[1] in (:<, :≤) && l.args[2] == u.args[2]
+            return Expr(:comparison, l.args[3], flip[l.args[1]], l.args[2], u.args[1], u.args[3])
+        end
+    end
+    Expr(:call, :∧, c.args...)
 end
 _letters(v) = v
 

@@ -119,7 +119,7 @@ series, assumptions, a basic `simplify`, summation)
 |:--|:--|:--|:--|
 | Elementary functions with exact values and rules | ✅ | ✅ | ✅ (Base's mathematical functions) |
 | Special functions | `gamma`, `zeta`, `besselj`, `erf`, `polylog`, `hyper`, `meijerg`, … | many | ✅ through extensions (SpecialFunctions, HypergeometricFunctions, PolyLog); ❌ Meijer G |
-| Piecewise, Heaviside, Dirac delta | `Piecewise`, `Heaviside`, `DiracDelta` | `piecewise`, `Heaviside`, `Dirac` | ❌ |
+| Piecewise, Heaviside, Dirac delta | `Piecewise`, `Heaviside`, `DiracDelta` | `piecewise`, `Heaviside`, `Dirac` | ✅ `SymJ.piecewise`, `SymJ.heaviside`, `SymJ.dirac`: substitution, `diff`, `limit` by side, `refine`, `lambdify`, integration interval by interval (continuous) and of `dirac`; rewriting `abs`, `sign`, `max`, `min`; from `Cases`; ◐ no simplification across pieces (sums of piecewise functions are not combined), breakpoints with several parameters not ordered |
 | Combinatorial functions | `factorial`, `binomial`, `fibonacci`, `harmonic`, `bell`, … | `factorial`, `comb`, … | ◐ `factorial`, `binomial` (a polynomial for an integer `k`) |
 
 ## Number theory
@@ -168,8 +168,10 @@ calculus-level use:
    Petkovšek's Hyper algorithm for higher-order recurrences (Franel numbers
    `Σ binomial(n, k)^3` stay unevaluated), which would also give a general `rsolve`,
    and inhomogeneous recurrences from non-natural bounds.
-3. **Piecewise functions, Heaviside and Dirac**, which also matter for Laplace
-   transforms and differential equations.
+3. **Piecewise functions, Heaviside and Dirac**: done. Open: combining sums and
+   products of piecewise functions into one (`piecewise(...) - piecewise(...)` from a
+   definite integral with a parameter), and ordering breakpoints that involve several
+   parameters (by cases).
 4. **Definite integrals done properly**: improper integrals through `limit`, and
    detecting singularities inside the interval, building on RischIntegrate's
    antiderivatives.
