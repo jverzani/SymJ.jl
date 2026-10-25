@@ -80,6 +80,11 @@ function _summation(f::Sym, k::Sym, a::Sym, b, assume)
     end
     F = _antidifference(f, k)
     F === nothing || return _from_antidifference(F, k, a, b, assume)
+    if b !== nothing                                 # a definite sum: Zeilberger
+        # (a pole or an unsolvable step along the way leaves the other methods to try)
+        z = try _zeilberger_sum(f, k, a, b) catch err; err isa InterruptException && rethrow(); nothing end
+        z === nothing || return z
+    end
     r = _rational_sum(f, k, a, b)
     r === nothing || return r
     _summation_unevaluated(f, k, a, b)
@@ -323,6 +328,10 @@ function _factor_ratio(b::Sym, k::Sym)
             elseif !has(m, k) && expand(subs(n, k => k + 1) - n) == ONE      # binomial(k + c, m)
                 return (n + 1) / (n + 1 - m)
             end
+            # binomial(u, v) = u!/(v! (u - v)!), u and v with integer shifts in k
+            rs = [_factor_ratio(factorial(w), k) for w in (n, m, expand(n - m))]
+            any(isnothing, rs) && return nothing
+            return rs[1] / (rs[2] * rs[3])
         end
         return nothing
     end
@@ -338,9 +347,21 @@ _prod_shift(u::Sym, s::Int) = prod((u + i for i in 1:s); init = ONE)
 function _gosper(f::Sym, k::Sym)
     ρ = _hyper_ratio(f, k)
     ρ === nothing && return nothing
+    gf = _gosper_form(ρ, k)
+    gf === nothing && return nothing
+    A, B, C = gf
+    # a(k) x(k+1) - b(k-1) x(k) = c(k) for a polynomial x
+    Bm = expand(subs(B, k => k - 1))
+    x = _gosper_x(expand(A), Bm, C, k)
+    x === nothing && return nothing
+    cancel(Bm * x / C * f)
+end
+
+# the Gosper form of a ratio: ρ = A(k)/B(k) * C(k+1)/C(k) with gcd(A(k), B(k+h)) = 1
+# for every integer h ≥ 0; nothing if ρ is not a rational function of k
+function _gosper_form(ρ::Sym, k::Sym)
     A, B = numer_denom(ρ)
     (_ispolyin(A, [k]) && _ispolyin(B, [k])) || return nothing
-    # Gosper form: ρ = A(k)/B(k) * C(k+1)/C(k) with gcd(A(k), B(k+h)) = 1 for h ≥ 0
     C = ONE
     h = Sym(Symbol("_gosper_h"))
     R = try resultant(A, expand(subs(B, k => k + h)), k) catch; return nothing end
@@ -353,12 +374,7 @@ function _gosper(f::Sym, k::Sym)
             C *= subs(g, k => k - i)
         end
     end
-    C = expand(C)
-    # a(k) x(k+1) - b(k-1) x(k) = c(k) for a polynomial x
-    Bm = expand(subs(B, k => k - 1))
-    x = _gosper_x(expand(A), Bm, C, k)
-    x === nothing && return nothing
-    cancel(Bm * x / C * f)
+    A, B, expand(C)
 end
 
 # the nonnegative integer roots of R(h)
@@ -368,7 +384,8 @@ function _nonneg_int_roots(R::Sym, h::Sym)
     sort!(unique([_toint(r.num) for r in rs if r.kind == NUMBER && _isint(r.num) && r.num >= N0]))
 end
 
-function _gosper_x(a::Sym, b::Sym, c::Sym, k::Sym)
+# x(k), or with `extra` unknowns in c (Zeilberger's coefficients): (x, their values)
+function _gosper_x(a::Sym, b::Sym, c::Sym, k::Sym, extra::Vector{Sym} = Sym[])
     da, db, dc = _xdeg(a, k), _xdeg(b, k), _xdeg(c, k)
     la, lb = _coef(a, k, da), _coef(b, k, db)
     cand = Int[]
@@ -384,13 +401,20 @@ function _gosper_x(a::Sym, b::Sym, c::Sym, k::Sym)
     xs = [Sym(Symbol("_gosper_x", i)) for i in 0:d]
     xk = _add_many(xs[i+1] * k^i for i in 0:d)
     eq = expand(a * subs(xk, k => k + 1) - b * xk - c)
-    iszero(eq) && return expand(subs(xk, (v => ZERO for v in xs)...))
+    unknowns = vcat(xs, extra)
+    zero_all(e) = expand(subs(e, (v => ZERO for v in unknowns)...))
+    if iszero(eq)
+        x = zero_all(xk)
+        return isempty(extra) ? x : (x, Dict{Sym,Sym}(v => ZERO for v in extra))
+    end
     P = try Poly{Sym}(eq, [k]) catch; return nothing end
     eqs = [cf ~ 0 for cf in coefficients(P)]
-    sols = try solve(eqs, xs) catch; return nothing end
+    sols = try solve(eqs, unknowns) catch; return nothing end
     isempty(sols) && return nothing
     s = first(sols)
-    expand(subs(subs(xk, s...), (v => ZERO for v in xs)...))      # free coefficients 0
+    x = zero_all(subs(xk, s...))                                     # free coefficients 0
+    isempty(extra) && return x
+    x, Dict{Sym,Sym}(v => zero_all(get(s, v, v)) for v in extra)
 end
 _xdeg(p::Sym, k::Sym) = has(p, k) ? degree(Poly{Sym}(expand(p), [k]), k) : 0
 function _coef(p::Sym, k::Sym, d::Int)
@@ -401,6 +425,251 @@ function _coef(p::Sym, k::Sym, d::Int)
         ev[1] == d && return cf
     end
     ZERO
+end
+
+## Zeilberger's algorithm: definite sums of hypergeometric terms
+
+# Σ_{k=a}^{b} F(n, k) with b depending on n, when Gosper finds no antidifference:
+# creative telescoping finds c_0(n), ..., c_J(n) and G with
+#     Σ_j c_j(n) F(n+j, k) = G(n, k+1) - G(n, k),
+# so that, the boundary terms vanishing, S(n) = Σ_k F(n, k) satisfies the recurrence
+# Σ_j c_j(n) S(n+j) = 0. A first-order recurrence gives S as a product, from its value
+# at a starting n. The closed form is checked against direct sums for several n; the
+# boundaries are the summand's own (binomial(n, k) vanishing for k > n), so a sum whose
+# bounds cut the summand off elsewhere gives no closed form here.
+
+const _ZEIL_MAX_ORDER = 2
+
+function _zeilberger_sum(f::Sym, k::Sym, a::Sym, b::Sym)
+    ns = [s for s in _named(b) if !_eq(s, k)]
+    length(ns) == 1 || return nothing
+    n = only(ns)
+    has(f, n) || return nothing
+    S = _zeilberger_sum(f, k, a, b, n)
+    S === nothing || return S
+    # from a small positive start: the sum from 0, less its first terms
+    if a.kind == NUMBER && _isint(a.num) && 0 < _toint(a.num) <= 10
+        S = _zeilberger_sum(f, k, ZERO, b, n)
+        first = try _add_many(subs(f, k => Sym(j)) for j in 0:(_toint(a.num) - 1)) catch; nothing end
+        S === nothing || first === nothing || return S - first
+    end
+    nothing
+end
+function _zeilberger_sum(f::Sym, k::Sym, a::Sym, b::Sym, n::Sym)
+    for J in 1:_ZEIL_MAX_ORDER
+        rec = _zeilberger(f, k, n, J)
+        rec === nothing && continue
+        J == 1 || return nothing                   # higher order: not solved (yet)
+        sol = _first_order_solve(rec, f, k, n, a, b)
+        sol === nothing && return nothing
+        S, n0 = sol
+        return _zeil_verified(S, f, k, n, a, b, n0) ? S : nothing
+    end
+    nothing
+end
+
+# the recurrence coefficients [c_0, ..., c_J] (polynomials in n), or nothing
+function _zeilberger(F::Sym, k::Sym, n::Sym, J::Int)
+    ρn = _hyper_ratio(F, n)                         # F(n+1, k)/F(n, k)
+    ρn === nothing && return nothing
+    # r_j = F(n+j, k)/F(n, k)
+    r = Sym[ONE]
+    for j in 1:J
+        push!(r, cancel(r[end] * subs(ρn, n => n + j - 1)))
+    end
+    cs = [Sym(Symbol("_zeil_c", j)) for j in 0:(J - 1)]
+    lin = cancel(_add_many(cs[j+1] * r[j+1] for j in 0:(J - 1)) + r[J+1])     # c_J = 1
+    N, Q = numer_denom(lin)
+    # t(k) = N(k) F(n, k)/Q(k); the ratio of F/Q, its Gosper form, and Gosper's
+    # equation with c(k) N(k) on the right, N linear in the c_j
+    ρk = _hyper_ratio(F, k)
+    ρk === nothing && return nothing
+    ρ = cancel(ρk * Q / subs(Q, k => k + 1))
+    gf = _gosper_form(ρ, k)
+    gf === nothing && return nothing
+    A, B, C = gf
+    Bm = expand(subs(B, k => k - 1))
+    sol = _gosper_x(expand(A), Bm, expand(C * N), k, cs)
+    sol === nothing && return nothing
+    _, cvals = sol
+    coefs = vcat([cvals[c] for c in cs], ONE)
+    all(iszero, coefs[1:end-1]) && return nothing
+    # clear denominators: polynomial coefficients
+    den = reduce((p, c) -> (d = numer_denom(c)[2]; cancel(p * d / gcd(p, d))), coefs; init = ONE)
+    [expand(cancel(c * den)) for c in coefs]
+end
+
+# c_0(n) S(n) + c_1(n) S(n+1) = 0: S(n) = S(n0) Π_{j=n0}^{n-1} ρ(j), ρ = -c_0/c_1
+function _first_order_solve(rec, f::Sym, k::Sym, n::Sym, a::Sym, b::Sym)
+    c0, c1 = rec
+    ρ = cancel(-c0 / c1)
+    # start past the nonnegative integer roots of c_1 (and of ρ's numerator)
+    bad = Int[]
+    for p in (numer_denom(ρ)...,)
+        has(p, n) || continue
+        for r in (try solve(p ~ 0, n) catch; Sym[] end)
+            r.kind == NUMBER && _isint(r.num) && push!(bad, _toint(r.num))
+        end
+    end
+    n0 = max(0, (isempty(bad) ? -1 : maximum(bad)) + 1)
+    S0 = _direct(f, k, n, a, b, n0)
+    S0 === nothing && return nothing
+    _present_product(S0 * _hyper_product(ρ, n, n0)), n0
+end
+
+_direct(f, k, n, a, b, m) = (aa = subs(a, n => m); bb = subs(b, n => m);
+    (aa.kind == NUMBER && bb.kind == NUMBER) ? _add_many(subs(f, n => m, k => Sym(i)) for i in _toint(aa.num):_toint(bb.num)) : nothing)
+
+# Π_{j=n0}^{n-1} ρ(j) for a rational ρ: C^(n - n0) Π Γ(n + αᵢ)/Γ(n0 + αᵢ) / Π Γ(n + βᵢ)/Γ(n0 + βᵢ),
+# the Γ of integer and half-integer shifts as factorials
+function _hyper_product(ρ::Sym, n::Sym, n0::Int)
+    num, den = numer_denom(ρ)
+    C = ONE
+    gam = ONE
+    for (p, sgn) in ((num, 1), (den, -1))
+        has(p, n) || (C *= sgn == 1 ? p : 1 / p; continue)
+        lc = _coef(p, n, _xdeg(p, n))
+        C *= sgn == 1 ? lc : 1 / lc
+        roots = solve(p ~ 0, n)
+        length(roots) == _xdeg(p, n) || (roots = _roots_with_multiplicity(p, n))
+        for r in roots
+            α = -r                                   # the factor (n + α)
+            g = _gamma_shift(n, α) / _gamma_shift(Sym(n0), α)
+            gam *= sgn == 1 ? g : 1 / g
+        end
+    end
+    C^(n - n0) * gam
+end
+function _roots_with_multiplicity(p::Sym, n::Sym)
+    q = factor(p)
+    fs = q.kind == MUL ? collect(zip(q.args, q.exps)) : q.kind == POW ? [(q.args[1], q.args[2])] : [(q, ONE)]
+    out = Sym[]
+    for (b, e) in fs
+        has(b, n) || continue
+        for r in solve(b ~ 0, n), _ in 1:_toint(e.num)
+            push!(out, r)
+        end
+    end
+    out
+end
+# Γ(m + α) as factorial(m + α - 1); for a half-integer α = j + 1/2 as
+# (2(m + j))! sqrt(π)/(4^(m + j) (m + j)!)
+function _gamma_shift(m::Sym, α::Sym)
+    if α.kind == NUMBER && isexact(α.num) && _denominator(α.num) == 2
+        j = expand(m + α - Sym(1 // 2))
+        return factorial(2j) * sqrt(PI) / (Sym(4)^j * factorial(j))
+    end
+    factorial(expand(m + α - 1))
+end
+
+# factorial(a)/(factorial(b) factorial(a - b)) written binomial(a, b), and factorials
+# whose arguments differ by an integer combined (n!/(n - 1)! = n)
+function _present_product(e::Sym)
+    s = _merge_powers(simplify(_factorial_ratios(e)))
+    r = _binomial_form(s)
+    _nodes(r) < _nodes(s) ? r : s
+end
+# powers of numbers with the same exponent multiplied ((-4)^n/4^n = (-1)^n), and a
+# rational coefficient that is a power of such a base taken in (2^(n-1)/2 = 2^(n-2))
+function _merge_powers(e::Sym)
+    e.kind == MUL || return e
+    c = Sym(e.num)
+    groups = Dict{Sym,Sym}()                       # exponent q (less its constant) => base
+    other = Sym[]
+    for (b, p) in zip(e.args, e.exps)
+        if b.kind == NUMBER && isexact(b.num) && _hassymbol(p)
+            p0 = p.kind == ADD ? Sym(p.num) : ZERO
+            q = expand(p - p0)
+            c *= b^p0
+            if haskey(groups, -q)                  # b^(-q) = (1/b)^q
+                groups[-q] *= 1 / b
+            else
+                groups[q] = get(groups, q, ONE) * b
+            end
+        else
+            push!(other, b^p)
+        end
+    end
+    isempty(groups) && return e
+    pows = Sym[]
+    for (q, b) in groups
+        j = 0
+        if b.kind == NUMBER && abs(b.num) != N1 && c.kind == NUMBER
+            j = something(findfirst(t -> t != 0 && c == b^t, -12:12), 13) - 13
+        end
+        c /= b^j
+        # (-1)^(-n) = (-1)^n
+        b == -ONE && q.kind == MUL && q.num < N0 && (q = -q)
+        push!(pows, b^(q + j))
+    end
+    r = c * prod(vcat(pows, other))
+    _nodes(r) <= _nodes(e) ? r : e
+end
+
+function _factorial_ratios(e::Sym)
+    e.kind == MUL || return e
+    fs = [(b, p) for (b, p) in zip(e.args, e.exps)]
+    out = Sym(e.num)
+    used = falses(length(fs))
+    for i in eachindex(fs)
+        used[i] && continue
+        b, p = fs[i]
+        if b.kind == FN && b.name === :factorial && p.kind == NUMBER
+            for j in eachindex(fs)
+                (j == i || used[j]) && continue
+                c, q = fs[j]
+                (c.kind == FN && c.name === :factorial && q.kind == NUMBER && q == -p) || continue
+                d = expand(b.args[1] - c.args[1])
+                (d.kind == NUMBER && _isint(d.num) && 0 < abs(_toint(d.num)) <= 20) || continue
+                # u!/v! with u = v + d
+                m = _toint(d.num)
+                r = m > 0 ? prod((c.args[1] + i for i in 1:m); init = ONE) : 1 / prod((b.args[1] + i for i in 1:(-m)); init = ONE)
+                out *= r^p
+                used[i] = used[j] = true
+                break
+            end
+        end
+        used[i] || (out *= b^p; used[i] = true)
+    end
+    out
+end
+
+function _binomial_form(e::Sym)
+    e.kind == MUL || return e
+    facts = [(b.args[1], p) for (b, p) in zip(e.args, e.exps) if b.kind == FN && b.name === :factorial]
+    for (u, p) in facts
+        p == ONE || continue
+        for (v, q) in facts
+            (q.kind == NUMBER && q.num < N0) || continue
+            w = expand(u - v)
+            # u!/(v! w!) with w = u - v: v! w! in the denominator (or v!^2 when w == v)
+            if _eq(w, v) ? q == Sym(-2) : any(t -> _eq(t[1], w) && t[2] == -ONE, facts) && q == -ONE
+                r = _binomial_form(cancel(e * factorial(v) * factorial(w) / factorial(u)))
+                return r * binomial(u, _nodes(w) < _nodes(v) ? w : v)
+            end
+        end
+    end
+    e
+end
+
+# the closed form against direct sums at several n (parameters given values)
+function _zeil_verified(S::Sym, f::Sym, k::Sym, n::Sym, a::Sym, b::Sym, n0::Int)
+    # parameters at two sets of integer values (factorials of them stay exact)
+    others = [s for s in _named(f) if !_eq(s, k) && !_eq(s, n)]
+    for t in (5, 11)
+        vals = [s => Sym(t + 3i) for (i, s) in enumerate(others)]
+        for m in n0:(n0 + 6)
+            d = _direct(f, k, n, a, b, m)
+            d === nothing && continue
+            d = isempty(vals) ? d : subs(d, vals...)
+            v = subs(S, n => m)
+            v = isempty(vals) ? v : subs(v, vals...)
+            x, y = (try (_evalc(v), _evalc(d)) catch; return false end)
+            isapprox(x, y; rtol = 1e-10, atol = 1e-12) || return false
+        end
+        isempty(others) && break
+    end
+    true
 end
 
 ## rational functions: partial fractions and polygamma
