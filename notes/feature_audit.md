@@ -162,16 +162,24 @@ calculus-level use:
    (`A'A` for complex entries), whose closed forms quickly become unwieldy, and its
    vectors need orthonormal eigenvectors of `AᵀA` and `AAᵀ`; it is lower priority for
    symbolic use.
-2. **Piecewise functions, Heaviside and Dirac**, which also matter for Laplace
+2. **Definite hypergeometric sums: Zeilberger's algorithm** (next, before differential
+   equations). Gosper's algorithm finds antidifferences; definite sums of terms without
+   one, such as `Σ_k binomial(n, k)^2 = binomial(2n, n)`, `Σ_k k*binomial(n, k) =
+   n*2^(n-1)` and Vandermonde's identity, need creative telescoping: a recurrence in
+   `n` that the sum satisfies (Gosper with the recurrence's coefficients as further
+   unknowns), then solved. Scope: Zeilberger plus first-order recurrences, which solve
+   as products and cover most textbook binomial identities; Petkovšek's Hyper
+   algorithm for higher-order recurrences (and a general `rsolve`) deferred.
+3. **Piecewise functions, Heaviside and Dirac**, which also matter for Laplace
    transforms and differential equations.
-3. **Definite integrals done properly**: improper integrals through `limit`, and
+4. **Definite integrals done properly**: improper integrals through `limit`, and
    detecting singularities inside the interval, building on RischIntegrate's
    antiderivatives.
-4. **Laplace transforms**, natural companions to the differential equation work.
-5. **Numeric root finding for any equation**, for when `solve` has no closed form.
-6. **Utilities**: `collect`, `coeff`, Horner form, a user-level `cse`, `nsimplify`, and a
+5. **Laplace transforms**, natural companions to the differential equation work.
+6. **Numeric root finding for any equation**, for when `solve` has no closed form.
+7. **Utilities**: `collect`, `coeff`, Horner form, a user-level `cse`, `nsimplify`, and a
    user-level `rewrite` (exp ↔ trig, half-angle; `simplify` already rewrites inside).
-7. **Assumptions, the remaining pieces**: integer congruences, `assume` for systems of
+8. **Assumptions, the remaining pieces**: integer congruences, `assume` for systems of
    equations, and assumptions in `integrate`.
 
 Done since the first audit: LaTeX output (a Latexify extension), resultants and Gröbner
