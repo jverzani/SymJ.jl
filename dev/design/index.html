@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Design notes — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=fa607d6b">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=a3c59bac">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Design notes — SymJ.jl">
   <meta property="og:title" content="Design notes — SymJ.jl">
@@ -1050,6 +1050,15 @@ end</code></pre>
 <li><p><strong><code class="md-code-inline">simplify_radicals</code></strong> denests square roots of <code class="md-code-inline">a + b sqrt(c)</code> when <code class="md-code-inline">a² - b²c</code> is a rational square, rationalizes denominators <code class="md-code-inline">a + b sqrt(c)</code> by the conjugate, and factors radicands so that <code class="md-code-inline">refine</code> can take a power out of the root.</p>
 </li>
 </ul>
+<h2 id="Summation" class="md-heading">Summation<a href="#Summation" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<ul class="md-list-tight">
+<li><p><strong><code class="md-code-inline">SymJ.summation(f, k, a, b)</code></strong>, a chain of methods as in SymPy: linearity; direct addition for a short numeric range; an antidifference <code class="md-code-inline">F</code> (<code class="md-code-inline">F(k+1) - F(k) = f(k)</code>) giving <code class="md-code-inline">F(b+1) - F(a)</code>, by Bernoulli polynomials for polynomials and Gosper&#39;s algorithm for hypergeometric terms (the term ratio from polynomials, <code class="md-code-inline">r^k</code>, factorials, binomials, <code class="md-code-inline">gamma</code>; the Gosper form through <code class="md-code-inline">resultant</code> and <code class="md-code-inline">gcd</code>; the polynomial <code class="md-code-inline">x(k)</code> from its degree bound and a linear system); partial fractions for rational functions without one (harmonic numbers, polygamma, exact <code class="md-code-inline">ζ(2n)</code> by Bernoulli numbers); known sums (the binomial theorem; <code class="md-code-inline">₀F₀</code>, <code class="md-code-inline">₁F₀</code>, <code class="md-code-inline">₀F₁</code> hypergeometric series: <code class="md-code-inline">exp</code>, <code class="md-code-inline">cos</code>, <code class="md-code-inline">sin</code>, <code class="md-code-inline">cosh</code>, <code class="md-code-inline">sinh</code>).</p>
+</li>
+<li><p><strong>Infinite sums</strong> are limits of the antidifference (<code class="md-code-inline">limit</code>). A polynomial times <code class="md-code-inline">r^k</code> converges exactly when <code class="md-code-inline">-1 &lt; r &lt; 1</code>, decided by cases on a parameter.</p>
+</li>
+<li><p><strong>Otherwise</strong> the sum stays unevaluated, <code class="md-code-inline">Sum(f, k, a, b)</code>, which adds up once its bounds become numbers. The name is <code class="md-code-inline">summation</code>, not a method of <code class="md-code-inline">Base.sum</code>, since the call is different (an index and bounds, not an iterable).</p>
+</li>
+</ul>
 <h2 id="Linear-algebra" class="md-heading">Linear algebra<a href="#Linear-algebra" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <ul class="md-list-tight">
 <li><p><strong>Exact elimination, first-nonzero pivoting.</strong> Julia&#39;s generic <code class="md-code-inline">det</code>, <code class="md-code-inline">inv</code> and <code class="md-code-inline">lu</code> pivot by comparing magnitudes, which has no meaning for expressions. SymJ eliminates over a field with an exact zero test: exact rationals for numbers, otherwise rational functions (<code class="md-code-inline">RatFun</code>) in the entries&#39; atoms, whose canonical form makes a zero pivot certain.</p>
@@ -1246,6 +1255,7 @@ end</code></pre>
           <a class="md-toc-link md-toc-h2" href="#Solving">Solving</a>
           <a class="md-toc-link md-toc-h2" href="#Parameters-(internal)">Parameters (internal)</a>
           <a class="md-toc-link md-toc-h2" href="#Simplification">Simplification</a>
+          <a class="md-toc-link md-toc-h2" href="#Summation">Summation</a>
           <a class="md-toc-link md-toc-h2" href="#Linear-algebra">Linear algebra</a>
           <a class="md-toc-link md-toc-h2" href="#Assumptions">Assumptions</a>
           <a class="md-toc-link md-toc-h2" href="#Performance-snapshot">Performance snapshot</a>
@@ -1259,6 +1269,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=fa607d6b"></script>
+  <script src="../assets/materialdocs.js?v=a3c59bac"></script>
 </body>
 </html>

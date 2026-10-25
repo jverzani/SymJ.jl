@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=7e47dcc9">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=5fa065e2">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -844,6 +844,46 @@ end</code></pre>
 </div>
 </div>
 <p>Contradictory facts are an error (<code class="md-code-inline">@assume(x &gt; 1 &amp;&amp; x &lt; 0)</code>), and the <code class="md-code-inline">Assumptions</code> value <code class="md-code-inline">@assume</code> makes can be reused: <code class="md-code-inline">A = @assume(x &gt; 0, n in Integers)</code>, then <code class="md-code-inline">assume = A</code>.</p>
+<h2 id="Sums" class="md-heading">Sums<a href="#Sums" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p><code class="md-code-inline">SymJ.summation(f, k, a, b)</code> (not exported) sums <code class="md-code-inline">f</code> over <code class="md-code-inline">k = a, …, b</code>, in closed form where it finds one; <code class="md-code-inline">b</code> may be <code class="md-code-inline">Inf</code>:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms k n r
+SymJ.summation(k^2, k, 1, n), SymJ.summation(r^k, k, 0, n), SymJ.summation(1 / (k * (k + 1)), k, 1, n)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \frac{\left( 2 \cdot n + 1 \right) \cdot n \cdot \left( n + 1 \right)}{6}, \; \frac{r^{n + 1} - 1}{r - 1}, \; \frac{n}{n + 1} \right)\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.summation(1 / k^2, k, 1, Inf), SymJ.summation(x^k / factorial(k), k, 0, Inf)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \frac{\pi^{2}}{6}, \; e^{x} \right)\]
+</div>
+</div>
+<p>Whether a series converges can depend on a parameter; the answer then has cases, which assumptions settle:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.summation(r^k, k, 0, Inf)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\begin{cases} \text{the series diverges} &amp; r \leq -1 \\ \frac{1}{ - r + 1} &amp; -1 &lt; r &lt; 1 \\ \text{the series diverges} &amp; r \geq 1 \end{cases}\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.summation(k * r^k, k, 0, Inf; assume = @assume(0 &lt; r &lt; 1))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\frac{r}{\left( r - 1 \right)^{2}}\]
+</div>
+</div>
 <h2 id="Matrices" class="md-heading">Matrices<a href="#Matrices" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p>Matrices of expressions are Julia arrays of <code class="md-code-inline">Sym</code>. With <code class="md-code-inline">LinearAlgebra</code>, <code class="md-code-inline">det</code>, <code class="md-code-inline">inv</code>, <code class="md-code-inline">lu</code> and <code class="md-code-inline">\</code> work exactly, pivoting on the first nonzero entry rather than comparing magnitudes:</p>
 <div class="md-multi-output">
@@ -1303,6 +1343,7 @@ G(x =&gt; Sym(π)) - G(x =&gt; 0)</code></pre>
             <a class="md-toc-link md-toc-h3" href="#Inequalities">Inequalities</a>
             <a class="md-toc-link md-toc-h3" href="#Systems">Systems</a>
             <a class="md-toc-link md-toc-h3" href="#Assumptions">Assumptions</a>
+          <a class="md-toc-link md-toc-h2" href="#Sums">Sums</a>
           <a class="md-toc-link md-toc-h2" href="#Matrices">Matrices</a>
           <a class="md-toc-link md-toc-h2" href="#Limits">Limits</a>
           <a class="md-toc-link md-toc-h2" href="#Derivatives">Derivatives</a>
@@ -1328,6 +1369,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=7e47dcc9"></script>
+  <script src="../assets/materialdocs.js?v=5fa065e2"></script>
 </body>
 </html>
