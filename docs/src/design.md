@@ -895,6 +895,23 @@ three rounds each, taking each workload's best time.
   rational square, rationalizes denominators `a + b sqrt(c)` by the conjugate, and
   factors radicands so that `refine` can take a power out of the root.
 
+## Summation
+
+- **`SymJ.summation(f, k, a, b)`**, a chain of methods as in SymPy: linearity; direct
+  addition for a short numeric range; an antidifference `F` (`F(k+1) - F(k) = f(k)`)
+  giving `F(b+1) - F(a)`, by Bernoulli polynomials for polynomials and Gosper's
+  algorithm for hypergeometric terms (the term ratio from polynomials, `r^k`,
+  factorials, binomials, `gamma`; the Gosper form through `resultant` and `gcd`; the
+  polynomial `x(k)` from its degree bound and a linear system); partial fractions for
+  rational functions without one (harmonic numbers, polygamma, exact `ζ(2n)` by
+  Bernoulli numbers); known sums (the binomial theorem; `₀F₀`, `₁F₀`, `₀F₁`
+  hypergeometric series: `exp`, `cos`, `sin`, `cosh`, `sinh`).
+- **Infinite sums** are limits of the antidifference (`limit`). A polynomial times
+  `r^k` converges exactly when `-1 < r < 1`, decided by cases on a parameter.
+- **Otherwise** the sum stays unevaluated, `Sum(f, k, a, b)`, which adds up once its
+  bounds become numbers. The name is `summation`, not a method of `Base.sum`, since the
+  call is different (an index and bounds, not an iterable).
+
 ## Linear algebra
 
 - **Exact elimination, first-nonzero pivoting.** Julia's generic `det`, `inv` and `lu`

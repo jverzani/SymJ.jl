@@ -111,7 +111,9 @@ function _texconds(conds)
     end
     join(parts, " \\land ")
 end
-_texanswer(v) = v isa Exception ? "\\text{" * replace(sprint(showerror, v), r"[\\{}_^#%&$~]" => "") * "}" :
+# an error case shows its message (the series diverges), not the exception's type
+_errmsg(v) = hasproperty(v, :msg) && v.msg isa AbstractString ? v.msg : sprint(showerror, v)
+_texanswer(v) = v isa Exception ? "\\text{" * replace(_errmsg(v), r"[\\{}_^#%&$~]" => "") * "}" :
     applicable(_tex, v) ? _tex(v) : "\\text{" * string(v) * "}"
 _tex(cs::Cases) = "\\begin{cases} " *
     join((_texanswer(v) * " & " * _texconds(conds) for (conds, v) in cs.cases), " \\\\ ") * " \\end{cases}"

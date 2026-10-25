@@ -55,6 +55,10 @@ using PrecompileTools: @setup_workload, @compile_workload
         simplify(sin(x) * cos(y) + cos(x) * sin(y)); simplify(tan(x) * cos(x))
         simplify(cosh(x)^2 - sinh(x)^2); simplify(exp(x) + exp(-x)); simplify(log(Sym(2)) + log(Sym(3)))
         simplify(sqrt(3 + 2sqrt(Sym(2))))
+        # sums
+        k, n = Sym(:k), Sym(:n)
+        summation(k^2, k, 1, n); summation(1 / (k * (k + 1)), k, 1, Inf); summation(1 / k^2, k, 1, Inf)
+        summation(y^k, k, 0, n); summation(x^k / factorial(k), k, 0, Inf)
         # linear algebra
         A = [x y; 1 x]; LinearAlgebra.det(A); inv(A); LinearAlgebra.lu(A); A \ [x, 1]
         LinearAlgebra.det(Sym[1 2; 3 4]); inv(Sym[1 2; 3 4]); inv([sin(x) cos(x); -cos(x) sin(x)])
