@@ -164,6 +164,23 @@ vector of `Sym`s for a sequence slot among a function's arguments, a function fo
 slot. Matches come in a deterministic order, following the canonical order of the
 subject's elements.
 
+**Which match comes first.** In a sum or product, `~!x` and `~~x` mean the same, so a
+pattern can match in several ways. `~!a*~x + ~!b` against `3y + 5` gives `a => 3,
+x => y, b => 5`, but also `a => 1, x => 3y, b => 5` and `a => 1, x => 3y + 5, b => 0`.
+`eachmatch` gives them all. `match` gives the one found first, and the search is ordered
+so that it is the expected one:
+
+1. **Numbers go to default slots first.** A product's coefficient, or a sum's constant,
+   is offered to a `~!` slot of that product or sum before any other slot. So
+   `~!a*~x + ~!b` against `3y + 5` gives `a => 3`, `x => y`, `b => 5`, and
+   `~!a*~x^~!n` against `2y^3` gives `a => 2`, `x => y`, `n => 3`.
+2. **Otherwise, defaults take nothing first.** Apart from numbers, a `~!` slot first
+   takes no elements, so that it has its default, and takes elements only when that
+   fails. So `~x + ~!r` against `a + b` gives `x => a + b`, `r => 0`.
+
+These rules only order the search. They don't change which matches exist, and with
+them the common rule shapes match without backtracking.
+
 ## Algorithm
 
 A pattern is compiled once into a tree of matcher nodes, one per pattern node:
@@ -282,3 +299,5 @@ The first draft's open questions, as settled:
    with `x => sin(t)^2 + cos(t)^2, y => a`, and a rule for part of a sum carries its own
    slot for the rest.
 5. **Head slots:** patterns match function heads, `(~f)(~x)`, binding the function.
+6. **First match:** numbers go to `~!` slots first, and otherwise a `~!` slot takes
+   nothing first (see "Which match comes first").
