@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=5fa065e2">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=2a190fde">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -865,6 +865,17 @@ SymJ.summation(k^2, k, 1, n), SymJ.summation(r^k, k, 0, n), SymJ.summation(1 / (
 \[\left( \frac{\pi^{2}}{6}, \; e^{x} \right)\]
 </div>
 </div>
+<p>Definite sums of binomials, which have no antidifference, come from Zeilberger&#39;s algorithm:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms m
+SymJ.summation(binomial(n, k)^2, k, 0, n), SymJ.summation(binomial(n, k) * binomial(m, n - k), k, 0, n)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \binom{2 \cdot n}{n}, \; \binom{m + n}{m} \right)\]
+</div>
+</div>
 <p>Whether a series converges can depend on a parameter; the answer then has cases, which assumptions settle:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -1369,6 +1380,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=5fa065e2"></script>
+  <script src="../assets/materialdocs.js?v=2a190fde"></script>
 </body>
 </html>
