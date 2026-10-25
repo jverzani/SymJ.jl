@@ -1769,6 +1769,7 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test subs(diff(y(x), x), x => 0) == y'(0) && subs(y'(0), x => 5) == y'(0)
         @test subs(diff(y(x), x), y(x) => sin(x)) == cos(x) && subs(y''(0), y(x) => x^3 + x^2) == 2
         @test diff(y'(0), x) == 0 && diff(SymJ._integrate(exp(x^2), x), x) == exp(x^2)
+        @test string(y'(0)) == "y'(0)" && string(y''(x + 1)) == "y''(x + 1)" && string(y'(0) + 2y(1)) == "y'(0) + 2*y(1)"
         # first order
         @test D(y'(x) ~ y(x), y(x)) == (y(x) ~ C1 * exp(x)) && D(y'(x) ~ x * y(x), y(x)) == (y(x) ~ C1 * exp(x^2 / 2))
         @test D(y'(x) + 2y(x) ~ exp(x), y(x)) == (y(x) ~ C1 * exp(-2x) + exp(x) / 3)

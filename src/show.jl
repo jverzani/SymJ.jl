@@ -47,6 +47,8 @@ function _show(io::IO, x::Sym, p::Int)
         _show_piecewise(io, x)
     elseif _iscond(x)
         _show_cond(io, x)
+    elseif (d = _deriv_at(x)) !== nothing
+        print(io, d[1], "'"^d[2], "(", sprint(_show, d[3], 0), ")")
     else
         print(io, x.name, "(")
         join(io, (sprint(_show, a, 0) for a in x.args), ", ")
@@ -54,6 +56,19 @@ function _show(io::IO, x::Sym, p::Int)
     end
     wrap && print(io, ")")
     nothing
+end
+
+# Derivative(f(v), v, a), Derivative(Derivative(f(v), v), v, a), …: (f, k, a), printed
+# f'(a), f''(a) as the SymFunction derivative notation
+function _deriv_at(x::Sym)
+    (x.kind == FN && x.name === :Derivative && length(x.args) == 3) || return nothing
+    f, v, a = x.args
+    k = 1
+    while f.kind == FN && f.name === :Derivative && length(f.args) == 2 && _eq(f.args[2], v)
+        f, k = f.args[1], k + 1
+    end
+    (f.kind == FN && length(f.args) == 1 && _eq(f.args[1], v)) || return nothing
+    f.name, k, a
 end
 
 function _show_num(io::IO, n::SymNumber)

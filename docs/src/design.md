@@ -1102,7 +1102,8 @@ and a finalizer per operation), which dominates the small benchmarks.
 - **Derivatives as values.** `Derivative(f, v)` binds `v`: substituting a value gives
   the derivative at a point, `Derivative(f, v, a)`, and substituting into `f` evaluates
   it (`Derivative(y(x), x)` with `y(x) => sin(x)` is `cos(x)`). `y'` on a `SymFunction`
-  builds these, so initial conditions read `y'(0) => 1`.
+  builds these, so initial conditions read `y'(0) => 1`, and a derivative at a point
+  prints the same way (`y''(0)`, not `Derivative(Derivative(y(x), x), x, 0)`).
 - **Integrals** go through an integrator hook that the RischIntegrate extension sets;
   without it a small integrator does polynomials and `exp`, `sin`, `cos`, `sinh`, `cosh`
   of linear arguments, and anything else is an unevaluated `Integral(f, x)` whose
