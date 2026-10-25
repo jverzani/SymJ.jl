@@ -895,6 +895,44 @@ three rounds each, taking each workload's best time.
   rational square, rationalizes denominators `a + b sqrt(c)` by the conjugate, and
   factors radicands so that `refine` can take a power out of the root.
 
+## Linear algebra
+
+- **Exact elimination, first-nonzero pivoting.** Julia's generic `det`, `inv` and `lu`
+  pivot by comparing magnitudes, which has no meaning for expressions. SymJ eliminates
+  over a field with an exact zero test: exact rationals for numbers, otherwise
+  rational functions (`RatFun`) in the entries' atoms, whose canonical form makes a
+  zero pivot certain.
+- **`det`** is fraction-free (Bareiss) for polynomial entries, every division exact;
+  **`inv`** is the adjugate (Bareiss cofactors over the determinant) for polynomial
+  entries up to 6×6, Gauss–Jordan over `RatFun` otherwise. **`lu`** returns a
+  `LinearAlgebra.LU`, so `F.L`, `F.U`, `F.p`, `det(F)` and `F \ b` work as usual.
+- **Names.** Methods extend LinearAlgebra's functions (`det`, `inv`, `lu`, `qr`, `rank`,
+  `nullspace`, `eigvals`, `eigvecs`, `eigen`) and Base's (`exp`, `sin`, `cos`, `^`);
+  functions LinearAlgebra does not have stay unexported: `SymJ.rref`,
+  `SymJ.jordan_form`, `SymJ.charpoly`.
+- **`SymJ.rref`, `rank`, `nullspace`** come from the same elimination; symbolic pivots are
+  taken to be nonzero (the generic case), as for linear systems. **`eigvals`** are the
+  roots of the factored characteristic polynomial, repeated by multiplicity;
+  **`eigvecs`** the null spaces of `A - v*I`; **`eigen`** a `LinearAlgebra.Eigen` for a
+  diagonalizable matrix.
+- **`qr`** is Gram–Schmidt with exact arithmetic (norms are square roots, simplified),
+  symbols taken as real in the inner product; it returns a small `SymQR` (Julia's `QR`
+  stores Householder reflectors). **`SymJ.jordan_form`** builds Jordan chains from the
+  kernels of `(A - λI)^k`. **Matrix functions** (`exp`, `sin`, `cos`, `A^n` for a
+  symbolic `n`) go through the Jordan form: on a block for `λ`, `f(J)` has
+  `f^(j)(λ)/j!` on its `j`-th superdiagonal.
+- **Algebraic constants.** As rational functions, `sqrt(2)` or `im` would be
+  independent atoms, and `sqrt(2)^2 - 2` would not test zero. A matrix with such
+  constants (radicals of numbers or of expressions, `im`) is eliminated over `Sym`
+  values normalized after each operation (expanded, radicals combined, denominators
+  rationalized), which the canonical form makes exact. A quadratic factor of a
+  characteristic polynomial whose discriminant is `-u²` gets the roots `(-b ± i u)/2a`
+  rather than ones with `sqrt(-u²)`.
+- **`I` and scalars.** `A ± I` works (`Sym ± UniformScaling`); `UniformScaling` needs a
+  `Number` scale, so a symbolic multiple is `λ*I(n)`. An expression times an array is
+  elementwise, as for numbers.
+- **LinearAlgebra** is a dependency (a standard library, loaded at startup anyway).
+
 ## Assumptions
 
 Assumptions are passed per call or for a block, never stored on symbols. This keeps

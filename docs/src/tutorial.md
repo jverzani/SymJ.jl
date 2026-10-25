@@ -565,6 +565,63 @@ Contradictory facts are an error (`@assume(x > 1 && x < 0)`), and the `Assumptio
 value `@assume` makes can be reused: `A = @assume(x > 0, n in Integers)`, then
 `assume = A`.
 
+## Matrices
+
+Matrices of expressions are Julia arrays of `Sym`. With `LinearAlgebra`, `det`, `inv`,
+`lu` and `\` work exactly, pivoting on the first nonzero entry rather than comparing
+magnitudes:
+
+```@example tut
+using LinearAlgebra
+@syms d
+A = [a b; c d]
+det(A), inv(A)
+```
+
+```@example tut
+F = lu(A)
+F.L, F.U
+```
+
+```@example tut
+A \ [x, y]
+```
+
+Row reduction (`SymJ.rref`, not exported, as it is not a LinearAlgebra function), rank,
+null spaces, and eigenvalues (with multiplicity) and eigenvectors:
+
+```@example tut
+SymJ.rref(Sym[1 2 3; 4 5 6; 7 8 9]), nullspace(Sym[1 2 3; 4 5 6; 7 8 9])
+```
+
+```@example tut
+eigvals(Sym[1 2; 3 4]), eigvecs([a b; b a])
+```
+
+QR factorization by exact Gram–Schmidt, and functions of matrices through the Jordan
+form (`SymJ.jordan_form`), such as the exponential that solves `x' = A x`:
+
+```@example tut
+Q, R = qr(Sym[3 1; 4 2])
+Q, R
+```
+
+```@example tut
+@syms t n
+exp(t * Sym[0 1; -1 0]), exp(t * Sym[2 1; 0 2])
+```
+
+```@example tut
+Sym[1 1; 1 0]^n
+```
+
+`A - I` works as for numbers; a symbolic multiple of the identity is `λ*I(n)`:
+
+```@example tut
+@syms λ
+det([x 1; 1 x] - λ * I(2))
+```
+
 ## Limits
 
 `limit(f, x => x0)` is the limit of `f` as `x` tends to `x0`, a number, an expression or

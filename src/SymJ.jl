@@ -11,6 +11,7 @@ using TermInterface
 using RuntimeGeneratedFunctions
 using ScopedValues: ScopedValue, with
 import GruntzLimit
+import LinearAlgebra
 using GruntzLimit: GruntzError
 import CommonEq: Eq, Lt, Le, Gt, Ge, Ne, ⩵, ≪, ≦, ≫, ≧, ≶, ≷
 RuntimeGeneratedFunctions.init(@__MODULE__)
@@ -56,6 +57,7 @@ include("cases.jl")
 include("limit.jl")
 include("simplify.jl")
 include("complexparts.jl")
+include("linalg.jl")
 include("series.jl")
 include("resultant.jl")
 include("groebner.jl")
