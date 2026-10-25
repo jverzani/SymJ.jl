@@ -43,6 +43,10 @@ function _show(io::IO, x::Sym, p::Int)
     elseif k == POW
         b, e = x.args
         _negexp(e) ? _show_mul(io, N1, x.args[1:1], x.args[2:2]) : _show_pow(io, b, e)
+    elseif x.name === :piecewise
+        _show_piecewise(io, x)
+    elseif _iscond(x)
+        _show_cond(io, x)
     else
         print(io, x.name, "(")
         join(io, (sprint(_show, a, 0) for a in x.args), ", ")

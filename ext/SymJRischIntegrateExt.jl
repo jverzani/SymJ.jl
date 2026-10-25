@@ -4,8 +4,24 @@
 module SymJRischIntegrateExt
 
 using SymJ
-using RischIntegrate: integrate
+using RischIntegrate: RischIntegrate, integrate
 using PrecompileTools: @setup_workload, @compile_workload
+
+# piecewise functions, heaviside and dirac: interval by interval (see SymJ's piecewise.jl);
+# abs, sign, max and min, which the integrator does not take, as piecewise functions
+# (for real x)
+function RischIntegrate.integrate(ex::Sym, x::Sym; kw...)
+    integ = f -> RischIntegrate.risch_integrate(f, x; kw...)
+    SymJ._haspieces(ex, x) && return SymJ._integrate_pieces(ex, x, integ)
+    try
+        integ(ex)
+    catch err
+        err isa InterruptException && rethrow()
+        pw = SymJ.piecewise(ex)
+        SymJ._haspieces(pw, x) || rethrow()
+        SymJ._integrate_pieces(pw, x, integ)
+    end
+end
 
 @setup_workload begin
     @compile_workload begin
@@ -23,8 +39,11 @@ using PrecompileTools: @setup_workload, @compile_workload
                   (a^2 - x^2)^(3 // 2), 1 / (1 + a * sin(x)),
                   (a * sin(x) + cos(x)) / (sin(x) + b * cos(x)), 1 / (a^2 * cos(x)^2 + sin(x)^2),
                   (a * sin(x) + b * cos(x)) / (c * sin(x) + d * cos(x)))
-            integrate(f, x)
+            # (an older RischIntegrate, the one Julia 1.10 gets, cannot do all of them)
+            try integrate(f, x) catch end
         end
+        P, H = SymJ.piecewise(x ≪ 0 => -x, true => x^2), SymJ.heaviside(x - 1)
+        try integrate(P, x); integrate(x * H, x); integrate(cos(x) * SymJ.dirac(x - 1), x) catch end
         # answers with special functions (Ei, ₁F₁): not every term type has them
         for f in (exp(x) / x, exp(a * x) / x, 1 / log(x)^(2 + a))
             try integrate(f, x) catch end

@@ -655,6 +655,30 @@ Sym[1 1; 1 0]^n
 det([x 1; 1 x] - λ * I(2))
 ```
 
+## Piecewise functions
+
+`SymJ.piecewise(c₁ => v₁, c₂ => v₂, …)` (not exported) is the value of the first piece
+whose condition holds; a condition is a relation, a tuple of relations that all hold, or
+`true`. It is an expression like any other: substitution picks a piece, and `diff`,
+`limit`, `refine` and `lambdify` take it piece by piece:
+
+```@example tut
+pw = SymJ.piecewise(x ≪ 0 => -x, (0 ≦ x, x ≪ 1) => x^2, true => 1)
+pw, pw(x => -2), diff(pw, x)
+```
+
+```@example tut
+limit(pw, x => 0), limit(pw, x => 1; dir = :-)
+```
+
+The unit step `SymJ.heaviside` (½ at 0) and the delta `SymJ.dirac` are its derivative
+pair; `SymJ.piecewise(ex)` writes `heaviside`, `sign`, `abs`, `max` and `min` as pieces:
+
+```@example tut
+H = SymJ.heaviside
+diff(H(x - 1), x), SymJ.piecewise(abs(x - 1))
+```
+
 ## Limits
 
 `limit(f, x => x0)` is the limit of `f` as `x` tends to `x0`, a number, an expression or
@@ -817,6 +841,13 @@ integrate(sin(x)^3, x), integrate(sqrt(1 - x^2), x)
 integrate(x * log(x), x), integrate(1 / (x * log(x)), x)
 ```
 
+Piecewise functions, `heaviside`, `abs` and `sign` are integrated interval by interval,
+the antiderivative made continuous; a `dirac` picks out a value:
+
+```@example tut
+integrate(x * H(x - 1), x), integrate(cos(x) * SymJ.dirac(x - 1), x)
+```
+
 ### Definite integrals
 
 A definite integral is the difference of an antiderivative's values at the end points.
@@ -825,6 +856,10 @@ Calling the antiderivative with exact numbers keeps the answer exact:
 ```@example tut
 F = integrate(x^2, x)
 F(3) - F(0)
+```
+
+```@example tut
+integrate(abs(x - 1), (x, 0, 3))
 ```
 
 ```@example tut

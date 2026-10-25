@@ -895,6 +895,32 @@ three rounds each, taking each workload's best time.
   rational square, rationalizes denominators `a + b sqrt(c)` by the conjugate, and
   factors radicands so that `refine` can take a power out of the root.
 
+## Piecewise functions
+
+- **`SymJ.piecewise(c₁ => v₁, …)`** is an expression, not a `Cases`: a function node
+  `piecewise(c₁, v₁, c₂, v₂, …)` whose conditions are nodes too, `Lt(a, b)` and its kin
+  and `And(…)`. A relation between constants evaluates to 1 or 0, so substitution picks
+  the piece; a condition linear in one symbol is solved for it (`1 - x < 0` as `x > 1`).
+  As built, false pieces are dropped, a true one ends the list, and a piece with the
+  value of the true one after it goes; with none left the value is NaN.
+- **Taken piece by piece**: `diff`; `N` and `lambdify` evaluate only the piece taken (an
+  `if` chain), so `piecewise(x < 0 => log(-x), true => sqrt(x))` is real throughout;
+  `refine` decides conditions, `heaviside`, `sign` and `abs` under assumptions;
+  `limit` replaces each piecewise, `heaviside` and `dirac` by its value on the side
+  approached (the sign of a condition from the limit of `g`, or of `g/t^j` when that
+  is 0), the two sides compared for a two-sided limit.
+- **`heaviside(x, h0 = 1/2)`**, **`dirac(x, k = 0)`**: `diff(heaviside) = dirac`,
+  `diff(sign(x)) = 2 dirac(x)`. `piecewise(ex)` writes `heaviside`, `sign`, `abs`,
+  `max`, `min` as pieces (real arguments); `piecewise(cs)` turns cases into one.
+- **Integration** (in the RischIntegrate extension, a method of `integrate` for `Sym`):
+  a `dirac(m x + c, k)` term by `∫ g δ⁽ᵏ⁾(x - a) = (-1)^k g⁽ᵏ⁾(a) heaviside(x - a)`; the
+  rest between consecutive breakpoints (sorted real numbers, or a single one with
+  parameters), the integrand read at a point inside each interval and the constants
+  chosen for continuity. `abs`, `sign`, `max` and `min`, which RischIntegrate does not
+  take, are rewritten as pieces when it fails on them.
+- **Printing**: `piecewise(x ≪ 0 => -x, true => x)`; in LaTeX a `cases` environment,
+  `heaviside` and `dirac` as θ and δ.
+
 ## Summation
 
 - **`SymJ.summation(f, k, a, b)`**, a chain of methods as in SymPy: linearity; direct

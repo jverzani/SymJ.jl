@@ -60,6 +60,22 @@ function limit(f, xx0::Pair; dir = :both, assume = nothing)
         signs = _gruntz_signs(A, x)
     end
     x0g = x0 isa Real ? x0 : Sym(x0)
+    # piecewise functions, heaviside and dirac: the piece on each side
+    if _haspieces(f, x)
+        if x0g isa Real && isinf(x0g)
+            f = _pieces_near(f, x, x0g, x0g > 0 ? :- : :+, assume)
+        elseif dir === :both
+            fp, fm = _pieces_near(f, x, x0g, :+, assume), _pieces_near(f, x, x0g, :-, assume)
+            if !_eq(fp, fm)
+                Lp, Lm = limit(fp, x => x0; dir = :+, assume), limit(fm, x => x0; dir = :-, assume)
+                _sameanswer(Lp, Lm) || throw(GruntzError("one-sided limits differ", :nolimit))
+                return Lp
+            end
+            f = fp
+        else
+            f = _pieces_near(f, x, x0g, dir, assume)
+        end
+    end
     # the generic answer, as gruntz_limit gives it (a constant that may vanish taken to be
     # nonzero, where the expression is defined); by cases only when the limit depends on a
     # sign that is not decided

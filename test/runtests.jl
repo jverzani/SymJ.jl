@@ -1699,6 +1699,40 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test Σ(binomial(n, k)^3, k, 0, n)(n => 3) == 56
     end
 
+    @testset "piecewise, heaviside, dirac" begin
+        P, H, D = SymJ.piecewise, SymJ.heaviside, SymJ.dirac
+        @syms a
+        f = P(x ≪ 0 => -x, true => x^2)
+        @test f(x => -2) == 2 && f(x => 3) == 9 && f(x => 0.5) == 0.25 && N(f(x => Sym(-1) // 3)) ≈ 1 / 3
+        @test string(f) == "piecewise(x ≪ 0 => -x, true => x^2)"
+        @test diff(f, x) == P(x ≪ 0 => -1, true => 2x)
+        # built: false pieces dropped, a true one ends the list, equal neighbours merged
+        @test P(x ≪ 0 => 1, true => 1) == 1 && P(Sym(-1) ≪ 0 => 3, true => 4) == 3
+        @test P(Sym(1) ≪ 0 => 3, x ≪ 2 => x, true => 0) == P(x ≪ 2 => x, true => 0)
+        @test isnan(N(P(x ≪ 0 => 1)(x => 1)))
+        @test P(1 - x ≪ 0 => 1, true => 0) == P(x ≫ 1 => 1, true => 0)        # solved for x
+        g = P((0 ≦ x, x ≪ 1) => x, true => 0)
+        @test g(x => 1 // 2) == 1 // 2 && g(x => 2) == 0 && g(x => -1) == 0
+        # lambdify: only the piece taken is evaluated
+        l = SymJ.lambdify(P(x ≪ 0 => log(-x), true => sqrt(x)))
+        @test l(-ℯ) ≈ 1 && l(4.0) ≈ 2
+        # heaviside, dirac, sign
+        @test H(Sym(-2)) == 0 && H(Sym(3)) == 1 && H(Sym(0)) == 1 // 2 && H(Sym(0), 1) == 1
+        @test diff(H(x - 1), x) == D(x - 1) && diff(D(x), x) == D(x, 1) && diff(sign(x), x) == 2D(x)
+        @test D(Sym(3)) == 0 && D(x, 0) == D(x)
+        # rewriting, cases
+        @test P(abs(x)) == P(x ≪ 0 => -x, true => x)
+        @test all(v -> P(max(x, 1))(x => v) == max(v, 1) && P(min(x, 1))(x => v) == min(v, 1), (-2, 1, 3 // 2))
+        @test P(H(x)) == P(x ≪ 0 => 0, (x ~ 0) => 1 // 2, true => 1)
+        @test P(SymJ.summation(a^Sym(:k), Sym(:k), 0, Inf)) == P((a ≫ -1, a ≪ 1) => 1 / (1 - a))
+        # refine and limits
+        @test refine(P(x ≪ 0 => -x, true => x); assume = @assume(x > 1)) == x
+        @test refine(H(x - 1); assume = @assume(x > 2)) == 1
+        @test limit(f, x => 0; dir = :+) == 0 && limit(P(x ≪ 1 => x, true => 2 - x), x => 1) == 1
+        @test limit(H(x), x => 0; dir = :-) == 0 && limit(f, x => Inf) == Sym(Inf)
+        @test_throws GruntzError limit(H(x), x => 0)
+    end
+
     @testset "Latexify" begin
         @syms a
         L(v) = repr(MIME"text/latex"(), v)

@@ -86,6 +86,10 @@ _ispos(u, A) = _signs(u, A) == _POS
 # one identity at the node, or nothing
 function _refine_rule(e::Sym, A::Assumptions)
     k = e.kind
+    if k == FN && (haskey(_COND_RELS, e.name) || e.name in (:heaviside, :sign, :abs))
+        r = haskey(_COND_RELS, e.name) ? _refine_cond(e, A) : _refine_step(e, A)
+        r === nothing || return r
+    end
     if k == POW
         b, q = e.args
         if b.kind == NUMBER && b.num == NM1 && !(q.kind == NUMBER)

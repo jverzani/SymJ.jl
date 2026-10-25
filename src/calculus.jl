@@ -55,6 +55,8 @@ function _diff(ex::Sym, x::Sym)
             return mul(mul(e, pow(b, add(e, MINUS_ONE))), db)
         end
         return mul(ex, add(mul(de, log(b)), mul(mul(e, db), pow(b, MINUS_ONE))))
+    elseif ex.name === :piecewise                 # piece by piece
+        return apply_function(:piecewise, Sym[isodd(i) ? a : _diff(a, x) for (i, a) in enumerate(ex.args)])
     else
         rule = get(FUNCTION_RULES, ex.name, nothing)
         terms = Sym[]
