@@ -918,6 +918,13 @@ function is made with `@syms y()`, and its derivatives are written `y'(x)`, `y''
 SymJ.dsolve(y'(x) + 2y(x) ~ exp(x), y(x))
 ```
 
+The prime goes on the function, before the call. After the call, `'` is Julia's
+adjoint of the value `y(x)`, its complex conjugate, and not a derivative:
+
+```@example tut
+y'(x), y(x)'
+```
+
 First-order equations that are linear, separable, Bernoulli, exact or homogeneous are
 recognized:
 
