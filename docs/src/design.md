@@ -940,7 +940,20 @@ three rounds each, taking each workload's best time.
   higher-order ones are not solved yet. The boundary terms vanish only for natural
   bounds, so each closed form is checked against direct sums for several `n` (and
   integer values of other parameters), and a failed check leaves the sum unevaluated.
-  A small positive lower bound is the sum from 0 less its first terms.
+  A small positive lower bound is the sum from 0 less its first terms. A recurrence of
+  order 2 or 3 is solved by its hypergeometric solutions (Hyper, below), combined to
+  match the sum's first values.
+- **Hyper** (Petkovšek), for `Σ_i p_i(n) y(n+i) = 0`: a hypergeometric solution has
+  `y(n+1)/y(n) = Z A(n)/B(n) C(n+1)/C(n)` with `A` a monic factor of `p_0(n)`, `B` of
+  `p_d(n-d+1)`; for each pair, `Z` a nonzero root of the leading coefficients of
+  `P_i = p_i Π_{j<i} A(n+j) Π_{j≥i} B(n+j)`, and `C` a polynomial solution of
+  `Σ Z^i P_i C(n+i) = 0`, its degree bounded by the indicial polynomial of the
+  recurrence written in differences (`E = 1 + Δ`), its coefficients from a nullspace.
+  Factors are over the rationals. `SymJ.rsolve(eq, y(n), inits...)` reads the
+  recurrence, raises a hypergeometric right side `g` to a homogeneous recurrence one
+  order higher (`L(y)(n+1) - ρ(n) L(y)(n) = 0`, `ρ = g(n+1)/g(n)`), fits the solutions
+  to the initial values (or to `y(0), …, y(d-1)` themselves) and checks the result
+  against values from the recurrence; a solution outside their span is an error.
 - **Infinite sums** are limits of the antidifference (`limit`). A polynomial times
   `r^k` converges exactly when `-1 < r < 1`, decided by cases on a parameter.
 - **Otherwise** the sum stays unevaluated, `Sum(f, k, a, b)`, which adds up once its

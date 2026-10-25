@@ -1,0 +1,257 @@
+# Linear recurrences with polynomial coefficients: their hypergeometric solutions, by
+# Petkovšek's algorithm Hyper.
+#
+# For Σ_{i=0}^{d} p_i(n) y(n+i) = 0, a hypergeometric solution has
+#     y(n+1)/y(n) = Z A(n)/B(n) C(n+1)/C(n)
+# with A a monic factor of p_0(n), B one of p_d(n - d + 1), and C a polynomial. For each
+# pair (A, B), Z is a nonzero root of the leading coefficients of
+#     P_i(n) = p_i(n) Π_{j<i} A(n+j) Π_{j≥i}^{d-1} B(n+j),
+# and C a polynomial solution of Σ_i Z^i P_i(n) C(n+i) = 0, its degree bounded by the
+# indicial polynomial of the recurrence written in differences. A and B range over the
+# factors over the rationals (irreducible factors of higher degree, and so solutions whose
+# A or B needs algebraic roots, are not split).
+
+const _HYPER_MAX_PAIRS = 400
+const _HYPER_MAX_DEGREE = 40
+
+# the hypergeometric solutions, as (ρ, C): y(n) = C(n) Π ρ(j), ρ = Z A/B; nothing when the
+# search is too large
+function _hyper(p::Vector{Sym}, n::Sym)
+    while length(p) > 1 && iszero(p[end])
+        pop!(p)
+    end
+    while length(p) > 1 && iszero(p[1])
+        popfirst!(p)
+    end
+    d = length(p) - 1
+    d >= 1 || return Tuple{Sym,Sym}[]
+    As = _monic_divisors(p[1], n)
+    Bs = _monic_divisors(expand(subs(p[end], n => n - d + 1)), n)
+    (As === nothing || Bs === nothing || length(As) * length(Bs) > _HYPER_MAX_PAIRS) && return nothing
+    Z = Sym(Symbol("_hyper_Z"))
+    out = Tuple{Sym,Sym}[]
+    for A in As, B in Bs
+        P = Sym[]
+        for i in 0:d
+            t = p[i+1]
+            for j in 0:(i - 1)
+                t *= subs(A, n => n + j)
+            end
+            for j in i:(d - 1)
+                t *= subs(B, n => n + j)
+            end
+            push!(P, expand(t))
+        end
+        degs = [iszero(q) ? -1 : _xdeg(q, n) for q in P]
+        m = maximum(degs)
+        zpoly = _add_many(_coef(P[i+1], n, m) * Z^i for i in 0:d if degs[i+1] == m)
+        has(zpoly, Z) || continue
+        zs = try solve(expand(zpoly) ~ 0, Z) catch; continue end
+        for z in unique(zs)
+            iszero(z) && continue
+            Q = Sym[expand(z^i * P[i+1]) for i in 0:d]
+            for C in _poly_solutions(Q, n)
+                ρ = cancel(z * A / B)
+                r = cancel(ρ * subs(C, n => n + 1) / C)
+                any(((ρ2, C2),) -> iszero(cancel(r - ρ2 * subs(C2, n => n + 1) / C2)), out) && continue
+                push!(out, (ρ, C))
+            end
+        end
+    end
+    out
+end
+
+# the monic divisors of a polynomial in n over the rationals (its content dropped)
+function _monic_divisors(p::Sym, n::Sym)
+    has(p, n) || return [ONE]
+    f = factor(p)
+    fs = f.kind == MUL ? collect(zip(f.args, f.exps)) : f.kind == POW ? [(f.args[1], f.args[2])] : [(f, ONE)]
+    facs = Tuple{Sym,Int}[]
+    for (b, e) in fs
+        has(b, n) || continue
+        (e.kind == NUMBER && _isint(e.num)) || return nothing
+        lc = _coef(b, n, _xdeg(b, n))
+        push!(facs, (expand(b / lc), _toint(e.num)))
+    end
+    divs = [ONE]
+    for (b, e) in facs
+        divs = [d * b^j for d in divs for j in 0:e]
+    end
+    [expand(d) for d in divs]
+end
+
+# a basis of the polynomial solutions C of Σ_i Q_i(n) C(n+i) = 0
+function _poly_solutions(Q::Vector{Sym}, n::Sym)
+    d = length(Q) - 1
+    # in differences: E^i = Σ_j binomial(i, j) Δ^j, so r_j = Σ_i binomial(i, j) Q_i
+    r = [expand(_add_many(binomial(i, j) * Q[i+1] for i in j:d)) for j in 0:d]
+    nz = [j for j in 0:d if !iszero(r[j+1])]
+    isempty(nz) && return Sym[]
+    b = maximum(_xdeg(r[j+1], n) - j for j in nz)
+    N = Sym(Symbol("_hyper_N"))
+    ind = _add_many(_coef(r[j+1], n, _xdeg(r[j+1], n)) * prod((N - t for t in 0:(j - 1)); init = ONE)
+                    for j in nz if _xdeg(r[j+1], n) - j == b)
+    roots = try solve(expand(ind) ~ 0, N) catch; return Sym[] end
+    ints = [_toint(v.num) for v in roots if v.kind == NUMBER && _isint(v.num) && v.num >= N0]
+    isempty(ints) && return Sym[]
+    D = maximum(ints)
+    D <= _HYPER_MAX_DEGREE || return Sym[]
+    # L(n^k) for k = 0..D, their coefficients as the columns of a matrix
+    cols = [expand(_add_many(Q[i+1] * (n + i)^k for i in 0:d)) for k in 0:D]
+    rows = maximum(c -> iszero(c) ? 0 : _xdeg(c, n), cols) + 1
+    M = Sym[_coef(cols[k+1], n, j) for j in 0:(rows - 1), k in 0:D]
+    B = LinearAlgebra.nullspace(M)
+    [expand(_add_many(B[k+1, c] * n^k for k in 0:D)) for c in 1:size(B, 2)]
+end
+
+# Σ_i p_i(n) S(n+i) = 0 with S(m) given by `value(m)`: S as a combination of the
+# hypergeometric solutions, its coefficients from initial values, checked at further n;
+# nothing when the solutions do not span S
+function _recurrence_solve(p::Vector{Sym}, n::Sym, value)
+    sols = _hyper(copy(p), n)
+    (sols === nothing || isempty(sols)) && return nothing
+    # start past the integer zeros and poles of the ratios and of the leading coefficient
+    bad = Int[]
+    for (ρ, _) in sols, q in numer_denom(ρ)
+        _int_roots!(bad, q, n)
+    end
+    _int_roots!(bad, p[end], n)
+    n0 = max(0, (isempty(bad) ? -1 : maximum(bad)) + 1)
+    hs = Sym[_present_product(C * _hyper_product(ρ, n, n0)) for (ρ, C) in sols]
+    r = length(hs)
+    cs = [Sym(Symbol("_hyper_c", j)) for j in 1:r]
+    S = _add_many(cs[j] * hs[j] for j in 1:r)
+    eqs = Relation[]
+    for m in n0:(n0 + r + 12)
+        length(eqs) == r + 2 && break
+        v = value(m)
+        v === nothing || push!(eqs, subs(S, n => m) ~ v)
+    end
+    length(eqs) == r + 2 || return nothing
+    sol = try solve(eqs, cs) catch; return nothing end
+    (sol isa AbstractVector && !isempty(sol)) || return nothing
+    s = first(sol)
+    all(c -> haskey(s, c), cs) || return nothing
+    simplify(subs(S, s...)), n0
+end
+function _int_roots!(out, q::Sym, n::Sym)
+    has(q, n) || return out
+    for v in (try solve(q ~ 0, n) catch; Sym[] end)
+        v.kind == NUMBER && _isint(v.num) && push!(out, _toint(v.num))
+    end
+    out
+end
+
+## rsolve
+
+"""
+    SymJ.rsolve(eq, y(n), inits...)
+
+The solution of a linear recurrence with polynomial coefficients in `n`, such as
+`y(n+2) ~ y(n+1) + y(n)`, as a combination of hypergeometric terms (Petkovšek's
+algorithm Hyper). `inits` are initial values, `y(0) => 0, y(1) => 1`; without them the
+answer is in terms of `y(0), …, y(d-1)` for a recurrence of order `d`. The right side
+may also be a single hypergeometric term in `n` (a polynomial, `2^n`, `n!`). Not
+exported.
+
+An error when the solution is not a combination of hypergeometric terms (or Hyper's
+search for them is too large).
+
+```julia
+@syms n y()
+SymJ.rsolve(y(n+2) ~ y(n+1) + y(n), y(n), y(0) => 0, y(1) => 1)   # Binet's formula
+SymJ.rsolve(y(n+1) ~ 2y(n) + 1, y(n))                              # 2^n (y(0) + 1) - 1
+```
+"""
+function rsolve(eq, yn::Sym, inits::Pair...)
+    (yn.kind == FN && length(yn.args) == 1 && _isnamed(yn.args[1])) ||
+        throw(ArgumentError("rsolve: $yn is not a function of a symbol, such as y(n)"))
+    yname, n = yn.name, yn.args[1]
+    e = eq isa Relation ? expand(eq.lhs - eq.rhs) : throw(ArgumentError("rsolve: $eq is not an equation"))
+    # the coefficient of each y(n + s), and the terms free of y
+    coefs = Dict{Int,Sym}()
+    g = ZERO
+    terms = e.kind == ADD ? [Sym(c) * t for (c, t) in zip(e.coefs, e.args)] : [e]
+    e.kind == ADD && !iszero(e.num) && push!(terms, Sym(e.num))
+    for t in terms
+        ys = _yfactors(t, yname)
+        if isempty(ys)
+            g -= t                                 # Σ p_i y(n+i) = g
+            continue
+        end
+        length(ys) == 1 || throw(ArgumentError("rsolve: the recurrence is not linear in $yname"))
+        yt = only(ys)
+        s = expand(yt.args[1] - n)
+        (s.kind == NUMBER && _isint(s.num)) || throw(ArgumentError("rsolve: $yt is not $yname(n + integer)"))
+        c = cancel(t / yt)
+        _yfactors(c, yname) == Sym[] || throw(ArgumentError("rsolve: the recurrence is not linear in $yname"))
+        coefs[_toint(s.num)] = get(coefs, _toint(s.num), ZERO) + c
+    end
+    isempty(coefs) && throw(ArgumentError("rsolve: no $yname in the equation"))
+    lo, hi = extrema(keys(coefs))
+    # y(n + lo) ... as y(n) ...: shift n by -lo
+    p = Sym[expand(subs(get(coefs, i, ZERO), n => n - lo)) for i in lo:hi]
+    g = expand(subs(g, n => n - lo))
+    # denominators cleared: polynomial coefficients
+    den = reduce((a, c) -> (q = numer_denom(c)[2]; cancel(a * q / gcd(a, q))), vcat(p, g); init = ONE)
+    p = [expand(cancel(c * den)) for c in p]
+    g = expand(cancel(g * den))
+    all(c -> _ispolyin(c, [n]), p) || throw(ArgumentError("rsolve: the coefficients are not polynomials in $n"))
+    d = length(p) - 1
+    d >= 1 || throw(ArgumentError("rsolve: $eq does not relate values at different n"))
+    # the initial values: given, or y(0), ..., y(d-1) themselves
+    init = Dict{Int,Sym}()
+    for (lhs, v) in inits
+        (lhs isa Sym && lhs.kind == FN && lhs.name === yname && length(lhs.args) == 1 &&
+         lhs.args[1].kind == NUMBER && _isint(lhs.args[1].num)) || throw(ArgumentError("rsolve: $lhs is not $yname(integer)"))
+        init[_toint(lhs.args[1].num)] = Sym(v)
+    end
+    if isempty(init)
+        for i in 0:(d - 1)
+            init[i] = apply_function(yname, Sym[Sym(i)])
+        end
+    end
+    length(init) == d || throw(ArgumentError("rsolve: a recurrence of order $d takes $d initial values"))
+    # values by the recurrence itself
+    vals = Dict{Int,Sym}(i => v for (i, v) in init)
+    m0 = minimum(keys(init))
+    function value(m)
+        haskey(vals, m) && return vals[m]
+        m < m0 + d && return nothing
+        prev = [value(m - d + i) for i in 0:(d - 1)]
+        any(isnothing, prev) && return nothing
+        pd = subs(p[end], n => m - d)
+        iszero(pd) && return nothing
+        vals[m] = expand((subs(g, n => m - d) - _add_many(subs(p[i+1], n => m - d) * prev[i+1] for i in 0:(d - 1))) / pd)
+    end
+    # a hypergeometric right side: raised to a homogeneous recurrence one order higher,
+    # L(y)(n+1) ρ_den(n) - L(y)(n) ρ_num(n) = 0 for g(n+1)/g(n) = ρ_num/ρ_den
+    hom = p
+    if !iszero(g)
+        ρ = _hyper_ratio(g, n)
+        ρ === nothing && throw(ArgumentError("rsolve: the right side $g is not a hypergeometric term in $n"))
+        rn, rd = numer_denom(ρ)
+        hom = [ZERO for _ in 0:(d + 1)]
+        for i in 0:d
+            hom[i+2] += expand(rd * subs(p[i+1], n => n + 1))
+            hom[i+1] -= expand(rn * p[i+1])
+        end
+    end
+    sol = _recurrence_solve(hom, n, value)
+    sol === nothing && throw(ArgumentError("rsolve: the solution is not a combination of hypergeometric terms"))
+    S, n0 = sol
+    # checked against the recurrence's own values
+    for m in n0:(n0 + length(hom) + 3)
+        v = value(m)
+        v === nothing && continue
+        iszero(expand(simplify(subs(S, n => m) - v))) ||
+            throw(ArgumentError("rsolve: the solution is not a combination of hypergeometric terms"))
+    end
+    S                                              # (y's own index: the shift was only of n)
+end
+
+function _yfactors(t::Sym, yname::Symbol)
+    out = Sym[]
+    _collect_fn!(out, t, yname)
+    out
+end

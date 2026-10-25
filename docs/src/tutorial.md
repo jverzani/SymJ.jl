@@ -587,6 +587,22 @@ algorithm:
 SymJ.summation(binomial(n, k)^2, k, 0, n), SymJ.summation(binomial(n, k) * binomial(m, n - k), k, 0, n)
 ```
 
+When Zeilberger's recurrence is of higher order, its hypergeometric solutions (found by
+Petkovšek's algorithm Hyper) may still give the sum; here Binet's formula for the
+Fibonacci numbers:
+
+```@example tut
+SymJ.summation(binomial(n - k, k), k, 0, n)
+```
+
+The same algorithm solves linear recurrences, `SymJ.rsolve` (not exported), from initial
+values or in terms of them:
+
+```@example tut
+@syms w()
+SymJ.rsolve(w(n + 2) ~ w(n + 1) + w(n), w(n), w(0) => 0, w(1) => 1), SymJ.rsolve(w(n + 1) ~ 2w(n) + 1, w(n))
+```
+
 Whether a series converges can depend on a parameter; the answer then has cases, which
 assumptions settle:
 
