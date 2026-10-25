@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Design notes — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=b0f527f1">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=c0a46f74">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Design notes — SymJ.jl">
   <meta property="og:title" content="Design notes — SymJ.jl">
@@ -1214,6 +1214,19 @@ end</code></pre>
 </table>
 </div>
 <p>The <code class="md-code-inline">expand(e*(e+w))</code> row takes 5.1 ms in total. Of that, the <code class="md-code-inline">Poly</code> product (816 × 817 terms, giving 6 272) takes 1.8 ms, <code class="md-code-inline">Poly → Sym</code> takes 3.2 ms, and <code class="md-code-inline">Sym → Poly</code> takes 1.5 ms. SymEngine.jl&#39;s <code class="md-code-inline">expand</code> works on the generic tree, so this compares like with like at the user level. SymEngine&#39;s own sparse polynomial classes are not exposed by SymEngine.jl. SymEngine.jl&#39;s numbers also include the cost of the C wrapper (a <code class="md-code-inline">ccall</code> and a finalizer per operation), which dominates the small benchmarks.</p>
+<h2 id="Differential-equations" class="md-heading">Differential equations<a href="#Differential-equations" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<ul class="md-list-tight">
+<li><p><strong><code class="md-code-inline">SymJ.dsolve(eq, y(x), ics...)</code></strong> reads the equation as <code class="md-code-inline">F(x, Y₀, …, Yₙ) = 0</code>, the derivatives of <code class="md-code-inline">y(x)</code> replaced by placeholder symbols, and tries the methods in turn: a missing <code class="md-code-inline">y</code> (solve for <code class="md-code-inline">v = y⁽ʲ⁾</code>, then integrate), linear (<code class="md-code-inline">F</code> affine in the <code class="md-code-inline">Yₖ</code>: the integrating factor at first order; constant coefficients by the characteristic roots, with <code class="md-code-inline">x^j</code> for a multiple root and <code class="md-code-inline">e^(αx) cos βx</code>, <code class="md-code-inline">e^(αx) sin βx</code> for a conjugate pair; Cauchy–Euler by <code class="md-code-inline">x = eᵗ</code>, which turns <code class="md-code-inline">xᵏ y⁽ᵏ⁾</code> into <code class="md-code-inline">θ(θ - 1)…(θ - k + 1) y</code>), then first order <code class="md-code-inline">y&#39; = f(x, y)</code>: separable (<code class="md-code-inline">f</code> factors as <code class="md-code-inline">g(x)h(y)</code>), Bernoulli, exact (with an integrating factor in <code class="md-code-inline">x</code> or <code class="md-code-inline">y</code> alone), homogeneous (<code class="md-code-inline">f(x, vx)</code> free of <code class="md-code-inline">x</code>).</p>
+</li>
+<li><p><strong>Particular solutions.</strong> Undetermined coefficients when every term of the right side is <code class="md-code-inline">c xᵐ e^(αx) cos(βx)</code> (or <code class="md-code-inline">sin</code>); the trial form is multiplied by <code class="md-code-inline">xˢ</code>, <code class="md-code-inline">s</code> the multiplicity of <code class="md-code-inline">α + iβ</code> as a root, and the coefficients come from a linear system. Otherwise variation of parameters, with the Wronskian.</p>
+</li>
+<li><p><strong>Solutions</strong> are explicit <code class="md-code-inline">y = S</code> or implicit <code class="md-code-inline">φ(x, y) = C</code>; an implicit one is solved for <code class="md-code-inline">y</code> when that gives one solution (with an initial condition, the branch through the point). Each is checked by substitution (implicitly, <code class="md-code-inline">y&#39; = -φₓ/φ_y</code>), symbolically and else numerically at a few points. Constants are absorbed where one appears once: <code class="md-code-inline">k C</code> is <code class="md-code-inline">C</code>, and <code class="md-code-inline">e^C</code> in an exponent is <code class="md-code-inline">C</code>.</p>
+</li>
+<li><p><strong>Derivatives as values.</strong> <code class="md-code-inline">Derivative(f, v)</code> binds <code class="md-code-inline">v</code>: substituting a value gives the derivative at a point, <code class="md-code-inline">Derivative(f, v, a)</code>, and substituting into <code class="md-code-inline">f</code> evaluates it (<code class="md-code-inline">Derivative(y(x), x)</code> with <code class="md-code-inline">y(x) =&gt; sin(x)</code> is <code class="md-code-inline">cos(x)</code>). <code class="md-code-inline">y&#39;</code> on a <code class="md-code-inline">SymFunction</code> builds these, so initial conditions read <code class="md-code-inline">y&#39;(0) =&gt; 1</code>, and a derivative at a point prints the same way (<code class="md-code-inline">y&#39;&#39;(0)</code>, not <code class="md-code-inline">Derivative(Derivative(y(x), x), x, 0)</code>).</p>
+</li>
+<li><p><strong>Integrals</strong> go through an integrator hook that the RischIntegrate extension sets; without it a small integrator does polynomials and <code class="md-code-inline">exp</code>, <code class="md-code-inline">sin</code>, <code class="md-code-inline">cos</code>, <code class="md-code-inline">sinh</code>, <code class="md-code-inline">cosh</code> of linear arguments, and anything else is an unevaluated <code class="md-code-inline">Integral(f, x)</code> whose derivative is <code class="md-code-inline">f</code>.</p>
+</li>
+</ul>
 <h2 id="Not-yet-done-/-open-questions" class="md-heading">Not yet done / open questions<a href="#Not-yet-done-/-open-questions" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <ul class="md-list-tight">
 <li><p><strong>Parameters and variables sharing a name.</strong> Prohibit it, or print them distinctly? See Parameters above.</p>
@@ -1281,6 +1294,7 @@ end</code></pre>
           <a class="md-toc-link md-toc-h2" href="#Linear-algebra">Linear algebra</a>
           <a class="md-toc-link md-toc-h2" href="#Assumptions">Assumptions</a>
           <a class="md-toc-link md-toc-h2" href="#Performance-snapshot">Performance snapshot</a>
+          <a class="md-toc-link md-toc-h2" href="#Differential-equations">Differential equations</a>
           <a class="md-toc-link md-toc-h2" href="#Not-yet-done-/-open-questions">Not yet done / open questions</a>
       </div>
     </aside>
@@ -1291,6 +1305,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=b0f527f1"></script>
+  <script src="../assets/materialdocs.js?v=c0a46f74"></script>
 </body>
 </html>

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=348707e8">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=18e21da0">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -1442,6 +1442,86 @@ G(x =&gt; Sym(π)) - G(x =&gt; 0)</code></pre>
 \[2\]
 </div>
 </div>
+<h2 id="Differential-equations" class="md-heading">Differential equations<a href="#Differential-equations" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p><code class="md-code-inline">SymJ.dsolve</code> solves an ordinary differential equation for an unknown function. The function is made with <code class="md-code-inline">@syms y()</code>, and its derivatives are written <code class="md-code-inline">y&#39;(x)</code>, <code class="md-code-inline">y&#39;&#39;(x)</code> (or <code class="md-code-inline">diff(y(x), x)</code>). The answer is an equation, with constants <code class="md-code-inline">C1, C2, …</code>:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms y()
+SymJ.dsolve(y&#39;(x) + 2y(x) ~ exp(x), y(x))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[y\left( x \right) = \frac{C1}{e^{2 \cdot x}} + \frac{e^{x}}{3}\]
+</div>
+</div>
+<p>First-order equations that are linear, separable, Bernoulli, exact or homogeneous are recognized:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.dsolve(y&#39;(x) ~ x * y(x)^2, y(x)), SymJ.dsolve(y&#39;(x) ~ (x + y(x)) / x, y(x))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( y\left( x \right) = \frac{-2}{x^{2} + C1}, \; y\left( x \right) = \left( C1 + \log\left( x \right) \right) \cdot x \right)\]
+</div>
+</div>
+<p>When <code class="md-code-inline">y</code> cannot be solved for, the solution is implicit:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.dsolve(2x * y(x) + (x^2 + 3y(x)^2) * y&#39;(x) ~ 0, y(x))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[x^{2} \cdot y\left( x \right) + \left( y\left( x \right) \right)^{3} = C1\]
+</div>
+</div>
+<p>Linear equations with constant coefficients, of any order, are solved through the roots of the characteristic polynomial; a right side is handled by undetermined coefficients, or by variation of parameters:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.dsolve(y&#39;&#39;(x) + 2y&#39;(x) + 5y(x) ~ 0, y(x)), SymJ.dsolve(y&#39;&#39;(x) + y(x) ~ sin(x), y(x))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( y\left( x \right) = \frac{C1 \cdot \cos\left( 2 \cdot x \right) + C2 \cdot \sin\left( 2 \cdot x \right)}{e^{x}}, \; y\left( x \right) = C1 \cdot \cos\left( x \right) + C2 \cdot \sin\left( x \right) - \frac{\cos\left( x \right) \cdot x}{2} \right)\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.dsolve(y&#39;&#39;(x) + y(x) ~ tan(x), y(x))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[y\left( x \right) = C1 \cdot \cos\left( x \right) + C2 \cdot \sin\left( x \right) + \frac{\cos\left( x \right) \cdot \log\left( -2 \cdot \sin\left( x \right) + 2 \right)}{2} - \frac{\cos\left( x \right) \cdot \log\left( 2 \cdot \sin\left( x \right) + 2 \right)}{2}\]
+</div>
+</div>
+<p>Cauchy–Euler equations, with coefficients <code class="md-code-inline">x^k</code> on <code class="md-code-inline">y⁽ᵏ⁾</code>, are solved too:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.dsolve(x^2 * y&#39;&#39;(x) - 2y(x) ~ 0, y(x))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[y\left( x \right) = C2 \cdot x^{2} + \frac{C1}{x}\]
+</div>
+</div>
+<p>Initial conditions, one for each order, fix the constants:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.dsolve(y&#39;&#39;(x) + y(x) ~ 0, y(x), y(0) =&gt; 0, y&#39;(0) =&gt; 1)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[y\left( x \right) = \sin\left( x \right)\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.dsolve(y&#39;(x) ~ -x / y(x), y(x), y(0) =&gt; 2)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[y\left( x \right) = \sqrt{ - x^{2} + 4}\]
+</div>
+</div>
       </article>
       <footer class="md-footer">
 <p>Built with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and <a href="https://github.com/mthelm85/MaterialDocs.jl">MaterialDocs.jl</a>.</p>
@@ -1481,6 +1561,7 @@ G(x =&gt; Sym(π)) - G(x =&gt; 0)</code></pre>
           <a class="md-toc-link md-toc-h2" href="#Series">Series</a>
           <a class="md-toc-link md-toc-h2" href="#Integrals">Integrals</a>
             <a class="md-toc-link md-toc-h3" href="#Definite-integrals">Definite integrals</a>
+          <a class="md-toc-link md-toc-h2" href="#Differential-equations">Differential equations</a>
       </div>
     </aside>
   </div>
@@ -1498,6 +1579,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=348707e8"></script>
+  <script src="../assets/materialdocs.js?v=18e21da0"></script>
 </body>
 </html>
