@@ -1760,6 +1760,54 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test_throws ArgumentError R(y(n + 2) ~ y(n + 1) + y(n), y(n), y(1) => 1)
     end
 
+    @testset "differential equations" begin
+        @syms y()
+        D = SymJ.dsolve
+        C1, C2, C3 = Sym(:C1), Sym(:C2), Sym(:C3)
+        # derivatives: bound variables, y' notation, evaluation after substitution
+        @test y'(x) == diff(y(x), x) && y''(x) == diff(y(x), x, 2) && free_symbols(y'(0)) == Sym[]
+        @test subs(diff(y(x), x), x => 0) == y'(0) && subs(y'(0), x => 5) == y'(0)
+        @test subs(diff(y(x), x), y(x) => sin(x)) == cos(x) && subs(y''(0), y(x) => x^3 + x^2) == 2
+        @test diff(y'(0), x) == 0 && diff(SymJ._integrate(exp(x^2), x), x) == exp(x^2)
+        @test string(y'(0)) == "y'(0)" && string(y''(x + 1)) == "y''(x + 1)" && string(y'(0) + 2y(1)) == "y'(0) + 2*y(1)"
+        # first order
+        @test D(y'(x) ~ y(x), y(x)) == (y(x) ~ C1 * exp(x)) && D(y'(x) ~ x * y(x), y(x)) == (y(x) ~ C1 * exp(x^2 / 2))
+        @test D(y'(x) + 2y(x) ~ exp(x), y(x)) == (y(x) ~ C1 * exp(-2x) + exp(x) / 3)
+        @test D(y'(x) ~ x * y(x)^2, y(x)) == (y(x) ~ -2 / (x^2 + C1)) && D(y'(x) ~ y(x)^2, y(x)) == (y(x) ~ -1 / (x + C1))
+        @test D(y'(x) ~ (x + y(x)) / x, y(x)) == (y(x) ~ (C1 + log(x)) * x)                    # homogeneous
+        @test D(2x * y(x) + (x^2 + 3y(x)^2) * y'(x) ~ 0, y(x)) == (x^2 * y(x) + y(x)^3 ~ C1)   # exact, implicit
+        @test D(y'(x) ~ sin(x) * y(x), y(x)) == (y(x) ~ C1 * exp(-cos(x)))
+        # constant coefficients, any order
+        @test D(y''(x) + y(x) ~ 0, y(x)) == (y(x) ~ C1 * cos(x) + C2 * sin(x))
+        @test D(y''(x) - 3y'(x) + 2y(x) ~ 0, y(x)) == (y(x) ~ C1 * exp(x) + C2 * exp(2x))
+        @test D(y''(x) - 2y'(x) + y(x) ~ 0, y(x)) == (y(x) ~ (C1 + C2 * x) * exp(x))         # a double root
+        @test D(y''(x) + 2y'(x) + 5y(x) ~ 0, y(x)) == (y(x) ~ (C1 * cos(2x) + C2 * sin(2x)) * exp(-x))
+        @test D(y''(x) + y(x) ~ x, y(x)) == (y(x) ~ C1 * cos(x) + C2 * sin(x) + x)
+        @test D(y''(x) - y(x) ~ exp(x), y(x)) == (y(x) ~ C1 * exp(-x) + C2 * exp(x) + x * exp(x) / 2)   # resonance
+        @test D(y''(x) + y(x) ~ sin(x), y(x)) == (y(x) ~ C1 * cos(x) + C2 * sin(x) - x * cos(x) / 2)
+        @test D(y''(x) + 4y(x) ~ x * cos(x), y(x)) == (y(x) ~ C1 * cos(2x) + C2 * sin(2x) + x * cos(x) / 3 + 2sin(x) / 9)
+        @test D(y''(x) ~ cos(2x) + 1, y(x)) == (y(x) ~ C1 * x + C2 + x^2 / 2 - cos(2x) / 4)
+        r = D(diff(y(x), x, 3) - y(x) ~ 0, y(x))
+        @test iszero(simplify(diff(r.rhs, x, 3) - r.rhs)) && all(C -> has(r.rhs, C), (C1, C2, C3))
+        # Cauchy–Euler; y missing
+        @test D(x^2 * y''(x) - 2y(x) ~ 0, y(x)) == (y(x) ~ C1 / x + C2 * x^2)
+        @test D(x^2 * y''(x) + x * y'(x) + y(x) ~ 0, y(x)) == (y(x) ~ C1 * cos(log(x)) + C2 * sin(log(x)))
+        r = D(x^2 * y''(x) - x * y'(x) + y(x) ~ x, y(x))                                       # a double root
+        @test iszero(simplify(x^2 * diff(r.rhs, x, 2) - x * diff(r.rhs, x) + r.rhs - x)) && has(r.rhs, C1) && has(r.rhs, C2)
+        @test D(x * y''(x) + y'(x) ~ 0, y(x)) == (y(x) ~ C1 * log(x) + C2)
+        # initial conditions
+        @test D(y''(x) + y(x) ~ 0, y(x), y(0) => 0, y'(0) => 1) == (y(x) ~ sin(x))
+        @test D(y''(x) + 4y(x) ~ 0, y(x), y(0) => 1, y'(0) => 0) == (y(x) ~ cos(2x))
+        @test D(y'(x) ~ y(x), y(x), y(0) => 3) == (y(x) ~ 3exp(x)) && D(y'(x) ~ x * y(x)^2, y(x), y(0) => 1) == (y(x) ~ -2 / (x^2 - 2))
+        @test D(y'(x) ~ -x / y(x), y(x), y(0) => 2) == (y(x) ~ sqrt(4 - x^2))                 # the branch through (0, 2)
+        @test D(y''(x) - y(x) ~ 1, y(x), y(0) => 0, y'(0) => 0) == (y(x) ~ cosh(x) - 1)
+        # errors
+        @test_throws ArgumentError D(y'(x) ~ y(x)^2 + x, y(x))                                  # Riccati: no method
+        @test_throws ArgumentError D(y'(x) ~ y(x), y(x), y(0) => 1, y(1) => 2)
+        @test_throws ArgumentError D(y(x) + x ~ 0, y(x))
+        @test_throws ArgumentError D(y'(x) - y(x), y(x))
+    end
+
     @testset "piecewise, heaviside, dirac" begin
         P, H, D = SymJ.piecewise, SymJ.heaviside, SymJ.dirac
         @syms a

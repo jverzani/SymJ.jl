@@ -125,4 +125,18 @@ import PolyLog as PL
         @test ∫(cos(x) * D(x - 1), x) == cos(Sym(1)) * H(x - 1) && ∫(exp(x) * D(2x - 2), x) == E / 2 * H(x - 1)
         @test ∫(x^2 * D(x - 2, 1), x) == -4H(x - 2)                                       # δ′: -g′(a)
     end
+
+    @testset "RischIntegrate: differential equations" begin
+        @syms y()
+        C1, C2 = Sym(:C1), Sym(:C2)
+        D = SymJ.dsolve
+        @test D(y'(x) ~ 1 / (1 + x^2), y(x)) == (y(x) ~ atan(x) + C1)
+        @test D(y''(x) ~ sin(x), y(x)) == (y(x) ~ C1 * x + C2 - sin(x))
+        @test D(y'(x) ~ (x^2 + y(x)^2) / (x * y(x)), y(x)) == (y(x) ~ sqrt((C1 + 2log(x)) * x^2))   # homogeneous
+        r = D(y''(x) + y(x) ~ tan(x), y(x))                                                   # variation of parameters
+        @test iszero(simplify(diff(r.rhs, x, 2) + r.rhs - tan(x)))
+        r = D(y'(x) + y(x) ~ x * y(x)^3, y(x))                                                 # Bernoulli
+        @test iszero(simplify(diff(r.rhs, x) + r.rhs - x * r.rhs^3))
+        @test D(y'(x) ~ exp(x + y(x)), y(x)) == (-exp(-y(x)) - exp(x) ~ C1)                     # separable, implicit
+    end
 end

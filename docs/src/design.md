@@ -1079,6 +1079,36 @@ like at the user level. SymEngine's own sparse polynomial classes are not expose
 SymEngine.jl. SymEngine.jl's numbers also include the cost of the C wrapper (a `ccall`
 and a finalizer per operation), which dominates the small benchmarks.
 
+## Differential equations
+
+- **`SymJ.dsolve(eq, y(x), ics...)`** reads the equation as `F(x, Y₀, …, Yₙ) = 0`, the
+  derivatives of `y(x)` replaced by placeholder symbols, and tries the methods in turn:
+  a missing `y` (solve for `v = y⁽ʲ⁾`, then integrate), linear (`F` affine in the `Yₖ`:
+  the integrating factor at first order; constant coefficients by the characteristic
+  roots, with `x^j` for a multiple root and `e^(αx) cos βx`, `e^(αx) sin βx` for a
+  conjugate pair; Cauchy–Euler by `x = eᵗ`, which turns `xᵏ y⁽ᵏ⁾` into
+  `θ(θ - 1)…(θ - k + 1) y`), then first order `y' = f(x, y)`: separable (`f` factors as
+  `g(x)h(y)`), Bernoulli, exact (with an integrating factor in `x` or `y` alone),
+  homogeneous (`f(x, vx)` free of `x`).
+- **Particular solutions.** Undetermined coefficients when every term of the right side
+  is `c xᵐ e^(αx) cos(βx)` (or `sin`); the trial form is multiplied by `xˢ`, `s` the
+  multiplicity of `α + iβ` as a root, and the coefficients come from a linear system.
+  Otherwise variation of parameters, with the Wronskian.
+- **Solutions** are explicit `y = S` or implicit `φ(x, y) = C`; an implicit one is solved
+  for `y` when that gives one solution (with an initial condition, the branch through
+  the point). Each is checked by substitution (implicitly, `y' = -φₓ/φ_y`),
+  symbolically and else numerically at a few points. Constants are absorbed where one
+  appears once: `k C` is `C`, and `e^C` in an exponent is `C`.
+- **Derivatives as values.** `Derivative(f, v)` binds `v`: substituting a value gives
+  the derivative at a point, `Derivative(f, v, a)`, and substituting into `f` evaluates
+  it (`Derivative(y(x), x)` with `y(x) => sin(x)` is `cos(x)`). `y'` on a `SymFunction`
+  builds these, so initial conditions read `y'(0) => 1`, and a derivative at a point
+  prints the same way (`y''(0)`, not `Derivative(Derivative(y(x), x), x, 0)`).
+- **Integrals** go through an integrator hook that the RischIntegrate extension sets;
+  without it a small integrator does polynomials and `exp`, `sin`, `cos`, `sinh`, `cosh`
+  of linear arguments, and anything else is an unevaluated `Integral(f, x)` whose
+  derivative is `f`.
+
 ## Not yet done / open questions
 
 - **Parameters and variables sharing a name.** Prohibit it, or print them distinctly?

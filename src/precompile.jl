@@ -65,6 +65,9 @@ using PrecompileTools: @setup_workload, @compile_workload
         summation(binomial(n, k)^2, k, 0, n)
         yf = SymFunction(:y)
         rsolve(yf(n + 2) ~ yf(n + 1) + yf(n), yf(n), yf(0) => 0, yf(1) => 1); rsolve(yf(n + 1) ~ 2yf(n) + 1, yf(n))
+        # differential equations
+        dsolve(yf'(x) ~ x * yf(x), yf(x)); dsolve(yf''(x) + yf(x) ~ 0, yf(x), yf(0) => 0, yf'(0) => 1)
+        dsolve(yf''(x) - yf(x) ~ exp(x), yf(x)); dsolve(x^2 * yf''(x) - 2yf(x) ~ 0, yf(x))
         # piecewise
         pw = piecewise(x ≪ 0 => -x, true => x^2)
         pw(x => 2); diff(pw, x); limit(pw, x => 0); diff(heaviside(x - 1), x); piecewise(abs(x))

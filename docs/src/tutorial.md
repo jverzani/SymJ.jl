@@ -906,3 +906,55 @@ integrate(abs(x - 1), (x, 0, 3))
 G = integrate(sin(x), x)
 G(x => Sym(π)) - G(x => 0)
 ```
+
+## Differential equations
+
+`SymJ.dsolve` solves an ordinary differential equation for an unknown function. The
+function is made with `@syms y()`, and its derivatives are written `y'(x)`, `y''(x)`
+(or `diff(y(x), x)`). The answer is an equation, with constants `C1, C2, …`:
+
+```@example tut
+@syms y()
+SymJ.dsolve(y'(x) + 2y(x) ~ exp(x), y(x))
+```
+
+First-order equations that are linear, separable, Bernoulli, exact or homogeneous are
+recognized:
+
+```@example tut
+SymJ.dsolve(y'(x) ~ x * y(x)^2, y(x)), SymJ.dsolve(y'(x) ~ (x + y(x)) / x, y(x))
+```
+
+When `y` cannot be solved for, the solution is implicit:
+
+```@example tut
+SymJ.dsolve(2x * y(x) + (x^2 + 3y(x)^2) * y'(x) ~ 0, y(x))
+```
+
+Linear equations with constant coefficients, of any order, are solved through the roots
+of the characteristic polynomial; a right side is handled by undetermined coefficients,
+or by variation of parameters:
+
+```@example tut
+SymJ.dsolve(y''(x) + 2y'(x) + 5y(x) ~ 0, y(x)), SymJ.dsolve(y''(x) + y(x) ~ sin(x), y(x))
+```
+
+```@example tut
+SymJ.dsolve(y''(x) + y(x) ~ tan(x), y(x))
+```
+
+Cauchy–Euler equations, with coefficients `x^k` on `y⁽ᵏ⁾`, are solved too:
+
+```@example tut
+SymJ.dsolve(x^2 * y''(x) - 2y(x) ~ 0, y(x))
+```
+
+Initial conditions, one for each order, fix the constants:
+
+```@example tut
+SymJ.dsolve(y''(x) + y(x) ~ 0, y(x), y(0) => 0, y'(0) => 1)
+```
+
+```@example tut
+SymJ.dsolve(y'(x) ~ -x / y(x), y(x), y(0) => 2)
+```

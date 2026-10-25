@@ -23,6 +23,9 @@ function RischIntegrate.integrate(ex::Sym, x::Sym; kw...)
     end
 end
 
+# the integrator SymJ uses inside (dsolve)
+__init__() = (SymJ._INTEGRATOR[] = (f, x) -> integrate(f, x))
+
 @setup_workload begin
     @compile_workload begin
         x, a, b, c, d = Sym(:x), Sym(:a), Sym(:b), Sym(:c), Sym(:d)

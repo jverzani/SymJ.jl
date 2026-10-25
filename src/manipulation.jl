@@ -25,6 +25,12 @@ free_parameters(::Number) = Sym[]
 
 function _free!(s, ex::Sym, k::Kind = SYMBOL)
     ex.kind == k && return push!(s, ex)
+    if _isderivat(ex)                    # Derivative(f, v, a): v is bound
+        t = _free!(Set{Sym}(), ex.args[1], k)
+        delete!(t, ex.args[2])
+        union!(s, t)
+        return _free!(s, ex.args[3], k)
+    end
     for a in ex.args
         _free!(s, a, k)
     end
@@ -75,9 +81,27 @@ function _subs(ex::Sym, d::Dict{Sym,Sym})
     elseif k == POW
         return pow(_subs(ex.args[1], d), _subs(ex.args[2], d))
     elseif k == FN
+        ex.name === :Derivative && return _subs_derivative(ex, d)
         return apply_function(ex.name, Sym[_subs(a, d) for a in ex.args])
     end
     ex
+end
+
+# a derivative's variable is bound: Derivative(f, v) with v => a symbol renames it, with
+# v => a value gives the derivative at a point, Derivative(f, v, a); at a point, only f's
+# other symbols and the point are substituted
+_isderivat(ex::Sym) = ex.kind == FN && ex.name === :Derivative && length(ex.args) == 3
+function _subs_derivative(ex::Sym, d::Dict{Sym,Sym})
+    f, v = ex.args[1], ex.args[2]
+    inner = haskey(d, v) ? delete!(copy(d), v) : d
+    fs = _subs(f, inner)
+    if length(ex.args) == 3
+        return apply_function(:Derivative, Sym[fs, v, _subs(ex.args[3], d)])
+    end
+    w = get(d, v, nothing)
+    w === nothing && return apply_function(:Derivative, Sym[fs, v])
+    w.kind == SYMBOL && return apply_function(:Derivative, Sym[_subs(fs, Dict(v => w)), w])
+    apply_function(:Derivative, Sym[fs, v, w])
 end
 
 ## calling

@@ -32,6 +32,98 @@ function Base.diff(ex::Sym, x::Sym, y::Sym, zs::Sym...)
 end
 Base.diff(ex::Number, x::Sym, y::Sym, zs::Sym...) = ZERO
 
+# Derivative(f, v) evaluates when f has a derivative rule (after a substitution:
+# Derivative(y(x), x) with y(x) => sin(x) is cos(x)); Derivative(f, v, a), the derivative
+# at a, when the derivative has no Derivative left
+function _derivative_rule(args::Vector{Sym})
+    length(args) in (2, 3) || return nothing
+    f, v = args[1], args[2]
+    _isnamed(v) || return nothing
+    d = _diff(f, v)
+    length(args) == 2 && return _eq(d, _mkfn_node(:Derivative, Sym[f, v])) ? nothing : d
+    _hasfn(d, :Derivative) ? nothing : subs(d, v => args[3])
+end
+register_function!(:Derivative; eval = _derivative_rule)
+
+# An integral SymJ could not do (no integrator, or the integrator failed), unevaluated;
+# its derivative is the integrand. The RischIntegrate extension sets the integrator.
+const _INTEGRATOR = Ref{Any}(nothing)
+function _integrate(f::Sym, x::Sym)
+    iszero(f) && return ZERO
+    has(f, x) || return f * x
+    g = _INTEGRATOR[]
+    if g !== nothing
+        r = try g(f, x) catch err; err isa InterruptException && rethrow(); nothing end
+        r isa Sym && return r
+    end
+    # polynomials in x, term by term
+    p = expand(f)
+    terms = p.kind == ADD ? [(Sym(c), t) for (c, t) in zip(p.coefs, p.args)] : [(ONE, p)]
+    out = p.kind == ADD ? Sym(p.num) * x : ZERO
+    for (c, t) in terms
+        k = _monomial_power(t, x)
+        if k === nothing
+            r = _integrate_linear_fn(t, x)
+            r === nothing && return _mkfn_node(:Integral, Sym[f, x])
+            out += c * r
+            continue
+        end
+        cf, e = k
+        out += c * (e == -1 ? cf * log(x) : cf * x^(e + 1) / (e + 1))
+    end
+    out
+end
+# cf h(u) for h exp, sin, cos, sinh or cosh and u linear in x: its antiderivative, or nothing
+function _integrate_linear_fn(t::Sym, x::Sym)
+    cf, h = ONE, nothing
+    fs = t.kind == MUL ? [(b, p) for (b, p) in zip(t.args, t.exps)] : [(t, ONE)]
+    t.kind == MUL && (cf = Sym(t.num))
+    for (b, p) in fs
+        if !has(b, x) && !has(p, x)
+            cf *= b^p
+        elseif h === nothing
+            h = b^p
+        else
+            return nothing
+        end
+    end
+    h === nothing && return nothing
+    lin(u) = (d = diff(u, x); has(u, x) && !has(d, x) ? d : nothing)
+    if h.kind == POW && _eq(h.args[1], E)
+        a = lin(h.args[2])
+        return a === nothing ? nothing : cf * h / a
+    end
+    (h.kind == FN && length(h.args) == 1) || return nothing
+    a = lin(h.args[1])
+    a === nothing && return nothing
+    u = h.args[1]
+    h.name === :sin && return -cf * cos(u) / a
+    h.name === :cos && return cf * sin(u) / a
+    h.name === :sinh && return cf * cosh(u) / a
+    h.name === :cosh && return cf * sinh(u) / a
+    nothing
+end
+# t = cf * x^e, cf free of x and e an integer, or nothing
+function _monomial_power(t::Sym, x::Sym)
+    _eq(t, x) && return (ONE, 1)
+    has(t, x) || return (t, 0)
+    if t.kind == POW && _eq(t.args[1], x) && t.args[2].kind == NUMBER && _isint(t.args[2].num)
+        return (ONE, _toint(t.args[2].num))
+    end
+    t.kind == MUL || return nothing
+    cf, e = Sym(t.num), 0
+    for (b, q) in zip(t.args, t.exps)
+        if _eq(b, x) && q.kind == NUMBER && _isint(q.num)
+            e += _toint(q.num)
+        elseif has(b, x) || has(q, x)
+            return nothing
+        else
+            cf *= b^q
+        end
+    end
+    cf, e
+end
+
 function _diff(ex::Sym, x::Sym)
     k = ex.kind
     _isnamed(ex) && return _eq(ex, x) ? ONE : ZERO
@@ -55,6 +147,11 @@ function _diff(ex::Sym, x::Sym)
             return mul(mul(e, pow(b, add(e, MINUS_ONE))), db)
         end
         return mul(ex, add(mul(de, log(b)), mul(mul(e, db), pow(b, MINUS_ONE))))
+    elseif ex.name === :Integral && length(ex.args) == 2 && _eq(ex.args[2], x)
+        return ex.args[1]
+    elseif _isderivat(ex) && _eq(ex.args[2], x)  # a constant, unless the point has x
+        has(ex.args[3], x) || return ZERO
+        return _mkfn_node(:Derivative, Sym[ex, x])
     elseif ex.name === :piecewise                 # piece by piece
         return apply_function(:piecewise, Sym[isodd(i) ? a : _diff(a, x) for (i, a) in enumerate(ex.args)])
     else
