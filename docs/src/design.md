@@ -891,6 +891,12 @@ three rounds each, taking each workload's best time.
 - **`simplify_log`** combines logarithms of positive arguments into one, or expands a
   logarithm over its positive factors (a positive factor does not change the argument
   of a product, so the rest may be anything), whichever is smaller.
+- **Expansion.** `expand_trig` works top down: a function of a sum is split into its
+  first term and the rest by the addition rule, a function of an integer multiple is
+  the Chebyshev polynomial (the same `_chebyshev` `simplify_trig` uses; `tan` and `cot`
+  by the sum rule, cancelled), and what remains inside is expanded after. `expand_log`
+  is `simplify_log`'s expansion step as a function of its own, with `force` to skip
+  the positivity and reality checks.
 - **`simplify_radicals`** denests square roots of `a + b sqrt(c)` when `a² - b²c` is a
   rational square, rationalizes denominators `a + b sqrt(c)` by the conjugate, and
   factors radicands so that `refine` can take a power out of the root.
