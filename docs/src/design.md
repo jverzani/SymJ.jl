@@ -897,6 +897,14 @@ three rounds each, taking each workload's best time.
   by the sum rule, cancelled), and what remains inside is expanded after. `expand_log`
   is `simplify_log`'s expansion step as a function of its own, with `force` to skip
   the positivity and reality checks.
+- **`simplify_gamma`** writes factorials and binomials as Γ, groups the arguments into
+  classes modulo the integers, and writes each Γ through the one of its class with the
+  smallest shift times a Pochhammer product, so the expression is a rational function
+  in one Γ per class and cancels. The reflection and duplication formulas are tried as
+  substitutions (`Γ(1 - a) = π/(sin(πa)Γ(a))`), and shifting each class by up to ±2
+  absorbs polynomial factors (`(n + 1)n! = (n + 1)!`). Candidates are ranked by the
+  number of gamma-like functions, then size; the result is written back in factorials
+  and binomials, or in `gamma` when the input had it.
 - **`simplify_radicals`** denests square roots of `a + b sqrt(c)` when `a² - b²c` is a
   rational square, rationalizes denominators `a + b sqrt(c)` by the conjugate, and
   factors radicands so that `refine` can take a power out of the root.

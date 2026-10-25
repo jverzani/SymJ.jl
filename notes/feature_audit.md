@@ -45,7 +45,7 @@ series, assumptions, a basic `simplify`, summation)
 | General simplification | `simplify` | `simplify`, `simplifier` | ✅ ★ `simplify` (the smallest of several transformations: rational, powers, trigonometric, logarithms, radicals, expansion, factoring) and `refine` (identities under assumptions) |
 | Trigonometric | `trigsimp`, `exptrigsimp` | `tlin`, `tcollect`, `texpand` | ✅ through `simplify` (`SymJ.simplify_trig`, `SymJ.simplify_hyperbolic`): normal form modulo `sin² + cos² = 1` (`cosh² - sinh² = 1`), multiple and sum angles, exponentials ↔ trig and hyperbolic |
 | Powers and logarithms | `powsimp`, `powdenest`, `logcombine` | `lncollect`, `lnexpand` | ✅ through `simplify` and `refine`, under assumptions: powers combined and denested, logarithms combined or expanded (`exp(x)*exp(y) == exp(x + y)` is canonical) |
-| Gamma and combinatorial | `gammasimp`, `combsimp` | — | ❌ |
+| Gamma and combinatorial | `gammasimp`, `combsimp` | — | ✅ `SymJ.simplify_gamma` (also inside `simplify`): integer shifts combined, ratios as binomials, reflection and duplication formulas |
 | Rational functions | `cancel`, `together`, `apart`, `ratsimp` | `normal`, `ratnormal`, `partfrac`, `propfrac` | ✅ `cancel`, `apart`, `numer_denom` (◐ no separate `together`) |
 | Expansion | `expand`, `expand_trig`, `expand_log` | `expand`, `texpand`, `lnexpand` | ✅ `expand` (fast, multinomial); `SymJ.expand_trig` (sums and integer multiples, trigonometric and hyperbolic), `SymJ.expand_log` (under assumptions, or `force = true`) |
 
@@ -181,6 +181,6 @@ calculus-level use:
 8. **Assumptions, the remaining pieces**: integer congruences, `assume` for systems of
    equations, and assumptions in `integrate`.
 
-Done since the first audit: trigonometric and logarithmic expansion, LaTeX output (a Latexify extension), resultants and Gröbner
+Done since the first audit: trigonometric and logarithmic expansion, gamma and combinatorial simplification, LaTeX output (a Latexify extension), resultants and Gröbner
 bases (polynomial systems are solved), real and imaginary parts and `conj`, and
 simplification under assumptions (`refine`, `simplify`).

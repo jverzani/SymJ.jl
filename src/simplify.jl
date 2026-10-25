@@ -314,7 +314,7 @@ function _simplify(e::Sym, A::Assumptions)
     logs(x) = simplify_log(x; assume = A)
     radicals(x) = simplify_radicals(x; assume = A)
     expansion(x) = _bigpower(x) ? nothing : expand(x)   # (x + y)^30 expanded never wins
-    for g in (simplify_rational, powers, expansion, _factor_or_nothing, simplify_trig, simplify_hyperbolic, logs, radicals,
+    for g in (simplify_rational, powers, expansion, _factor_or_nothing, simplify_trig, simplify_hyperbolic, logs, radicals, simplify_gamma,
               simplify_rational ∘ powers, expansion ∘ simplify_rational, expansion ∘ radicals)
         c = try g(e) catch err; err isa InterruptException && rethrow(); nothing end
         c isa Sym || continue

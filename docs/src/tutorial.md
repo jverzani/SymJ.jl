@@ -420,7 +420,17 @@ refine(log(exp(x)); assume = @assume(x in Reals)), refine(sin(x + 2n*Sym(π)); a
 
 The transformations `simplify` tries are also available on their own, unexported:
 `SymJ.simplify_rational`, `SymJ.simplify_powers`, `SymJ.simplify_trig`,
-`SymJ.simplify_hyperbolic`, `SymJ.simplify_log` and `SymJ.simplify_radicals`.
+`SymJ.simplify_hyperbolic`, `SymJ.simplify_log`, `SymJ.simplify_radicals` and
+`SymJ.simplify_gamma`. The last combines factorials, binomials and gamma functions whose
+arguments differ by integers, and writes factorial ratios as binomials:
+
+```@example tut
+@syms k
+SymJ.simplify_gamma(factorial(n + 2) / factorial(n)), SymJ.simplify_gamma(binomial(n + 1, k) / binomial(n, k)), SymJ.simplify_gamma(factorial(n) / (factorial(k) * factorial(n - k)))
+```
+
+With the SpecialFunctions extension loaded it also applies the reflection formula
+(`gamma(x)gamma(1 - x) = π/sin(πx)`) and the duplication formula.
 
 Expansion goes the other way. `SymJ.expand_trig` writes trigonometric and hyperbolic
 functions of sums and integer multiples through functions of the terms:

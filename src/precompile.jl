@@ -57,6 +57,7 @@ using PrecompileTools: @setup_workload, @compile_workload
         simplify(sqrt(3 + 2sqrt(Sym(2))))
         SymJ.expand_trig(sin(x + y)); SymJ.expand_trig(cos(3x)); SymJ.expand_trig(tan(2x)); SymJ.expand_trig(sinh(2x))
         SymJ.expand_log(log(x^2 * y); force = true)
+        SymJ.simplify_gamma(factorial(x + 2) / factorial(x)); SymJ.simplify_gamma(binomial(x + 1, y) / binomial(x, y))
         # sums
         k, n = Sym(:k), Sym(:n)
         summation(k^2, k, 1, n); summation(1 / (k * (k + 1)), k, 1, Inf); summation(1 / k^2, k, 1, Inf)
