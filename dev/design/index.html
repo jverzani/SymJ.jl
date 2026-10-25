@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Design notes — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=e9529bab">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=6782504d">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Design notes — SymJ.jl">
   <meta property="og:title" content="Design notes — SymJ.jl">
@@ -1050,6 +1050,19 @@ end</code></pre>
 <li><p><strong><code class="md-code-inline">simplify_radicals</code></strong> denests square roots of <code class="md-code-inline">a + b sqrt(c)</code> when <code class="md-code-inline">a² - b²c</code> is a rational square, rationalizes denominators <code class="md-code-inline">a + b sqrt(c)</code> by the conjugate, and factors radicands so that <code class="md-code-inline">refine</code> can take a power out of the root.</p>
 </li>
 </ul>
+<h2 id="Piecewise-functions" class="md-heading">Piecewise functions<a href="#Piecewise-functions" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<ul class="md-list-tight">
+<li><p><strong><code class="md-code-inline">SymJ.piecewise(c₁ =&gt; v₁, …)</code></strong> is an expression, not a <code class="md-code-inline">Cases</code>: a function node <code class="md-code-inline">piecewise(c₁, v₁, c₂, v₂, …)</code> whose conditions are nodes too, <code class="md-code-inline">Lt(a, b)</code> and its kin and <code class="md-code-inline">And(…)</code>. A relation between constants evaluates to 1 or 0, so substitution picks the piece; a condition linear in one symbol is solved for it (<code class="md-code-inline">1 - x &lt; 0</code> as <code class="md-code-inline">x &gt; 1</code>). As built, false pieces are dropped, a true one ends the list, and a piece with the value of the true one after it goes; with none left the value is NaN.</p>
+</li>
+<li><p><strong>Taken piece by piece</strong>: <code class="md-code-inline">diff</code>; <code class="md-code-inline">N</code> and <code class="md-code-inline">lambdify</code> evaluate only the piece taken (an <code class="md-code-inline">if</code> chain), so <code class="md-code-inline">piecewise(x &lt; 0 =&gt; log(-x), true =&gt; sqrt(x))</code> is real throughout; <code class="md-code-inline">refine</code> decides conditions, <code class="md-code-inline">heaviside</code>, <code class="md-code-inline">sign</code> and <code class="md-code-inline">abs</code> under assumptions; <code class="md-code-inline">limit</code> replaces each piecewise, <code class="md-code-inline">heaviside</code> and <code class="md-code-inline">dirac</code> by its value on the side approached (the sign of a condition from the limit of <code class="md-code-inline">g</code>, or of <code class="md-code-inline">g/t^j</code> when that is 0), the two sides compared for a two-sided limit.</p>
+</li>
+<li><p><strong><code class="md-code-inline">heaviside(x, h0 = 1/2)</code></strong>, <strong><code class="md-code-inline">dirac(x, k = 0)</code></strong>: <code class="md-code-inline">diff(heaviside) = dirac</code>, <code class="md-code-inline">diff(sign(x)) = 2 dirac(x)</code>. <code class="md-code-inline">piecewise(ex)</code> writes <code class="md-code-inline">heaviside</code>, <code class="md-code-inline">sign</code>, <code class="md-code-inline">abs</code>, <code class="md-code-inline">max</code>, <code class="md-code-inline">min</code> as pieces (real arguments); <code class="md-code-inline">piecewise(cs)</code> turns cases into one.</p>
+</li>
+<li><p><strong>Integration</strong> (in the RischIntegrate extension, a method of <code class="md-code-inline">integrate</code> for <code class="md-code-inline">Sym</code>): a <code class="md-code-inline">dirac(m x + c, k)</code> term by <code class="md-code-inline">∫ g δ⁽ᵏ⁾(x - a) = (-1)^k g⁽ᵏ⁾(a) heaviside(x - a)</code>; the rest between consecutive breakpoints (sorted real numbers, or a single one with parameters), the integrand read at a point inside each interval and the constants chosen for continuity. <code class="md-code-inline">abs</code>, <code class="md-code-inline">sign</code>, <code class="md-code-inline">max</code> and <code class="md-code-inline">min</code>, which RischIntegrate does not take, are rewritten as pieces when it fails on them.</p>
+</li>
+<li><p><strong>Printing</strong>: <code class="md-code-inline">piecewise(x ≪ 0 =&gt; -x, true =&gt; x)</code>; in LaTeX a <code class="md-code-inline">cases</code> environment, <code class="md-code-inline">heaviside</code> and <code class="md-code-inline">dirac</code> as θ and δ.</p>
+</li>
+</ul>
 <h2 id="Summation" class="md-heading">Summation<a href="#Summation" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <ul class="md-list-tight">
 <li><p><strong><code class="md-code-inline">SymJ.summation(f, k, a, b)</code></strong>, a chain of methods as in SymPy: linearity; direct addition for a short numeric range; an antidifference <code class="md-code-inline">F</code> (<code class="md-code-inline">F(k+1) - F(k) = f(k)</code>) giving <code class="md-code-inline">F(b+1) - F(a)</code>, by Bernoulli polynomials for polynomials and Gosper&#39;s algorithm for hypergeometric terms (the term ratio from polynomials, <code class="md-code-inline">r^k</code>, factorials, binomials, <code class="md-code-inline">gamma</code>; the Gosper form through <code class="md-code-inline">resultant</code> and <code class="md-code-inline">gcd</code>; the polynomial <code class="md-code-inline">x(k)</code> from its degree bound and a linear system); partial fractions for rational functions without one (harmonic numbers, polygamma, exact <code class="md-code-inline">ζ(2n)</code> by Bernoulli numbers); known sums (the binomial theorem; <code class="md-code-inline">₀F₀</code>, <code class="md-code-inline">₁F₀</code>, <code class="md-code-inline">₀F₁</code> hypergeometric series: <code class="md-code-inline">exp</code>, <code class="md-code-inline">cos</code>, <code class="md-code-inline">sin</code>, <code class="md-code-inline">cosh</code>, <code class="md-code-inline">sinh</code>).</p>
@@ -1257,6 +1270,7 @@ end</code></pre>
           <a class="md-toc-link md-toc-h2" href="#Solving">Solving</a>
           <a class="md-toc-link md-toc-h2" href="#Parameters-(internal)">Parameters (internal)</a>
           <a class="md-toc-link md-toc-h2" href="#Simplification">Simplification</a>
+          <a class="md-toc-link md-toc-h2" href="#Piecewise-functions">Piecewise functions</a>
           <a class="md-toc-link md-toc-h2" href="#Summation">Summation</a>
           <a class="md-toc-link md-toc-h2" href="#Linear-algebra">Linear algebra</a>
           <a class="md-toc-link md-toc-h2" href="#Assumptions">Assumptions</a>
@@ -1271,6 +1285,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=e9529bab"></script>
+  <script src="../assets/materialdocs.js?v=6782504d"></script>
 </body>
 </html>

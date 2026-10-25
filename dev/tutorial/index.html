@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=2a190fde">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=80fbcedf">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -1045,6 +1045,49 @@ det([x 1; 1 x] - λ * I(2))</code></pre>
 \[-2 \cdot x \cdot \lambda + x^{2} + \lambda^{2} - 1\]
 </div>
 </div>
+<h2 id="Piecewise-functions" class="md-heading">Piecewise functions<a href="#Piecewise-functions" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p><code class="md-code-inline">SymJ.piecewise(c₁ =&gt; v₁, c₂ =&gt; v₂, …)</code> (not exported) is the value of the first piece whose condition holds; a condition is a relation, a tuple of relations that all hold, or <code class="md-code-inline">true</code>. It is an expression like any other: substitution picks a piece, and <code class="md-code-inline">diff</code>, <code class="md-code-inline">limit</code>, <code class="md-code-inline">refine</code> and <code class="md-code-inline">lambdify</code> take it piece by piece:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">pw = SymJ.piecewise(x ≪ 0 =&gt; -x, (0 ≦ x, x ≪ 1) =&gt; x^2, true =&gt; 1)
+pw, pw(x =&gt; -2), diff(pw, x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \begin{cases}
+ - x &amp; \text{if } x &lt; 0\\
+x^{2} &amp; \text{if } 0 \leq x &lt; 1\\
+1 &amp; \text{otherwise}
+\end{cases}, \; 2, \; \begin{cases}
+-1 &amp; \text{if } x &lt; 0\\
+2 \cdot x &amp; \text{if } 0 \leq x &lt; 1\\
+0 &amp; \text{otherwise}
+\end{cases} \right)\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">limit(pw, x =&gt; 0), limit(pw, x =&gt; 1; dir = :-)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( 0, \; 1 \right)\]
+</div>
+</div>
+<p>The unit step <code class="md-code-inline">SymJ.heaviside</code> (½ at 0) and the delta <code class="md-code-inline">SymJ.dirac</code> are its derivative pair; <code class="md-code-inline">SymJ.piecewise(ex)</code> writes <code class="md-code-inline">heaviside</code>, <code class="md-code-inline">sign</code>, <code class="md-code-inline">abs</code>, <code class="md-code-inline">max</code> and <code class="md-code-inline">min</code> as pieces:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">H = SymJ.heaviside
+diff(H(x - 1), x), SymJ.piecewise(abs(x - 1))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \delta\left( x - 1 \right), \; \begin{cases}
+x - 1 &amp; \text{if } x &gt; 1\\
+ - x + 1 &amp; \text{otherwise}
+\end{cases} \right)\]
+</div>
+</div>
 <h2 id="Limits" class="md-heading">Limits<a href="#Limits" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p><code class="md-code-inline">limit(f, x =&gt; x0)</code> is the limit of <code class="md-code-inline">f</code> as <code class="md-code-inline">x</code> tends to <code class="md-code-inline">x0</code>, a number, an expression or <code class="md-code-inline">Inf</code>. It is computed by Gruntz&#39;s algorithm, through GruntzLimit. An infinite limit is <code class="md-code-inline">Sym(Inf)</code> or <code class="md-code-inline">Sym(-Inf)</code>:</p>
 <div class="md-multi-output">
@@ -1305,6 +1348,19 @@ s / c</code></pre>
 \[\left( \frac{\log\left( x \right) \cdot x^{2}}{2} - \frac{x^{2}}{4}, \; \log\left( \log\left( x \right) \right) \right)\]
 </div>
 </div>
+<p>Piecewise functions, <code class="md-code-inline">heaviside</code>, <code class="md-code-inline">abs</code> and <code class="md-code-inline">sign</code> are integrated interval by interval, the antiderivative made continuous; a <code class="md-code-inline">dirac</code> picks out a value:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">integrate(x * H(x - 1), x), integrate(cos(x) * SymJ.dirac(x - 1), x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \begin{cases}
+0 &amp; \text{if } x &lt; 1\\
+\frac{x^{2}}{2} - \frac{1}{2} &amp; \text{otherwise}
+\end{cases}, \; \cos\left( 1 \right) \cdot \theta\left( x - 1 \right) \right)\]
+</div>
+</div>
 <h3 id="Definite-integrals" class="md-heading">Definite integrals<a href="#Definite-integrals" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <p>A definite integral is the difference of an antiderivative&#39;s values at the end points. Calling the antiderivative with exact numbers keeps the answer exact:</p>
 <div class="md-multi-output">
@@ -1314,6 +1370,15 @@ s / c</code></pre>
 F(3) - F(0)</code></pre>
 </div>
 <pre class="md-output md-output-text"><code class="nohighlight ansi">9//1</code></pre>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">integrate(abs(x - 1), (x, 0, 3))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\frac{5}{2}\]
+</div>
 </div>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -1356,6 +1421,7 @@ G(x =&gt; Sym(π)) - G(x =&gt; 0)</code></pre>
             <a class="md-toc-link md-toc-h3" href="#Assumptions">Assumptions</a>
           <a class="md-toc-link md-toc-h2" href="#Sums">Sums</a>
           <a class="md-toc-link md-toc-h2" href="#Matrices">Matrices</a>
+          <a class="md-toc-link md-toc-h2" href="#Piecewise-functions">Piecewise functions</a>
           <a class="md-toc-link md-toc-h2" href="#Limits">Limits</a>
           <a class="md-toc-link md-toc-h2" href="#Derivatives">Derivatives</a>
             <a class="md-toc-link md-toc-h3" href="#Critical-points">Critical points</a>
@@ -1380,6 +1446,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=2a190fde"></script>
+  <script src="../assets/materialdocs.js?v=80fbcedf"></script>
 </body>
 </html>
