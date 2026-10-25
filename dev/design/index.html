@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Design notes — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=291d708c">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=b0f527f1">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Design notes — SymJ.jl">
   <meta property="og:title" content="Design notes — SymJ.jl">
@@ -1049,6 +1049,8 @@ end</code></pre>
 </li>
 <li><p><strong>Expansion.</strong> <code class="md-code-inline">expand_trig</code> works top down: a function of a sum is split into its first term and the rest by the addition rule, a function of an integer multiple is the Chebyshev polynomial (the same <code class="md-code-inline">_chebyshev</code> <code class="md-code-inline">simplify_trig</code> uses; <code class="md-code-inline">tan</code> and <code class="md-code-inline">cot</code> by the sum rule, cancelled), and what remains inside is expanded after. <code class="md-code-inline">expand_log</code> is <code class="md-code-inline">simplify_log</code>&#39;s expansion step as a function of its own, with <code class="md-code-inline">force</code> to skip the positivity and reality checks.</p>
 </li>
+<li><p><strong><code class="md-code-inline">simplify_gamma</code></strong> writes factorials and binomials as Γ, groups the arguments into classes modulo the integers, and writes each Γ through the one of its class with the smallest shift times a Pochhammer product, so the expression is a rational function in one Γ per class and cancels. The reflection and duplication formulas are tried as substitutions (<code class="md-code-inline">Γ(1 - a) = π/(sin(πa)Γ(a))</code>), and shifting each class by up to ±2 absorbs polynomial factors (<code class="md-code-inline">(n + 1)n! = (n + 1)!</code>). Candidates are ranked by the number of gamma-like functions, then size; the result is written back in factorials and binomials, or in <code class="md-code-inline">gamma</code> when the input had it.</p>
+</li>
 <li><p><strong><code class="md-code-inline">simplify_radicals</code></strong> denests square roots of <code class="md-code-inline">a + b sqrt(c)</code> when <code class="md-code-inline">a² - b²c</code> is a rational square, rationalizes denominators <code class="md-code-inline">a + b sqrt(c)</code> by the conjugate, and factors radicands so that <code class="md-code-inline">refine</code> can take a power out of the root.</p>
 </li>
 </ul>
@@ -1289,6 +1291,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=291d708c"></script>
+  <script src="../assets/materialdocs.js?v=b0f527f1"></script>
 </body>
 </html>

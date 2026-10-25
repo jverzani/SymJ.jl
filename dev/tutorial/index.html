@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=34dc53f0">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=348707e8">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -631,7 +631,18 @@ refine(log(exp(x)); assume = @assume(x in Reals)), refine(sin(x + 2n*Sym(π)); a
 \[\left( x, \; \sin\left( x \right) \right)\]
 </div>
 </div>
-<p>The transformations <code class="md-code-inline">simplify</code> tries are also available on their own, unexported: <code class="md-code-inline">SymJ.simplify_rational</code>, <code class="md-code-inline">SymJ.simplify_powers</code>, <code class="md-code-inline">SymJ.simplify_trig</code>, <code class="md-code-inline">SymJ.simplify_hyperbolic</code>, <code class="md-code-inline">SymJ.simplify_log</code> and <code class="md-code-inline">SymJ.simplify_radicals</code>.</p>
+<p>The transformations <code class="md-code-inline">simplify</code> tries are also available on their own, unexported: <code class="md-code-inline">SymJ.simplify_rational</code>, <code class="md-code-inline">SymJ.simplify_powers</code>, <code class="md-code-inline">SymJ.simplify_trig</code>, <code class="md-code-inline">SymJ.simplify_hyperbolic</code>, <code class="md-code-inline">SymJ.simplify_log</code>, <code class="md-code-inline">SymJ.simplify_radicals</code> and <code class="md-code-inline">SymJ.simplify_gamma</code>. The last combines factorials, binomials and gamma functions whose arguments differ by integers, and writes factorial ratios as binomials:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms k
+SymJ.simplify_gamma(factorial(n + 2) / factorial(n)), SymJ.simplify_gamma(binomial(n + 1, k) / binomial(n, k)), SymJ.simplify_gamma(factorial(n) / (factorial(k) * factorial(n - k)))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \left( n + 1 \right) \cdot \left( n + 2 \right), \; \frac{n + 1}{ - k + n + 1}, \; \binom{n}{k} \right)\]
+</div>
+</div>
+<p>With the SpecialFunctions extension loaded it also applies the reflection formula (<code class="md-code-inline">gamma(x)gamma(1 - x) = π/sin(πx)</code>) and the duplication formula.</p>
 <p>Expansion goes the other way. <code class="md-code-inline">SymJ.expand_trig</code> writes trigonometric and hyperbolic functions of sums and integer multiples through functions of the terms:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -1487,6 +1498,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=34dc53f0"></script>
+  <script src="../assets/materialdocs.js?v=348707e8"></script>
 </body>
 </html>
