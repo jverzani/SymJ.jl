@@ -61,7 +61,11 @@ function _factor_sym(ex::Sym; gcd_method::Symbol = :auto)
     (_poly_atoms!(atoms, n) && _poly_atoms!(atoms, d)) || return ex
     gs = sort!(collect(atoms); lt = _lt)
     num, den = _factor_poly(Poly{SymNumber}(n, gs); gcd_method), _factor_poly(Poly{SymNumber}(d, gs); gcd_method)
-    _sqf_sym(num...) / _sqf_sym(den...)
+    # the units combined into one coefficient of the whole product (6*(2n + 1)*.../36
+    # would distribute 6 into 2n + 1); a sign still goes into the first factor, x - a
+    # rather than -(a - x)
+    c = num[1] / den[1]
+    Sym(abs(c)) * (_sqf_sym(c < N0 ? NM1 : N1, num[2]) / _sqf_sym(N1, den[2]))
 end
 factor(x::Number; gcd_method::Symbol = :auto) = Sym(x)
 

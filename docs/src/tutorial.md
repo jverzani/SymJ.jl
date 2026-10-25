@@ -565,6 +565,31 @@ Contradictory facts are an error (`@assume(x > 1 && x < 0)`), and the `Assumptio
 value `@assume` makes can be reused: `A = @assume(x > 0, n in Integers)`, then
 `assume = A`.
 
+## Sums
+
+`SymJ.summation(f, k, a, b)` (not exported) sums `f` over `k = a, …, b`, in closed form
+where it finds one; `b` may be `Inf`:
+
+```@example tut
+@syms k n r
+SymJ.summation(k^2, k, 1, n), SymJ.summation(r^k, k, 0, n), SymJ.summation(1 / (k * (k + 1)), k, 1, n)
+```
+
+```@example tut
+SymJ.summation(1 / k^2, k, 1, Inf), SymJ.summation(x^k / factorial(k), k, 0, Inf)
+```
+
+Whether a series converges can depend on a parameter; the answer then has cases, which
+assumptions settle:
+
+```@example tut
+SymJ.summation(r^k, k, 0, Inf)
+```
+
+```@example tut
+SymJ.summation(k * r^k, k, 0, Inf; assume = @assume(0 < r < 1))
+```
+
 ## Matrices
 
 Matrices of expressions are Julia arrays of `Sym`. With `LinearAlgebra`, `det`, `inv`,

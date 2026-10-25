@@ -7,6 +7,7 @@ import ForwardDiff
 using Latexify: latexify
 
 @syms x y z f() g()
+_add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
 
 @testset "SymJ.jl" begin
     @testset "SymNumber" begin
@@ -1646,6 +1647,43 @@ using Latexify: latexify
         Fib = Sym[1 1; 1 0]^n
         @test [round(Int, N(subs(Fib[1, 2], n => k))) for k in 1:10] == [1, 1, 2, 3, 5, 8, 13, 21, 34, 55]
         @test isapprox(N.(subs.(exp(t * Sym[1 2; 3 4]), t => 0.3)), exp(0.3 * [1 2; 3 4]); rtol = 1e-10)
+    end
+
+    @testset "summation" begin
+        @syms k n r a
+        Σ = SymJ.summation
+        # polynomials (Faulhaber), presented factored
+        @test Σ(k, k, 1, n) == n * (n + 1) / 2 && Σ(k^2, k, 1, n) == n * (n + 1) * (2n + 1) / 6
+        @test Σ(k^3, k, 1, n) == n^2 * (n + 1)^2 / 4 && Σ(2k + 1, k, 0, n) == (n + 1)^2 && Σ(Sym(1), k, 1, n) == n
+        @test Σ(k^2, k, 1, 10) == 385 && Σ(a, k, 1, n) == a * n
+        # Gosper: geometric and polynomial-geometric, telescoping, factorials
+        @test Σ(r^k, k, 0, n) == (r^(n + 1) - 1) / (r - 1) && Σ(1 / (k * (k + 1)), k, 1, n) == n / (n + 1)
+        @test Σ(k * factorial(k), k, 0, n) == factorial(n + 1) - 1
+        @test SymJ._isfn1(Σ(factorial(k), k, 0, n), :Sum) || Σ(factorial(k), k, 0, n).name === :Sum   # no closed form
+        # every finite closed form agrees with direct summation
+        for f in (k^2, k^3 + 2k, r^k, k * 2^k, 1 / (k * (k + 1)), k * factorial(k), k / ((k + 1) * (k + 2)), 1 / k, binomial(n, k))
+            s = Σ(f, k, 1, n)
+            v7 = subs(s, n => 7, r => 3)
+            @test isapprox(N(v7), N(_add_many_test(subs(f, n => 7, r => 3), k, 7)); rtol = 1e-12)
+        end
+        # binomial theorem; rational functions: harmonic numbers, combined
+        @test Σ(binomial(n, k), k, 0, n) == 2^n && Σ(binomial(n, k) * x^k, k, 0, n) == (1 + x)^n
+        @test Σ(1 / k, k, 1, n) == SymJ.harmonic(n) && SymJ.harmonic(4) == 25 // 12
+        @test Σ(k / ((k + 1) * (k + 2)), k, 1, n) == SymJ.harmonic(n + 1) + 2 / (n + 2) - 2
+        # infinite series: limits, zeta values, convergence by cases
+        @test Σ(1 / (k * (k + 1)), k, 1, Inf) == 1 && Σ(1 / k^2, k, 1, Inf) == PI^2 / 6 && Σ(1 / k^4, k, 1, Inf) == PI^4 / 90
+        @test Σ(1 / (k^2 - 1), k, 2, Inf) == 3 // 4 && Σ(1 / k, k, 1, Inf) == Sym(Inf)
+        @test Σ((Sym(1) / 2)^k, k, 0, Inf) == 2 && Σ((-Sym(1) / 2)^k, k, 0, Inf) == 2 // 3 && Σ(2^k, k, 0, Inf) == Sym(Inf)
+        cs = Σ(r^k, k, 0, Inf)
+        @test cs isa SymJ.Cases && length(cs) == 3 && cs(r => 1 // 2) == 2
+        @test_throws ArgumentError cs(r => 2)
+        @test Σ(r^k, k, 0, Inf; assume = @assume(0 < r < 1)) == 1 / (1 - r)
+        @test Σ(k * x^k, k, 0, Inf; assume = @assume(-1 < x < 1)) == x / (x - 1)^2
+        # hypergeometric series: exp, cos, sin, cosh
+        @test Σ(1 / factorial(k), k, 0, Inf) == E && Σ(x^k / factorial(k), k, 0, Inf) == exp(x)
+        @test Σ((-1)^k * x^(2k) / factorial(2k), k, 0, Inf) == cos(x) && Σ((-1)^k * x^(2k + 1) / factorial(2k + 1), k, 0, Inf) == sin(x)
+        @test Σ(x^(2k) / factorial(2k), k, 0, Inf) == cosh(x)
+        @test SymJ._isfn1(Σ(sin(k), k, 1, n), :Sum) || Σ(sin(k), k, 1, n).name === :Sum
     end
 
     @testset "Latexify" begin

@@ -7,8 +7,8 @@ SymPy 1.14, and every Giac command in Giac.jl's command table; SymJ's column was
 against its source and by running it. Updated 2026-10-25: series, assumptions, `limit`
 with assumptions, `refine` and `simplify`, complex parts and LaTeX output are done.
 
-**Legend:** ✅ has · ◐ partial · ❌ missing · ★ planned (summation, differential
-equations; done: series, assumptions, a basic `simplify`)
+**Legend:** ✅ has · ◐ partial · ❌ missing · ★ planned (differential equations; done:
+series, assumptions, a basic `simplify`, summation)
 
 ## Numbers and the core
 
@@ -96,7 +96,7 @@ equations; done: series, assumptions, a basic `simplify`)
 | Indefinite integrals | `integrate` | `integrate` | ✅ RischIntegrate (175/175 of the Apostol set, more than either) |
 | Definite and improper integrals | `integrate(f, (x, a, b))` | `integrate(f, x, a, b)` | ◐ by evaluating an antiderivative; no improper integrals or check for singularities |
 | Numeric integration | `Integral(...).evalf()` | `romberg`, `gaussquad` | ❌ (QuadGK on a `lambdify`'d function) |
-| Sums of series | `summation`, `Sum` | `sum` | ❌ ★ |
+| Sums of series | `summation`, `Sum` | `sum` | ✅ ★ `SymJ.summation`: Faulhaber, Gosper, partial fractions (harmonic, polygamma, `ζ(2n)`), binomial theorem, hypergeometric series; infinite sums by `limit`, convergence by cases; ◐ no Zeilberger (definite hypergeometric sums), unevaluated `Sum` otherwise |
 | Products | `product`, `Product` | `product` | ❌ |
 | Laplace, Fourier, Mellin, Z transforms | `laplace_transform`, `inverse_laplace_transform`, `fourier_transform`, `mellin_transform` | `laplace`, `ilaplace`, `fourier`, `ifourier`, `ztrans`, `invztrans` | ❌ |
 | Residues | `residue` | `residue` | ❌ |
@@ -151,8 +151,8 @@ permutation groups (`sympy.combinatorics`), tensors and differential geometry
 
 ## Gaps worth considering
 
-The planned work (★) still to do is summation and differential equations; series,
-assumptions and a basic `simplify` are done. Of the rest, in rough order of value for
+The planned work (★) still to do is differential equations; series, assumptions, a
+basic `simplify` and summation are done. Of the rest, in rough order of value for
 calculus-level use:
 
 1. **Symbolic linear algebra**: feature complete for now. `det`, `inv`, `lu`, `\`,
