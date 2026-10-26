@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=40f78454">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=93fd0222">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -46,7 +46,22 @@
       <a href="../tutorial/" class="md-nav-active">Tutorial</a>
       <a href="../implementation/">Implementation</a>
       <a href="../design/">Design notes</a>
-      <a href="../reference/">Reference</a>
+      <div class="md-nav-section">
+        <span class="md-nav-section-title">Reference</span>
+        <a href="../reference/index/">Reference</a>
+        <a href="../reference/expressions/">Expressions and evaluation</a>
+        <a href="../reference/polynomials/">Polynomials</a>
+        <a href="../reference/rational/">Rational functions</a>
+        <a href="../reference/simplification/">Simplification</a>
+        <a href="../reference/assumptions/">Assumptions</a>
+        <a href="../reference/solving/">Solving equations</a>
+        <a href="../reference/sums/">Sums and recurrences</a>
+        <a href="../reference/matrices/">Matrices</a>
+        <a href="../reference/piecewise/">Piecewise functions</a>
+        <a href="../reference/calculus/">Calculus</a>
+        <a href="../reference/ode/">Differential equations</a>
+        <a href="../reference/patterns/">Pattern matching</a>
+      </div>
     </nav>
     <main class="md-content">
       <article class="md-article">
@@ -1552,6 +1567,26 @@ SymJ.dsolve(y&#39;(x) + 2y(x) ~ exp(x), y(x))</code></pre>
 \[y\left( x \right) = \sqrt{ - x^{2} + 4}\]
 </div>
 </div>
+<p>With <code class="md-code-inline">series = n</code> the solution is a series, here about <code class="md-code-inline">0</code> (Airy&#39;s equation), with error <code class="md-code-inline">O(x^n)</code>:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.dsolve(y&#39;&#39;(x) - x * y(x) ~ 0, y(x); series = 8)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[y\left( x \right) = C2 \cdot \left( \frac{x^{7}}{504} + \frac{x^{4}}{12} + x \right) + C1 \cdot \left( \frac{x^{6}}{180} + \frac{x^{3}}{6} + 1 \right)\]
+</div>
+</div>
+<p>At a regular singular point it is a Frobenius series, which can have a <code class="md-code-inline">log</code> term (Bessel&#39;s equation of order 0):</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.dsolve(x^2 * y&#39;&#39;(x) + x * y&#39;(x) + x^2 * y(x) ~ 0, y(x); series = 6)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[y\left( x \right) = C1 \cdot \left( \frac{x^{4}}{64} - \frac{x^{2}}{4} + 1 \right) + C2 \cdot \left( \log\left( x \right) \cdot \left( \frac{x^{4}}{64} - \frac{x^{2}}{4} + 1 \right) - \frac{3 \cdot x^{4}}{128} + \frac{x^{2}}{4} \right)\]
+</div>
+</div>
 <p>A system of linear equations with constant coefficients is given as vectors of equations and unknowns. The answer is a vector of equations:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -1706,6 +1741,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=40f78454"></script>
+  <script src="../assets/materialdocs.js?v=93fd0222"></script>
 </body>
 </html>

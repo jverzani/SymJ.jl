@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pattern matching — SymJ.jl</title>
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=917203fc">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <meta name="title" content="Pattern matching — SymJ.jl">
+  <meta property="og:title" content="Pattern matching — SymJ.jl">
+  <meta property="twitter:title" content="Pattern matching — SymJ.jl">
+  <meta name="description" content="Documentation for SymJ.jl.">
+  <meta property="og:description" content="Documentation for SymJ.jl.">
+  <meta property="twitter:description" content="Documentation for SymJ.jl.">
+  <script>
+    (function(){
+      document.documentElement.classList.add('no-transition');
+      var t=localStorage.getItem('md-theme');if(t)document.documentElement.setAttribute('data-theme',t);
+      window.addEventListener('load',function(){setTimeout(function(){document.documentElement.classList.remove('no-transition');},50);});
+    })()
+  </script>
+</head>
+<body data-warn-outdated>
+  <header class="md-navbar">
+    <button id="md-hamburger" class="md-icon-btn md-hamburger" aria-label="Toggle navigation" aria-expanded="false"><svg class="md-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg></button>
+    <span class="md-navbar-title">SymJ.jl</span>
+    <span class="md-navbar-spacer"></span>
+    <button id="md-search-btn" class="md-search-bar" aria-label="Search documentation" aria-expanded="false">
+      <svg class="md-icon md-search-bar-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+      <span class="md-search-bar-label">Search docs</span>
+      <kbd class="md-search-bar-kbd">Ctrl K</kbd>
+    </button>
+    <div id="md-version" class="md-version" hidden>
+      <button id="md-version-btn" class="md-version-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="Select documentation version">
+        <span id="md-version-current" class="md-version-current"></span>
+        <svg class="md-icon md-version-caret" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M7 10l5 5 5-5z"/></svg>
+      </button>
+      <ul id="md-version-menu" class="md-version-menu" role="listbox" hidden></ul>
+    </div>
+    <a class="md-icon-btn md-repo-link" href="https://github.com/jverzani/SymJ.jl" title="View the repository on GitHub" aria-label="View the repository on GitHub" rel="noopener" target="_blank"><svg class="md-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 .3a12 12 0 00-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.4-1.8-1.4-1.8-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 0-.8.4-1.3.7-1.6-2.7-.3-5.5-1.3-5.5-6 0-1.2.5-2.3 1.3-3.1-.2-.4-.6-1.6.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 016 0c2.3-1.5 3.3-1.2 3.3-1.2.7 1.6.2 2.8.1 3.2.8.8 1.3 1.9 1.3 3.2 0 4.6-2.8 5.6-5.5 5.9.5.4.9 1.1.9 2.2v3.3c0 .3.1.7.8.6A12 12 0 0012 .3z"/></svg><span class="md-repo-label">GitHub</span></a>
+    <button id="md-theme-toggle" class="md-icon-btn" title="Toggle dark mode" aria-label="Toggle dark mode"><svg class="md-icon md-icon-light" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0a.996.996 0 000-1.41l-1.06-1.06zm1.06-10.96a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/></svg><svg class="md-icon md-icon-dark" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg></button>
+  </header>
+  <div class="md-layout">
+    <nav class="md-sidebar">
+      <a href="../../">Home</a>
+      <a href="../../tutorial/">Tutorial</a>
+      <a href="../../implementation/">Implementation</a>
+      <a href="../../design/">Design notes</a>
+      <div class="md-nav-section">
+        <span class="md-nav-section-title">Reference</span>
+        <a href="../../reference/index/">Reference</a>
+        <a href="../../reference/expressions/">Expressions and evaluation</a>
+        <a href="../../reference/polynomials/">Polynomials</a>
+        <a href="../../reference/rational/">Rational functions</a>
+        <a href="../../reference/simplification/">Simplification</a>
+        <a href="../../reference/assumptions/">Assumptions</a>
+        <a href="../../reference/solving/">Solving equations</a>
+        <a href="../../reference/sums/">Sums and recurrences</a>
+        <a href="../../reference/matrices/">Matrices</a>
+        <a href="../../reference/piecewise/">Piecewise functions</a>
+        <a href="../../reference/calculus/">Calculus</a>
+        <a href="../../reference/ode/">Differential equations</a>
+        <a href="../../reference/patterns/" class="md-nav-active">Pattern matching</a>
+      </div>
+    </nav>
+    <main class="md-content">
+      <article class="md-article">
+<h1 id="Pattern-matching" class="md-heading">Pattern matching<a href="#Pattern-matching" class="md-heading-anchor" aria-label="Link to this section">#</a></h1>
+<div class="md-docstring" id="SymJ.pattern">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.pattern</code></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/patterns.jl#L222-L251" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.pattern(ex)</code></pre>
+</div>
+<p>A pattern from the expression <code class="md-code-inline">ex</code>, usually quoted, in which <code class="md-code-inline">~x</code> marks a slot:</p>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:left">Slot</th>
+<th style="text-align:left">In a function&#39;s arguments</th>
+<th style="text-align:left">In a sum or product</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">~x</code></td>
+<td style="text-align:left">one argument</td>
+<td style="text-align:left">one or more terms (factors), bound to their sum (product)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">~!x</code></td>
+<td style="text-align:left">one argument</td>
+<td style="text-align:left">any number; none gives 0 (1)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">~~x</code></td>
+<td style="text-align:left">any number, bound to a vector</td>
+<td style="text-align:left">any number; none gives 0 (1)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">~~~x</code></td>
+<td style="text-align:left">one or more, bound to a vector</td>
+<td style="text-align:left">one or more</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>In an exponent, <code class="md-code-inline">~!n</code> is 1 when there is no power. A head slot <code class="md-code-inline">(~f)(~x)</code> matches any function application and binds the function. <code class="md-code-inline">~x::pred</code> (with any flavor) accepts only values for which <code class="md-code-inline">pred</code> returns <code class="md-code-inline">true</code>; a predicate&#39;s name is looked up in <code class="md-code-inline">Main</code>, then <code class="md-code-inline">Base</code>, then SymJ, or a function can be interpolated (<code class="md-code-inline">:(~x::$f)</code>).</p>
+<p>The pattern is put in canonical form, as any expression is (<code class="md-code-inline">~x + ~x</code> is <code class="md-code-inline">2*~x</code>, <code class="md-code-inline">exp(log(~x))</code> is <code class="md-code-inline">~x</code>), and means what that form means. A number divides into a slot: <code class="md-code-inline">~x - ~y</code> matches <code class="md-code-inline">a - 2b</code> with <code class="md-code-inline">y =&gt; 2b</code>.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">p = SymJ.pattern(:(~!a * sin(~x) + ~~r))
+match(p, 3sin(t) + 1)          # Dict(:a =&gt; 3, :x =&gt; t, :r =&gt; 1)
+eachmatch(SymJ.pattern(:(~x + ~y)), a + b + c)   # six matches
+occursin(SymJ.pattern(:(sin(~x)^2)), 1 + sin(t)^2)   # true</code></pre>
+</div>
+<p>Not exported.</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.@pattern">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.@pattern</code></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/patterns.jl#L655-L668" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.@pattern ex</code></pre>
+</div>
+<p>The pattern <a href="../../reference/patterns/#SymJ.pattern"><code class="md-code-inline">SymJ.pattern</code></a> makes from <code class="md-code-inline">ex</code>, written without quoting. The slots&#39; predicates are evaluated where the macro is called, and <code class="md-code-inline">$v</code> puts in the value of <code class="md-code-inline">v</code>; other names are symbols (<code class="md-code-inline">a</code> in a pattern is <code class="md-code-inline">Sym(:a)</code>). Not exported.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">isodd3(n) = isodd(n) &amp;&amp; n &gt; 3
+p = SymJ.@pattern (~x)^(~n::isodd3)
+c = sin(t)
+q = SymJ.@pattern ~x + $c</code></pre>
+</div>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.rule">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.rule</code></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/patterns.jl#L740-L753" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.rule(lhs =&gt; rhs)</code></pre>
+</div>
+<p>A rewrite rule made at run time: <code class="md-code-inline">lhs</code> is a pattern or a quoted pattern, and <code class="md-code-inline">rhs</code> either a quoted template, filled in with the bindings (<code class="md-code-inline">~x</code> its value, <code class="md-code-inline">(~f)(…)</code> the bound function, a sequence slot&#39;s arguments in place), or a function of the bindings (a <code class="md-code-inline">Dict</code>) that gives the value, or <code class="md-code-inline">nothing</code> to reject the match. See <a href="../../reference/patterns/#SymJ.@rule"><code class="md-code-inline">SymJ.@rule</code></a>. Not exported.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.rule(:(sin(~x)^2) =&gt; :(1 - cos(~x)^2))
+SymJ.rule(:((~x)^(~n)) =&gt; d -&gt; d[:n] * d[:x]^(d[:n] - 1))</code></pre>
+</div>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.@rule">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.@rule</code></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/patterns.jl#L715-L731" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.@rule lhs =&gt; rhs</code></pre>
+</div>
+<p>A rewrite rule: when the pattern <code class="md-code-inline">lhs</code> (as for <a href="../../reference/patterns/#SymJ.@pattern"><code class="md-code-inline">SymJ.@pattern</code></a>) matches, the result is <code class="md-code-inline">rhs</code>, Julia code run where the macro is called with <code class="md-code-inline">~x</code> the value bound to the slot <code class="md-code-inline">~x</code>. A right side that gives <code class="md-code-inline">nothing</code> rejects the match, and the search goes on to the next. Use with <a href="../../reference/patterns/#SymJ.rewrite"><code class="md-code-inline">SymJ.rewrite</code></a> or <code class="md-code-inline">replace</code>, or call the rule on an expression. Not exported.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">r = SymJ.@rule sin(~x)^2 + cos(~x)^2 + ~~r =&gt; 1 + ~r
+r(sin(t)^2 + cos(t)^2 + a)               # 1 + a
+SymJ.@rule log(~x * ~y) =&gt; log(~x) + log(~y)
+SymJ.@rule ~x^(~n::isinteger) =&gt; ~n * ~x^(~n - 1)
+SymJ.@rule (~f)(~x + 2π) =&gt; (~f in (sin, cos) ? (~f)(~x) : nothing)</code></pre>
+</div>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.rewrite">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.rewrite</code></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/patterns.jl#L830-L844" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.rewrite(ex, rules...; order = :post, fixpoint = true, maxsteps = 100)</code></pre>
+</div>
+<p><code class="md-code-inline">ex</code> with the rules applied wherever they match: to every part (the terms of a sum, the factors of a product, the arguments of a function), from the leaves up (<code class="md-code-inline">order = :post</code>) or from the top down (<code class="md-code-inline">:pre</code>). At each part the first rule that gives a result is used. With <code class="md-code-inline">fixpoint = true</code> the walk is repeated until nothing changes, at most <code class="md-code-inline">maxsteps</code> times, with a warning when that limit is reached. <code class="md-code-inline">rules</code> are <a href="../../reference/patterns/#SymJ.Rule"><code class="md-code-inline">SymJ.Rule</code></a>s, or vectors of them. Not exported.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">r = SymJ.@rule log(~x * ~y) =&gt; log(~x) + log(~y)
+SymJ.rewrite(log(a * b * c), r)          # log(a) + log(b) + log(c)</code></pre>
+</div>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.Pattern">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.Pattern</code></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/patterns.jl#L210-L215" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.Pattern</code></pre>
+</div>
+<p>A compiled pattern, made by <a href="../../reference/patterns/#SymJ.pattern"><code class="md-code-inline">SymJ.pattern</code></a> and used with <code class="md-code-inline">match</code>, <code class="md-code-inline">eachmatch</code> and <code class="md-code-inline">occursin</code>.</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.Rule">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.Rule</code></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/patterns.jl#L673-L679" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.Rule</code></pre>
+</div>
+<p>A rewrite rule, made by <a href="../../reference/patterns/#SymJ.@rule"><code class="md-code-inline">SymJ.@rule</code></a> or <a href="../../reference/patterns/#SymJ.rule"><code class="md-code-inline">SymJ.rule</code></a>. Called on an expression, it gives the rewritten expression, or <code class="md-code-inline">nothing</code> when the left side doesn&#39;t match (or every match&#39;s right side is <code class="md-code-inline">nothing</code>).</p>
+</div>
+</div>
+<div class="md-docstring" id="Base.eachmatch-Tuple{SymJ.Pattern, Any}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>Base.eachmatch</code> — <span class="md-docstring-sig">Tuple{SymJ.Pattern, Any}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/patterns.jl#L611-L616" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">eachmatch(p::SymJ.Pattern, ex)</code></pre>
+</div>
+<p>Every match of the pattern <code class="md-code-inline">p</code> against <code class="md-code-inline">ex</code>, as a vector of <code class="md-code-inline">Dict</code>s, in the order the search finds them. See <a href="../../reference/patterns/#SymJ.pattern"><code class="md-code-inline">SymJ.pattern</code></a>.</p>
+</div>
+</div>
+<div class="md-docstring" id="Base.match-Tuple{SymJ.Pattern, Any}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>Base.match</code> — <span class="md-docstring-sig">Tuple{SymJ.Pattern, Any}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/patterns.jl#L599-L604" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">match(p::SymJ.Pattern, ex)</code></pre>
+</div>
+<p>The first match of the pattern <code class="md-code-inline">p</code> against <code class="md-code-inline">ex</code>, as a <code class="md-code-inline">Dict</code> from slot names to values, or <code class="md-code-inline">nothing</code>. See <a href="../../reference/patterns/#SymJ.pattern"><code class="md-code-inline">SymJ.pattern</code></a>.</p>
+</div>
+</div>
+<div class="md-docstring" id="Base.occursin-Tuple{SymJ.Pattern, Any}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>Base.occursin</code> — <span class="md-docstring-sig">Tuple{SymJ.Pattern, Any}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/patterns.jl#L623-L628" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">occursin(p::SymJ.Pattern, ex)</code></pre>
+</div>
+<p>Whether the pattern <code class="md-code-inline">p</code> matches <code class="md-code-inline">ex</code> or a part of it: a term of a sum, a factor of a product, an argument. See <a href="../../reference/patterns/#SymJ.pattern"><code class="md-code-inline">SymJ.pattern</code></a>.</p>
+</div>
+</div>
+<div class="md-docstring" id="Base.replace-Tuple{Sym, SymJ.Rule, Vararg{SymJ.Rule}}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>Base.replace</code> — <span class="md-docstring-sig">Tuple{Sym, SymJ.Rule, Vararg{SymJ.Rule}}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/patterns.jl#L864-L869" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">replace(ex::Sym, rules::SymJ.Rule...)</code></pre>
+</div>
+<p><code class="md-code-inline">ex</code> with each rule applied once wherever it matches, in one pass from the leaves up: <a href="../../reference/patterns/#SymJ.rewrite"><code class="md-code-inline">SymJ.rewrite</code></a> with <code class="md-code-inline">fixpoint = false</code>.</p>
+</div>
+</div>
+      </article>
+      <footer class="md-footer">
+<p>Built with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and <a href="https://github.com/mthelm85/MaterialDocs.jl">MaterialDocs.jl</a>.</p>
+      </footer>
+    </main>
+    <aside class="md-toc">
+      <div class="md-toc-inner">
+        <p class="md-toc-title">On this page</p>
+      </div>
+    </aside>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/julia.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/julia-repl.min.js"></script>
+  <script>hljs.highlightAll();</script>
+  <script src="../../siteinfo.js"></script>
+  <script src="../../../versions.js"></script>
+  <script src="../../assets/materialdocs.js?v=917203fc"></script>
+</body>
+</html>

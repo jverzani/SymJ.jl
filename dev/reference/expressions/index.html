@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Expressions and evaluation — SymJ.jl</title>
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=51874bb2">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <meta name="title" content="Expressions and evaluation — SymJ.jl">
+  <meta property="og:title" content="Expressions and evaluation — SymJ.jl">
+  <meta property="twitter:title" content="Expressions and evaluation — SymJ.jl">
+  <meta name="description" content="Documentation for SymJ.jl.">
+  <meta property="og:description" content="Documentation for SymJ.jl.">
+  <meta property="twitter:description" content="Documentation for SymJ.jl.">
+  <script>
+    (function(){
+      document.documentElement.classList.add('no-transition');
+      var t=localStorage.getItem('md-theme');if(t)document.documentElement.setAttribute('data-theme',t);
+      window.addEventListener('load',function(){setTimeout(function(){document.documentElement.classList.remove('no-transition');},50);});
+    })()
+  </script>
+</head>
+<body data-warn-outdated>
+  <header class="md-navbar">
+    <button id="md-hamburger" class="md-icon-btn md-hamburger" aria-label="Toggle navigation" aria-expanded="false"><svg class="md-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg></button>
+    <span class="md-navbar-title">SymJ.jl</span>
+    <span class="md-navbar-spacer"></span>
+    <button id="md-search-btn" class="md-search-bar" aria-label="Search documentation" aria-expanded="false">
+      <svg class="md-icon md-search-bar-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+      <span class="md-search-bar-label">Search docs</span>
+      <kbd class="md-search-bar-kbd">Ctrl K</kbd>
+    </button>
+    <div id="md-version" class="md-version" hidden>
+      <button id="md-version-btn" class="md-version-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="Select documentation version">
+        <span id="md-version-current" class="md-version-current"></span>
+        <svg class="md-icon md-version-caret" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M7 10l5 5 5-5z"/></svg>
+      </button>
+      <ul id="md-version-menu" class="md-version-menu" role="listbox" hidden></ul>
+    </div>
+    <a class="md-icon-btn md-repo-link" href="https://github.com/jverzani/SymJ.jl" title="View the repository on GitHub" aria-label="View the repository on GitHub" rel="noopener" target="_blank"><svg class="md-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 .3a12 12 0 00-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.4-1.8-1.4-1.8-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 0-.8.4-1.3.7-1.6-2.7-.3-5.5-1.3-5.5-6 0-1.2.5-2.3 1.3-3.1-.2-.4-.6-1.6.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 016 0c2.3-1.5 3.3-1.2 3.3-1.2.7 1.6.2 2.8.1 3.2.8.8 1.3 1.9 1.3 3.2 0 4.6-2.8 5.6-5.5 5.9.5.4.9 1.1.9 2.2v3.3c0 .3.1.7.8.6A12 12 0 0012 .3z"/></svg><span class="md-repo-label">GitHub</span></a>
+    <button id="md-theme-toggle" class="md-icon-btn" title="Toggle dark mode" aria-label="Toggle dark mode"><svg class="md-icon md-icon-light" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0a.996.996 0 000-1.41l-1.06-1.06zm1.06-10.96a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/></svg><svg class="md-icon md-icon-dark" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg></button>
+  </header>
+  <div class="md-layout">
+    <nav class="md-sidebar">
+      <a href="../../">Home</a>
+      <a href="../../tutorial/">Tutorial</a>
+      <a href="../../implementation/">Implementation</a>
+      <a href="../../design/">Design notes</a>
+      <div class="md-nav-section">
+        <span class="md-nav-section-title">Reference</span>
+        <a href="../../reference/index/">Reference</a>
+        <a href="../../reference/expressions/" class="md-nav-active">Expressions and evaluation</a>
+        <a href="../../reference/polynomials/">Polynomials</a>
+        <a href="../../reference/rational/">Rational functions</a>
+        <a href="../../reference/simplification/">Simplification</a>
+        <a href="../../reference/assumptions/">Assumptions</a>
+        <a href="../../reference/solving/">Solving equations</a>
+        <a href="../../reference/sums/">Sums and recurrences</a>
+        <a href="../../reference/matrices/">Matrices</a>
+        <a href="../../reference/piecewise/">Piecewise functions</a>
+        <a href="../../reference/calculus/">Calculus</a>
+        <a href="../../reference/ode/">Differential equations</a>
+        <a href="../../reference/patterns/">Pattern matching</a>
+      </div>
+    </nav>
+    <main class="md-content">
+      <article class="md-article">
+<h1 id="Expressions-and-evaluation" class="md-heading">Expressions and evaluation<a href="#Expressions-and-evaluation" class="md-heading-anchor" aria-label="Link to this section">#</a></h1>
+<div class="md-docstring" id="SymJ.SymJ">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.SymJ</code></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/SymJ.jl#L1-L7" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ</code></pre>
+</div>
+<p>Symbolic manipulation with a single concrete, hash-carrying node type, eager canonicalization of sums, products and powers, exact numbers, and support for the TermInterface v2 contract. See <code class="md-code-inline">docs/src/design.md</code> for the design.</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.@syms">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.@syms</code></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/manipulation.jl#L502-L506" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms x y f()</code></pre>
+</div>
+<p>Create symbols (and, with <code class="md-code-inline">f()</code>, a <a href="../../reference/expressions/#SymJ.SymFunction"><code class="md-code-inline">SymFunction</code></a>) and bind them to the names.</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.symbols">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.symbols</code></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/manipulation.jl#L540-L544" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">symbols(&quot;x y z&quot;)</code></pre>
+</div>
+<p>A tuple of symbols named by a space- or comma-separated string.</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.Sym">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.Sym</code></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/types.jl#L34-L57" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">Sym</code></pre>
+</div>
+<p>A symbolic expression. Construct leaves with <code class="md-code-inline">Sym(:x)</code>, <code class="md-code-inline">Sym(2)</code>, <code class="md-code-inline">Sym(1//3)</code>, <code class="md-code-inline">Sym(π)</code>, or the <a href="../../reference/expressions/#SymJ.@syms"><code class="md-code-inline">@syms</code></a> macro; build compound expressions with the usual arithmetic operators and functions. Expressions are kept in a canonical form as they are built: like terms are collected in sums, like bases are collected in products, and numeric powers such as <code class="md-code-inline">sqrt(Sym(8))</code> are reduced exactly (to <code class="md-code-inline">2*sqrt(2)</code>).</p>
+<p>Layout by <code class="md-code-inline">kind</code>:</p>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:left">kind</th>
+<th style="text-align:left"><code class="md-code-inline">num</code></th>
+<th style="text-align:left"><code class="md-code-inline">args</code></th>
+<th style="text-align:left"><code class="md-code-inline">exps</code></th>
+<th style="text-align:left"><code class="md-code-inline">coefs</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">NUMBER</code></td>
+<td style="text-align:left">the value</td>
+<td style="text-align:left"></td>
+<td style="text-align:left"></td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">SYMBOL</code></td>
+<td style="text-align:left"></td>
+<td style="text-align:left"></td>
+<td style="text-align:left"></td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">CONSTANT</code></td>
+<td style="text-align:left"></td>
+<td style="text-align:left"></td>
+<td style="text-align:left"></td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">ADD</code></td>
+<td style="text-align:left">constant term</td>
+<td style="text-align:left">terms (sorted)</td>
+<td style="text-align:left"></td>
+<td style="text-align:left">coefficient of each</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">MUL</code></td>
+<td style="text-align:left">coefficient</td>
+<td style="text-align:left">bases (sorted)</td>
+<td style="text-align:left">exponent of each</td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">POW</code></td>
+<td style="text-align:left"></td>
+<td style="text-align:left"><code class="md-code-inline">[base, exponent]</code></td>
+<td style="text-align:left"></td>
+<td style="text-align:left"></td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">FN</code></td>
+<td style="text-align:left"></td>
+<td style="text-align:left">arguments</td>
+<td style="text-align:left"></td>
+<td style="text-align:left"></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><code class="md-code-inline">name</code> holds the symbol, constant, or function name. The vectors must never be mutated once a node is built; nodes share them freely.</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.SymFunction">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.SymFunction</code></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/functions.jl#L9-L18" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymFunction(name)</code></pre>
+</div>
+<p>A symbolic function. Calling it builds an unevaluated application:</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">f = SymFunction(:f)     # or `@syms f()`
+f(x, 2)                 # f(x, 2)</code></pre>
+</div>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.subs">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.subs</code></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/manipulation.jl#L52-L59" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">subs(ex, x =&gt; v, ...)
+subs(ex, d::AbstractDict)</code></pre>
+</div>
+<p>Replace subexpressions of <code class="md-code-inline">ex</code> (whole nodes only) and re-simplify. Expressions are callable, so <code class="md-code-inline">ex(x =&gt; 1, y =&gt; 2)</code> is the same as <code class="md-code-inline">subs(ex, x =&gt; 1, y =&gt; 2)</code>; see <a href="../../reference/expressions/#SymJ.Sym"><code class="md-code-inline">Sym</code></a> calling for the single-value forms.</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.N">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.N</code></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/manipulation.jl#L410-L414" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">N(ex)</code></pre>
+</div>
+<p>Evaluate <code class="md-code-inline">ex</code> numerically as a <code class="md-code-inline">Float64</code> (or <code class="md-code-inline">ComplexF64</code> when the value is not real).</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.AbstractSymbolic">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.AbstractSymbolic</code></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/types.jl#L11-L31" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">AbstractSymbolic &lt;: Function</code></pre>
+</div>
+<p>Supertype of SymJ&#39;s symbolic objects. Symbolic objects are callable, and calling a <a href="../../reference/expressions/#SymJ.SymFunction"><code class="md-code-inline">SymFunction</code></a> builds an unevaluated function application. An expression <code class="md-code-inline">ex</code> can be called in these ways:</p>
+<ul class="md-list-tight">
+<li><p><code class="md-code-inline">ex(a)</code> with a number <code class="md-code-inline">a</code>: evaluates <code class="md-code-inline">ex</code>, which may have one free variable, with Julia&#39;s arithmetic on <code class="md-code-inline">a</code> (see <a href="../../reference/expressions/#SymJ.evaluate-Tuple{Sym, Any}"><code class="md-code-inline">evaluate</code></a>), so <code class="md-code-inline">(x^2)(3) === 9</code>. With a symbolic <code class="md-code-inline">a</code>, it substitutes instead.</p>
+</li>
+<li><p><code class="md-code-inline">ex(x =&gt; a, y =&gt; b)</code>: substitutes (see <a href="../../reference/expressions/#SymJ.subs"><code class="md-code-inline">subs</code></a>) and returns an expression.</p>
+</li>
+<li><p><code class="md-code-inline">ex(; x = a, y = b)</code>: gives values to the variables named <code class="md-code-inline">x</code> and <code class="md-code-inline">y</code>. If every one of <code class="md-code-inline">ex</code>&#39;s variables gets a non-symbolic value, <code class="md-code-inline">ex</code> is evaluated with Julia arithmetic and the result is a Julia number: <code class="md-code-inline">(x^2 + y)(; x = 2, y = 3) === 7</code>. Otherwise this substitutes and returns an expression: <code class="md-code-inline">(x^2 + y)(; x = 2) == y + 4</code>. Names that are not in <code class="md-code-inline">ex</code> are ignored, so one set of keywords can be used for several expressions. Keywords can&#39;t be combined with the other forms.</p>
+</li>
+<li><p><code class="md-code-inline">ex()</code>: the value of a constant expression as a Julia number, or <code class="md-code-inline">ex</code> itself if it has a free variable.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="md-docstring" id="SymJ._cmp-Tuple{Sym, Sym}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ._cmp</code> — <span class="md-docstring-sig">Tuple{Sym, Sym}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/types.jl#L156-L162" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">_cmp(a, b)</code></pre>
+</div>
+<p>Total order on expressions used for canonical storage (hash first, structure on ties). It is deterministic across sessions but has no mathematical meaning; display order is computed separately by the printer.</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.kind-Tuple{Sym}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.kind</code> — <span class="md-docstring-sig">Tuple{Sym}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/types.jl#L223-L228" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">kind(x::Sym)</code></pre>
+</div>
+<p>The node kind: one of <code class="md-code-inline">NUMBER</code>, <code class="md-code-inline">SYMBOL</code>, <code class="md-code-inline">CONSTANT</code>, <code class="md-code-inline">ADD</code>, <code class="md-code-inline">MUL</code>, <code class="md-code-inline">POW</code>, <code class="md-code-inline">FN</code> (accessible as <code class="md-code-inline">SymJ.ADD</code>, etc.).</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.SymNumber">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.SymNumber</code></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/numbers.jl#L11-L17" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymNumber &lt;: Real</code></pre>
+</div>
+<p>Numeric scalar used inside symbolic expressions. It is exact (an integer or rational of arbitrary size) unless constructed from a floating point value. Small values never allocate; arithmetic promotes to <code class="md-code-inline">BigInt</code> on overflow and demotes back when results fit.</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.apply_function-Tuple{Symbol, Vector{Sym}}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.apply_function</code> — <span class="md-docstring-sig">Tuple{Symbol, Vector{Sym}}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/functions.jl#L67-L71" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">apply_function(name::Symbol, args::Vector{Sym})</code></pre>
+</div>
+<p>Apply the function <code class="md-code-inline">name</code>, simplifying with its registered rule if any.</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.register_function!-Tuple{Symbol}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.register_function!</code> — <span class="md-docstring-sig">Tuple{Symbol}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/functions.jl#L54-L61" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">register_function!(name; julia=nothing, eval=nothing, diff=nothing)</code></pre>
+</div>
+<p>Attach behaviour to the function <code class="md-code-inline">name</code>: a Julia function used for numeric evaluation, a simplification rule <code class="md-code-inline">args -&gt; Union{Nothing,Sym}</code>, and a partial-derivative rule <code class="md-code-inline">(args, i) -&gt; Union{Nothing,Sym}</code> (<code class="md-code-inline">nothing</code> for a derivative with no closed form, which is left unevaluated).</p>
+</div>
+</div>
+<div class="md-docstring" id="Base.sqrt-Tuple{Sym}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>Base.sqrt</code> — <span class="md-docstring-sig">Tuple{Sym}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/arithmetic.jl#L453-L457" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">sqrt(x::Sym)</code></pre>
+</div>
+<p><code class="md-code-inline">x^(1//2)</code>, exact for numbers: <code class="md-code-inline">sqrt(Sym(12)) == 2*sqrt(Sym(3))</code>.</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.add-Tuple{Sym, Sym}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.add</code> — <span class="md-docstring-sig">Tuple{Sym, Sym}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/arithmetic.jl#L100-L104" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">add(a::Sym, b::Sym)</code></pre>
+</div>
+<p>Canonical sum of two expressions (what <code class="md-code-inline">a + b</code> calls).</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.mul-Tuple{Sym, Sym}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.mul</code> — <span class="md-docstring-sig">Tuple{Sym, Sym}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/arithmetic.jl#L222-L226" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">mul(a::Sym, b::Sym)</code></pre>
+</div>
+<p>Canonical product of two expressions (what <code class="md-code-inline">a * b</code> calls).</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.pow-Tuple{Sym, Sym}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.pow</code> — <span class="md-docstring-sig">Tuple{Sym, Sym}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/arithmetic.jl#L322-L328" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">pow(b::Sym, e::Sym)</code></pre>
+</div>
+<p>Canonical power (what <code class="md-code-inline">b^e</code> calls). Integer powers of products and powers are distributed; numeric powers are evaluated exactly, extracting perfect powers from radicals (<code class="md-code-inline">8^(1/2) == 2*2^(1/2)</code>).</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.Relation">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.Relation</code></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/relations.jl#L18-L28" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">Relation</code></pre>
+</div>
+<p>A symbolic equation or inequality between two expressions: <code class="md-code-inline">x^2 + 1 ~ 3</code>, <code class="md-code-inline">x ≪ 1</code> (<code class="md-code-inline">Lt(x, 1)</code>), <code class="md-code-inline">x ≦ 1</code>, <code class="md-code-inline">x ≫ 1</code>, <code class="md-code-inline">x ≧ 1</code>, <code class="md-code-inline">x ≶ 1</code> (<code class="md-code-inline">Ne</code>). See <a href="../../reference/expressions/#SymJ.lhs-Tuple{Relation}"><code class="md-code-inline">lhs</code></a>, <a href="../../reference/expressions/#SymJ.rhs-Tuple{Relation}"><code class="md-code-inline">rhs</code></a>.</p>
+<p>Calling a relation substitutes into both sides, as calling an expression does (<code class="md-code-inline">(x^2 ~ 4)(x =&gt; 2)</code>, <code class="md-code-inline">(x^2 ~ 4)(2)</code>); when no symbols remain the result is a <code class="md-code-inline">Bool</code>. <code class="md-code-inline">r()</code> evaluates a relation between constants.</p>
+</div>
+</div>
+<div class="md-docstring" id="CommonEq.Eq">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>CommonEq.Eq</code></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/relations.jl#L52-L58" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">Eq(a, b), Lt(a, b), Le(a, b), Gt(a, b), Ge(a, b), Ne(a, b)</code></pre>
+</div>
+<p>The relations <code class="md-code-inline">a = b</code>, <code class="md-code-inline">a &lt; b</code>, <code class="md-code-inline">a ≤ b</code>, <code class="md-code-inline">a &gt; b</code>, <code class="md-code-inline">a ≥ b</code>, <code class="md-code-inline">a ≠ b</code> between expressions (the functions of CommonEq.jl, extended). Infix forms: <code class="md-code-inline">~</code> or <code class="md-code-inline">⩵</code>, <code class="md-code-inline">≪</code>, <code class="md-code-inline">≦</code>, <code class="md-code-inline">≫</code>, <code class="md-code-inline">≧</code>, <code class="md-code-inline">≶</code> or <code class="md-code-inline">≷</code>.</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.lhs-Tuple{Relation}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.lhs</code> — <span class="md-docstring-sig">Tuple{Relation}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/relations.jl#L35-L39" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">lhs(r::Relation), rhs(r::Relation)</code></pre>
+</div>
+<p>The two sides of a relation.</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.rhs-Tuple{Relation}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.rhs</code> — <span class="md-docstring-sig">Tuple{Relation}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/relations.jl#L42-L46" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">rhs(r::Relation)</code></pre>
+</div>
+<p>The right side of a relation (see <a href="../../reference/expressions/#SymJ.lhs-Tuple{Relation}"><code class="md-code-inline">lhs</code></a>).</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.evaluate-Tuple{Sym, Any}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.evaluate</code> — <span class="md-docstring-sig">Tuple{Sym, Any}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/manipulation.jl#L193-L209" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">evaluate(ex, a)</code></pre>
+</div>
+<p>Evaluate <code class="md-code-inline">ex</code>, which may have at most one free symbol, at <code class="md-code-inline">a</code> using Julia arithmetic on <code class="md-code-inline">a</code>. This is what calling an expression on a non-symbolic value does: if <code class="md-code-inline">u = x^2</code> then <code class="md-code-inline">u(3) === 9</code>, <code class="md-code-inline">u(3.0) === 9.0</code> and <code class="md-code-inline">u(1//2) === 1//4</code>. Because the arithmetic is generic, <code class="md-code-inline">a</code> may be any number type (big floats, dual numbers, intervals, ...).</p>
+<ul class="md-list-tight">
+<li><p>Exact coefficients are used as Julia integers and rationals, so exact inputs give exact results where Julia arithmetic would (<code class="md-code-inline">(x/3)(3) == 1//1</code>).</p>
+</li>
+<li><p>When <code class="md-code-inline">a</code> is a floating point type (real or complex), constants such as <code class="md-code-inline">1/3</code>, <code class="md-code-inline">sqrt(2)</code> and <code class="md-code-inline">π</code> are computed in that type, so <code class="md-code-inline">BigFloat</code> inputs keep their precision.</p>
+</li>
+<li><p>Negative integer powers use <code class="md-code-inline">inv</code> (<code class="md-code-inline">(1/x)(2) === 0.5</code>), and a negative base with a fractional power gives the principal complex value (<code class="md-code-inline">sqrt(x)(-4) == 2im</code>).</p>
+</li>
+<li><p>Functions need a Julia method (registered with <code class="md-code-inline">julia = ...</code>); user functions without one throw an <code class="md-code-inline">ArgumentError</code>.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.expand-Tuple{Sym}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.expand</code> — <span class="md-docstring-sig">Tuple{Sym}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/manipulation.jl#L290-L295" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">expand(ex)</code></pre>
+</div>
+<p>Distribute products and positive integer powers over sums. Expressions that are polynomials with numeric coefficients in their symbols are expanded through <a href="../../reference/polynomials/#SymJ.Poly"><code class="md-code-inline">Poly</code></a>.</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.free_symbols-Tuple{Sym}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.free_symbols</code> — <span class="md-docstring-sig">Tuple{Sym}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/manipulation.jl#L3-L7" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">free_symbols(ex)</code></pre>
+</div>
+<p>The variables appearing in <code class="md-code-inline">ex</code>, sorted by name.</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.has-Tuple{Sym, Sym}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.has</code> — <span class="md-docstring-sig">Tuple{Sym, Sym}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/manipulation.jl#L43-L47" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">has(ex, x)</code></pre>
+</div>
+<p>Does <code class="md-code-inline">x</code> occur as a subexpression of <code class="md-code-inline">ex</code>? (Matches whole nodes only.)</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.lambdify-Tuple{Any, Vararg{Sym}}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.lambdify</code> — <span class="md-docstring-sig">Tuple{Any, Vararg{Sym}}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/lambdify.jl#L14-L32" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">lambdify(ex, vars...)
+lambdify(ex, vars::Union{Tuple,AbstractVector})
+lambdify(ex)</code></pre>
+</div>
+<p>Compile <code class="md-code-inline">ex</code> into a Julia function of the symbols <code class="md-code-inline">vars</code>, in that order. With no <code class="md-code-inline">vars</code>, <code class="md-code-inline">ex</code> may have at most one free variable. <code class="md-code-inline">ex</code> may also be an array or tuple of expressions, and the function then returns an array of the same shape (or a tuple), with common subexpressions shared between the entries.</p>
+<p>The function computes what calling the expression computes, at the speed of compiled Julia code: <code class="md-code-inline">lambdify(x^2 + 1)(3) === 10</code>, and <code class="md-code-inline">lambdify(sin(x) * y, x, y)(1.0, 2.0)</code>. Arguments may be any number type (<code class="md-code-inline">BigFloat</code>, dual numbers, intervals, ...).</p>
+<p>A function of several variables can also be called with them in one tuple or vector, <code class="md-code-inline">f((1.0, 2.0))</code>; calling it with the wrong number of values is an error.</p>
+<p><code class="md-code-inline">lambdify_expr</code> gives the generated Julia expression.</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.lambdify_expr-Tuple{Any, Union{Tuple, AbstractVector}}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.lambdify_expr</code> — <span class="md-docstring-sig">Tuple{Any, Union{Tuple, AbstractVector}}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/lambdify.jl#L65-L69" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">lambdify_expr(ex, vars)</code></pre>
+</div>
+<p>The Julia expression (an anonymous function) that <a href="../../reference/expressions/#SymJ.lambdify-Tuple{Any, Vararg{Sym}}"><code class="md-code-inline">lambdify</code></a> compiles.</p>
+</div>
+</div>
+      </article>
+      <footer class="md-footer">
+<p>Built with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and <a href="https://github.com/mthelm85/MaterialDocs.jl">MaterialDocs.jl</a>.</p>
+      </footer>
+    </main>
+    <aside class="md-toc">
+      <div class="md-toc-inner">
+        <p class="md-toc-title">On this page</p>
+      </div>
+    </aside>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/julia.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/julia-repl.min.js"></script>
+  <script>hljs.highlightAll();</script>
+  <script src="../../siteinfo.js"></script>
+  <script src="../../../versions.js"></script>
+  <script src="../../assets/materialdocs.js?v=51874bb2"></script>
+</body>
+</html>

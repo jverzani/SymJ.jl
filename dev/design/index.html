@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Design notes — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=5a612373">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=70e282aa">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Design notes — SymJ.jl">
   <meta property="og:title" content="Design notes — SymJ.jl">
@@ -46,7 +46,22 @@
       <a href="../tutorial/">Tutorial</a>
       <a href="../implementation/">Implementation</a>
       <a href="../design/" class="md-nav-active">Design notes</a>
-      <a href="../reference/">Reference</a>
+      <div class="md-nav-section">
+        <span class="md-nav-section-title">Reference</span>
+        <a href="../reference/index/">Reference</a>
+        <a href="../reference/expressions/">Expressions and evaluation</a>
+        <a href="../reference/polynomials/">Polynomials</a>
+        <a href="../reference/rational/">Rational functions</a>
+        <a href="../reference/simplification/">Simplification</a>
+        <a href="../reference/assumptions/">Assumptions</a>
+        <a href="../reference/solving/">Solving equations</a>
+        <a href="../reference/sums/">Sums and recurrences</a>
+        <a href="../reference/matrices/">Matrices</a>
+        <a href="../reference/piecewise/">Piecewise functions</a>
+        <a href="../reference/calculus/">Calculus</a>
+        <a href="../reference/ode/">Differential equations</a>
+        <a href="../reference/patterns/">Pattern matching</a>
+      </div>
     </nav>
     <main class="md-content">
       <article class="md-article">
@@ -1228,6 +1243,8 @@ end</code></pre>
 </li>
 <li><p><strong>Derivatives as values.</strong> <code class="md-code-inline">Derivative(f, v)</code> binds <code class="md-code-inline">v</code>: substituting a value gives the derivative at a point, <code class="md-code-inline">Derivative(f, v, a)</code>, and substituting into <code class="md-code-inline">f</code> evaluates it (<code class="md-code-inline">Derivative(y(x), x)</code> with <code class="md-code-inline">y(x) =&gt; sin(x)</code> is <code class="md-code-inline">cos(x)</code>). <code class="md-code-inline">y&#39;</code> on a <code class="md-code-inline">SymFunction</code> builds these, so initial conditions read <code class="md-code-inline">y&#39;(0) =&gt; 1</code>, and a derivative at a point prints the same way (<code class="md-code-inline">y&#39;&#39;(0)</code>, not <code class="md-code-inline">Derivative(Derivative(y(x), x), x, 0)</code>).</p>
 </li>
+<li><p><strong>Series solutions</strong> (<code class="md-code-inline">series = n</code>, about <code class="md-code-inline">x0</code>). At an ordinary point, the equation solved for <code class="md-code-inline">y⁽ᵏ⁾ = f</code>: the first <code class="md-code-inline">k</code> Taylor coefficients are constants (or initial values), and each next <code class="md-code-inline">cₘ</code> is the coefficient of <code class="md-code-inline">tᵐ⁻ᵏ</code> in the series of <code class="md-code-inline">f(x₀ + t, y, …)</code> with the coefficients so far, which is all it depends on. This is the series code doing the work, so nonlinear equations need nothing more. A pole or a fractional power in that series marks a singular point. There, for a second-order linear homogeneous equation with <code class="md-code-inline">t p(t)</code>, <code class="md-code-inline">t² q(t)</code> analytic, Frobenius: the indicial equation, the recurrence for <code class="md-code-inline">aₘ(r)</code> with <code class="md-code-inline">r</code> a symbol (rational functions, cancelled), and for the second solution <code class="md-code-inline">∂/∂r</code> of <code class="md-code-inline">tʳ Σ aₘ(r) tᵐ</code> (equal roots) or of <code class="md-code-inline">(r - r₂) tʳ Σ aₘ(r) tᵐ</code> (roots an integer apart) at <code class="md-code-inline">r₂</code>, which is where the <code class="md-code-inline">log t</code> term comes from. Each series is checked: its residual is <code class="md-code-inline">O(tⁿ⁻ᵏ)</code> (Frobenius: over <code class="md-code-inline">a₂/t²</code>, <code class="md-code-inline">O(t^(r₂ + n))</code>).</p>
+</li>
 <li><p><strong>Systems.</strong> <code class="md-code-inline">SymJ.dsolve([eq₁, …], [y₁(t), …], ics...)</code>, linear with constant coefficients. The highest derivative of each unknown is solved for (the matrix of their coefficients must be invertible: the system in normal form), and the system made first order, <code class="md-code-inline">Z&#39; = M Z + F(t)</code>, with <code class="md-code-inline">Z</code> the unknowns and their lower derivatives. With <code class="md-code-inline">M = P J P⁻¹</code> (Jordan form), the columns of <code class="md-code-inline">P exp(J t)</code> are solutions; a conjugate pair of complex columns is replaced by its real and imaginary parts (<code class="md-code-inline">i</code> rewritten out of denominators first, and <code class="md-code-inline">e^((a + ib)t)</code> as <code class="md-code-inline">e^(at)(cos bt + i sin bt)</code>), giving a real fundamental matrix <code class="md-code-inline">Φ</code>. The general solution is <code class="md-code-inline">Φ C</code>, so a defective <code class="md-code-inline">M</code> gives <code class="md-code-inline">t^k e^(λt)</code> terms. A particular solution is <code class="md-code-inline">P exp(J t) ∫ exp(-J t) P⁻¹ F dt</code> when the integrand, with <code class="md-code-inline">sin</code>, <code class="md-code-inline">cos</code>, <code class="md-code-inline">sinh</code>, <code class="md-code-inline">cosh</code> as exponentials, is a sum of <code class="md-code-inline">t^k e^(at)</code> (integrated in closed form, then made real); otherwise <code class="md-code-inline">Φ ∫ Φ⁻¹ F dt</code> through the integrator. Parameters in <code class="md-code-inline">M</code> are taken to be real.</p>
 </li>
 <li><p><strong>Integrals</strong> go through an integrator hook that the RischIntegrate extension sets; without it a small integrator does polynomials, powers of a linear function, and <code class="md-code-inline">exp</code>, <code class="md-code-inline">sin</code>, <code class="md-code-inline">cos</code>, <code class="md-code-inline">sinh</code>, <code class="md-code-inline">cosh</code> of linear arguments, and anything else is an unevaluated <code class="md-code-inline">Integral(f, x)</code> whose derivative is <code class="md-code-inline">f</code>.</p>
@@ -1334,6 +1351,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=5a612373"></script>
+  <script src="../assets/materialdocs.js?v=70e282aa"></script>
 </body>
 </html>
