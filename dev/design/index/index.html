@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Design notes — SymJ.jl</title>
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=ceadde13">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <meta name="title" content="Design notes — SymJ.jl">
+  <meta property="og:title" content="Design notes — SymJ.jl">
+  <meta property="twitter:title" content="Design notes — SymJ.jl">
+  <meta name="description" content="Documentation for SymJ.jl.">
+  <meta property="og:description" content="Documentation for SymJ.jl.">
+  <meta property="twitter:description" content="Documentation for SymJ.jl.">
+  <script>
+    (function(){
+      document.documentElement.classList.add('no-transition');
+      var t=localStorage.getItem('md-theme');if(t)document.documentElement.setAttribute('data-theme',t);
+      window.addEventListener('load',function(){setTimeout(function(){document.documentElement.classList.remove('no-transition');},50);});
+    })()
+  </script>
+</head>
+<body data-warn-outdated>
+  <header class="md-navbar">
+    <button id="md-hamburger" class="md-icon-btn md-hamburger" aria-label="Toggle navigation" aria-expanded="false"><svg class="md-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg></button>
+    <span class="md-navbar-title">SymJ.jl</span>
+    <span class="md-navbar-spacer"></span>
+    <button id="md-search-btn" class="md-search-bar" aria-label="Search documentation" aria-expanded="false">
+      <svg class="md-icon md-search-bar-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+      <span class="md-search-bar-label">Search docs</span>
+      <kbd class="md-search-bar-kbd">Ctrl K</kbd>
+    </button>
+    <div id="md-version" class="md-version" hidden>
+      <button id="md-version-btn" class="md-version-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="Select documentation version">
+        <span id="md-version-current" class="md-version-current"></span>
+        <svg class="md-icon md-version-caret" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M7 10l5 5 5-5z"/></svg>
+      </button>
+      <ul id="md-version-menu" class="md-version-menu" role="listbox" hidden></ul>
+    </div>
+    <a class="md-icon-btn md-repo-link" href="https://github.com/jverzani/SymJ.jl" title="View the repository on GitHub" aria-label="View the repository on GitHub" rel="noopener" target="_blank"><svg class="md-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 .3a12 12 0 00-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.4-1.8-1.4-1.8-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 0-.8.4-1.3.7-1.6-2.7-.3-5.5-1.3-5.5-6 0-1.2.5-2.3 1.3-3.1-.2-.4-.6-1.6.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 016 0c2.3-1.5 3.3-1.2 3.3-1.2.7 1.6.2 2.8.1 3.2.8.8 1.3 1.9 1.3 3.2 0 4.6-2.8 5.6-5.5 5.9.5.4.9 1.1.9 2.2v3.3c0 .3.1.7.8.6A12 12 0 0012 .3z"/></svg><span class="md-repo-label">GitHub</span></a>
+    <button id="md-theme-toggle" class="md-icon-btn" title="Toggle dark mode" aria-label="Toggle dark mode"><svg class="md-icon md-icon-light" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0a.996.996 0 000-1.41l-1.06-1.06zm1.06-10.96a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/></svg><svg class="md-icon md-icon-dark" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg></button>
+  </header>
+  <div class="md-layout">
+    <nav class="md-sidebar">
+      <a href="../../">Home</a>
+      <a href="../../tutorial/">Tutorial</a>
+      <a href="../../implementation/">Implementation</a>
+      <div class="md-nav-section">
+        <span class="md-nav-section-title">Design notes</span>
+        <a href="../../design/index/" class="md-nav-active">Design notes</a>
+        <a href="../../design/algebra/">Design notes: algebra</a>
+        <a href="../../design/calculus/">Design notes: calculus</a>
+      </div>
+      <div class="md-nav-section">
+        <span class="md-nav-section-title">Reference</span>
+        <a href="../../reference/index/">Reference</a>
+        <a href="../../reference/expressions/">Expressions and evaluation</a>
+        <a href="../../reference/polynomials/">Polynomials</a>
+        <a href="../../reference/rational/">Rational functions</a>
+        <a href="../../reference/simplification/">Simplification</a>
+        <a href="../../reference/assumptions/">Assumptions</a>
+        <a href="../../reference/solving/">Solving equations</a>
+        <a href="../../reference/sums/">Sums and recurrences</a>
+        <a href="../../reference/matrices/">Matrices</a>
+        <a href="../../reference/piecewise/">Piecewise functions</a>
+        <a href="../../reference/calculus/">Calculus</a>
+        <a href="../../reference/ode/">Differential equations</a>
+        <a href="../../reference/patterns/">Pattern matching</a>
+      </div>
+    </nav>
+    <main class="md-content">
+      <article class="md-article">
+      <div class="md-article-actions"><a class="md-icon-btn md-edit-link" href="https://github.com/jverzani/SymJ.jl/blob/main/docs/src/design/index.md" title="Edit source on GitHub" aria-label="Edit source on GitHub"><svg class="md-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 000-1.41l-2.34-2.34a.996.996 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></a></div>
+<h1 id="Design-notes" class="md-heading">Design notes<a href="#Design-notes" class="md-heading-anchor" aria-label="Link to this section">#</a></h1>
+<p>SymJ is a symbolic manipulation kernel written in pure Julia. It aims for SymEngine-class speed with a small, explicit core that later layers (simplification, solving, matrices) build on.</p>
+<p>The notes are in three pages: this one (the core: the node type, numbers, functions, evaluation, relations, pattern matching, open questions), <a href="../../design/algebra/#design-algebra">Algebra</a> (polynomials, solving, simplification, linear algebra, assumptions) and <a href="../../design/calculus/#design-calculus">Calculus</a> (piecewise functions, summation, differential equations).</p>
+<h2 id="Goals" class="md-heading">Goals<a href="#Goals" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><p><strong>Speed comparable to SymEngine.</strong> Construction, canonicalization, expansion, differentiation and substitution should be within a small factor of SymEngine, and ideally faster.</p>
+</li>
+<li><p><strong>Callable objects.</strong> Symbolic objects subtype <code class="md-code-inline">Function</code> (via <code class="md-code-inline">AbstractSymbolic</code>). Calling is meant to make expressions drop-in replacements for functions in numeric code:</p>
+<ul class="md-list-tight">
+<li><p><code class="md-code-inline">ex(x =&gt; 1, y =&gt; 2)</code> substitutes and returns a <code class="md-code-inline">Sym</code>.</p>
+</li>
+<li><p><code class="md-code-inline">ex(a)</code> with a symbolic <code class="md-code-inline">a</code> substitutes into the expression&#39;s single free symbol.</p>
+</li>
+<li><p><code class="md-code-inline">ex(a)</code> with any other <code class="md-code-inline">a</code> evaluates with Julia arithmetic on <code class="md-code-inline">a</code>, returning a Julia value: if <code class="md-code-inline">u = x^2</code> then <code class="md-code-inline">u(3) === 9</code>, <code class="md-code-inline">u(3.0) === 9.0</code> and <code class="md-code-inline">u(1//2) === 1//4</code>. Because the arithmetic is generic, dual numbers, intervals and <code class="md-code-inline">BigFloat</code> work. Constants such as <code class="md-code-inline">sqrt(2)</code> and <code class="md-code-inline">π</code> are computed in the argument&#39;s floating point type.</p>
+</li>
+<li><p><code class="md-code-inline">ex()</code> gives the value of a constant expression as a Julia number (<code class="md-code-inline">Sym(2)() === 2</code>, <code class="md-code-inline">Sym(π)() === π</code>), and returns <code class="md-code-inline">ex</code> unchanged if it has a free symbol. It deliberately does not throw: a Julia <code class="md-code-inline">throw</code> costs about 40 μs (the backtrace), and generic code reading leaves pays that on every symbol. This matches what generic term code expects from a callable numeric leaf; GruntzLimit, for example, reads numbers this way.</p>
+</li>
+<li><p>An expression with several free symbols must be called with pairs or keywords. A single value would leave implicit which symbol receives it.</p>
+</li>
+<li><p><code class="md-code-inline">ex(; x = 2, y = 3)</code> matches keywords to variables and parameters by name. When all of them get non-symbolic values it evaluates with Julia arithmetic, returning a Julia number; otherwise it substitutes. Names not in <code class="md-code-inline">ex</code> are ignored (one set of keywords can serve several expressions), and keywords aren&#39;t mixed with pairs or a positional value. A name shared by a variable and a parameter is an error.</p>
+</li>
+<li><p>A <code class="md-code-inline">SymFunction</code> called on arguments builds an unevaluated application (<code class="md-code-inline">f(x)</code>).</p>
+</li>
+</ul>
+<p>Evaluation interprets the tree: about 25 ns for <code class="md-code-inline">x^2</code> and 2.4 μs for <code class="md-code-inline">sin(x)^2 + 3x^5 - 2x + exp(-x/2)</code>. For speed, use <code class="md-code-inline">lambdify</code> (below).</p>
+</li>
+<li><p><strong>Scalar-like collections.</strong> Like <code class="md-code-inline">Number</code>, a <code class="md-code-inline">Sym</code> or <code class="md-code-inline">Poly</code> iterates once (yielding itself), has <code class="md-code-inline">length</code> 1 and <code class="md-code-inline">size</code> <code class="md-code-inline">()</code>, and supports <code class="md-code-inline">x[]</code> and <code class="md-code-inline">x[1]</code>. Generic code that iterates or indexes a scalar therefore works unchanged.</p>
+</li>
+<li><p><strong>Exact numbers.</strong> <code class="md-code-inline">sqrt(Sym(8))</code> is <code class="md-code-inline">2*sqrt(2)</code>, <code class="md-code-inline">sin(Sym(π)/3)</code> is <code class="md-code-inline">sqrt(3)/2</code>, and <code class="md-code-inline">Sym(2)^100</code> is exact.</p>
+</li>
+<li><p><strong>Canonical form as you go.</strong> Sums collect like terms and products collect like bases at construction time. No separate <code class="md-code-inline">simplify</code> pass is needed for those identities.</p>
+</li>
+<li><p><strong>TermInterface v2.</strong> SymJ implements the contract so that generic rewriting tools work on its expressions.</p>
+</li>
+<li><p><strong>Commutative scalars.</strong> <code class="md-code-inline">+</code> and <code class="md-code-inline">*</code> are commutative. Noncommutative objects such as symbolic matrices are future work and will need their own node kinds.</p>
+</li>
+<li><p><strong>Independent of SymbolicUtils.</strong> The representation choices below are SymJ&#39;s own.</p>
+</li>
+</ul>
+<h2 id="One-concrete-node-type" class="md-heading">One concrete node type<a href="#One-concrete-node-type" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">abstract type AbstractSymbolic &lt;: Function end
+
+mutable struct Sym &lt;: AbstractSymbolic
+    const kind::Kind              # NUMBER SYMBOL CONSTANT ADD MUL POW FN
+    const hash::UInt              # structural hash, computed once
+    const name::Symbol            # symbol / constant / function name
+    const num::SymNumber          # value, constant term, or coefficient
+    const args::Vector{Sym}       # terms / bases / [base, exp] / fn args
+    const exps::Vector{Sym}       # MUL: exponent of each base
+    const coefs::Vector{SymNumber}# ADD: coefficient of each term
+end</code></pre>
+</div>
+<p>This follows the same idea as SymEngine&#39;s <code class="md-code-inline">TypeID</code>: one concrete type with a tag, rather than a Julia type per node kind. As a result:</p>
+<ul class="md-list-tight">
+<li><p>Child containers are concretely typed (<code class="md-code-inline">Vector{Sym}</code>), so traversals never box and the compiler can infer everything.</p>
+</li>
+<li><p>Hot paths such as <code class="md-code-inline">add</code>, <code class="md-code-inline">mul</code> and <code class="md-code-inline">pow</code> branch on a byte instead of dispatching dynamically.</p>
+</li>
+<li><p><code class="md-code-inline">===</code> is pointer identity (the struct is <code class="md-code-inline">mutable</code> with all-<code class="md-code-inline">const</code> fields). That gives an O(1) fast path for equality and avoids copying a wide struct when vectors are stored or passed.</p>
+</li>
+<li><p>Every node stores its structural hash. <code class="md-code-inline">==</code> compares hashes first, and <code class="md-code-inline">Dict{Sym,…}</code> never rehashes a subtree.</p>
+</li>
+</ul>
+<p>Empty child vectors are shared constants (<code class="md-code-inline">NOSYMS</code>, <code class="md-code-inline">NONUMS</code>), so leaves do not allocate them. Integers in −64:64 are cached nodes.</p>
+<p><strong>Nodes are immutable by convention.</strong> Child vectors are shared between nodes, for example when an <code class="md-code-inline">ADD</code> changes one coefficient and reuses its <code class="md-code-inline">args</code>. Nothing may mutate them after construction.</p>
+<h3 id="Representation-by-kind" class="md-heading">Representation by kind<a href="#Representation-by-kind" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:left">kind</th>
+<th style="text-align:left">meaning</th>
+<th style="text-align:left"><code class="md-code-inline">num</code></th>
+<th style="text-align:left">children</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">NUMBER</code></td>
+<td style="text-align:left">exact or float scalar</td>
+<td style="text-align:left">value</td>
+<td style="text-align:left">—</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">SYMBOL</code></td>
+<td style="text-align:left">variable <code class="md-code-inline">x</code></td>
+<td style="text-align:left">—</td>
+<td style="text-align:left">—</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">CONSTANT</code></td>
+<td style="text-align:left"><code class="md-code-inline">π</code>, <code class="md-code-inline">ℯ</code></td>
+<td style="text-align:left">—</td>
+<td style="text-align:left">—</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">ADD</code></td>
+<td style="text-align:left"><code class="md-code-inline">c + Σ cᵢ tᵢ</code></td>
+<td style="text-align:left"><code class="md-code-inline">c</code></td>
+<td style="text-align:left"><code class="md-code-inline">args = tᵢ</code>, <code class="md-code-inline">coefs = cᵢ</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">MUL</code></td>
+<td style="text-align:left"><code class="md-code-inline">c · Π bᵢ^eᵢ</code></td>
+<td style="text-align:left"><code class="md-code-inline">c</code></td>
+<td style="text-align:left"><code class="md-code-inline">args = bᵢ</code>, <code class="md-code-inline">exps = eᵢ</code> (symbolic)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">POW</code></td>
+<td style="text-align:left"><code class="md-code-inline">b^e</code></td>
+<td style="text-align:left">—</td>
+<td style="text-align:left"><code class="md-code-inline">args = [b, e]</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">FN</code></td>
+<td style="text-align:left"><code class="md-code-inline">f(a₁,…,aₙ)</code> unevaluated</td>
+<td style="text-align:left">—</td>
+<td style="text-align:left"><code class="md-code-inline">args</code>, <code class="md-code-inline">name = f</code></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>This is SymEngine&#39;s dictionary representation (<code class="md-code-inline">Add</code>: term → coefficient, <code class="md-code-inline">Mul</code>: base → exponent) laid out as sorted parallel vectors instead of hash maps:</p>
+<ul class="md-list-tight">
+<li><p><strong>Canonical storage order</strong> is <code class="md-code-inline">_cmp</code>. It compares hashes first and falls back to structure on a collision. The order is total and deterministic across sessions, because symbol hashes come from the name string. It has no mathematical meaning.</p>
+</li>
+<li><p>Combining two sums or two products is a <strong>linear merge</strong> of sorted vectors. Adding a single term is a binary search plus one copy. Sums of many terms (<code class="md-code-inline">sum</code>, <code class="md-code-inline">expand</code>, <code class="md-code-inline">diff</code>, <code class="md-code-inline">subs</code>) collect into a <code class="md-code-inline">Dict</code> and sort once.</p>
+</li>
+<li><p>Equality is elementwise comparison of the vectors.</p>
+</li>
+</ul>
+<p>Display order (higher degree first, then lexical) is computed only by the printer and by <code class="md-code-inline">sorted_arguments</code>.</p>
+<h3 id="Canonical-form-invariants" class="md-heading">Canonical-form invariants<a href="#Canonical-form-invariants" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<ul class="md-list-tight">
+<li><p><strong>ADD.</strong> No numeric or <code class="md-code-inline">ADD</code> terms. Terms carry no coefficient (the coefficient lives in <code class="md-code-inline">coefs</code>). Coefficients are nonzero. The node has at least two terms, or one term plus a nonzero constant.</p>
+</li>
+<li><p><strong>MUL.</strong> No <code class="md-code-inline">MUL</code> bases. Bases are distinct and exponents are nonzero. A <code class="md-code-inline">NUMBER</code> base appears only with a non-integer exponent, as in <code class="md-code-inline">2^(1/2)</code>. The node is never coefficient 1 times a single factor (that is a <code class="md-code-inline">POW</code> or the base itself). It is never a number times a single sum, because numbers distribute: <code class="md-code-inline">2(x+y) → 2x+2y</code>. This keeps <code class="md-code-inline">a - a == 0</code> true for sums.</p>
+</li>
+<li><p><strong>POW.</strong> The exponent is never 0 or 1. Integer powers distribute over products (<code class="md-code-inline">(xy)² → x²y²</code>) and multiply through powers (<code class="md-code-inline">(x^a)^n → x^(an)</code>). Non-integer outer powers are left alone, because <code class="md-code-inline">(x²)^(1/2) ≠ x</code> in general.</p>
+</li>
+<li><p><strong><code class="md-code-inline">exp(x)</code> is <code class="md-code-inline">ℯ^x</code></strong> (as in SymEngine), so <code class="md-code-inline">exp(x)·exp(y) → exp(x+y)</code> comes free from the product rules. <code class="md-code-inline">exp(log(z)) → z</code>.</p>
+</li>
+</ul>
+<p>The canonicalizing constructors are <code class="md-code-inline">add</code>, <code class="md-code-inline">mul</code> and <code class="md-code-inline">pow</code>. The <code class="md-code-inline">_mk*_node</code> functions build raw nodes. The <code class="md-code-inline">_mk*</code> helpers (<code class="md-code-inline">_mkadd</code>, <code class="md-code-inline">_mkmul</code>, <code class="md-code-inline">_mkpow</code>) assemble nodes from parts that are already canonical and handle the degenerate cases.</p>
+<h2 id="Numbers:-SymNumber" class="md-heading">Numbers: <code class="md-code-inline">SymNumber</code><a href="#Numbers:-SymNumber" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">struct SymNumber &lt;: Real
+    tag::UInt8      # SMALL (Int n//d), BIG (Rational{BigInt}), FLOAT (Float64)
+    n::Int; d::Int; f::Float64
+    big::Union{Nothing,Rational{BigInt}}
+end</code></pre>
+</div>
+<ul class="md-list-tight">
+<li><p><strong>Exact by default.</strong> Arithmetic on small values uses <code class="md-code-inline">Int</code> with overflow checks (<code class="md-code-inline">add_with_overflow</code>, <code class="md-code-inline">mul_with_overflow</code>, gcd cross-cancellation). It promotes to <code class="md-code-inline">BigInt</code> on overflow and demotes when a result fits again. Most coefficient arithmetic never allocates.</p>
+</li>
+<li><p><strong>Floats are contagious.</strong> A float in an operation makes the result a float.</p>
+</li>
+<li><p><strong>Equality.</strong> <code class="md-code-inline">==</code> is numeric (<code class="md-code-inline">1 == 1.0</code>). <code class="md-code-inline">isequal</code> and <code class="md-code-inline">hash</code> are structural, so the exact <code class="md-code-inline">1</code> and the float <code class="md-code-inline">1.0</code> are different expression nodes.</p>
+</li>
+<li><p><strong>Exact radicals.</strong> A number to a rational power is canonicalized as <code class="md-code-inline">n^(p/q) = c·m^(r/q)</code> with <code class="md-code-inline">m</code> free of <code class="md-code-inline">q</code>-th powers (trial division up to 1000, then a perfect-power check). For example <code class="md-code-inline">sqrt(8) → 2·sqrt(2)</code>, <code class="md-code-inline">4^(1/4) → sqrt(2)</code>, <code class="md-code-inline">2^(-1/2) → sqrt(2)/2</code>.</p>
+<ul class="md-list-tight">
+<li><p>Negative bases split off <code class="md-code-inline">(-1)^e</code>, with <code class="md-code-inline">e</code> reduced into (−1, 1]. So <code class="md-code-inline">sqrt(-1)</code> is <code class="md-code-inline">(-1)^(1/2)</code>, which prints as <code class="md-code-inline">im</code> and squares to −1.</p>
+</li>
+<li><p>Rational bases split into numerator and denominator.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Symbolic numbers.</strong> <code class="md-code-inline">Sym(2)</code>, <code class="md-code-inline">Sym(1//3)</code>, <code class="md-code-inline">Sym(π)</code> are the user-facing exact numbers, and <code class="md-code-inline">sqrt(Sym(2))</code> stays exact. <code class="md-code-inline">N(ex)</code> evaluates to <code class="md-code-inline">Float64</code> or <code class="md-code-inline">ComplexF64</code>.</p>
+</li>
+</ul>
+<h2 id="Functions" class="md-heading">Functions<a href="#Functions" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>Unevaluated applications are <code class="md-code-inline">FN</code> nodes identified by name. Behaviour lives in a registry:</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">register_function!(:sin; julia = sin,                 # numeric evaluation, TermInterface.operation
+                         eval  = args -&gt; ...,         # simplification, or `nothing`
+                         diff  = (args, i) -&gt; ...)    # ∂/∂argᵢ</code></pre>
+</div>
+<ul class="md-list-tight">
+<li><p><strong>Built-in functions</strong> (<code class="md-code-inline">sin</code>, <code class="md-code-inline">cos</code>, <code class="md-code-inline">tan</code>, inverse and hyperbolic trig, <code class="md-code-inline">abs</code>, <code class="md-code-inline">log</code>) extend <code class="md-code-inline">Base</code> on <code class="md-code-inline">Sym</code>. Their rules handle exact special values (<code class="md-code-inline">sin(kπ/6)</code>, <code class="md-code-inline">log(1)</code>, …), odd and even symmetry (via <code class="md-code-inline">_could_extract_minus</code>, so <code class="md-code-inline">sin(-x) → -sin(x)</code>), and inverse compositions.</p>
+</li>
+<li><p><strong>Float arguments</strong> evaluate numerically. Exact arguments stay symbolic: <code class="md-code-inline">sin(2)</code> is unevaluated.</p>
+</li>
+<li><p><strong>Coverage of Base&#39;s mathematical functions.</strong></p>
+<ul class="md-list-tight">
+<li><p><em>Unevaluated functions with rules:</em></p>
+<ul class="md-list-tight">
+<li><p>the reciprocal trig and hyperbolic functions (<code class="md-code-inline">sec csc cot sech csch coth</code>) and their inverses;</p>
+</li>
+<li><p><code class="md-code-inline">cbrt</code> (the real cube root), <code class="md-code-inline">sinc</code>/<code class="md-code-inline">cosc</code>;</p>
+</li>
+<li><p><code class="md-code-inline">sign floor ceil trunc round</code>, <code class="md-code-inline">mod rem</code>, <code class="md-code-inline">max min</code> (n-ary, flattened, canonically ordered), <code class="md-code-inline">factorial</code>, and <code class="md-code-inline">binomial</code> (a polynomial for a literal <code class="md-code-inline">k</code>).</p>
+</li>
+<li><p>Exact values come from the function they are defined through, accepted only when that function disappears: <code class="md-code-inline">sec(π/3) = 1/cos(π/3) = 2</code> and <code class="md-code-inline">sec(acos(x)) = 1/x</code>, while poles such as <code class="md-code-inline">sec(π/2)</code> stay unevaluated.</p>
+</li>
+<li><p>Piecewise constant functions evaluate constant arguments numerically only away from their jumps. Their derivatives are left unevaluated.</p>
+</li>
+</ul>
+</li>
+<li><p><em>Rewrites into existing forms:</em> the degree variants (<code class="md-code-inline">sind</code>, <code class="md-code-inline">asind</code>, …), <code class="md-code-inline">sinpi</code>, <code class="md-code-inline">cospi</code>, <code class="md-code-inline">tanpi</code>, <code class="md-code-inline">log2</code>, <code class="md-code-inline">log10</code>, <code class="md-code-inline">log1p</code>, <code class="md-code-inline">exp2</code>, <code class="md-code-inline">exp10</code>, <code class="md-code-inline">expm1</code>, <code class="md-code-inline">hypot</code>, <code class="md-code-inline">abs2</code>, <code class="md-code-inline">fourthroot</code>, <code class="md-code-inline">cis</code>, <code class="md-code-inline">cispi</code>, <code class="md-code-inline">deg2rad</code>, <code class="md-code-inline">rad2deg</code>, <code class="md-code-inline">div</code>/<code class="md-code-inline">fld</code>/<code class="md-code-inline">cld</code>, <code class="md-code-inline">mod2pi</code>, <code class="md-code-inline">clamp</code>, <code class="md-code-inline">minmax</code>, <code class="md-code-inline">muladd</code>/<code class="md-code-inline">fma</code> (so <code class="md-code-inline">evalpoly</code> works), <code class="md-code-inline">\</code>, and <code class="md-code-inline">numerator</code>/<code class="md-code-inline">denominator</code> (via <code class="md-code-inline">numer_denom</code>).</p>
+</li>
+<li><p><em>Complex parts:</em> <code class="md-code-inline">real</code>, <code class="md-code-inline">imag</code>, <code class="md-code-inline">conj</code>, <code class="md-code-inline">angle</code>, <code class="md-code-inline">reim</code>, and <code class="md-code-inline">adjoint</code> and <code class="md-code-inline">transpose</code> for arrays (see Complex numbers below).</p>
+</li>
+<li><p><em>Not yet:</em> the bit and integer-representation functions.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Package extensions.</strong> These load automatically when the package is loaded with SymJ: <strong>SpecialFunctions</strong>, <strong>HypergeometricFunctions</strong> (<code class="md-code-inline">_₁F₁</code>, <code class="md-code-inline">_₂F₁</code>, <code class="md-code-inline">_₃F₂</code>, and <code class="md-code-inline">pFq</code> of those sizes) and <strong>PolyLog</strong> (<code class="md-code-inline">li0</code>–<code class="md-code-inline">li6</code>, <code class="md-code-inline">li(n, z)</code>, <code class="md-code-inline">reli…</code>).</p>
+<ul class="md-list-tight">
+<li><p>Calling a package function with a <code class="md-code-inline">Sym</code> argument, in any position, builds the unevaluated function: <code class="md-code-inline">sinint(x)</code>, <code class="md-code-inline">besselj(n, x)</code>.</p>
+</li>
+<li><p>The package&#39;s own function is registered as the numeric method. It runs only when asked for (<code class="md-code-inline">N</code>, calling with numbers, <code class="md-code-inline">lambdify</code>) or when an argument is a float.</p>
+</li>
+<li><p>Exact special values are given where standard: <code class="md-code-inline">gamma(7/2) = 15√π/8</code>, <code class="md-code-inline">zeta(2) = π²/6</code>, <code class="md-code-inline">li2(1) = π²/6</code>.</p>
+</li>
+<li><p>Derivative rules are given where standard: Bessel recurrences, <code class="md-code-inline">d/dz ₂F₁ = ab/c ₂F₁(a+1, b+1, c+1, z)</code>, <code class="md-code-inline">d/dz Li_n = Li_{n-1}/z</code>.</p>
+</li>
+<li><p>A partial derivative with no closed form, such as with respect to an order or a parameter, is left as an unevaluated <code class="md-code-inline">Derivative</code>. A derivative rule may return <code class="md-code-inline">nothing</code> for this.</p>
+</li>
+<li><p>The symbolic methods are defined at the extension&#39;s top level, so they&#39;re precompiled. The rules are registered in its <code class="md-code-inline">__init__</code>, because SymJ&#39;s rule table can&#39;t be modified during the extension&#39;s precompilation.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Integer arguments stay integers.</strong> An exact integer passed directly to a function stays an <code class="md-code-inline">Int</code> when evaluated, as in Julia (<code class="md-code-inline">besselj(2, x)</code>). Some parameters must be integers: <code class="md-code-inline">polygamma</code>&#39;s order, <code class="md-code-inline">besselh</code>&#39;s kind.</p>
+</li>
+<li><p><strong><code class="md-code-inline">N</code> uses real methods for real arguments.</strong> Many special functions have no complex method, so <code class="md-code-inline">N</code> evaluates with real numbers when all arguments are real. It falls back to complex only when the real call raises a <code class="md-code-inline">DomainError</code>.</p>
+</li>
+<li><p><strong><code class="md-code-inline">log(b, x)</code></strong> is stored unevaluated as a two-argument <code class="md-code-inline">FN</code>, with <code class="md-code-inline">log(b, b) = 1</code>, <code class="md-code-inline">log(b, 1) = 0</code> and derivatives in both arguments.</p>
+</li>
+<li><p><strong>User functions</strong> (<code class="md-code-inline">SymFunction(:f)</code> or <code class="md-code-inline">@syms f()</code>) have no rules. Their derivatives are <code class="md-code-inline">Derivative(f(x), x)</code>.</p>
+</li>
+</ul>
+<p>The registry is a <code class="md-code-inline">Dict</code> lookup per application, and the rule closures are called dynamically. Function application is not on the innermost hot path, but if it becomes a bottleneck the fix is a function-id field and a rule table indexed by integer.</p>
+<h2 id="TermInterface" class="md-heading">TermInterface<a href="#TermInterface" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<ul class="md-list-tight">
+<li><p><strong>Calls.</strong> <code class="md-code-inline">ADD</code>, <code class="md-code-inline">MUL</code>, <code class="md-code-inline">POW</code> and <code class="md-code-inline">FN</code> satisfy <code class="md-code-inline">isexpr</code> and <code class="md-code-inline">iscall</code>. <code class="md-code-inline">head</code> is <code class="md-code-inline">operation</code>, and <code class="md-code-inline">children</code> is <code class="md-code-inline">arguments</code>.</p>
+</li>
+<li><p><strong><code class="md-code-inline">operation</code>.</strong> Returns <code class="md-code-inline">+</code>, <code class="md-code-inline">*</code>, <code class="md-code-inline">^</code>, the registered Julia function (<code class="md-code-inline">sin</code>, …), or a <code class="md-code-inline">SymFunction</code>.</p>
+</li>
+<li><p><strong><code class="md-code-inline">arguments</code>.</strong> For <code class="md-code-inline">ADD</code> and <code class="md-code-inline">MUL</code> it is the list of summands or factors, with the numeric term or coefficient included. For <code class="md-code-inline">POW</code> and <code class="md-code-inline">FN</code> it is the node&#39;s own vector, which callers must treat as read-only.</p>
+</li>
+<li><p><strong><code class="md-code-inline">sorted_arguments</code>.</strong> Returns the arguments in display order.</p>
+</li>
+<li><p><strong><code class="md-code-inline">maketerm(Sym, op, args, metadata)</code>.</strong> Rebuilds through the canonicalizing constructors. <code class="md-code-inline">metadata</code> is ignored, and nodes deliberately carry no metadata field.</p>
+</li>
+</ul>
+<h2 id="Compiled-evaluation:-lambdify" class="md-heading">Compiled evaluation: <code class="md-code-inline">lambdify</code><a href="#Compiled-evaluation:-lambdify" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p><code class="md-code-inline">lambdify(ex, x, y)</code> compiles <code class="md-code-inline">ex</code> into a Julia function of <code class="md-code-inline">x</code> and <code class="md-code-inline">y</code>, in that order. Without variables, <code class="md-code-inline">ex</code> may have at most one free symbol. The result is a RuntimeGeneratedFunction, so it can be called right away, from the same function that created it, with no world-age problem.</p>
+<ul class="md-list-tight">
+<li><p><strong>Same semantics as calling.</strong></p>
+<ul class="md-list-tight">
+<li><p>Exact constants are Julia integers and rationals, converted to the arguments&#39; float type when there is one: <code class="md-code-inline">F = _liftfloat(promote_type(...))</code> is a compile-time constant, so for <code class="md-code-inline">Float64</code> the constants fold and <code class="md-code-inline">BigFloat</code> keeps its precision.</p>
+</li>
+<li><p>Integer powers are literal powers (<code class="md-code-inline">x^5</code>), and negative ones use <code class="md-code-inline">inv</code>.</p>
+</li>
+<li><p><code class="md-code-inline">ℯ^u</code> is emitted as <code class="md-code-inline">exp(u)</code>.</p>
+</li>
+<li><p>A negative base with a fractional power gives the principal complex value.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Shared subexpressions.</strong> Nodes used more than once become local variables. Nodes carry hashes, so counting uses is one pass over the DAG. Arrays and tuples of expressions compile to one function returning the same shape, sharing work between entries, which suits gradients and Jacobians.</p>
+</li>
+<li><p><strong>Speed.</strong> <code class="md-code-inline">sin(x)^2 + 3x^5 - 2x + exp(-x/2) + sqrt(2)x/3</code> takes 9.3 ns per call, against 9.2 ns hand-written, and is inferred as <code class="md-code-inline">Float64</code>. Evaluating it at 1,000 points takes 7.49 μs against 7.48 μs.</p>
+</li>
+<li><p><strong>When it pays.</strong> <code class="md-code-inline">bench/newton.jl</code> runs Newton&#39;s method on <code class="md-code-inline">x^5 - x - 1</code> from 1, which takes 7 iterations and 14 evaluations. Calling the expressions takes 3.6 μs per solve, the <code class="md-code-inline">lambdify</code>&#39;d functions 86 ns (42x faster; hand-written: 89 ns). Compiling costs about 2.9 ms per new expression, the first call compiling the generated method, so it pays off after roughly 800 solves or 11,600 evaluations. The compiled code is cached by expression, so compiling the same expression again is free.</p>
+</li>
+<li><p><strong>Generic arithmetic.</strong> Arguments may be any number type: <code class="md-code-inline">ForwardDiff</code> derivatives and gradients work through both <code class="md-code-inline">lambdify</code> and plain calls (tested).</p>
+</li>
+<li><p><code class="md-code-inline">lambdify_expr</code> returns the generated code.</p>
+</li>
+</ul>
+<h2 id="Relations" class="md-heading">Relations<a href="#Relations" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p><code class="md-code-inline">==</code>, <code class="md-code-inline">&lt;</code> and <code class="md-code-inline">≤</code> keep returning <code class="md-code-inline">Bool</code>. Structural equality is what <code class="md-code-inline">Dict</code>s, <code class="md-code-inline">in</code> and generic code need, and a symbolic result in <code class="md-code-inline">if x &lt; 0</code> fails confusingly. Equations and inequalities use other operators:</p>
+<ul>
+<li><p><strong>Equations:</strong> <code class="md-code-inline">lhs ~ rhs</code>, the convention of Symbolics.jl, ModelingToolkit and SimpleExpressions. Binary <code class="md-code-inline">~</code> is free in Base, and its low precedence means <code class="md-code-inline">x^2 + 1 ~ 3</code> needs no parentheses.</p>
+</li>
+<li><p><strong>Everything else</strong> uses CommonEq.jl&#39;s operators and names, defined in SymJ without depending on that package:</p>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:left">relation</th>
+<th style="text-align:left">infix</th>
+<th style="text-align:left">typed as</th>
+<th style="text-align:left">function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">=</code></td>
+<td style="text-align:left"><code class="md-code-inline">~</code>, <code class="md-code-inline">⩵</code></td>
+<td style="text-align:left"><code class="md-code-inline">\Equal</code></td>
+<td style="text-align:left"><code class="md-code-inline">Eq</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">&lt;</code></td>
+<td style="text-align:left"><code class="md-code-inline">≪</code></td>
+<td style="text-align:left"><code class="md-code-inline">\ll</code></td>
+<td style="text-align:left"><code class="md-code-inline">Lt</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">≤</code></td>
+<td style="text-align:left"><code class="md-code-inline">≦</code></td>
+<td style="text-align:left"><code class="md-code-inline">\leqq</code></td>
+<td style="text-align:left"><code class="md-code-inline">Le</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">&gt;</code></td>
+<td style="text-align:left"><code class="md-code-inline">≫</code></td>
+<td style="text-align:left"><code class="md-code-inline">\gg</code></td>
+<td style="text-align:left"><code class="md-code-inline">Gt</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">≥</code></td>
+<td style="text-align:left"><code class="md-code-inline">≧</code></td>
+<td style="text-align:left"><code class="md-code-inline">\geqq</code></td>
+<td style="text-align:left"><code class="md-code-inline">Ge</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">≠</code></td>
+<td style="text-align:left"><code class="md-code-inline">≶</code>, <code class="md-code-inline">≷</code></td>
+<td style="text-align:left"><code class="md-code-inline">\lessgtr</code>, <code class="md-code-inline">\gtrless</code></td>
+<td style="text-align:left"><code class="md-code-inline">Ne</code></td>
+</tr>
+</tbody>
+</table>
+</div>
+</li>
+<li><p><strong>Representation.</strong> A <code class="md-code-inline">Relation</code> (an operation plus <code class="md-code-inline">lhs</code> and <code class="md-code-inline">rhs</code>) is its own small type, not a <code class="md-code-inline">Sym</code> node, because relations aren&#39;t algebraic quantities.</p>
+</li>
+<li><p><strong>TermInterface.</strong> <code class="md-code-inline">operation</code> is <code class="md-code-inline">~</code>, <code class="md-code-inline">Lt</code>, …</p>
+</li>
+<li><p><strong>Calling.</strong> It substitutes into both sides, like calling an expression. When no symbols remain, the result is a <code class="md-code-inline">Bool</code>: exact numbers compare exactly, other values numerically. A relation whose two sides are identical is decided outright.</p>
+</li>
+<li><p><strong>Precedence caveat.</strong> The infix inequalities have comparison precedence, so Julia chains them like <code class="md-code-inline">&lt;</code>: <code class="md-code-inline">a ≪ b == c</code> means <code class="md-code-inline">(a ≪ b) &amp;&amp; (b == c)</code>. Parenthesize: <code class="md-code-inline">(a ≪ b) == c</code>. <code class="md-code-inline">~</code> has the lowest precedence and doesn&#39;t chain.</p>
+</li>
+</ul>
+<h2 id="Parameters-(internal)" class="md-heading">Parameters (internal)<a href="#Parameters-(internal)" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<div class="md-admonition md-admonition-note">
+<p class="md-admonition-title">Internal, not exported</p>
+<div class="md-admonition-body">
+<p>Parameters are hidden for now: <code class="md-code-inline">@parameters</code>, <code class="md-code-inline">parameter</code>, <code class="md-code-inline">isparameter</code> and <code class="md-code-inline">free_parameters</code> are not exported or documented for users (they are reachable as <code class="md-code-inline">SymJ.parameter</code> and so on), so that the current approach does not become permanent before the shared-name question below is settled.</p>
+</div>
+</div>
+<p><code class="md-code-inline">parameter(:a)</code> or <code class="md-code-inline">@parameters a b</code> makes a symbolic parameter: a named constant of unknown value, as opposed to a variable. It is a node kind, <code class="md-code-inline">PARAMETER</code>, beside <code class="md-code-inline">SYMBOL</code>, not a new Julia type. Expressions stay one concrete type, so containers stay concretely typed and dispatch can&#39;t distinguish expressions that contain parameters; <code class="md-code-inline">isparameter</code> and <code class="md-code-inline">free_parameters</code> answer that instead. The parameter <code class="md-code-inline">a</code> and the variable <code class="md-code-inline">a</code> hash differently and are distinct.</p>
+<p><strong>Shared names (undecided).</strong> Because the two are distinct nodes, a parameter and a variable can have the same name. Their sum prints as <code class="md-code-inline">a + a</code> and is not <code class="md-code-inline">2a</code>, which is confusing. Calling with keywords raises an error for such a name; nothing else checks. Prohibiting it needs a session-wide record of parameter names, checked whenever either kind is created: <code class="md-code-inline">@syms a</code> after <code class="md-code-inline">@parameters a</code> (or the reverse) would be an error. The costs are that a name can&#39;t change role within a session, and that everything run in one process (the test suite, the documentation build, other packages creating variables by name) shares that record. The decision is deferred until it is clearer how much parameters are used. The lighter alternative is to keep them separate and print parameters distinctly. Either way the current behavior will almost certainly change, and the user-facing documentation says so.</p>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:left"></th>
+<th style="text-align:left">variables</th>
+<th style="text-align:left">parameters</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">free_symbols</code> / <code class="md-code-inline">free_parameters</code></td>
+<td style="text-align:left">listed by <code class="md-code-inline">free_symbols</code></td>
+<td style="text-align:left">listed by <code class="md-code-inline">free_parameters</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">ex(v)</code></td>
+<td style="text-align:left">substituted, or evaluated if no parameters</td>
+<td style="text-align:left">kept: <code class="md-code-inline">(a*x^2)(3) == 9a</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">lambdify(ex)</code></td>
+<td style="text-align:left">first argument</td>
+<td style="text-align:left">after it, by name: <code class="md-code-inline">(x, a, b) -&gt; …</code></td>
+</tr>
+<tr>
+<td style="text-align:left">printing order</td>
+<td style="text-align:left">by degree</td>
+<td style="text-align:left">degree 0, so <code class="md-code-inline">a*x^2 + b*x + c</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">diff</code>, <code class="md-code-inline">subs</code>, <code class="md-code-inline">expand</code>, <code class="md-code-inline">Poly</code>, <code class="md-code-inline">cancel</code>, <code class="md-code-inline">factor</code>, <code class="md-code-inline">gcd</code></td>
+<td style="text-align:left">as symbols</td>
+<td style="text-align:left">as symbols</td>
+</tr>
+<tr>
+<td style="text-align:left">constant tests (<code class="md-code-inline">sign</code>, <code class="md-code-inline">floor</code>, <code class="md-code-inline">mod</code>, <code class="md-code-inline">max</code>)</td>
+<td style="text-align:left">not constant</td>
+<td style="text-align:left">not constant</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Cost.</strong> <code class="md-code-inline">bench/parameters.jl</code> times 22 core workloads, recording the minimum time of each. One run of identical code differs from another by up to ±13% per workload on this machine, and a baseline recorded earlier drifts with load. So the comparison put the previous commit in a git worktree and ran the old and new versions alternately, three rounds each, taking each workload&#39;s best time.</p>
+<ul class="md-list-tight">
+<li><p>The geometric mean ratio over the suite was 0.995.</p>
+</li>
+<li><p>The scan for parameters before a numeric call costs about 4% (0.2 μs) on a 40-node expression.</p>
+</li>
+<li><p><code class="md-code-inline">free_symbols</code> became 1.8x faster, because loops replaced the closure-based recursion.</p>
+</li>
+</ul>
+<h2 id="Performance-snapshot" class="md-heading">Performance snapshot<a href="#Performance-snapshot" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>Run with <code class="md-code-inline">julia --project=bench bench/bench.jl</code> (Apple Silicon, Julia 1.13, SymEngine.jl 0.13). Times are medians. The ratio is SymJ time / SymEngine time, so lower is better.</p>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:left">benchmark</th>
+<th style="text-align:right">SymJ</th>
+<th style="text-align:right">SymEngine</th>
+<th style="text-align:right">ratio</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">x + y</code></td>
+<td style="text-align:right">32 ns</td>
+<td style="text-align:right">98 ns</td>
+<td style="text-align:right">0.33</td>
+</tr>
+<tr>
+<td style="text-align:left">build Σ i·xⁱ·y²⁰⁰⁻ⁱ term by term</td>
+<td style="text-align:right">216 μs</td>
+<td style="text-align:right">593 μs</td>
+<td style="text-align:right">0.36</td>
+</tr>
+<tr>
+<td style="text-align:left">build Π (x+i)ⁱ, i ≤ 30</td>
+<td style="text-align:right">5.1 μs</td>
+<td style="text-align:right">14.7 μs</td>
+<td style="text-align:right">0.35</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">expand((x+y+z+1)^15)</code></td>
+<td style="text-align:right">135 μs</td>
+<td style="text-align:right">534 μs</td>
+<td style="text-align:right">0.25</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">expand((a+x)^100)</code></td>
+<td style="text-align:right">26 μs</td>
+<td style="text-align:right">29 μs</td>
+<td style="text-align:right">0.91</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">diff</code> of expanded poly · sin</td>
+<td style="text-align:right">38 μs</td>
+<td style="text-align:right">52 μs</td>
+<td style="text-align:right">0.72</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">subs</code> into 286-term poly</td>
+<td style="text-align:right">152 μs</td>
+<td style="text-align:right">170 μs</td>
+<td style="text-align:right">0.89</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">expand(e*(e+w))</code>, <code class="md-code-inline">e=(x+y+z+w)^15</code></td>
+<td style="text-align:right">5.1 ms</td>
+<td style="text-align:right">415 ms</td>
+<td style="text-align:right">0.01</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The <code class="md-code-inline">expand(e*(e+w))</code> row takes 5.1 ms in total. Of that, the <code class="md-code-inline">Poly</code> product (816 × 817 terms, giving 6 272) takes 1.8 ms, <code class="md-code-inline">Poly → Sym</code> takes 3.2 ms, and <code class="md-code-inline">Sym → Poly</code> takes 1.5 ms. SymEngine.jl&#39;s <code class="md-code-inline">expand</code> works on the generic tree, so this compares like with like at the user level. SymEngine&#39;s own sparse polynomial classes are not exposed by SymEngine.jl. SymEngine.jl&#39;s numbers also include the cost of the C wrapper (a <code class="md-code-inline">ccall</code> and a finalizer per operation), which dominates the small benchmarks.</p>
+<h2 id="Pattern-matching" class="md-heading">Pattern matching<a href="#Pattern-matching" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>The design, and the decisions behind it, are in <code class="md-code-inline">notes/pattern_matching.md</code>; stages 1–4, the matcher, rules, their speed and their first use in <code class="md-code-inline">simplify</code>, are done.</p>
+<ul>
+<li><p><strong>Patterns are expressions.</strong> <code class="md-code-inline">SymJ.pattern(:(…))</code> reads a quoted expression with SymJ&#39;s arithmetic, a slot <code class="md-code-inline">~x</code> being a private function node <code class="md-code-inline">_slot(x, flavor)</code> and a head slot <code class="md-code-inline">(~f)(…)</code> a node <code class="md-code-inline">_hslot(f, …)</code>. So a pattern is in canonical form and means what that form means: <code class="md-code-inline">~x + ~x</code> is <code class="md-code-inline">2*~x</code>, <code class="md-code-inline">exp(log(~x))</code> is <code class="md-code-inline">~x</code>. A slot that vanishes (<code class="md-code-inline">~x - ~x</code>) is an error.</p>
+</li>
+<li><p><strong>Sums and products are associative and commutative.</strong> Their elements are the terms (the constant last) or the factors (the coefficient last). A pattern&#39;s parts without slots are found by hash; its other parts each match one element, tried only against elements with the same head; its slots take groups, <code class="md-code-inline">~x</code> one or more and <code class="md-code-inline">~!x</code>, <code class="md-code-inline">~~x</code> any number, bound to the group&#39;s sum or product. A group is a subsequence of the subject&#39;s terms, already in canonical order, so its sum is built directly.</p>
+</li>
+<li><p><strong>Numbers divide into slots.</strong> A product&#39;s coefficient over the pattern&#39;s is one more element (<code class="md-code-inline">2*~x</code> against <code class="md-code-inline">6a</code> gives <code class="md-code-inline">x =&gt; 3a</code>), and a scaled slot in a sum takes a group divided by its scale (<code class="md-code-inline">~x - ~y</code> against <code class="md-code-inline">a - 2b</code> gives <code class="md-code-inline">y =&gt; 2b</code>).</p>
+</li>
+<li><p><strong>The first match.</strong> Slots already bound take their value&#39;s elements, then defaults (offered the number first, else taking none), scaled slots (negative terms first), slots with predicates and plain slots, each in the order written; the last takes what is left. Ambiguous splits (<code class="md-code-inline">~x + ~y</code> against <code class="md-code-inline">a + b</code>) follow the stored order of the terms, not the printed one, which would cost a string comparison.</p>
+</li>
+<li><p><strong>The search</strong> is backtracking with the continuation as a linked list of concrete goal records, not closures, so it is fully typed.</p>
+</li>
+<li><p><strong>Rules.</strong> <code class="md-code-inline">@rule lhs =&gt; rhs</code> reads <code class="md-code-inline">lhs</code> as a pattern, with its predicates (and any <code class="md-code-inline">$v</code>) evaluated where the macro is called, and makes <code class="md-code-inline">rhs</code> a function of the bindings, <code class="md-code-inline">~x</code> becoming the bound value. A rule&#39;s search goes on past a match whose right side gives <code class="md-code-inline">nothing</code>. <code class="md-code-inline">SymJ.rule(lhs =&gt; rhs)</code> does the same at run time, <code class="md-code-inline">rhs</code> a quoted template (read like a pattern, with the slots filled in) or a function. A right side naming a slot the left side lacks is an error when the rule is made.</p>
+</li>
+<li><p><strong>Rewriting.</strong> <code class="md-code-inline">SymJ.rewrite</code> walks the parts of an expression (the terms of a sum, the factors of a product, the arguments of a function), bottom up or top down, and at each tries the rules in order; the parts are rebuilt by the canonical constructors. It repeats until a pass changes nothing, up to <code class="md-code-inline">maxsteps</code> passes (with a warning). <code class="md-code-inline">replace(ex, rules...)</code> is one pass. The rules are indexed by the head of their left side (a function&#39;s name, any function, anything), so a node is tried only against rules that could match it, and a quick check of head, arity and the number of terms rejects most of those before any search.</p>
+</li>
+<li><p><strong>Speed.</strong> On ACPM&#39;s 62 benchmark cases the first match takes a median 0.78 μs and at most 3.6 μs (ACPM&#39;s associative-commutative matcher: 13.1 and 628 μs). A 66-rule set rewrites a 30-term expression in 0.43 ms.</p>
+</li>
+<li><p><strong>Use in <code class="md-code-inline">simplify</code>.</strong> For an expression with trigonometric or hyperbolic functions, <code class="md-code-inline">simplify</code> adds three candidates: a small rule set (<code class="md-code-inline">src/simprules.jl</code>) for the identities the trig normal form does not reach (<code class="md-code-inline">(1 - cos(2x))/2 = sin(x)^2</code>, <code class="md-code-inline">sin(x)/(1 + cos(x)) = tan(x/2)</code>), <code class="md-code-inline">expand_trig</code>, and <code class="md-code-inline">expand_trig</code> then <code class="md-code-inline">simplify_rational</code>. Each is kept only when it is smaller, so <code class="md-code-inline">simplify</code> stays size-based. A rule for <code class="md-code-inline">cos(2u)</code> asks with a predicate that the 2 be written: otherwise coefficient division would match <code class="md-code-inline">cos(x)</code> as <code class="md-code-inline">cos(2 * (x/2))</code>.</p>
+</li>
+</ul>
+<h2 id="Not-yet-done-/-open-questions" class="md-heading">Not yet done / open questions<a href="#Not-yet-done-/-open-questions" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<ul class="md-list-tight">
+<li><p><strong>Parameters and variables sharing a name.</strong> Prohibit it, or print them distinctly? See Parameters above.</p>
+</li>
+<li><p><strong>Complex numbers.</strong> <code class="md-code-inline">im</code> is the exact power <code class="md-code-inline">(-1)^(1/2)</code>, and <code class="md-code-inline">Sym(z::Complex)</code> builds <code class="md-code-inline">a + b*im</code>. <code class="md-code-inline">real</code>, <code class="md-code-inline">imag</code>, <code class="md-code-inline">conj</code> and <code class="md-code-inline">angle</code> apply, as they are built, only the identities that hold for every complex value: constants are evaluated exactly, <code class="md-code-inline">real</code> and <code class="md-code-inline">imag</code> are linear, and <code class="md-code-inline">conj</code> distributes over sums, products, integer powers and functions without a branch cut (not <code class="md-code-inline">log</code> or fractional powers). Under assumptions, <code class="md-code-inline">refine</code> takes expressions apart into real and imaginary parts (<code class="md-code-inline">real(exp(im*x)) = cos(x)</code> for real <code class="md-code-inline">x</code>).</p>
+</li>
+<li><p><strong>Assumptions.</strong> The design is settled (see Assumptions above); the implementation is under way. Integer congruences (<code class="md-code-inline">mod(n, 3) ~ 1</code>) are to follow the core.</p>
+</li>
+<li><p><strong>Relations.</strong> <code class="md-code-inline">==</code> is structural and returns <code class="md-code-inline">Bool</code>. Symbolic <code class="md-code-inline">Eq</code>, <code class="md-code-inline">&lt;</code>, etc. need their own constructors.</p>
+</li>
+<li><p><strong>Combining radicals.</strong> Construction does not combine <code class="md-code-inline">sqrt(2)*sqrt(3)</code> into <code class="md-code-inline">sqrt(6)</code>; <code class="md-code-inline">simplify</code> does. <code class="md-code-inline">72^(1/3)</code> prints as <code class="md-code-inline">2*9^(1/3)</code> rather than <code class="md-code-inline">2*3^(2/3)</code>. Prime-base normalization would fix the latter.</p>
+</li>
+<li><p><strong>Polynomials, next steps.</strong></p>
+<ul class="md-list-tight">
+<li><p>Zippel: transposed Vandermonde solves per degree when the leading coefficient is a single term (now one dense solve).</p>
+</li>
+<li><p>Brown recursion: done so far are bivariate images in dense buffers and in-place Newton updates. Mod-p reduction is a few percent of the time, so Montgomery or Barrett reduction isn&#39;t worth it.</p>
+</li>
+<li><p>A univariate dense representation.</p>
+</li>
+<li><p>Faster LLL for van Hoeij: floating-point LLL on truncated traces (van Hoeij–Novocin). The integer LLL is now the main cost of S₆&#39;s 0.76 s.</p>
+</li>
+<li><p>Graded monomial orders.</p>
+</li>
+<li><p>Evaluation by Horner&#39;s scheme.</p>
+</li>
+<li><p>Threads for large products.</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Hash-consing.</strong> Interning nodes would make equality pointer comparison and save memory, at the cost of a global, thread-safe table.</p>
+</li>
+<li><p><strong>Further features:</strong> series, <code class="md-code-inline">simplify</code>, <code class="md-code-inline">solve</code>, and symbolic matrices (noncommutative <code class="md-code-inline">MUL</code>).</p>
+</li>
+</ul>
+      </article>
+      <footer class="md-footer">
+<p>Built with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and <a href="https://github.com/mthelm85/MaterialDocs.jl">MaterialDocs.jl</a>.</p>
+      </footer>
+    </main>
+    <aside class="md-toc">
+      <div class="md-toc-inner">
+        <p class="md-toc-title">On this page</p>
+          <a class="md-toc-link md-toc-h2" href="#Goals">Goals</a>
+          <a class="md-toc-link md-toc-h2" href="#One-concrete-node-type">One concrete node type</a>
+            <a class="md-toc-link md-toc-h3" href="#Representation-by-kind">Representation by kind</a>
+            <a class="md-toc-link md-toc-h3" href="#Canonical-form-invariants">Canonical-form invariants</a>
+          <a class="md-toc-link md-toc-h2" href="#Numbers:-SymNumber">Numbers: SymNumber</a>
+          <a class="md-toc-link md-toc-h2" href="#Functions">Functions</a>
+          <a class="md-toc-link md-toc-h2" href="#TermInterface">TermInterface</a>
+          <a class="md-toc-link md-toc-h2" href="#Compiled-evaluation:-lambdify">Compiled evaluation: lambdify</a>
+          <a class="md-toc-link md-toc-h2" href="#Relations">Relations</a>
+          <a class="md-toc-link md-toc-h2" href="#Parameters-(internal)">Parameters (internal)</a>
+          <a class="md-toc-link md-toc-h2" href="#Performance-snapshot">Performance snapshot</a>
+          <a class="md-toc-link md-toc-h2" href="#Pattern-matching">Pattern matching</a>
+          <a class="md-toc-link md-toc-h2" href="#Not-yet-done-/-open-questions">Not yet done / open questions</a>
+      </div>
+    </aside>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/julia.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/julia-repl.min.js"></script>
+  <script>hljs.highlightAll();</script>
+  <script src="../../siteinfo.js"></script>
+  <script src="../../../versions.js"></script>
+  <script src="../../assets/materialdocs.js?v=ceadde13"></script>
+</body>
+</html>

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Implementation — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=6af002bb">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=3d6b08aa">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Implementation — SymJ.jl">
   <meta property="og:title" content="Implementation — SymJ.jl">
@@ -45,7 +45,12 @@
       <a href="../">Home</a>
       <a href="../tutorial/">Tutorial</a>
       <a href="../implementation/" class="md-nav-active">Implementation</a>
-      <a href="../design/">Design notes</a>
+      <div class="md-nav-section">
+        <span class="md-nav-section-title">Design notes</span>
+        <a href="../design/index/">Design notes</a>
+        <a href="../design/algebra/">Design notes: algebra</a>
+        <a href="../design/calculus/">Design notes: calculus</a>
+      </div>
       <div class="md-nav-section">
         <span class="md-nav-section-title">Reference</span>
         <a href="../reference/index/">Reference</a>
@@ -67,7 +72,7 @@
       <article class="md-article">
       <div class="md-article-actions"><a class="md-icon-btn md-edit-link" href="https://github.com/jverzani/SymJ.jl/blob/main/docs/src/implementation.md" title="Edit source on GitHub" aria-label="Edit source on GitHub"><svg class="md-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 000-1.41l-2.34-2.34a.996.996 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></a></div>
 <h1 id="Implementation" class="md-heading">Implementation<a href="#Implementation" class="md-heading-anchor" aria-label="Link to this section">#</a></h1>
-<p>This page discusses the main design choices in SymJ and the reasons for them. The <a href="../design/#Design-notes">Design notes</a> record each decision in more detail, with measurements.</p>
+<p>This page discusses the main design choices in SymJ and the reasons for them. The <a href="../design/index/#Design-notes">Design notes</a> record each decision in more detail, with measurements.</p>
 <p>SymJ set out to be a symbolic kernel in pure Julia with the speed of SymEngine, exact numbers, and expressions that behave like functions. Most of the choices below follow from wanting speed without giving up exactness, and type stability without giving up generality.</p>
 <h2 id="One-concrete-node-type" class="md-heading">One concrete node type<a href="#One-concrete-node-type" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p>Every expression is a <code class="md-code-inline">Sym</code>, a single concrete type with a <code class="md-code-inline">kind</code> tag (number, symbol, constant, sum, product, power, function application). This is SymEngine&#39;s approach, and differs from a Julia type per kind of node:</p>
@@ -344,6 +349,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=6af002bb"></script>
+  <script src="../assets/materialdocs.js?v=3d6b08aa"></script>
 </body>
 </html>

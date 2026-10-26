@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Simplification — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=e1eaa536">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=6acf75be">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Simplification — SymJ.jl">
   <meta property="og:title" content="Simplification — SymJ.jl">
@@ -45,7 +45,12 @@
       <a href="../../">Home</a>
       <a href="../../tutorial/">Tutorial</a>
       <a href="../../implementation/">Implementation</a>
-      <a href="../../design/">Design notes</a>
+      <div class="md-nav-section">
+        <span class="md-nav-section-title">Design notes</span>
+        <a href="../../design/index/">Design notes</a>
+        <a href="../../design/algebra/">Design notes: algebra</a>
+        <a href="../../design/calculus/">Design notes: calculus</a>
+      </div>
       <div class="md-nav-section">
         <span class="md-nav-section-title">Reference</span>
         <a href="../../reference/index/">Reference</a>
@@ -69,7 +74,7 @@
 <div class="md-docstring" id="SymJ.simplify">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.simplify</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/90c0d76757f750aa71f54891f6993f9521a2bfc9/src/simplify.jl#L267-L300" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/705983a93754e6210c864f0699d2fcd4b3d16034/src/simplify.jl#L267-L300" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -107,7 +112,7 @@ simplify(1 - cos(x)^2)                           # sin(x)^2</code></pre>
 <div class="md-docstring" id="SymJ.refine">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.refine</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/90c0d76757f750aa71f54891f6993f9521a2bfc9/src/simplify.jl#L19-L47" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/705983a93754e6210c864f0699d2fcd4b3d16034/src/simplify.jl#L19-L47" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -142,7 +147,7 @@ refine(x &gt; 0; assume = @assume(x &gt; 1))          # true</code></pre>
 <div class="md-docstring" id="SymJ.expand_log-Tuple{Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.expand_log</code> — <span class="md-docstring-sig">Tuple{Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/90c0d76757f750aa71f54891f6993f9521a2bfc9/src/simplify.jl#L935-L950" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/705983a93754e6210c864f0699d2fcd4b3d16034/src/simplify.jl#L935-L950" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -161,7 +166,7 @@ SymJ.expand_log(log(x * y))                                     # log(x*y): unde
 <div class="md-docstring" id="SymJ.expand_trig-Tuple{Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.expand_trig</code> — <span class="md-docstring-sig">Tuple{Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/90c0d76757f750aa71f54891f6993f9521a2bfc9/src/simplify.jl#L503-L520" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/705983a93754e6210c864f0699d2fcd4b3d16034/src/simplify.jl#L503-L520" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -181,7 +186,7 @@ SymJ.expand_trig(tan(2x))         # 2*tan(x)/(1 - tan(x)^2)</code></pre>
 <div class="md-docstring" id="SymJ.simplify_hyperbolic-Tuple{Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.simplify_hyperbolic</code> — <span class="md-docstring-sig">Tuple{Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/90c0d76757f750aa71f54891f6993f9521a2bfc9/src/simplify.jl#L491-L500" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/705983a93754e6210c864f0699d2fcd4b3d16034/src/simplify.jl#L491-L500" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -194,7 +199,7 @@ SymJ.expand_trig(tan(2x))         # 2*tan(x)/(1 - tan(x)^2)</code></pre>
 <div class="md-docstring" id="SymJ.simplify_log-Tuple{Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.simplify_log</code> — <span class="md-docstring-sig">Tuple{Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/90c0d76757f750aa71f54891f6993f9521a2bfc9/src/simplify.jl#L855-L867" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/705983a93754e6210c864f0699d2fcd4b3d16034/src/simplify.jl#L855-L867" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -214,7 +219,7 @@ SymJ.expand_trig(tan(2x))         # 2*tan(x)/(1 - tan(x)^2)</code></pre>
 <div class="md-docstring" id="SymJ.simplify_powers-Tuple{Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.simplify_powers</code> — <span class="md-docstring-sig">Tuple{Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/90c0d76757f750aa71f54891f6993f9521a2bfc9/src/simplify.jl#L414-L422" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/705983a93754e6210c864f0699d2fcd4b3d16034/src/simplify.jl#L414-L422" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -227,7 +232,7 @@ SymJ.expand_trig(tan(2x))         # 2*tan(x)/(1 - tan(x)^2)</code></pre>
 <div class="md-docstring" id="SymJ.simplify_radicals-Tuple{Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.simplify_radicals</code> — <span class="md-docstring-sig">Tuple{Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/90c0d76757f750aa71f54891f6993f9521a2bfc9/src/simplify.jl#L958-L971" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/705983a93754e6210c864f0699d2fcd4b3d16034/src/simplify.jl#L958-L971" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -249,7 +254,7 @@ SymJ.expand_trig(tan(2x))         # 2*tan(x)/(1 - tan(x)^2)</code></pre>
 <div class="md-docstring" id="SymJ.simplify_rational-Tuple{Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.simplify_rational</code> — <span class="md-docstring-sig">Tuple{Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/90c0d76757f750aa71f54891f6993f9521a2bfc9/src/simplify.jl#L405-L411" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/705983a93754e6210c864f0699d2fcd4b3d16034/src/simplify.jl#L405-L411" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -262,7 +267,7 @@ SymJ.expand_trig(tan(2x))         # 2*tan(x)/(1 - tan(x)^2)</code></pre>
 <div class="md-docstring" id="SymJ.simplify_trig-Tuple{Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.simplify_trig</code> — <span class="md-docstring-sig">Tuple{Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/90c0d76757f750aa71f54891f6993f9521a2bfc9/src/simplify.jl#L468-L488" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/705983a93754e6210c864f0699d2fcd4b3d16034/src/simplify.jl#L468-L488" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -282,7 +287,7 @@ SymJ.simplify_trig((exp(im*x) + exp(-im*x)) / 2) # cos(x)</code></pre>
 <div class="md-docstring" id="SymJ.simplify_gamma-Tuple{Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.simplify_gamma</code> — <span class="md-docstring-sig">Tuple{Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/90c0d76757f750aa71f54891f6993f9521a2bfc9/src/gammasimp.jl#L15-L33" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/705983a93754e6210c864f0699d2fcd4b3d16034/src/gammasimp.jl#L15-L33" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -317,6 +322,6 @@ SymJ.simplify_gamma(gamma(x) * gamma(1 - x))                     # π/sin(πx)</
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=e1eaa536"></script>
+  <script src="../../assets/materialdocs.js?v=6acf75be"></script>
 </body>
 </html>
