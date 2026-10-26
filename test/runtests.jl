@@ -1686,6 +1686,12 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         F = LA.svd(Sym[1 1; 1 1; 0 0]; full = true)
         @test size(F.U) == (3, 3) && map(simplify, transpose(F.U) * F.U) == Sym[1 0 0; 0 1 0; 0 0 1]
         @test_throws ArgumentError LA.svd(Sym[1 2 3; 4 5 6; 7 8 10])          # a cubic: refused, not slow
+        # symbolic singular values refined under the assumptions
+        @syms a b
+        @test LA.svdvals(Sym[a 0; 0 b]) == [sqrt(b^2), sqrt(a^2)]
+        @test LA.svdvals(Sym[a 0; 0 b]; assume = @assume(a > 0, b > 0)) == [b, a]
+        @test assuming(() -> LA.svdvals(Sym[a 0; 0 b]), @assume(a ∈ ℝ, b ∈ ℝ)) == [abs(b), abs(a)]
+        @test (@assuming a > 0 begin LA.svd(Sym[a a; a a]).S end) == [2a, 0]
         # Jordan form
         for A in (Sym[1 1; 0 1], Sym[2 1 0; 0 2 0; 0 0 3], Sym[5 4 2 1; 0 1 -1 -1; -1 -1 3 0; 1 1 -1 2], Sym[2 1; 1 2])
             P, J = SymJ.jordan_form(A)

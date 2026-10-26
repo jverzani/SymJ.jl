@@ -591,6 +591,9 @@ Two canonical-form additions came with it:
   matrix are orthogonal), and `U = A v / σ`. Zero singular values (for `min(m, n)`
   columns, or square with `full = true`) are completed by orthonormal bases of the null
   spaces of `A` and `Aᴴ`. A wide matrix goes through `Aᴴ`, the smaller of `AᴴA`, `AAᴴ`.
+  A singular value with a symbol is `refine`d under the assumptions in force (`assume`
+  or an `assuming` block): `sqrt(a^2)` is `a` for `a > 0`, `abs(a)` for real `a`, and
+  stays as it is without assumptions (`a` would assume `a ≥ 0`).
   When the characteristic polynomial of `AᴴA` has an irreducible factor of degree 3 or
   more, `svd` refuses: Cardano's roots (complex cube roots for real roots) give null
   spaces that do not finish. Results with nested radicals are exact but `simplify` does

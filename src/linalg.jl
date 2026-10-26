@@ -610,7 +610,7 @@ function _svd_parts(A::AbstractMatrix{Sym})
         λ = _qrnorm(λ)
         iszero(λ) && continue
         N = LinearAlgebra.nullspace(B - λ * LinearAlgebra.I(n))
-        σ = _hassymbol(λ) ? sqrt(λ) : simplify(sqrt(λ))
+        σ = _hassymbol(λ) ? refine(sqrt(λ)) : simplify(sqrt(λ))   # (refine: the assumptions in force)
         for v in _orthonormal(N)
             push!(parts, (σ, v))
         end
@@ -632,15 +632,21 @@ eigenvalues of `A'A` (largest first when they are numbers), the columns of `V`
 orthonormal eigenvectors of `A'A`, and those of `U` are `A v / σ`. As for `svd` on
 numbers, `U` and `V` have `min(m, n)` columns, completed (for zero singular values) by
 orthonormal bases of the null spaces; with `full = true`, `U` and `V` are square.
-Symbols are taken to be real. The roots of the characteristic polynomial of `A'A` must
-be found, and nested square roots are common, so this is for small matrices.
+Symbols are taken to be real in `A'A`. A singular value with a symbol, such as
+`sqrt(a^2)`, is refined under the assumptions (`assume`, or an [`assuming`](@ref)
+block): `a` for `a > 0`, `abs(a)` for real `a`, and left as it is otherwise. The roots of
+the characteristic polynomial of `A'A` must be found, and nested square roots are
+common, so this is for small matrices.
 
 ```julia
 F = svd(Sym[3 0; 4 5])           # F.S == [3*sqrt(5), sqrt(5)]
 svdvals(Sym[1 1; 0 0])           # [sqrt(2), 0]
+svdvals(Sym[a 0; 0 b])           # [sqrt(b^2), sqrt(a^2)]
+svdvals(Sym[a 0; 0 b]; assume = @assume(a > 0, b > 0))   # [b, a]
 ```
 """
-function LinearAlgebra.svd(A::AbstractMatrix{Sym}; full::Bool = false)
+function LinearAlgebra.svd(A::AbstractMatrix{Sym}; full::Bool = false, assume = nothing)
+    assume === nothing || return assuming(() -> LinearAlgebra.svd(A; full), _assumptions(assume))
     m, n = size(A)
     if m < n                                     # through A' (the smaller of A'A, AA')
         F = LinearAlgebra.svd(_adjoint(A); full)
@@ -666,7 +672,7 @@ end
 _complement_basis(us::Vector{Vector{Sym}}, m::Int) =
     isempty(us) ? Matrix{Sym}(LinearAlgebra.I(m)) : LinearAlgebra.nullspace(reduce(vcat, (permutedims(_adjoint(reshape(u, :, 1))[1, :]) for u in us)))
 
-LinearAlgebra.svdvals(A::AbstractMatrix{Sym}) = LinearAlgebra.svd(A).S
+LinearAlgebra.svdvals(A::AbstractMatrix{Sym}; assume = nothing) = LinearAlgebra.svd(A; assume).S
 
 ## Jordan form
 
