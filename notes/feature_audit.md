@@ -31,7 +31,7 @@ series, assumptions, a basic `simplify`, summation)
 | Substitution | `subs` | `subst` | ✅ `subs`, calling with pairs or keywords |
 | Compiled numeric functions | `lambdify` | — | ✅ `lambdify` (as fast as hand-written code) |
 | Generic term interface | — | — | ✅ TermInterface |
-| Pattern matching and rewrite rules | `Wild`, `match`, `replace` | rules | ✅ `SymJ.pattern`/`SymJ.@pattern` with `match`, `eachmatch`, `occursin`: associative-commutative, slots `~x`, `~!x`, `~~x`, `~~~x`, head slots, predicates; `SymJ.@rule`, `SymJ.rule`, `SymJ.rewrite`, `replace` (stages 1–2 of `notes/pattern_matching.md`); ◐ no indexing of large rule sets yet |
+| Pattern matching and rewrite rules | `Wild`, `match`, `replace` | rules | ✅ `SymJ.pattern`/`SymJ.@pattern` with `match`, `eachmatch`, `occursin`: associative-commutative, slots `~x`, `~!x`, `~~x`, `~~~x`, head slots, predicates; `SymJ.@rule`, `SymJ.rule`, `SymJ.rewrite`, `replace` (stages 1–3 of `notes/pattern_matching.md`, rule sets indexed by head) |
 | Collect by powers, coefficients | `collect`, `coeff` | `collect`, `coeff` | ◐ through `Poly` (`coefficients`, `exponent_vectors`) |
 | Horner form | `horner` | `horner` | ❌ |
 | Common subexpressions | `cse` | — | ◐ `lambdify` shares them; no user-level `cse` |

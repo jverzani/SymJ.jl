@@ -1963,6 +1963,11 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test R(x * sin(t)^2, [r6, r7]) == x * (1 - cos(t)^2)
         @test (@test_logs (:warn,) R(a, SymJ.@rule(~x::issym => ~x + 1); maxsteps = 3)) == a + 3
         @test_throws ArgumentError R(a, r6; order = :up)
+        # indexed rule sets keep the rules' order
+        rh = SymJ.@rule (~f)(~x) => (~f === sin ? cos(~x) : nothing)
+        rs = SymJ.@rule sin(~x) => tan(~x)
+        @test replace(sin(t), rh, rs) == cos(t) && replace(sin(t), rs, rh) == tan(t)
+        @test replace(sin(t) + h(t), rs, rh) == tan(t) + h(t) && R(sin(t)^3, SymJ.@rule((~x)^3 => ~x)) == sin(t)
     end
 
     @testset "ambiguities" begin

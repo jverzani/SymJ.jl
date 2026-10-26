@@ -34,7 +34,7 @@ struct _PatBuild
     flavors::Dict{Symbol,UInt8}
     preds::Dict{Symbol,Any}
     order::Dict{Symbol,Int}      # where each slot first appears in the written pattern
-    binds::Union{Nothing,Dict{Symbol,Any}}   # a rule's template: the slots' values
+    binds::Any                   # a rule's template: the slots' values (a _Binds), or nothing
 end
 _PatBuild(binds = nothing) = _PatBuild(Dict{Symbol,UInt8}(), Dict{Symbol,Any}(), Dict{Symbol,Int}(), binds)
 
@@ -327,6 +327,14 @@ end
 
 _bdict(B::_Binds) = Dict{Symbol,Any}(zip(B.names, B.vals))
 
+# a rule's right side reads the bindings in place, without building a Dict
+function Base.getindex(B::_Binds, n::Symbol)
+    v = _getb(B, n)
+    v === nothing && throw(KeyError(n))
+    v
+end
+Base.haskey(B::_Binds, n::Symbol) = _getb(B, n) !== nothing
+
 # ---- matching
 
 function _pm(p::_PNode, s::Sym, B::_Binds, k::_Goal)::Bool
@@ -398,7 +406,29 @@ function _ac_elems(p::_PNode, s::Sym)
     out
 end
 
+# a cheap test that p can't match s, before any search: the head, a function's arity,
+# whether a sum or product has enough terms or factors
+function _quickfail(p::_PNode, s::Sym)
+    K = p.kind
+    K == _P_LIT && return !_eq(p.sym, s)
+    if K == _P_FN || K == _P_HEAD
+        s.kind == FN || return true
+        K == _P_FN && s.name !== p.name && return true
+        any(q -> q.kind == _P_SLOT && (q.flavor == _SL_STAR || q.flavor == _SL_PLUS), p.kids) && return false
+        return length(s.args) != length(p.kids)
+    end
+    K == _P_POW && return !(s.kind == POW || (p.kids[2].kind == _P_SLOT && p.kids[2].flavor == _SL_DEF))
+    if K == _P_ADD || K == _P_MUL
+        need = length(p.lits) + length(p.kids) + count(sl -> !_zero_ok(sl), p.slots)
+        have = K == _P_ADD ? (s.kind == ADD ? length(s.args) + (s.num != N0) : !iszero(s)) :
+            (s.kind == MUL ? length(s.args) + 1 : 2)   # a product's coefficient may be an element
+        return have < need
+    end
+    false
+end
+
 function _pm_ac(p::_PNode, s::Sym, B::_Binds, k::_Goal)::Bool
+    _quickfail(p, s) && return false
     elems = _ac_elems(p, s)
     elems === nothing && return false
     used = falses(length(elems))
@@ -420,7 +450,9 @@ end
 # the parts that are not slots, each matching one element
 function _pm_others(p::_PNode, i::Int, s::Sym, elems::Vector{Sym}, used::BitVector, B::_Binds, k::_Goal)::Bool
     if i > length(p.kids)
-        order = sort(p.slots; by = sl -> _getb(B, sl.name) === nothing)   # bound slots first
+        slots = p.slots                      # bound slots first
+        order = length(slots) <= 1 || all(sl -> _getb(B, sl.name) === nothing, slots) ? slots :
+            sort(slots; by = sl -> _getb(B, sl.name) === nothing)
         return _pm_slots(p, order, 1, s, elems, used, B, k)
     end
     q = p.kids[i]
@@ -438,6 +470,10 @@ end
 # product. The group's terms (factors) are a subsequence of the subject's, so already in
 # canonical order: the node is built from them directly.
 function _group_value(p::_PNode, sl::_PNode, s::Sym, elems::Vector{Sym}, G::Vector{Int})
+    if length(G) == length(elems) && sl.num == N1 &&     # all of s: s itself
+       (p.kind == _P_ADD ? s.kind == ADD : s.kind == MUL && p.num == N1)
+        return s
+    end
     issorted(G) || (G = sort(G))
     if p.kind == _P_ADD
         if s.kind == ADD
@@ -485,8 +521,13 @@ function _pm_slots(p::_PNode, order::Vector{_PNode}, i::Int, s::Sym, elems::Vect
         used[idx] .= false
         return r
     end
-    free = [j for j in eachindex(elems) if !used[j]]
-    sort!(free; by = j -> elems[j].kind != NUMBER)    # the number first: ~a*~x against 2x is a => 2
+    # the free elements, the number (always last in elems) first: ~a*~x against 2x is a => 2
+    n = length(elems)
+    numlast = n > 0 && !used[n] && elems[n].kind == NUMBER
+    free = numlast ? [n] : Int[]
+    for j in 1:(numlast ? n - 1 : n)
+        used[j] || push!(free, j)
+    end
     if i == length(order)                    # the last slot takes what is left
         isempty(free) && !_zero_ok(sl) && return false
         return _bind(B, sl.name, _group_value(p, sl, s, elems, free), sl.pred, k)
@@ -631,14 +672,15 @@ match (or every match's right side is `nothing`).
 """
 struct Rule
     lhs::Pattern
-    rhs::Any            # the bindings (a Dict) to the value, or nothing to reject the match
+    rhs::Any            # the bindings (a _Binds) to the value, or nothing to reject the match
     text::String
 end
 Base.show(io::IO, r::Rule) = print(io, "rule(", r.text, ")")
 
 function (r::Rule)(ex)
+    _quickfail(r.lhs.node, _matchsubject(ex)) && return nothing
     out = Ref{Any}(nothing)
-    done(B) = (v = r.rhs(_bdict(B)); v === nothing ? false : (out[] = v isa Sym ? v : Sym(v); true))
+    done(B) = (v = r.rhs(B); v === nothing ? false : (out[] = v isa Sym ? v : Sym(v); true))
     _pm(r.lhs.node, _matchsubject(ex), _Binds(), _gdone(done))
     out[]
 end
@@ -705,7 +747,7 @@ SymJ.rule(:((~x)^(~n)) => d -> d[:n] * d[:x]^(d[:n] - 1))
 function rule(p::Pair)
     lhs = p.first isa Pattern ? p.first : pattern(p.first)
     t = p.second
-    t isa Function && !(t isa Sym) && return Rule(lhs, t, string(lhs.ex, " => ", t))
+    t isa Function && !(t isa Sym) && return Rule(lhs, B -> t(_bdict(B)), string(lhs.ex, " => ", t))
     _mkrule(lhs, d -> _to_pat(t, _PatBuild(d)), t)
 end
 
@@ -733,9 +775,42 @@ function _rw_parts(f, e::Sym)
     _rebuild_node(e, new)
 end
 
-function _rw_at(rules, e::Sym, changed::Ref{Bool})
-    for r in rules
-        v = r(e)
+# rules indexed by what their left side can match: those whose left side is a function
+# application (or a literal one) only at function nodes of that name, head slots only at
+# function nodes, the rest everywhere; each list keeps the rules' order
+struct _RuleSet
+    rules::Vector{Rule}
+    generic::Vector{Int}
+    anyfn::Vector{Int}
+    byname::Dict{Symbol,Vector{Int}}
+    merged::Dict{Symbol,Vector{Int}}   # per function name, the three lists merged
+end
+
+function _RuleSet(rules::Vector{Rule})
+    generic, anyfn, byname = Int[], Int[], Dict{Symbol,Vector{Int}}()
+    for (i, r) in enumerate(rules)
+        n = r.lhs.node
+        if n.kind == _P_FN || (n.kind == _P_LIT && n.sym.kind == FN)
+            push!(get!(byname, n.kind == _P_FN ? n.name : n.sym.name, Int[]), i)
+        elseif n.kind == _P_HEAD
+            push!(anyfn, i)
+        else
+            push!(generic, i)
+        end
+    end
+    _RuleSet(rules, generic, anyfn, byname, Dict{Symbol,Vector{Int}}())
+end
+
+function _candidates(R::_RuleSet, e::Sym)
+    e.kind == FN || return R.generic
+    get!(R.merged, e.name) do
+        sort!(vcat(get(R.byname, e.name, Int[]), R.anyfn, R.generic))
+    end
+end
+
+function _rw_at(R::_RuleSet, e::Sym, changed::Ref{Bool})
+    for i in _candidates(R, e)
+        v = R.rules[i](e)
         v === nothing && continue
         _eq(v, e) && return e
         changed[] = true
@@ -768,10 +843,11 @@ function rewrite(ex, rules...; order::Symbol = :post, fixpoint::Bool = true, max
         r isa Rule ? push!(rs, r) : append!(rs, r)
     end
     order in (:post, :pre) || throw(ArgumentError("rewrite: order is :post or :pre, not $order"))
+    R = _RuleSet(rs)
     e = _matchsubject(ex)
     for _ in 1:(fixpoint ? maxsteps : 1)
         changed = Ref(false)
-        e = order === :post ? _rw_post(rs, e, changed) : _rw_pre(rs, e, changed)
+        e = order === :post ? _rw_post(R, e, changed) : _rw_pre(R, e, changed)
         changed[] || return e
     end
     fixpoint && @warn "rewrite: still changing after $maxsteps passes; stopping"

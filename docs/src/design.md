@@ -1111,8 +1111,8 @@ and a finalizer per operation), which dominates the small benchmarks.
 
 ## Pattern matching
 
-The design, and the decisions behind it, are in `notes/pattern_matching.md`; stages 1
-and 2, the matcher and rules, are done.
+The design, and the decisions behind it, are in `notes/pattern_matching.md`; stages 1–3,
+the matcher, rules and their speed, are done.
 
 - **Patterns are expressions.** `SymJ.pattern(:(…))` reads a quoted expression with
   SymJ's arithmetic, a slot `~x` being a private function node `_slot(x, flavor)` and a
@@ -1134,9 +1134,7 @@ and 2, the matcher and rules, are done.
   is left. Ambiguous splits (`~x + ~y` against `a + b`) follow the stored order of the
   terms, not the printed one, which would cost a string comparison.
 - **The search** is backtracking with the continuation as a linked list of concrete
-  goal records, not closures, so it is fully typed. On ACPM's 62 benchmark cases the
-  first match takes a median 0.83 μs and at most 6.1 μs (ACPM's associative-commutative
-  matcher: 13.1 μs and 628 μs).
+  goal records, not closures, so it is fully typed.
 
 - **Rules.** `@rule lhs => rhs` reads `lhs` as a pattern, with its predicates (and any
   `$v`) evaluated where the macro is called, and makes `rhs` a function of the bindings,
@@ -1148,7 +1146,13 @@ and 2, the matcher and rules, are done.
   factors of a product, the arguments of a function), bottom up or top down, and at each
   tries the rules in order; the parts are rebuilt by the canonical constructors. It
   repeats until a pass changes nothing, up to `maxsteps` passes (with a warning).
-  `replace(ex, rules...)` is one pass.
+  `replace(ex, rules...)` is one pass. The rules are indexed by the head of their left
+  side (a function's name, any function, anything), so a node is tried only against
+  rules that could match it, and a quick check of head, arity and the number of terms
+  rejects most of those before any search.
+- **Speed.** On ACPM's 62 benchmark cases the first match takes a median 0.78 μs and at
+  most 3.6 μs (ACPM's associative-commutative matcher: 13.1 and 628 μs). A 66-rule set
+  rewrites a 30-term expression in 0.43 ms.
 
 ## Not yet done / open questions
 
