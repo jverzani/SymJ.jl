@@ -8,7 +8,8 @@
 #   coefficients by the roots of the characteristic polynomial, a particular solution by
 #   undetermined coefficients or variation of parameters; Cauchy–Euler through x = eᵗ;
 # - first order, y' = f(x, y): separable, Bernoulli, exact (or with an integrating factor
-#   in x or in y alone), homogeneous (f a function of y/x).
+#   in x or in y alone), homogeneous (f a function of y/x);
+# - autonomous, y'' = f(y, y'): p = y' as a function of y, then ∫ dy/p = x + C₂.
 #
 # Systems, linear with constant coefficients, are at the end ("systems").
 #
@@ -29,7 +30,8 @@ constants.
 Methods: first order linear, separable, Bernoulli, exact (with an integrating factor in
 `x` or `y` alone), homogeneous; linear with constant coefficients, of any order
 (undetermined coefficients, else variation of parameters, for the right side);
-Cauchy–Euler; equations without `y` (reduced to a lower order). Integrals are done by
+Cauchy–Euler; equations without `y` (reduced to a lower order); second order without
+`x` (autonomous: `p = y'` as a function of `y`). Integrals are done by
 the RischIntegrate extension when it is loaded (an unevaluated `Integral` otherwise, or
 when there is no elementary antiderivative).
 
@@ -67,10 +69,21 @@ function dsolve(eq::Relation, yx::Sym, ics::Pair...)
     kind, S = sol
     kind === :explicit && (S = _ode_absorb(S, Cs))
     _ode_verified(P, kind, S, Cs) || throw(ArgumentError("dsolve: the solution found does not satisfy $(eq)"))
-    c = Cs[1]                                    # an implicit solution is φ = c
+    c = Cs[P.n]                                  # an implicit solution is φ = c
     if !isempty(ics)
         length(ics) == P.n || throw(ArgumentError("dsolve: give $(P.n) initial condition$(P.n == 1 ? "" : "s"), one for each order"))
-        kind, S, c = _ode_ics(P, kind, S, Cs, [_ode_ic(p, P) for p in ics])
+        conds = [_ode_ic(p, P) for p in ics]
+        r = try
+            _ode_ics(P, kind, S, Cs, conds)
+        catch err
+            err isa ArgumentError || rethrow()
+            # an autonomous equation's explicit solution can give a nonlinear system for
+            # the constants; its implicit form, ∫ dy/p(y) - x = C₂, a simpler one
+            alt = kind === :explicit ? (try _ode_autonomous(P, Cs; implicit = true) catch; nothing end) : nothing
+            alt === nothing || alt[1] !== :implicit || !_ode_verified(P, alt..., Cs) ? rethrow() :
+                _ode_ics(P, alt..., Cs, conds)
+        end
+        kind, S, c = r
     end
     kind === :explicit ? (yx ~ S) : (subs(S, P.ys[1] => yx) ~ c)
 end
@@ -125,14 +138,24 @@ function _ode_constants(n::Int, eqs::AbstractVector)
     out
 end
 
-# the residual of a solution: explicit y = S, or implicit φ = C (first order: y' = -φₓ/φ_y)
+# the residual of a solution: explicit y = S, or implicit φ = C (y' = -φₓ/φ_y, and the
+# higher derivatives by differentiating along the curve)
 function _ode_residual(P::_ODE, kind::Symbol, S::Sym)
     if kind === :explicit
         return subs(P.F, (P.ys[k + 1] => diff(S, P.x, k) for k in 0:P.n)...)
     end
-    Y0 = P.ys[1]
-    yp = -diff(S, P.x) / diff(S, Y0)
-    subs(P.F, P.ys[2] => yp)
+    subs(P.F, (P.ys[k + 1] => d for (k, d) in enumerate(_ode_implicit_derivs(P, S)))...)
+end
+
+# y', …, y⁽ⁿ⁾ on the curve φ(x, y) = C, as functions of x and y
+function _ode_implicit_derivs(P::_ODE, S::Sym)
+    x, Y0 = P.x, P.ys[1]
+    yp = _ode_tidy(-diff(S, x) / diff(S, Y0))
+    ds = [yp]
+    for _ in 2:P.n
+        push!(ds, _ode_tidy(diff(ds[end], x) + yp * diff(ds[end], Y0)))
+    end
+    ds
 end
 
 function _ode_verified(P::_ODE, kind::Symbol, S::Sym, Cs)
@@ -161,7 +184,7 @@ end
 ## solving
 
 function _ode_solve(P::_ODE, Cs)
-    for m in (_ode_reduce, _ode_linear, _ode_first_order)
+    for m in (_ode_reduce, _ode_linear, _ode_first_order, _ode_autonomous)
         r = try m(P, Cs) catch err; err isa InterruptException && rethrow(); nothing end
         r === nothing || return r
     end
@@ -606,6 +629,32 @@ function _ode_homogeneous(P::_ODE, f::Sym, a::Sym, C::Sym)
     (:implicit, _ode_tidy(subs(φ, v => Y0 / x)))
 end
 
+## autonomous: y'' = f(y, y')
+
+# p = y' as a function of s = y, y'' = p dp/ds: a first-order equation for p(s), then
+# ∫ ds/p(s) = x + C₂, solved for y where that gives one solution. Only a p with one
+# branch (not p = ±sqrt(…)).
+function _ode_autonomous(P::_ODE, Cs; implicit::Bool = false)
+    P.n == 2 || return nothing
+    Y0, Y1, Y2 = P.ys
+    (has(P.F, P.x) || !has(P.F, Y0)) && return nothing
+    s, p0, p1 = Sym(:_ode_s), Sym(:_ode_p0), Sym(:_ode_p1)
+    Q = _ODE(expand(subs(P.F, Y0 => s, Y1 => p0, Y2 => p0 * p1)), [p0, p1], s, P.yx, 1)
+    sol = _ode_solve(Q, Cs[1:1])
+    sol === nothing && return nothing
+    kind, g = sol
+    if kind !== :explicit
+        gs = try solve(g ~ Cs[1], p0) catch; Sym[] end
+        length(gs) == 1 || return nothing
+        g = gs[1]
+    end
+    iszero(g) && return nothing
+    H = _ode_tidy(_integrate(_ode_tidy(1 / g), s))
+    ys = implicit || _hasfn(H, :Integral) ? Sym[] : (try solve(H ~ P.x + Cs[2], s) catch; Sym[] end)
+    length(ys) == 1 && return (:explicit, _ode_tidy(ys[1]))
+    (:implicit, _ode_tidy(subs(H, s => Y0) - P.x))
+end
+
 ## initial conditions
 
 # a condition as (order, point, value)
@@ -639,10 +688,23 @@ function _ode_ics(P::_ODE, kind::Symbol, S::Sym, Cs, conds)
         length(unique(T)) == 1 || throw(ArgumentError("dsolve: several solutions satisfy the initial conditions: $(join(T, ", "))"))
         return (:explicit, T[1], ZERO)
     end
-    # implicit φ(x, y) = C: C = φ(a, v); y solved for where one branch passes through (a, v)
-    o, a, v = only(conds)
-    o == 0 || throw(ArgumentError("dsolve: an implicit solution takes a condition y(a) => v"))
-    c = _ode_tidy(subs(S, x => a, Y0 => v))
+    # implicit φ(x, y) = C: the constants from y(a) = v and the derivatives at a (by
+    # implicit differentiation); y solved for where one branch passes through (a, v)
+    i0 = findfirst(c -> c[1] == 0, conds)
+    i0 === nothing && throw(ArgumentError("dsolve: an implicit solution takes a condition y(a) => v"))
+    _, a, v = conds[i0]
+    all(c -> _eq(c[2], a), conds) || throw(ArgumentError("dsolve: the conditions for an implicit solution are at one point"))
+    Ci = Cs[P.n]
+    if P.n == 1
+        c = _ode_tidy(subs(S, x => a, Y0 => v))
+    else
+        ds = _ode_implicit_derivs(P, S)
+        eqs = [_ode_tidy(subs(S, x => a, Y0 => v)) ~ Ci;
+               [_ode_tidy(subs(ds[o], x => a, Y0 => v)) ~ w for (o, _, w) in conds if o > 0]]
+        sols = solve(eqs, [C for C in Cs if has(S, C) || _eq(C, Ci)])
+        length(sols) == 1 || throw(ArgumentError("dsolve: the initial conditions don't fix the constants"))
+        S, c = _ode_tidy(subs(S, sols[1]...)), _ode_tidy(subs(Ci, sols[1]...))
+    end
     ys = try solve(S ~ c, Y0) catch; Sym[] end
     good = [y for y in ys if (z = _ode_tidy(subs(y, x => a) - v); iszero(z) || _ode_numzero(z, Sym[]) === true)]
     length(good) == 1 && return (:explicit, _ode_tidy(good[1]), ZERO)

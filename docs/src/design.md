@@ -1090,6 +1090,14 @@ and a finalizer per operation), which dominates the small benchmarks.
   `θ(θ - 1)…(θ - k + 1) y`), then first order `y' = f(x, y)`: separable (`f` factors as
   `g(x)h(y)`), Bernoulli, exact (with an integrating factor in `x` or `y` alone),
   homogeneous (`f(x, vx)` free of `x`).
+- **Autonomous equations**, second order without `x`: with `p = y'` a function of
+  `s = y`, `y'' = p dp/ds`, a first-order equation for `p(s)` solved by the methods
+  above; then `∫ ds/p(s) = x + C₂`, solved for `y` when that gives one solution and
+  implicit otherwise. Only a `p` with one branch is taken (not `p = ±sqrt(q(s))`, as
+  for `y'' = -sin y`). An implicit solution of any order is checked, and its constants
+  fixed by initial conditions at one point, through implicit differentiation: `y' =
+  -φₓ/φ_y` and each higher derivative by `d/dx + y' d/dy`. When the explicit form gives
+  a nonlinear system for the constants (`y = e^(C₁(C₂ + x))`), the implicit one is used.
 - **Particular solutions.** Undetermined coefficients when every term of the right side
   is `c xᵐ e^(αx) cos(βx)` (or `sin`); the trial form is multiplied by `xˢ`, `s` the
   multiplicity of `α + iβ` as a root, and the coefficients come from a linear system.
@@ -1117,8 +1125,8 @@ and a finalizer per operation), which dominates the small benchmarks.
   `t^k e^(at)` (integrated in closed form, then made real); otherwise `Φ ∫ Φ⁻¹ F dt`
   through the integrator. Parameters in `M` are taken to be real.
 - **Integrals** go through an integrator hook that the RischIntegrate extension sets;
-  without it a small integrator does polynomials and `exp`, `sin`, `cos`, `sinh`, `cosh`
-  of linear arguments, and anything else is an unevaluated `Integral(f, x)` whose
+  without it a small integrator does polynomials, powers of a linear function, and
+  `exp`, `sin`, `cos`, `sinh`, `cosh` of linear arguments, and anything else is an unevaluated `Integral(f, x)` whose
   derivative is `f`.
 
 ## Pattern matching

@@ -1805,7 +1805,17 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test D(y'(x) ~ y(x), y(x), y(0) => 3) == (y(x) ~ 3exp(x)) && D(y'(x) ~ x * y(x)^2, y(x), y(0) => 1) == (y(x) ~ -2 / (x^2 - 2))
         @test D(y'(x) ~ -x / y(x), y(x), y(0) => 2) == (y(x) ~ sqrt(4 - x^2))                 # the branch through (0, 2)
         @test D(y''(x) - y(x) ~ 1, y(x), y(0) => 0, y'(0) => 0) == (y(x) ~ cosh(x) - 1)
+        # autonomous, y'' = f(y, y'): p = y' as a function of y
+        @test D(y(x) * y''(x) ~ y'(x)^2, y(x)).rhs == exp(C1 * (C2 + x))
+        r = D(y(x) * y''(x) + y'(x)^2 ~ 0, y(x))                      # implicit, of second order
+        @test r.lhs == y(x)^2 / (2C1) - x && r.rhs == C2
+        @test D(y(x) * y''(x) + y'(x)^2 ~ 0, y(x), y(0) => 1, y'(0) => 1).rhs == sqrt(2x + 1)
+        @test D(y''(x) ~ y'(x)^2 / y(x), y(x), y(0) => 1, y'(0) => 2).rhs == exp(2x)   # constants through the implicit form
+        @test D(y''(x) + y'(x)^2 ~ 0, y(x)).rhs == C2 + log(C1 + x)
+        # the built-in integrator: powers of a linear function
+        @test SymJ._integrate(1 / (x + 2), x) == log(x + 2) && SymJ._integrate(3 / (2x + 1)^2, x) == -(3 // 2) / (2x + 1)
         # errors
+        @test_throws ArgumentError D(y''(x) ~ -sin(y(x)), y(x))                                 # y' = ±sqrt(…): not yet
         @test_throws ArgumentError D(y'(x) ~ y(x)^2 + x, y(x))                                  # Riccati: no method
         @test_throws ArgumentError D(y'(x) ~ y(x), y(x), y(0) => 1, y(1) => 2)
         @test_throws ArgumentError D(y(x) + x ~ 0, y(x))

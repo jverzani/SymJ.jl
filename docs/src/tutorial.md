@@ -956,6 +956,13 @@ Cauchy–Euler equations, with coefficients `x^k` on `y⁽ᵏ⁾`, are solved to
 SymJ.dsolve(x^2 * y''(x) - 2y(x) ~ 0, y(x))
 ```
 
+An equation of second order without `x`, `y'' = f(y, y')`, is reduced to first order
+with `p = y'` as a function of `y`:
+
+```@example tut
+SymJ.dsolve(y(x) * y''(x) ~ y'(x)^2, y(x))
+```
+
 Initial conditions, one for each order, fix the constants:
 
 ```@example tut
