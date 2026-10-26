@@ -1838,7 +1838,15 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test_throws ArgumentError S(x * y''(x) - y(x) ~ 0, y(0) => 1, y'(0) => 0; series = 4)
         @test_throws ArgumentError S(y'(x) ~ y(x); series = 0)
         # errors
-        @test_throws ArgumentError D(y''(x) ~ -sin(y(x)), y(x))                                 # y' = ±sqrt(…): not yet
+        # two branches of y' = ±sqrt(…): one solution each, or the branch through the
+        # initial conditions (C₁ fixed first, so the integral can be elementary)
+        r = D(y''(x) ~ -sin(y(x)), y(x))
+        @test r isa Vector && length(r) == 2 && all(q -> q.rhs == C2, r)
+        @test D(y''(x) ~ 2y(x)^3, y(x), y(0) => 1, y'(0) => 1).rhs == -1 / (x - 1)
+        @test D(y''(x) ~ 2y(x)^3, y(x), y(0) => 1, y'(0) => -1).rhs == 1 / (x + 1)
+        @test D(y''(x) ~ exp(2y(x)), y(x), y(0) => 0, y'(0) => 1).rhs == log(-1 / (x - 1))
+        r = D(y''(x) ~ -sin(y(x)), y(x), y(0) => 0, y'(0) => 2)                  # ∫₀^y … = x
+        @test r.rhs == 0 && string(r.lhs) == "-x + Integral(sqrt(2)/(2*sqrt(cos(y) + 1)), y, 0, y(x))"
         @test_throws ArgumentError D(y'(x) ~ y(x)^2 + x, y(x))                                  # Riccati to Airy: no method
         @test_throws ArgumentError D(y'(x) ~ y(x), y(x), y(0) => 1, y(1) => 2)
         @test_throws ArgumentError D(y(x) + x ~ 0, y(x))

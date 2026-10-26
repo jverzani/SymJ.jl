@@ -7,8 +7,8 @@ SymPy 1.14, and every Giac command in Giac.jl's command table; SymJ's column was
 against its source and by running it. Updated 2026-10-25: series, assumptions, `limit`
 with assumptions, `refine` and `simplify`, complex parts and LaTeX output are done.
 
-**Legend:** ✅ has · ◐ partial · ❌ missing · ★ planned (differential equations, under way; done:
-series, assumptions, a basic `simplify`, summation)
+**Legend:** ✅ has · ◐ partial · ❌ missing · ★ planned (all done: series, assumptions, a basic
+`simplify`, summation, differential equations)
 
 ## Numbers and the core
 
@@ -82,7 +82,7 @@ series, assumptions, a basic `simplify`, summation)
 | Numeric root finding, any equation | `nsolve` | `fsolve` | ◐ polynomials only |
 | Diophantine equations | `diophantine` | `isolve` | ❌ |
 | Recurrences | `rsolve` | `rsolve`, `seqsolve` | ✅ `SymJ.rsolve`: linear, polynomial coefficients, by Hyper (hypergeometric solutions, combined), a hypergeometric right side; ◐ not for sums of such right sides, or solutions that are not hypergeometric (Franel), factors over the rationals only |
-| Ordinary differential equations | `dsolve`, `classify_ode`, `checkodesol` | `desolve` | ◐ ★ `SymJ.dsolve`: first order (linear, separable, Bernoulli, exact with integrating factors, homogeneous, Riccati), linear with constant coefficients of any order (undetermined coefficients, variation of parameters), Cauchy–Euler, `y` missing, autonomous second order (`y'' = f(y, y')`); initial conditions (`y'(0) => 1`); linear systems with constant coefficients, of any order; series solutions (`series = n`: Taylor at an ordinary point, nonlinear too; Frobenius at a regular singular point); Laplace transforms for constant coefficients (chosen for `heaviside`/`dirac` right sides, or `method = :laplace`), systems too; every solution checked. Not yet: two-branch autonomous (`y'' = -sin y`) |
+| Ordinary differential equations | `dsolve`, `classify_ode`, `checkodesol` | `desolve` | ◐ ★ `SymJ.dsolve`: first order (linear, separable, Bernoulli, exact with integrating factors, homogeneous, Riccati), linear with constant coefficients of any order (undetermined coefficients, variation of parameters), Cauchy–Euler, `y` missing, autonomous second order (`y'' = f(y, y')`); initial conditions (`y'(0) => 1`); linear systems with constant coefficients, of any order; series solutions (`series = n`: Taylor at an ordinary point, nonlinear too; Frobenius at a regular singular point); Laplace transforms for constant coefficients (chosen for `heaviside`/`dirac` right sides, or `method = :laplace`), systems too; every solution checked; several branches of `y'` give a solution each |
 | Partial differential equations | `pdsolve` | — | ❌ |
 
 ## Calculus
@@ -151,10 +151,10 @@ permutation groups (`sympy.combinatorics`), tensors and differential geometry
 
 ## Gaps worth considering
 
-The planned work (★) still to do is differential equations (under way: `SymJ.dsolve` has the
-first-order and linear methods, linear systems, autonomous reduction, Riccati, series solutions and Laplace transforms; the two-branch autonomous case remains); series, assumptions, a
-basic `simplify` and summation are done. Of the rest, in rough order of value for
-calculus-level use:
+The planned work (★) is done: series, assumptions, a basic `simplify`, summation, and
+differential equations (`SymJ.dsolve`: first-order and linear methods, linear systems,
+autonomous reduction with its branches, Riccati, series solutions and Laplace
+transforms). Of the rest, in rough order of value for calculus-level use:
 
 1. **Symbolic linear algebra**: feature complete for now. `det`, `inv`, `lu`, `\`,
    `SymJ.rref`, `rank`, `nullspace`, eigenvalues and eigenvectors, `qr`,

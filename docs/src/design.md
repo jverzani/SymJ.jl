@@ -1102,8 +1102,14 @@ and a finalizer per operation), which dominates the small benchmarks.
 - **Autonomous equations**, second order without `x`: with `p = y'` a function of
   `s = y`, `y'' = p dp/ds`, a first-order equation for `p(s)` solved by the methods
   above; then `∫ ds/p(s) = x + C₂`, solved for `y` when that gives one solution and
-  implicit otherwise. Only a `p` with one branch is taken (not `p = ±sqrt(q(s))`, as
-  for `y'' = -sin y`). An implicit solution of any order is checked, and its constants
+  implicit otherwise. When `p` has several branches (`p = ±sqrt(q(s))`, as for
+  `y'' = -sin y`) each gives a solution, and `dsolve` returns a vector. With initial
+  conditions `y(a) = v`, `y'(a) = w`, `C₁` is fixed first from the relation between
+  `p` and `s` at `(v, w)`, the branches through `(v, w)` kept, and only then
+  `∫ ds/p` taken, which is often elementary when the general one is not
+  (`y'' = 2y³`, `y(0) = 1`, `y'(0) = 1`: `C₁ = 0`, `y = 1/(1 - x)`); without a closed
+  form it is the definite `∫ᵥʸ ds/p = x - a`. `sqrt(exp(2y))` is `exp(y)`, `y` being
+  real. An implicit solution of any order is checked, and its constants
   fixed by initial conditions at one point, through implicit differentiation: `y' =
   -φₓ/φ_y` and each higher derivative by `d/dx + y' d/dy`. When the explicit form gives
   a nonlinear system for the constants (`y = e^(C₁(C₂ + x))`), the implicit one is used.
