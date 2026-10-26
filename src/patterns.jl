@@ -75,7 +75,10 @@ function _pred_value(p)
 end
 
 function _regslot!(P::_PatBuild, name::Symbol, fl::UInt8, pred)
-    get(P.flavors, name, fl) == fl || throw(ArgumentError("pattern: ~$name is used as two kinds of slot"))
+    old = get(P.flavors, name, fl)
+    # ~x and ~!x may name the same slot (only ~!x may take the default); not other kinds
+    old == fl || (old in (_SL_ONE, _SL_DEF) && fl in (_SL_ONE, _SL_DEF)) ||
+        throw(ArgumentError("pattern: ~$name is used as two kinds of slot"))
     P.flavors[name] = fl
     get!(P.order, name, length(P.order) + 1)
     pred === nothing || (P.preds[name] = _pred_value(pred))
@@ -371,9 +374,14 @@ end
 function _pm_pow(p::_PNode, s::Sym, B::_Binds, k::_Goal)::Bool
     pb, pe = p.kids
     s.kind == POW && _pm(pb, s.args[1], B, _gmatch(pe, s.args[2], k)) && return true
-    pe.kind == _P_SLOT && pe.flavor == _SL_DEF || return false
+    _exp_one(pe, B) || return false
     _bind(B, pe.name, ONE, pe.pred, _gmatch(pb, s, k))
 end
+
+# can the exponent pattern pe be 1, so that b^pe matches b: a default exponent ~!n, or
+# a slot already bound to 1 (x^(~!n) * (c + x^(~n)))
+_exp_one(pe::_PNode, B) = pe.kind == _P_SLOT &&
+    (pe.flavor == _SL_DEF || (v = _getb(B, pe.name); v isa Sym && _eq(v, ONE)))
 
 # the terms of a sum, its constant last; anything else is a one-term sum
 function _add_parts(s::Sym)
@@ -417,7 +425,7 @@ function _quickfail(p::_PNode, s::Sym)
         any(q -> q.kind == _P_SLOT && (q.flavor == _SL_STAR || q.flavor == _SL_PLUS), p.kids) && return false
         return length(s.args) != length(p.kids)
     end
-    K == _P_POW && return !(s.kind == POW || (p.kids[2].kind == _P_SLOT && p.kids[2].flavor == _SL_DEF))
+    K == _P_POW && return !(s.kind == POW || (p.kids[2].kind == _P_SLOT && p.kids[2].flavor in (_SL_ONE, _SL_DEF)))
     if K == _P_ADD || K == _P_MUL
         need = length(p.lits) + length(p.kids) + count(sl -> !_zero_ok(sl), p.slots)
         have = K == _P_ADD ? (s.kind == ADD ? length(s.args) + (s.num != N0) : !iszero(s)) :
@@ -440,10 +448,10 @@ function _pm_ac(p::_PNode, s::Sym, B::_Binds, k::_Goal)::Bool
     _pm_others(p, 1, s, elems, used, B, k)
 end
 
-function _headok(q::_PNode, e::Sym)
+function _headok(q::_PNode, e::Sym, B)
     q.kind == _P_FN && return e.kind == FN && e.name === q.name
     q.kind == _P_HEAD && return e.kind == FN
-    q.kind == _P_POW && return e.kind == POW || (q.kids[2].kind == _P_SLOT && q.kids[2].flavor == _SL_DEF)
+    q.kind == _P_POW && return e.kind == POW || _exp_one(q.kids[2], B)
     true
 end
 
@@ -457,7 +465,7 @@ function _pm_others(p::_PNode, i::Int, s::Sym, elems::Vector{Sym}, used::BitVect
     end
     q = p.kids[i]
     for j in eachindex(elems)
-        (used[j] || !_headok(q, elems[j])) && continue
+        (used[j] || !_headok(q, elems[j], B)) && continue
         used[j] = true
         r = _pm(q, elems[j], B, _gothers(p, i + 1, s, elems, used, k))
         used[j] = false
