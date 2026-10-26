@@ -1108,7 +1108,9 @@ and a finalizer per operation), which dominates the small benchmarks.
   `p` and `s` at `(v, w)`, the branches through `(v, w)` kept, and only then
   `∫ ds/p` taken, which is often elementary when the general one is not
   (`y'' = 2y³`, `y(0) = 1`, `y'(0) = 1`: `C₁ = 0`, `y = 1/(1 - x)`); without a closed
-  form it is the definite `∫ᵥʸ ds/p = x - a`. `sqrt(exp(2y))` is `exp(y)`, `y` being
+  form it is the definite `∫ᵥʸ ds/p = x - a`, an `Integral(f, y, v, y(x))` node printed
+  `Integral(f, (y, v, y(x)))` as `integrate` takes a definite integral; `y` is bound
+  there (for `subs` and `free_symbols`), and `diff` uses the fundamental theorem. `sqrt(exp(2y))` is `exp(y)`, `y` being
   real. An implicit solution of any order is checked, and its constants
   fixed by initial conditions at one point, through implicit differentiation: `y' =
   -φₓ/φ_y` and each higher derivative by `d/dx + y' d/dy`. When the explicit form gives

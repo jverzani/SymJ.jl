@@ -55,6 +55,9 @@ function _show(io::IO, x::Sym, p::Int)
         print(io, ")")
     elseif (d = _deriv_at(x)) !== nothing
         print(io, d[1], "'"^d[2], "(", sprint(_show, d[3], 0), ")")
+    elseif _isdefint(x)                         # as integrate takes it: Integral(f, (y, a, b))
+        f, v, a, b = (sprint(_show, t, 0) for t in x.args)
+        print(io, "Integral(", f, ", (", v, ", ", a, ", ", b, "))")
     else
         print(io, x.name, "(")
         join(io, (sprint(_show, a, 0) for a in x.args), ", ")

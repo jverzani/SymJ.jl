@@ -1846,7 +1846,13 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test D(y''(x) ~ 2y(x)^3, y(x), y(0) => 1, y'(0) => -1).rhs == 1 / (x + 1)
         @test D(y''(x) ~ exp(2y(x)), y(x), y(0) => 0, y'(0) => 1).rhs == log(-1 / (x - 1))
         r = D(y''(x) ~ -sin(y(x)), y(x), y(0) => 0, y'(0) => 2)                  # ∫₀^y … = x
-        @test r.rhs == 0 && string(r.lhs) == "-x + Integral(sqrt(2)/(2*sqrt(cos(y) + 1)), y, 0, y(x))"
+        @test r.rhs == 0 && string(r.lhs) == "-x + Integral(sqrt(2)/(2*sqrt(cos(y) + 1)), (y, 0, y(x)))"
+        # a definite integral prints as integrate takes it; its variable is bound
+        @syms a b
+        I4 = SymJ._mkfn_node(:Integral, Sym[cos(Sym(:u)) * a, Sym(:u), Sym(0), b])
+        @test string(I4) == "Integral(a*cos(u), (u, 0, b))" && free_symbols(I4) == [a, b]
+        @test subs(I4, Sym(:u) => 2, a => 3, b => x) == SymJ._mkfn_node(:Integral, Sym[3cos(Sym(:u)), Sym(:u), Sym(0), x])
+        @test diff(I4, b) == a * cos(b)
         @test_throws ArgumentError D(y'(x) ~ y(x)^2 + x, y(x))                                  # Riccati to Airy: no method
         @test_throws ArgumentError D(y'(x) ~ y(x), y(x), y(0) => 1, y(1) => 2)
         @test_throws ArgumentError D(y(x) + x ~ 0, y(x))

@@ -35,7 +35,7 @@ constants.
 An autonomous equation `y'' = f(y, y')` whose `y'` has several branches (`y' =
 ±sqrt(…)`, as for `y'' = -sin(y)`) gives a vector of solutions, one for each branch;
 with initial conditions, the branch through them (`∫ᵥʸ dy/y' = x - a`, a definite
-`Integral(f, y, v, y(x))`, when the integral has no closed form).
+`Integral(f, (y, v, y(x)))`, when the integral has no closed form).
 
 With `method = :laplace`, a linear equation with constant coefficients is solved by
 Laplace transforms ([`SymJ.laplace_transform`](@ref)); this is the method used, without
