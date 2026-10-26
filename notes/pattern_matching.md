@@ -1,9 +1,10 @@
 # Design note: pattern matching and rewrite rules
 
 A proposal, written 2026-10-25, for pattern matching in SymJ: patterns with wildcards,
-matching against expressions, and rules that rewrite with the matches. Nothing here is
-implemented yet. The questions the first draft left open were settled the same day;
-the answers are folded in, and listed at the end.
+matching against expressions, and rules that rewrite with the matches. The questions
+the first draft left open were settled the same day; the answers are folded in, and
+listed at the end. Stage 1, the matcher, is implemented in `src/patterns.jl`; see
+"Stage 1 as built" at the end.
 
 ## Decision: inside SymJ, with the SymbolicUtils syntax
 
@@ -54,7 +55,7 @@ Slots, as in ACPM and SymbolicUtils:
 | Syntax | With a predicate | Matches |
 |:--|:--|:--|
 | `~x` | `~x::pred` | one argument of a function; one or more terms of a sum or factors of a product |
-| `~!x` | `~!x::pred` | one argument, or none, giving a default: 0 in a sum, 1 in a product or exponent; zero or more terms or factors |
+| `~!x` | `~!x::pred` | one argument; any number of terms or factors, none giving the default 0 (1); in an exponent, 1 when there is no power |
 | `~~x` | `~~x::pred` | zero or more arguments |
 | `~~~x` | `~~~x::pred` | one or more arguments |
 | `(~f)(…)` | `(~f::pred)(…)` | the head of a function application |
@@ -63,9 +64,9 @@ Slots, as in ACPM and SymbolicUtils:
 one or more terms (factors) and is bound to their sum (product). There `~x` and `~~~x`
 mean the same. `~!x` is extended the same way: it takes none or one or more, and is
 bound to their sum (product), which is the default 0 (1) when it takes none. There `~!x`
-and `~~x` mean the same. In a function's arguments, `~x` takes exactly one, `~!x` one or
-none (in an exponent, defaulting to 1), and the sequence slots bind a vector of
-arguments.
+and `~~x` mean the same. In a function's arguments, `~x` and `~!x` take exactly one (a
+function has no default to give), and the sequence slots bind a vector of arguments. In
+an exponent, `~!n` is 1 when there is no power.
 
 A name may appear more than once (a non-linear pattern) but with one flavor. A predicate
 gets the bound value and must return `true`, or the match is rejected; an error counts as
@@ -301,3 +302,30 @@ The first draft's open questions, as settled:
 5. **Head slots:** patterns match function heads, `(~f)(~x)`, binding the function.
 6. **First match:** numbers go to `~!` slots first, and otherwise a `~!` slot takes
    nothing first (see "Which match comes first").
+
+## Stage 1 as built
+
+`src/patterns.jl`, 2026-10-25: `SymJ.pattern`, `SymJ.Pattern`, and methods of `match`,
+`eachmatch` and `occursin`, with 43 tests. Beyond the design above:
+
+- **Order of slots.** Slots are tried in the order they first appear in the written
+  pattern (after the defaults, scaled and predicated slots), so the number in `3x` goes
+  to `~b` in `~b*~x` whatever the slots' names. The other parts of a sum or product are
+  tried in the same written order.
+- **Ambiguous splits** follow SymJ's stored order of terms, which is not the printed
+  one: `~x + ~y` against `a + b` gives `x => b` first. Sorting into printed order cost
+  3–17 μs per match (it prints each term) and was dropped.
+- **Defaults in powers.** `(~x)^(~!m)` against `x^3` matches twice: `x => x, m => 3`
+  first, then `x => x^3, m => 1`. ACPM gives only the first.
+- **Continuations** are a linked list of concrete goal records, not closures, which
+  halved the search time.
+- **Predicates** get `Sym`s. Base's `isinteger`, `iseven` and `isodd` have no methods for
+  `Sym`, so `~n::isinteger` rejects everything; the benchmark defined them locally.
+
+On ACPM's 62 cases (run in a scratch script; ACPM's checkout is unchanged), the first
+match takes a median 0.83 μs and at most 6.1 μs, against `ac`'s 13.1 and 628 μs, `cc`'s
+0.45 and 9.2 μs, and SymbolicUtils' 0.93 μs median. The match counts agree with `ac`'s
+except in six cases, all from the decisions above: `~x + ~x` matches `2a` (SymbolicUtils
+stores `a + a` as `2a` too, but `ac` doesn't match it) and `a + b` (`x => a/2 + b/2`);
+`~!a` may take no factor (`~!a * ~x` against `3x` also gives `a => 1, x => 3x`); and
+default exponents also match a power as a whole.

@@ -1868,6 +1868,66 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
               !showable(MIME"text/latex"(), [1, 2])
     end
 
+    @testset "pattern matching" begin
+        P = SymJ.pattern
+        M(p, ex) = match(P(p), ex)
+        Ms(p, ex) = eachmatch(P(p), ex)
+        D(ps...) = Dict{Symbol,Any}(ps...)
+        @syms t a b c f()
+        # literals, function arguments, powers, repeated slots
+        @test M(:(~x), sin(x)) == D(:x => sin(x)) && M(:(sin(~x)), sin(x + 1)) == D(:x => x + 1)
+        @test M(:(sin(~x)), cos(x)) === nothing && M(:((~x)^2), x^3) === nothing
+        @test M(:((~x)^(~x)), (x + a)^(x + a)) == D(:x => x + a) && M(:((~x)^(~x)), (x + a)^(x + b)) === nothing
+        @test M(:(sin(~x) * cos(~x)), sin(t) * cos(t)) == D(:x => t)
+        @test M(:(sin(~x)^2 + cos(~x)^2), sin(t)^2 + cos(t)^2) == D(:x => t)
+        @test M(:(f(~x, ~~r)), f(a, b, c)) == D(:x => a, :r => Sym[b, c]) && M(:(f(~~~r)), f()) === nothing
+        @test M(:((~u)^(~m)), 1 / sqrt(x)) == D(:u => x, :m => -1 // 2) && M(:(exp(~u)), exp(2x)) == D(:u => 2x)
+        @test M(:((~u)^(~m) * (~v)^(~n)), a^2 / b^3) in Ms(:((~u)^(~m) * (~v)^(~n)), a^2 / b^3)
+        # sums and products: slots take groups of terms (factors)
+        @test length(Ms(:(~x + ~y), a + b + c)) == 6 && length(Ms(:(~x * ~y), a * b * c)) == 6
+        @test D(:x => a + b, :y => c) in Ms(:(~x + ~y), a + b + c)
+        @test M(:(~x + sin(~y)), a + b + sin(c)) == D(:x => a + b, :y => c)
+        @test M(:(~x * (~y)^2), a * b * c^2) == D(:x => a * b, :y => c)
+        @test M(:(sin(~x)^2 + cos(~x)^2 + ~~r), sin(t)^2 + cos(t)^2 + a) == D(:x => t, :r => a)
+        @test M(:(sin(~x)^2 + cos(~x)^2 + ~~r), sin(t)^2 + cos(t)^2) == D(:x => t, :r => 0)
+        @test M(:(sin(~x)^2 + cos(~x)^2), sin(t)^2 + cos(t)^2 + a) === nothing
+        @test M(:(~x + ~~~y), a) === nothing && length(Ms(:(~x + ~~y), a + b + c)) == 7
+        @test M(:(~x * ~y), a + b) === nothing
+        # defaults, and which match comes first: numbers to ~! slots, else none
+        @test M(:(~!a * ~x + ~!b), 3y + 5) == D(:a => 3, :x => y, :b => 5)
+        @test M(:(~!a * ~x + ~!b), sin(t)) == D(:a => 1, :x => sin(t), :b => 0)
+        @test M(:(~!a * (~x)^(~!n)), 2y^3) == D(:a => 2, :x => y, :n => 3)
+        @test M(:(~!a * (~x)^(~!n)), y) == D(:a => 1, :x => y, :n => 1)
+        @test M(:(~x + ~!r), a + b) == D(:x => a + b, :r => 0)
+        @test M(:(~a * ~x + ~b), 2x + 3) == D(:a => 2, :x => x, :b => 3)
+        @test M(:((~a + ~b * ~x)^(~m)), (2 + 3x)^5) == D(:a => 2, :b => 3, :x => x, :m => 5)
+        @test M(:((~a + ~b * ~x)^(~m) * (~c + ~d * ~x)^(~n)), (1 + 2x)^3 * (4 + 5x)^6) in
+              (D(:a => 1, :b => 2, :m => 3, :c => 4, :d => 5, :n => 6, :x => x), D(:a => 4, :b => 5, :m => 6, :c => 1, :d => 2, :n => 3, :x => x))
+        @test M(:(~x * (~!a + ~!b * ~x)^(~!m)), x * (2 + 3x)^4) == D(:x => x, :a => 2, :b => 3, :m => 4)
+        # numbers divide into slots
+        @test M(:(~x - ~y), a - 2b) == D(:x => a, :y => 2b) && M(:(2 * ~x), 6a) == D(:x => 3a)
+        @test D(:x => a, :y => -b) in Ms(:(~x - ~y), a + b)
+        @test M(:(-sin(~x)), -sin(a)) == D(:x => a) && M(:(-sin(~x)), sin(a)) === nothing
+        @test M(:(~x + 1), a + 3) === nothing && M(:(~x + 1), a + b + 1) == D(:x => a + b)
+        # the pattern is its canonical form
+        @test M(:(~x + ~x), 2a) == D(:x => a) && M(:(sin(-~x)), sin(-a)) == D(:x => a)
+        @test M(:(exp(log(~x))), sin(t)) == D(:x => sin(t))
+        @test_throws ArgumentError P(:(~x - ~x))
+        @test_throws ArgumentError P(:(~x^2))
+        @test_throws ArgumentError P(:(~x + ~~x))
+        # head slots and predicates
+        @test M(:((~f)(~x)), sin(t)) == D(:f => sin, :x => t) && M(:((~f)(~x)), y) === nothing
+        @test M(:((~f)(~x)^2), cos(x)^2) == D(:f => cos, :x => x)
+        @test M(:((~f)(~x) + (~f)(~y)), cos(b) + sin(a)) === nothing
+        @test M(:((~g)(~x)), f(t)) == D(:g => f, :x => t)
+        isnum(v) = v isa Sym && v.kind == SymJ.NUMBER
+        @test match(P(:(~n::$isnum * ~x)), 3a) == D(:n => 3, :x => a)
+        @test match(P(:(~n::$isnum * sin(~x))), a * sin(t)) === nothing
+        # occursin
+        @test occursin(P(:(sin(~x)^2)), 1 + sin(t)^2) && !occursin(P(:(cos(~x))), 1 + sin(t)^2)
+        @test occursin(P(:(exp(~u))), x * exp(2x)) && string(P(:(~!a * sin(~x) + ~~r))) == "pattern(sin(~x)*~!a + ~~r)"
+    end
+
     @testset "ambiguities" begin
         @test isempty(Test.detect_ambiguities(SymJ; recursive = true))
     end

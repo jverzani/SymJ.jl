@@ -47,6 +47,12 @@ function _show(io::IO, x::Sym, p::Int)
         _show_piecewise(io, x)
     elseif _iscond(x)
         _show_cond(io, x)
+    elseif x.name === :_slot
+        print(io, ("~", "~!", "~~", "~~~")[_toint(x.args[2].num)], x.args[1].name)
+    elseif x.name === :_hslot
+        print(io, "(~", x.args[1].name, ")(")
+        join(io, (sprint(_show, a, 0) for a in x.args[2:end]), ", ")
+        print(io, ")")
     elseif (d = _deriv_at(x)) !== nothing
         print(io, d[1], "'"^d[2], "(", sprint(_show, d[3], 0), ")")
     else

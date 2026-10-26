@@ -965,3 +965,32 @@ SymJ.dsolve(y''(x) + y(x) ~ 0, y(x), y(0) => 0, y'(0) => 1)
 ```@example tut
 SymJ.dsolve(y'(x) ~ -x / y(x), y(x), y(0) => 2)
 ```
+
+## Pattern matching
+
+`SymJ.pattern` (not exported) makes a pattern from a quoted expression, with `~x` marking
+a slot. `match` gives the first match as a `Dict`, `eachmatch` every match, and
+`occursin` whether a part of an expression matches:
+
+```@example tut
+p = SymJ.pattern(:(~!a * sin(~x) + ~~r))
+match(p, 3sin(2x) + x + 1)
+```
+
+In a sum or product a slot takes a group of terms (factors), so there can be several
+matches; `~!a` is 1 when there is no factor for it:
+
+```@example tut
+@syms a b c
+eachmatch(SymJ.pattern(:(~x + ~y)), a + b + c)
+```
+
+```@example tut
+match(p, sin(x)), occursin(SymJ.pattern(:(cos(~x)^2)), 1 + cos(x)^2)
+```
+
+A head slot matches a function and binds it:
+
+```@example tut
+match(SymJ.pattern(:((~f)(~x)^2)), cos(x)^2)
+```

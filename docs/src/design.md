@@ -868,9 +868,9 @@ three rounds each, taking each workload's best time.
   candidate, and the one with the fewest nodes is kept, the input if none is smaller.
   As in SymPy and Mathematica, a front end over specialized routines; their names start
   with `simplify_`, and only `simplify` and `refine` are exported.
-- **Rules are Julia functions** on the canonical form, not a general pattern matcher:
-  the canonical form already orders sums and products, which is most of what a matcher's
-  associative-commutative matching is for, and the rule sets are small.
+- **Rules are Julia functions** on the canonical form: the canonical form already orders
+  sums and products, which is most of what a matcher's associative-commutative matching
+  is for, and the rule sets are small. (`SymJ.pattern`, below, is not used here yet.)
 - **`simplify_trig`.** Arguments are grouped into base angles (multiples of one
   another share a base), and sines and cosines of multiples written as polynomials in
   `S = sin g`, `C = cos g` (Chebyshev). Reducing modulo `S² + C² - 1` is a normal form;
@@ -1108,6 +1108,35 @@ and a finalizer per operation), which dominates the small benchmarks.
   without it a small integrator does polynomials and `exp`, `sin`, `cos`, `sinh`, `cosh`
   of linear arguments, and anything else is an unevaluated `Integral(f, x)` whose
   derivative is `f`.
+
+## Pattern matching
+
+The design, and the decisions behind it, are in `notes/pattern_matching.md`; stage 1, the
+matcher, is done.
+
+- **Patterns are expressions.** `SymJ.pattern(:(…))` reads a quoted expression with
+  SymJ's arithmetic, a slot `~x` being a private function node `_slot(x, flavor)` and a
+  head slot `(~f)(…)` a node `_hslot(f, …)`. So a pattern is in canonical form and means
+  what that form means: `~x + ~x` is `2*~x`, `exp(log(~x))` is `~x`. A slot that
+  vanishes (`~x - ~x`) is an error.
+- **Sums and products are associative and commutative.** Their elements are the terms
+  (the constant last) or the factors (the coefficient last). A pattern's parts without
+  slots are found by hash; its other parts each match one element, tried only against
+  elements with the same head; its slots take groups, `~x` one or more and `~!x`, `~~x`
+  any number, bound to the group's sum or product. A group is a subsequence of the
+  subject's terms, already in canonical order, so its sum is built directly.
+- **Numbers divide into slots.** A product's coefficient over the pattern's is one more
+  element (`2*~x` against `6a` gives `x => 3a`), and a scaled slot in a sum takes a group
+  divided by its scale (`~x - ~y` against `a - 2b` gives `y => 2b`).
+- **The first match.** Slots already bound take their value's elements, then defaults
+  (offered the number first, else taking none), scaled slots (negative terms first),
+  slots with predicates and plain slots, each in the order written; the last takes what
+  is left. Ambiguous splits (`~x + ~y` against `a + b`) follow the stored order of the
+  terms, not the printed one, which would cost a string comparison.
+- **The search** is backtracking with the continuation as a linked list of concrete
+  goal records, not closures, so it is fully typed. On ACPM's 62 benchmark cases the
+  first match takes a median 0.83 μs and at most 6.1 μs (ACPM's associative-commutative
+  matcher: 13.1 μs and 628 μs).
 
 ## Not yet done / open questions
 
