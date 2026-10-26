@@ -568,6 +568,106 @@ function LinearAlgebra.qr(A::AbstractMatrix{Sym})
     SymQR(Q, R)
 end
 
+## SVD
+
+# Aᴴ: the transpose, entries with i conjugated (symbols taken to be real, as in _dot)
+_adjoint(A::AbstractMatrix) = Sym[(e = Sym(A[i, j]); _has_im(e) ? conj(e) : e) for j in axes(A, 2), i in axes(A, 1)]
+
+# orthonormal columns spanning those of B (Gram–Schmidt, as in qr), dependent ones dropped
+function _orthonormal(B::AbstractMatrix{Sym}, others::Vector{Vector{Sym}} = Vector{Sym}[])
+    out = Vector{Sym}[]
+    for k in axes(B, 2)
+        v = Sym[Sym(a) for a in B[:, k]]
+        for q in Iterators.flatten((others, out))
+            r = _qrnorm(_dot(q, v))
+            iszero(r) || (v = Sym[expand(v[i] - r * q[i]) for i in eachindex(v)])
+        end
+        n2 = _qrnorm(_dot(v, v))
+        iszero(n2) && continue
+        nv = simplify(sqrt(n2))
+        push!(out, Sym[simplify(x / nv) for x in v])
+    end
+    out
+end
+
+# (σ, v) for the nonzero singular values, largest first when they are numbers: σ² an
+# eigenvalue of AᴴA, v orthonormal eigenvectors (each eigenspace orthonormalized; the
+# eigenspaces of the Hermitian AᴴA are orthogonal to each other)
+function _svd_parts(A::AbstractMatrix{Sym})
+    B = map(_qrnorm, _adjoint(A) * A)
+    n = size(B, 1)
+    # roots of a cubic or higher (Cardano's, with complex cube roots for real roots) make
+    # null spaces that do not finish: refused
+    λ = Sym(Symbol("_svdλ"))
+    p = factor(charpoly(B, λ))
+    for (f, _) in (p.kind == MUL ? collect(zip(p.args, p.exps)) : p.kind == POW ? [(p.args[1], p.args[2])] : [(p, ONE)])
+        has(f, λ) || continue
+        d = degree(Poly{Sym}(expand(f), [λ]), λ)
+        d <= 2 || throw(ArgumentError("svd: the squared singular values are roots of an irreducible polynomial of degree $d; use svd on numbers (e.g. svd(N.(A)))"))
+    end
+    parts = Tuple{Sym,Vector{Sym}}[]
+    for (λ, _) in _eigen_mult(B)
+        λ = _qrnorm(λ)
+        iszero(λ) && continue
+        N = LinearAlgebra.nullspace(B - λ * LinearAlgebra.I(n))
+        σ = _hassymbol(λ) ? sqrt(λ) : simplify(sqrt(λ))
+        for v in _orthonormal(N)
+            push!(parts, (σ, v))
+        end
+    end
+    if all(p -> !_hassymbol(p[1]), parts)
+        sort!(parts; by = p -> -real(_evalc(p[1])))
+    end
+    parts
+end
+
+"""
+    svd(A::AbstractMatrix{Sym}; full = false)
+    svdvals(A::AbstractMatrix{Sym})
+
+The singular value decomposition of a matrix of expressions, exactly, as a
+`LinearAlgebra.SVD` (`F.U`, `F.S`, `F.Vt`, or `U, S, V = svd(A)`), with
+`A == F.U * Diagonal(F.S) * F.Vt`. The singular values are the square roots of the
+eigenvalues of `A'A` (largest first when they are numbers), the columns of `V`
+orthonormal eigenvectors of `A'A`, and those of `U` are `A v / σ`. As for `svd` on
+numbers, `U` and `V` have `min(m, n)` columns, completed (for zero singular values) by
+orthonormal bases of the null spaces; with `full = true`, `U` and `V` are square.
+Symbols are taken to be real. The roots of the characteristic polynomial of `A'A` must
+be found, and nested square roots are common, so this is for small matrices.
+
+```julia
+F = svd(Sym[3 0; 4 5])           # F.S == [3*sqrt(5), sqrt(5)]
+svdvals(Sym[1 1; 0 0])           # [sqrt(2), 0]
+```
+"""
+function LinearAlgebra.svd(A::AbstractMatrix{Sym}; full::Bool = false)
+    m, n = size(A)
+    if m < n                                     # through A' (the smaller of A'A, AA')
+        F = LinearAlgebra.svd(_adjoint(A); full)
+        return LinearAlgebra.SVD(Matrix(_adjoint(F.Vt)), F.S, Matrix(_adjoint(F.U)))
+    end
+    A = Sym[Sym(a) for a in A]
+    parts = _svd_parts(A)
+    r = length(parts)
+    vs = [p[2] for p in parts]
+    us = [Sym[simplify(x / σ) for x in A * v] for (σ, v) in parts]
+    k = full ? m : n
+    # completed by the null spaces of A (for V) and of A' (for U)
+    append!(vs, _orthonormal(LinearAlgebra.nullspace(A), vs))
+    length(us) < k && append!(us, _orthonormal(_complement_basis(us, m), us))
+    S = Sym[[p[1] for p in parts]; zeros(Sym, min(m, n) - r)]
+    U = reduce(hcat, us[1:k])
+    V = reduce(hcat, vs[1:n])
+    LinearAlgebra.SVD(U, S, Matrix(_adjoint(V)))
+end
+
+# the columns of the identity and a basis of the orthogonal complement of us, enough to
+# complete them (the null space of the matrix with rows us')
+_complement_basis(us::Vector{Vector{Sym}}, m::Int) =
+    isempty(us) ? Matrix{Sym}(LinearAlgebra.I(m)) : LinearAlgebra.nullspace(reduce(vcat, (permutedims(_adjoint(reshape(u, :, 1))[1, :]) for u in us)))
+
+LinearAlgebra.svdvals(A::AbstractMatrix{Sym}) = LinearAlgebra.svd(A).S
+
 ## Jordan form
 
 """

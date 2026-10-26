@@ -1672,6 +1672,20 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         end
         @test LA.qr(Sym[3 1; 4 2]).Q == Sym[3//5 -4//5; 4//5 3//5] && LA.qr(Sym[3 1; 4 2]).R == Sym[5 11//5; 0 2//5]
         @test_throws ArgumentError LA.qr(Sym[1 2; 2 4])
+        # SVD: exact, checked numerically where simplify can't (nested radicals)
+        F = LA.svd(Sym[3 0; 4 5])
+        @test F.S == [3sqrt(Sym(5)), sqrt(Sym(5))] && map(simplify, F.U * LA.Diagonal(F.S) * F.Vt) == Sym[3 0; 4 5]
+        @test LA.svdvals(Sym[1 1; 0 0]) == [sqrt(Sym(2)), 0] && LA.svdvals(Sym[2 0; 0 -3]) == [3, 2]
+        numf(M) = map(e -> ComplexF64(N(e)), M)
+        for A in (Sym[1 2; 3 4], Sym[1 im; 0 1], Sym[2 1 0; 1 2 1], Sym[1 1; 1 1; 0 0], Sym[1 0 1; 0 1 1])
+            F = LA.svd(A)
+            U, S, Vt = numf(F.U), numf(F.S), numf(F.Vt)
+            @test isapprox(U * LA.Diagonal(S) * Vt, numf(A); atol = 1e-12) && isapprox(U' * U, LA.I; atol = 1e-12) &&
+                  isapprox(Vt * Vt', LA.I; atol = 1e-12) && isapprox(real.(S), LA.svdvals(numf(A)); atol = 1e-12)
+        end
+        F = LA.svd(Sym[1 1; 1 1; 0 0]; full = true)
+        @test size(F.U) == (3, 3) && map(simplify, transpose(F.U) * F.U) == Sym[1 0 0; 0 1 0; 0 0 1]
+        @test_throws ArgumentError LA.svd(Sym[1 2 3; 4 5 6; 7 8 10])          # a cubic: refused, not slow
         # Jordan form
         for A in (Sym[1 1; 0 1], Sym[2 1 0; 0 2 0; 0 0 3], Sym[5 4 2 1; 0 1 -1 -1; -1 -1 3 0; 1 1 -1 2], Sym[2 1; 1 2])
             P, J = SymJ.jordan_form(A)
