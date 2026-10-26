@@ -32,6 +32,11 @@ solution `φ(x, y(x)) ~ C1` when `y` cannot be solved for.
 Initial conditions are pairs, one for each order: `y(0) => 1, y'(0) => 0`. They fix the
 constants.
 
+An autonomous equation `y'' = f(y, y')` whose `y'` has several branches (`y' =
+±sqrt(…)`, as for `y'' = -sin(y)`) gives a vector of solutions, one for each branch;
+with initial conditions, the branch through them (`∫ᵥʸ dy/y' = x - a`, a definite
+`Integral(f, (y, v, y(x)))`, when the integral has no closed form).
+
 With `method = :laplace`, a linear equation with constant coefficients is solved by
 Laplace transforms ([`SymJ.laplace_transform`](@ref)); this is the method used, without
 asking, when the right side has [`SymJ.heaviside`](@ref) or [`SymJ.dirac`](@ref). The
@@ -99,7 +104,27 @@ function dsolve(eq::Relation, yx::Sym, ics::Pair...; series::Union{Nothing,Integ
         method === :laplace && throw(ArgumentError("dsolve: no Laplace transform solution for $(eq) (linear, constant coefficients, transformable right side)"))
     end
     sol = _ode_solve(P, Cs)
+    if (sol === nothing || sol[1] === :several) && !isempty(ics)
+        # an autonomous equation with several branches of y': the constants and the
+        # branch from the initial conditions
+        length(ics) == P.n || throw(ArgumentError("dsolve: give $(P.n) initial condition$(P.n == 1 ? "" : "s"), one for each order"))
+        bs = _ode_auto_branches(P, Cs; conds = [_ode_ic(p, P) for p in ics])
+        if bs !== nothing
+            rs = [k === :explicit ? (yx ~ S_) : (subs(S_, P.ys[1] => yx) ~ c_) for (k, S_, c_) in bs if _ode_verified(P, k, S_, Cs)]
+            isempty(rs) && throw(ArgumentError("dsolve: the solution found does not satisfy $(eq)"))
+            return length(rs) == 1 ? rs[1] : rs
+        end
+    end
     sol === nothing && throw(ArgumentError("dsolve: no method for $(eq)"))
+    if sol[1] === :several                       # one solution for each branch
+        rs = Relation[]
+        for (k, S_) in sol[2]
+            k === :explicit && (S_ = _ode_absorb(S_, Cs))
+            _ode_verified(P, k, S_, Cs) || throw(ArgumentError("dsolve: the solution found does not satisfy $(eq)"))
+            push!(rs, k === :explicit ? (yx ~ S_) : (subs(S_, P.ys[1] => yx) ~ Cs[P.n]))
+        end
+        return rs
+    end
     kind, S = sol
     kind === :explicit && (S = _ode_absorb(S, Cs))
     _ode_verified(P, kind, S, Cs) || throw(ArgumentError("dsolve: the solution found does not satisfy $(eq)"))
@@ -298,7 +323,7 @@ function _ode_reduce(P::_ODE, Cs)
     m = P.n - j
     Q = _ODE(subs(P.F, (P.ys[k + 1] => P.ys[k - j + 1] for k in j:P.n)...), P.ys[1:(m + 1)], P.x, P.yx, m)
     sol = _ode_solve(Q, Cs[1:m])
-    sol === nothing && return nothing
+    (sol === nothing || sol[1] === :several) && return nothing
     kind, v = sol
     if kind !== :explicit
         vs = try solve(v ~ Cs[1], Q.ys[1]) catch; Sym[] end
@@ -721,27 +746,68 @@ end
 ## autonomous: y'' = f(y, y')
 
 # p = y' as a function of s = y, y'' = p dp/ds: a first-order equation for p(s), then
-# ∫ ds/p(s) = x + C₂, solved for y where that gives one solution. Only a p with one
-# branch (not p = ±sqrt(…)).
+# ∫ ds/p(s) = x + C₂, solved for y where that gives one solution; several branches of p
+# (p = ±sqrt(…)) give a solution each (:several).
 function _ode_autonomous(P::_ODE, Cs; implicit::Bool = false)
+    bs = _ode_auto_branches(P, Cs; implicit)
+    bs === nothing && return nothing
+    length(bs) == 1 ? bs[1][1:2] : (:several, [b[1:2] for b in bs])
+end
+
+# the solutions, one for each branch p = gᵢ(y) of y': (kind, S, c), S explicit or φ = c.
+# With conditions y(a) = v, y'(a) = w, C₁ is fixed first, from the relation between p
+# and y at (v, w) (so ∫ dy/p is often elementary when the general one is not), the
+# branches through (v, w) kept, and C₂ from y(a) = v
+function _ode_auto_branches(P::_ODE, Cs; implicit::Bool = false, conds = nothing)
     P.n == 2 || return nothing
     Y0, Y1, Y2 = P.ys
-    (has(P.F, P.x) || !has(P.F, Y0)) && return nothing
+    x = P.x
+    (has(P.F, x) || !has(P.F, Y0)) && return nothing
     s, p0, p1 = Sym(:_ode_s), Sym(:_ode_p0), Sym(:_ode_p1)
     Q = _ODE(expand(subs(P.F, Y0 => s, Y1 => p0, Y2 => p0 * p1)), [p0, p1], s, P.yx, 1)
     sol = _ode_solve(Q, Cs[1:1])
     sol === nothing && return nothing
     kind, g = sol
-    if kind !== :explicit
-        gs = try solve(g ~ Cs[1], p0) catch; Sym[] end
-        length(gs) == 1 || return nothing
-        g = gs[1]
+    C1, C2 = Cs[1], Cs[2]
+    if conds !== nothing
+        i0, i1 = findfirst(c -> c[1] == 0, conds), findfirst(c -> c[1] == 1, conds)
+        (i0 === nothing || i1 === nothing) && return nothing
+        _, a, v = conds[i0]
+        _, a1, w = conds[i1]
+        _eq(a, a1) || return nothing
+        c1s = kind === :explicit ? (try solve(subs(g, s => v) ~ w, C1) catch; Sym[] end) :
+              Sym[_ode_tidy(subs(g, s => v, p0 => w))]
+        length(c1s) == 1 || return nothing
+        g = _ode_tidy(subs(g, C1 => c1s[1]))
+        gs = kind === :explicit ? [g] : (try solve(g ~ c1s[1], p0) catch; Sym[] end)
+        gs = [gi for gi in gs if iszero(_ode_tidy(subs(gi, s => v) - w))]
+    else
+        gs = kind === :explicit ? [g] : (try solve(g ~ C1, p0) catch; Sym[] end)
     end
-    iszero(g) && return nothing
-    H = _ode_tidy(_integrate(_ode_tidy(1 / g), s))
-    ys = implicit || _hasfn(H, :Integral) ? Sym[] : (try solve(H ~ P.x + Cs[2], s) catch; Sym[] end)
-    length(ys) == 1 && return (:explicit, _ode_tidy(ys[1]))
-    (:implicit, _ode_tidy(subs(H, s => Y0) - P.x))
+    # y real: sqrt(exp(2y)) is exp(y)
+    gs = [refine(_ode_tidy(gi); assume = Assumptions(s ∈ ℝ)) for gi in gs if !iszero(gi)]
+    isempty(gs) && return nothing
+    out = Tuple{Symbol,Sym,Sym}[]
+    for gi in gs
+        h = _ode_tidy(1 / gi)
+        H = _ode_tidy(_integrate(h, s))
+        if conds !== nothing && _hasfn(H, :Integral)
+            # no antiderivative: ∫ᵥʸ dy/p = x - a, a definite integral
+            u = Sym(P.yx.name)                       # the bound variable named as the function
+            any(z -> _eq(z, u), free_symbols(P.F)) && (u = Sym(:_ode_u))
+            push!(out, (:implicit, _mkfn_node(:Integral, Sym[subs(h, s => u), u, v, Y0]) - x, -a))
+            continue
+        end
+        c2 = conds === nothing ? C2 : _ode_tidy(subs(H, s => v) - a)
+        ys = implicit || _hasfn(H, :Integral) ? Sym[] : (try solve(H ~ x + c2, s) catch; Sym[] end)
+        conds === nothing || (ys = [yy for yy in ys if iszero(_ode_tidy(subs(yy, x => a) - v))])
+        if length(ys) == 1
+            push!(out, (:explicit, _ode_tidy(ys[1]), ZERO))
+        else
+            push!(out, (:implicit, _ode_tidy(subs(H, s => Y0) - x), c2))
+        end
+    end
+    out
 end
 
 ## initial conditions

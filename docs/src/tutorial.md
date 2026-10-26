@@ -970,6 +970,13 @@ with `p = y'` as a function of `y`:
 SymJ.dsolve(y(x) * y''(x) ~ y'(x)^2, y(x))
 ```
 
+When `y'` has two branches, `±sqrt(…)`, there is a solution for each; initial
+conditions pick one:
+
+```@example tut
+SymJ.dsolve(y''(x) ~ 2y(x)^3, y(x), y(0) => 1, y'(0) => 1)
+```
+
 Initial conditions, one for each order, fix the constants:
 
 ```@example tut

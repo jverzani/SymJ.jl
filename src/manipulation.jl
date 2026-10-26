@@ -31,6 +31,13 @@ function _free!(s, ex::Sym, k::Kind = SYMBOL)
         union!(s, t)
         return _free!(s, ex.args[3], k)
     end
+    if _isdefint(ex)                     # Integral(f, v, a, b): v is bound
+        t = _free!(Set{Sym}(), ex.args[1], k)
+        delete!(t, ex.args[2])
+        union!(s, t)
+        _free!(s, ex.args[3], k)
+        return _free!(s, ex.args[4], k)
+    end
     for a in ex.args
         _free!(s, a, k)
     end
@@ -82,6 +89,7 @@ function _subs(ex::Sym, d::Dict{Sym,Sym})
         return pow(_subs(ex.args[1], d), _subs(ex.args[2], d))
     elseif k == FN
         ex.name === :Derivative && return _subs_derivative(ex, d)
+        _isdefint(ex) && return _subs_defint(ex, d)
         return apply_function(ex.name, Sym[_subs(a, d) for a in ex.args])
     end
     ex
@@ -91,6 +99,15 @@ end
 # v => a value gives the derivative at a point, Derivative(f, v, a); at a point, only f's
 # other symbols and the point are substituted
 _isderivat(ex::Sym) = ex.kind == FN && ex.name === :Derivative && length(ex.args) == 3
+
+# a definite integral Integral(f, v, a, b), ∫ₐᵇ f dv (printed Integral(f, (v, a, b)), as
+# integrate takes it): v is bound, so only f's other symbols and the limits are substituted
+_isdefint(ex::Sym) = ex.kind == FN && ex.name === :Integral && length(ex.args) == 4
+function _subs_defint(ex::Sym, d::Dict{Sym,Sym})
+    f, v, a, b = ex.args
+    df = haskey(d, v) ? Dict(k => w for (k, w) in d if !_eq(k, v)) : d
+    _mkfn_node(:Integral, Sym[_subs(f, df), v, _subs(a, d), _subs(b, d)])
+end
 function _subs_derivative(ex::Sym, d::Dict{Sym,Sym})
     f, v = ex.args[1], ex.args[2]
     inner = haskey(d, v) ? delete!(copy(d), v) : d

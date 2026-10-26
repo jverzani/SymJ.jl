@@ -157,6 +157,10 @@ function _diff(ex::Sym, x::Sym)
         return mul(ex, add(mul(de, log(b)), mul(mul(e, db), pow(b, MINUS_ONE))))
     elseif ex.name === :Integral && length(ex.args) == 2 && _eq(ex.args[2], x)
         return ex.args[1]
+    elseif ex.name === :Integral && length(ex.args) == 4 && !has(ex.args[1], x)
+        # Integral(f, s, a, b) = ∫ₐᵇ f ds: f(b) b' - f(a) a'
+        f, v, lo, hi = ex.args
+        return add(mul(subs(f, v => hi), _diff(hi, x)), mul(MINUS_ONE, mul(subs(f, v => lo), _diff(lo, x))))
     elseif _isderivat(ex) && _eq(ex.args[2], x)  # a constant, unless the point has x
         has(ex.args[3], x) || return ZERO
         return _mkfn_node(:Derivative, Sym[ex, x])
