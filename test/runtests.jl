@@ -2007,6 +2007,19 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test limit(f, x => 0; dir = :+) == 0 && limit(P(x ≪ 1 => x, true => 2 - x), x => 1) == 1
         @test limit(H(x), x => 0; dir = :-) == 0 && limit(f, x => Inf) == Sym(Inf)
         @test_throws GruntzError limit(H(x), x => 0)
+        # folding into one piecewise function; simplify does it when smaller
+        F = SymJ.piecewise_fold
+        @test F(abs(x) + abs(x - 1), x) == P(x ≦ 0 => 1 - 2x, x ≦ 1 => 1, true => 2x - 1)
+        g = P(a ≫ 1 => a - 1 // 2, true => a^2 - a + 1 // 2) - P(a ≫ 0 => 0, true => a^2)
+        @test F(g) == P(a ≦ 0 => 1 // 2 - a, a ≦ 1 => a^2 - a + 1 // 2, true => a - 1 // 2) == simplify(g)
+        @test F(P(x ≪ 0 => -x, true => x) * P(x ≪ 1 => 0, true => x - 1), x) == P(x ≦ 1 => 0, true => x * (x - 1))
+        @test F(H(x) - H(x - 1), x) == P(x ≪ 0 => 0, x ≦ 0 => 1 // 2, x ≪ 1 => 1, x ≦ 1 => 1 // 2, true => 0)
+        @test F(max(x, 0) + min(x, 1), x) == P(x ≦ 0 => x, x ≦ 1 => 2x, true => x + 1)
+        @syms b
+        @test_throws ArgumentError F(H(x - a) - H(x - b), x)                       # the order of a, b unknown
+        @test F(H(x - a) - H(x - b), x; assume = @assume(a < b)) == P(x ≪ a => 0, x ≦ a => 1 // 2, x ≪ b => 1, x ≦ b => 1 // 2, true => 0)
+        @test_throws ArgumentError F(P(x ≪ 0 => 1, true => 2) + P(a ≪ 0 => 1, true => 2))   # which variable?
+        @test F(x^2 + 1, x) == x^2 + 1
     end
 
     @testset "Latexify" begin

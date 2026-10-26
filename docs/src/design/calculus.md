@@ -23,6 +23,18 @@
   parameters), the integrand read at a point inside each interval and the constants
   chosen for continuity. `abs`, `sign`, `max` and `min`, which RischIntegrate does not
   take, are rewritten as pieces when it fails on them.
+- **Folding** (`SymJ.piecewise_fold(e, x)`): `heaviside`, `sign`, `abs`, `max`, `min`
+  rewritten as pieces, the breakpoints (roots of the conditions) found and ordered, as
+  numbers or by the assumptions (an order not known is an error, not a case split), then
+  the value on each open interval (at a point inside) and at each breakpoint (exactly),
+  each condition decided by the sign of its difference under the assumptions. Pieces
+  are merged: an interval into the piece before it when the formulas agree, a
+  breakpoint when the formula before it gives its value there (else it starts a piece
+  that the next interval joins when that formula gives the value); each condition is
+  by the piece's right end (`x < b`, `x ≤ b`, `true`). Without `x`, the one symbol of
+  the conditions. `simplify` tries it for two or more piecewise functions, kept when
+  smaller: `∫₀¹ |x - a| dx`, a difference of two piecewise functions from the
+  integrator, becomes three pieces in `a`.
 - **Printing**: `piecewise(x ≪ 0 => -x, true => x)`; in LaTeX a `cases` environment,
   `heaviside` and `dirac` as θ and δ.
 

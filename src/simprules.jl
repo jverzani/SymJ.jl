@@ -12,6 +12,8 @@ _iseven_num(c) = _isint(c) && iseven(_numerator(c))
 _has_fn(e::Sym, names) = (e.kind == FN && e.name in names) || any(a -> _has_fn(a, names), e.args) ||
     (e.kind == MUL && any(p -> _has_fn(p, names), e.exps))
 const _CIRCFNS = (_TRIGMODE.fns..., _HYPMODE.fns...)
+_count_fn(e::Sym, name::Symbol) = (e.kind == FN && e.name === name ? 1 : 0) + sum(a -> _count_fn(a, name), e.args; init = 0) +
+    (e.kind == MUL ? sum(p -> _count_fn(p, name), e.exps; init = 0) : 0)
 
 const _SIMP_TRIG_RULES = _RuleSet(Rule[
     # power reduction, read backwards: for 2u with the 2 written (not cos(x) as

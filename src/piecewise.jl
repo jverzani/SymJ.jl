@@ -418,6 +418,182 @@ function _pieces_at(e::Sym, x::Sym, p::Sym)
     nothing                                              # dirac in a product
 end
 
+## folding: an expression with piecewise functions as one piecewise function
+
+"""
+    SymJ.piecewise_fold(e, x; assume = nothing)
+    SymJ.piecewise_fold(e; assume = nothing)
+
+`e`, with piecewise functions (and `heaviside`, `sign`, `abs`, `max`, `min`) in `x`
+inside sums, products and other functions, as one piecewise function of `x`: its value
+between consecutive breakpoints (where a condition changes) and at each breakpoint,
+neighbours with the same value merged. Without `x`, the one symbol in the conditions.
+The breakpoints are ordered as numbers, or, with parameters, by the assumptions
+(`assume`, or an [`assuming`](@ref) block); an order that is not known is an
+`ArgumentError`. Not exported.
+
+```julia
+@syms x a
+SymJ.piecewise_fold(abs(x) + abs(x - 1), x)
+# piecewise(x ≦ 0 => -2x + 1, x ≦ 1 => 1, true => 2x - 1)
+SymJ.piecewise_fold(SymJ.piecewise(a ≫ 1 => a - 1//2, true => a^2 - a + 1//2) -
+                    SymJ.piecewise(a ≫ 0 => 0, true => a^2))
+# piecewise(a ≦ 0 => -a + 1/2, a ≦ 1 => a^2 - a + 1/2, true => a - 1/2)
+```
+"""
+function piecewise_fold(e, x::Sym; assume = nothing)
+    _isnamed(x) || throw(ArgumentError("piecewise_fold: $x is not a symbol"))
+    A = _assumptions(assume)
+    A === nothing && (A = Assumptions())
+    g = piecewise(Sym(e))                    # heaviside, sign, abs, max, min as piecewise
+    _hasfn(g, :dirac) && throw(ArgumentError("piecewise_fold: dirac has no value at its point"))
+    bps = _pw_breakpoints(g, x, A)
+    isempty(bps) && return g
+    # segments: (-∞, b₁), b₁, (b₁, b₂), …, bₖ, (bₖ, ∞), each with its value
+    pts = Sym[]
+    for i in 0:length(bps)
+        p = i == 0 ? bps[1] - 1 : i == length(bps) ? bps[end] + 1 : (bps[i] + bps[i + 1]) / 2
+        push!(pts, p)
+        i < length(bps) && push!(pts, bps[i + 1])
+    end
+    vals = Sym[]
+    for p in pts
+        v = _pw_select(g, x, p, A)
+        v === nothing && throw(ArgumentError("piecewise_fold: a condition of $e could not be decided at $x = $p"))
+        push!(vals, simplify(v; assume = A))
+    end
+    # merge neighbours: an interval into the piece before it when the formulas agree, a
+    # breakpoint when the formula before it gives its value there; a piece that starts
+    # at a breakpoint takes the interval after it when that interval's formula gives the
+    # breakpoint's value. A piece's condition is by its right end: x < b ending with an
+    # interval, x ≤ b ending with the point b, true for the last.
+    same(u, v) = iszero(simplify(u - v; assume = A))
+    ps = Pair[]
+    expr, ptval, ptb = nothing, nothing, nothing        # the piece being built
+    for (j, v) in enumerate(vals)
+        interval = isodd(j)
+        b = interval ? nothing : bps[j ÷ 2]
+        joins = j == 1 ? true :
+            interval ? (expr !== nothing ? same(expr, v) : same(subs(v, x => ptb), subs(ptval, x => ptb))) :
+            (expr !== nothing && same(subs(expr, x => b), subs(v, x => b)))
+        if !joins
+            # close the piece before segment j at the end of segment j - 1
+            push!(ps, (isodd(j - 1) ? x ≪ bps[(j - 1 + 1) ÷ 2] : x ≦ bps[(j - 1) ÷ 2]) => (expr === nothing ? ptval : expr))
+            expr, ptval, ptb = nothing, nothing, nothing
+        end
+        if interval
+            expr === nothing && (expr = v)
+        elseif expr === nothing
+            ptval, ptb = subs(v, x => b), b             # (a point's value at the point)
+        end
+    end
+    push!(ps, true => (expr === nothing ? ptval : expr))
+    piecewise(ps...)
+end
+function piecewise_fold(e; assume = nothing)
+    g = piecewise(Sym(e))
+    vs = Set{Sym}()
+    _pw_condsyms!(vs, g)
+    length(vs) == 1 || throw(ArgumentError("piecewise_fold: give the variable; the conditions have $(isempty(vs) ? "no symbol" : join(sort!(collect(vs); by = string), ", "))"))
+    piecewise_fold(g, only(vs); assume)
+end
+
+function _pw_condsyms!(vs, n::Sym)
+    if n.kind == FN && n.name === :piecewise
+        for (c, _) in _pieces(n)
+            union!(vs, free_symbols(c))
+        end
+    end
+    foreach(a -> _pw_condsyms!(vs, a), n.args)
+    n.kind == MUL && foreach(a -> _pw_condsyms!(vs, a), n.exps)
+    vs
+end
+
+# the real points where a condition in x changes, in increasing order (decided as
+# numbers or under the assumptions)
+function _pw_breakpoints(g::Sym, x::Sym, A::Assumptions)
+    out = Sym[]
+    function visit(n::Sym)
+        if n.kind == FN && haskey(_COND_RELS, n.name) && has(n, x)
+            rs = solve(n.args[1] - n.args[2] ~ 0, x)
+            rs isa AbstractVector || throw(ArgumentError("piecewise_fold: the points where $(_relation_of(n)) changes were not found"))
+            for r in rs
+                r = _ode_tidy(r)
+                (_hassymbol(r) || _isreal_const(r) === true) || continue
+                any(q -> iszero(expand(q - r)), out) || push!(out, r)
+            end
+        end
+        foreach(visit, n.args)
+        n.kind == MUL && foreach(visit, n.exps)
+    end
+    visit(g)
+    # insertion sort: the order of two points from their difference's sign
+    sorted = Sym[]
+    for r in out
+        k = 1
+        while k <= length(sorted)
+            m = _signs(expand(r - sorted[k]), A)
+            (m === nothing || (m & _NEG != 0 && m & _POS != 0) || m == _ZER) &&
+                throw(ArgumentError("piecewise_fold: the order of $(sorted[k]) and $r is not known; give assumptions"))
+            m & _POS == 0 && break                 # r < sorted[k]
+            k += 1
+        end
+        insert!(sorted, k, r)
+    end
+    sorted
+end
+
+# a condition at x = p: true, false, or nothing (not decided)
+function _pw_holds(c::Sym, x::Sym, p::Sym, A::Assumptions)
+    c = subs(c, x => p)
+    c == ONE && return true
+    c == ZERO && return false
+    if c.kind == FN && c.name === :And
+        r = true
+        for a in c.args
+            t = _pw_holds(a, x, p, A)
+            t === false && return false
+            t === nothing && (r = nothing)
+        end
+        return r
+    end
+    (c.kind == FN && haskey(_COND_RELS, c.name)) || return nothing
+    m = _signs(expand(c.args[1] - c.args[2]), A)
+    m === nothing && return nothing
+    ok = Dict(:lt => _NEG, :le => _NEG | _ZER, :gt => _POS, :ge => _POS | _ZER, :eq => _ZER, :ne => _NEG | _POS)[_COND_RELS[c.name]]
+    m & ~ok == 0 && return true
+    m & ok == 0 && return false
+    nothing
+end
+
+# g with each piecewise in x replaced by its piece at x = p (conditions decided there)
+function _pw_select(g::Sym, x::Sym, p::Sym, A::Assumptions)
+    isempty(g.args) && return g
+    args = Sym[]
+    for a in g.args
+        r = _pw_select(a, x, p, A)
+        r === nothing && return nothing
+        push!(args, r)
+    end
+    if g.kind == MUL
+        exps = Sym[]
+        for a in g.exps
+            r = _pw_select(a, x, p, A)
+            r === nothing && return nothing
+            push!(exps, r)
+        end
+        return Sym(g.num) * prod((b^q for (b, q) in zip(args, exps)); init = ONE)
+    end
+    g = _rebuild_node(g, args)
+    (g.kind == FN && g.name === :piecewise && has(g, x)) || return g
+    for (c, v) in _pieces(g)
+        t = _pw_holds(c, x, p, A)
+        t === true && return v
+        t === nothing && return nothing
+    end
+    Sym(NaN)
+end
+
 ## printing: piecewise(x ≪ 0 => -x, true => x), conditions as relations
 
 function _show_cond(io::IO, c::Sym)

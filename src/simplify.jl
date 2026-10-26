@@ -326,6 +326,8 @@ function _simplify(e::Sym, A::Assumptions)
               simplify_rational ∘ powers, expansion ∘ simplify_rational, expansion ∘ radicals)
         consider(g)
     end
+    # several piecewise functions (as from a definite integral with a parameter): one
+    _count_fn(e, :piecewise) >= 2 && consider(x -> piecewise_fold(x; assume = A))
     if _has_fn(e, _CIRCFNS)       # identities simplify_trig's normal form does not reach
         for g in (_simp_trig_rules, expand_trig, simplify_rational ∘ expand_trig)
             consider(g)
