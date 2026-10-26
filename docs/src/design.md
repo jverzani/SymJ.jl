@@ -1148,7 +1148,10 @@ and a finalizer per operation), which dominates the small benchmarks.
   makes it real again. Inverse: the terms grouped by their `e^(-cs)` factor (a
   `heaviside(t - c)` shift each), each group split by `apart` into `N/qᵏ` with `q`
   irreducible, and inverted by the residues of `N e^(st)/qᵏ` at the roots of `q`, then
-  made real as for systems. `dsolve` uses them for a linear equation (or system) with
+  made real as for systems. A quadratic's roots are `α ± iβ`, `β = sqrt(c/a - α²)` with
+  the parameters taken to be positive (so `s² + w²` gives `sin(wt)/w`, not exponentials
+  of `sqrt(-w²)`); either square root gives the same function, a conjugate pair being
+  even in `β`. `dsolve` uses them for a linear equation (or system) with
   constant coefficients when asked (`method = :laplace`) or when the right side has
   `heaviside` or `dirac`, where the other methods leave integrals undone:
   `Y(s) = (L{g} + Σₖ aₖ Σⱼ sᵏ⁻¹⁻ʲ y⁽ʲ⁾(a)) / Σₖ aₖ sᵏ`, with `t` shifted to the point `a`
