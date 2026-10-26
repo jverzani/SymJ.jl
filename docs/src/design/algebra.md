@@ -489,6 +489,24 @@ interface works with SymJ equations.
     membership.
   - **Not yet:** nonlinear systems in several unknowns (cylindrical algebraic
     decomposition), `≠` in several unknowns (not convex), and symbolic coefficients.
+- **Real roots, numerically** (`src/realroots.jl`): `SymJ.root_intervals` and
+  `SymJ.real_roots` for polynomials with rational coefficients. The square-free
+  decomposition gives the multiplicities; each factor is isolated by Descartes' rule of
+  signs with bisection (Vincent–Collins–Akritas), in exact `BigInt` arithmetic, the
+  positive roots mapped into (0, 1) by `x -> 2ᵏ x`. A node's polynomial comes from its
+  parent's (the left half `2ⁿ q(x/2)` by bit shifts, the right half that shifted by 1,
+  additions only), and the count for (0, 1) is the sign variations of
+  `(x + 1)ⁿ q(1/(x + 1))`. Intervals are refined by bisection with exact signs; an
+  endpoint that is a root of the same factor (an exact root found next to it) is
+  divided out first. Intervals of different factors are refined until apart. A root
+  from `real_roots` is the common rounding of a refined interval's endpoints, so it is
+  correctly rounded. Compared with RealPolynomialRoots.jl's ANewDsc on the same
+  polynomials, Wilkinson's of degree 20 and a Mignotte-like one of degree 50, this is
+  about 150 and 60 times faster (1.1 ms against 164 ms, 5.8 ms against 369 ms): that
+  implementation works at worst-case precision in MPFR intervals and redoes the Möbius
+  transform of the original polynomial at each node. Clusters of very close roots make bisection deep
+  (where ANewDsc's Newton steps help); numeric root finding for other equations is left
+  to Roots.jl and NonlinearSolve.jl, which take SymJ expressions as they are.
 - **`<` and friends.** `<`, `≤`, `>`, `≥` compare constant expressions as numbers,
   returning a `Bool`. With a symbol, they raise an error naming the symbolic operator
   to use instead (`≪`, `≦`, `≫`, `≧`).

@@ -589,6 +589,24 @@ Contradictory facts are an error (`@assume(x > 1 && x < 0)`), and the `Assumptio
 value `@assume` makes can be reused: `A = @assume(x > 0, n in Integers)`, then
 `assume = A`.
 
+The real roots of a polynomial with rational coefficients can be found numerically,
+with certainty, when the closed form is unwieldy (`solve` gives this cubic's roots
+through complex cube roots). `SymJ.real_roots` gives them correctly rounded, each repeated
+by its multiplicity, and `SymJ.root_intervals` exact isolating intervals:
+
+```@example tut
+SymJ.real_roots(x^3 - 2x - 5, x), SymJ.real_roots((x - 1)^2 * (x^2 - 2), x)
+```
+
+```@example tut
+SymJ.root_intervals(x^2 - 2, x; width = 1 // 100)
+```
+
+For other equations, the packages for numerical root finding take SymJ expressions
+as they are, since an expression is callable (`lambdify` makes a faster function):
+`Roots.find_zero(cos(x) - x, 0.5)`, or with Newton's method and the exact derivative,
+`find_zero((lambdify(f, x), lambdify(diff(f, x), x)), x0, Roots.Newton())`.
+
 ## Sums
 
 `SymJ.summation(f, k, a, b)` (not exported) sums `f` over `k = a, …, b`, in closed form
