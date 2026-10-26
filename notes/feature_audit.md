@@ -111,7 +111,7 @@ with assumptions, `refine` and `simplify`, complex parts and LaTeX output are do
 | Determinant, inverse, solving | `Matrix` methods `det`, `inv`, `LUsolve` | `det`, `inverse`, `linsolve` | ✅ `det` (Bareiss for polynomials), `inv` (adjugate or Gauss–Jordan over rational functions), `A \ b`, exactly with first-nonzero pivoting |
 | Row reduction, null space, rank | `Matrix` methods `rref`, `nullspace`, `rank` | `rref`, `ker`, `rank` | ✅ `SymJ.rref`, `nullspace`, `rank` (generic: symbolic pivots nonzero) |
 | Eigenvalues, eigenvectors, Jordan form | `Matrix` methods `eigenvals`, `eigenvects`, `jordan_form` | `eigenvals`, `eigenvects`, `jordan` | ✅ `eigvals` (with multiplicity), `eigvecs`, `eigen` (diagonalizable), `SymJ.charpoly`, `SymJ.jordan_form` |
-| LU, QR, SVD | `Matrix` methods `LUdecomposition`, `QRdecomposition` | `lu`, `qr`, `svd` | ◐ `lu` (a `LinearAlgebra.LU`), `qr` (exact Gram–Schmidt); ❌ SVD (see the gaps below) |
+| LU, QR, SVD | `Matrix` methods `LUdecomposition`, `QRdecomposition` | `lu`, `qr`, `svd` | ✅ `lu` (a `LinearAlgebra.LU`), `qr` (exact Gram–Schmidt), `svd` and `svdvals` (a `LinearAlgebra.SVD`; squared singular values of degree at most 2 over the rationals) |
 
 ## Functions
 
@@ -157,12 +157,10 @@ autonomous reduction with its branches, Riccati, series solutions and Laplace
 transforms). Of the rest, in rough order of value for calculus-level use:
 
 1. **Symbolic linear algebra**: feature complete for now. `det`, `inv`, `lu`, `\`,
-   `SymJ.rref`, `rank`, `nullspace`, eigenvalues and eigenvectors, `qr`,
-   `SymJ.jordan_form` and matrix functions (`exp`, `sin`, `cos`, `A^n`) are done. Not
-   done: the **SVD**. Its singular values are square roots of the eigenvalues of `AᵀA`
-   (`A'A` for complex entries), whose closed forms quickly become unwieldy, and its
-   vectors need orthonormal eigenvectors of `AᵀA` and `AAᵀ`; it is lower priority for
-   symbolic use.
+   `SymJ.rref`, `rank`, `nullspace`, eigenvalues and eigenvectors, `qr`, `svd`,
+   `SymJ.jordan_form` and matrix functions (`exp`, `sin`, `cos`, `A^n`) are done. The SVD
+   refuses when `AᴴA` has an irreducible cubic (or higher) factor, whose roots have no
+   usable closed form.
 2. **Definite hypergeometric sums and recurrences**: Zeilberger and Hyper are done
    (`SymJ.rsolve`; second- and third-order Zeilberger recurrences solved by their
    hypergeometric solutions, Binet's formula from `Σ binomial(n-k, k)`). Open:

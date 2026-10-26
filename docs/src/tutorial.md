@@ -679,6 +679,13 @@ Q, R = qr(Sym[3 1; 4 2])
 Q, R
 ```
 
+The singular value decomposition, exactly, for small matrices:
+
+```@example tut
+F = svd(Sym[3 0; 4 5])
+F.S, F.U, F.Vt
+```
+
 ```@example tut
 @syms t n
 exp(t * Sym[0 1; -1 0]), exp(t * Sym[2 1; 0 2])

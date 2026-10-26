@@ -584,6 +584,20 @@ Two canonical-form additions came with it:
   kernels of `(A - λI)^k`. **Matrix functions** (`exp`, `sin`, `cos`, `A^n` for a
   symbolic `n`) go through the Jordan form: on a block for `λ`, `f(J)` has
   `f^(j)(λ)/j!` on its `j`-th superdiagonal.
+- **`svd`** returns Julia's `LinearAlgebra.SVD`. The singular values are the square
+  roots of the eigenvalues of `AᴴA` (entries with `i` conjugated, symbols taken as
+  real), largest first when they are numbers; `V` is orthonormal eigenvectors of `AᴴA`
+  (each eigenspace orthonormalized by Gram–Schmidt; distinct eigenspaces of a Hermitian
+  matrix are orthogonal), and `U = A v / σ`. Zero singular values (for `min(m, n)`
+  columns, or square with `full = true`) are completed by orthonormal bases of the null
+  spaces of `A` and `Aᴴ`. A wide matrix goes through `Aᴴ`, the smaller of `AᴴA`, `AAᴴ`.
+  A singular value with a symbol is `refine`d under the assumptions in force (`assume`
+  or an `assuming` block): `sqrt(a^2)` is `a` for `a > 0`, `abs(a)` for real `a`, and
+  stays as it is without assumptions (`a` would assume `a ≥ 0`).
+  When the characteristic polynomial of `AᴴA` has an irreducible factor of degree 3 or
+  more, `svd` refuses: Cardano's roots (complex cube roots for real roots) give null
+  spaces that do not finish. Results with nested radicals are exact but `simplify` does
+  not always reduce `U Σ Vᴴ - A` to zero; the tests check those numerically.
 - **Algebraic constants.** As rational functions, `sqrt(2)` or `im` would be
   independent atoms, and `sqrt(2)^2 - 2` would not test zero. A matrix with such
   constants (radicals of numbers or of expressions, `im`) is eliminated over `Sym`
