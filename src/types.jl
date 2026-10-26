@@ -260,6 +260,11 @@ parameter(s::AbstractString) = parameter(Symbol(s))
 
 Base.iszero(x::Sym) = x.kind == NUMBER && iszero(x.num)
 Base.isone(x::Sym) = x.kind == NUMBER && isone(x.num)
+# true for numbers only: a symbol such as n is not known to be an integer (assumptions
+# and refine say what is); so a pattern's ~n::isinteger takes integer values
+Base.isinteger(x::Sym) = x.kind == NUMBER && (isfloat(x.num) ? isinteger(x.num.f) : _isint(x.num))
+Base.iseven(x::Sym) = isinteger(x) && iseven(isfloat(x.num) ? Integer(x.num.f) : _numerator(x.num))
+Base.isodd(x::Sym) = isinteger(x) && !iseven(x)
 Base.zero(::Type{Sym}) = ZERO
 Base.zero(::Sym) = ZERO
 Base.one(::Type{Sym}) = ONE

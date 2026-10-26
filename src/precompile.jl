@@ -68,6 +68,9 @@ using PrecompileTools: @setup_workload, @compile_workload
         # differential equations
         dsolve(yf'(x) ~ x * yf(x), yf(x)); dsolve(yf''(x) + yf(x) ~ 0, yf(x), yf(0) => 0, yf'(0) => 1)
         dsolve(yf''(x) - yf(x) ~ exp(x), yf(x)); dsolve(x^2 * yf''(x) - 2yf(x) ~ 0, yf(x))
+        # pattern matching
+        pat = pattern(:(~!a * sin(~x)^(~!n) + ~~r)); match(pat, 3sin(x)^2 + y); eachmatch(pattern(:(~x + ~y)), x + y + n)
+        match(pattern(:((~f)(~x, ~~r))), yf(x)); occursin(pattern(:(cos(~x))), x + cos(y))
         # piecewise
         pw = piecewise(x ≪ 0 => -x, true => x^2)
         pw(x => 2); diff(pw, x); limit(pw, x => 0); diff(heaviside(x - 1), x); piecewise(abs(x))
