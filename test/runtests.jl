@@ -1872,6 +1872,12 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test IL(1 / (s^2 + 2s + 5)) == sin(2t) / (2exp(t)) && IL(1 / (s^2 * (s^2 + 1))) == t - sin(t)
         @test IL((s + 1) / (s^2 + 2s + 5)^2) == t * sin(2t) / (4exp(t)) && IL(1 / (s^2 - 2)) == sqrt(Sym(2)) * sinh(sqrt(Sym(2)) * t) / 2
         @test IL(exp(-2s) / s^2) == H(t - 2) * (t - 2) && IL(s / (s + 1)) == δ(t) - exp(-t)
+        # parameters: the roots of a quadratic as α ± iβ, the parameters taken to be positive
+        @syms a
+        @test IL(1 / (s^2 + w^2)) == sin(w * t) / w && IL(s / (s^2 + w^2)) == cos(w * t) && IL(1 / (s^2 - w^2)) == sinh(w * t) / w
+        @test IL(1 / ((s + a)^2 + w^2)) == sin(w * t) / (w * exp(a * t)) && IL(a / (s * (s + a))) == 1 - exp(-a * t)
+        @test IL(1 / (s^2 + w^2)^2) == (sin(w * t) - w * t * cos(w * t)) / (2w^3)
+        @test SymJ.dsolve(y''(t) + w^2 * y(t) ~ H(t - 1), y(t), y(0) => 0, y'(0) => 0).rhs == (1 - cos(w * (t - 1))) * H(t - 1) / w^2
         for f in (t^2 * exp(-t), cos(3t) - 2sin(t), exp(2t) * sin(t), t * cosh(t))
             @test iszero(simplify(IL(L(f)) - f))
         end

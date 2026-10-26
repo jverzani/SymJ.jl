@@ -195,7 +195,7 @@ function _ilap_part(N::Sym, D::Sym, s::Sym, t::Sym)
     lead = cancel(D / q^k)                           # (with the numeric coefficient)
     P = Poly{Sym}(expand(q), [s])
     lq = Sym(coefficients(P)[1])                     # q = lq Π (s - ρ)
-    ρs = solve(q ~ 0, s)
+    ρs = degree(P, s) == 2 ? _ilap_quadratic_roots(q, s) : solve(q ~ 0, s)
     length(ρs) == degree(P, s) || throw(ArgumentError("inverse_laplace_transform: the roots of $q were not found"))
     out = ZERO
     for ρ in ρs
@@ -203,6 +203,22 @@ function _ilap_part(N::Sym, D::Sym, s::Sym, t::Sym)
         out += subs(diff(G, s, k - 1), s => ρ) / factorial(big(k - 1))
     end
     out
+end
+
+# the roots α ± iβ of a quadratic, β = sqrt(c/a - α²) with the parameters taken to be
+# positive: s² + w² has roots ±iw, not ±sqrt(-w²). Either square root gives the same
+# function of t (a conjugate pair contributes e^(αt)(B cos βt + (C + Bα)/β sin βt), even
+# in β), and β = i sqrt(-β²) when that is simpler (real roots: s² - w², ±w).
+function _ilap_quadratic_roots(q::Sym, s::Sym)
+    c2, c1, c0 = (_ode_coeff(q, s, k) for k in 2:-1:0)
+    α = _ode_tidy(-c1 / (2c2))
+    β2 = _ode_tidy(c0 / c2 - α^2)
+    ps = free_symbols(β2)
+    A = isempty(ps) ? Assumptions() : Assumptions((p ≫ 0 for p in ps)...)
+    r1 = refine(sqrt(β2); assume = A)
+    r2 = IM * refine(sqrt(-β2); assume = A)
+    β = _nodes(r2) < _nodes(r1) ? r2 : r1
+    Sym[_ode_tidy(α + IM * β), _ode_tidy(α - IM * β)]
 end
 
 ## dsolve by Laplace transforms
