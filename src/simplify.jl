@@ -9,9 +9,10 @@
 # `simplify` refines, then searches: each specialized routine (simplify_rational,
 # simplify_powers, simplify_trig, simplify_log, simplify_radicals, expansion,
 # factoring) gives a candidate, and the one with the fewest
-# nodes is kept, the input itself if none is smaller. Function arguments are simplified
-# first. The routines are Julia functions on the canonical form; there is no general
-# pattern matcher, as the canonical form already orders sums and products.
+# nodes is kept, the input itself if none is smaller. Function arguments (with exp(u)'s
+# u and the radicand of a root) are simplified first. The routines are Julia functions
+# on the canonical form; for expressions with trigonometric or hyperbolic functions, a
+# few identities the trig normal form does not reach are rewrite rules (simprules.jl).
 
 ## refine
 
@@ -314,13 +315,21 @@ function _simplify(e::Sym, A::Assumptions)
     logs(x) = simplify_log(x; assume = A)
     radicals(x) = simplify_radicals(x; assume = A)
     expansion(x) = _bigpower(x) ? nothing : expand(x)   # (x + y)^30 expanded never wins
-    for g in (simplify_rational, powers, expansion, _factor_or_nothing, simplify_trig, simplify_hyperbolic, logs, radicals, simplify_gamma,
-              simplify_rational ∘ powers, expansion ∘ simplify_rational, expansion ∘ radicals)
+    function consider(g)
         c = try g(e) catch err; err isa InterruptException && rethrow(); nothing end
-        c isa Sym || continue
+        c isa Sym || return
         c = _refine(c, A)
         n = _nodes(c)
         n < size && ((best, size) = (c, n))
+    end
+    for g in (simplify_rational, powers, expansion, _factor_or_nothing, simplify_trig, simplify_hyperbolic, logs, radicals, simplify_gamma,
+              simplify_rational ∘ powers, expansion ∘ simplify_rational, expansion ∘ radicals)
+        consider(g)
+    end
+    if _has_fn(e, _CIRCFNS)       # identities simplify_trig's normal form does not reach
+        for g in (_simp_trig_rules, expand_trig, simplify_rational ∘ expand_trig)
+            consider(g)
+        end
     end
     best
 end
@@ -345,16 +354,23 @@ function _factor_or_nothing(e::Sym)
 end
 _ispolylike(e::Sym) = (atoms = Set{Sym}(); _poly_atoms!(atoms, e) && !isempty(atoms))
 
-# the function applications in e with their arguments transformed
+# the function applications in e with their arguments transformed, counting exp(u)
+# (stored as ℯ^u) and the radicand of b^(p/q) as arguments
 function _map_fn_args(g, e::Sym)
     isempty(e.args) && return e
     if e.kind == FN
         return apply_function(e.name, Sym[g(a) for a in e.args])
     elseif e.kind == MUL
-        return Sym(e.num) * prod((_map_fn_args(g, b)^_map_fn_args(g, p) for (b, p) in zip(e.args, e.exps)); init = ONE)
+        return Sym(e.num) * prod((_map_pow_args(g, b, p) for (b, p) in zip(e.args, e.exps)); init = ONE)
+    elseif e.kind == POW
+        return _map_pow_args(g, e.args[1], e.args[2])
     end
     _rebuild_node(e, Sym[_map_fn_args(g, a) for a in e.args])
 end
+_map_pow_args(g, b::Sym, p::Sym) =
+    b === E ? b^g(p) :
+    p.kind == NUMBER && !isinteger(p) ? g(b)^p :
+    _map_fn_args(g, b)^_map_fn_args(g, p)
 
 # the size of an expression: its nodes, a product's exponents other than 1 and its
 # coefficient other than ±1, a sum's coefficients other than ±1 and its constant term;
