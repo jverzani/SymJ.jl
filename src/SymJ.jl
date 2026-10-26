@@ -3,7 +3,7 @@
 
 Symbolic manipulation with a single concrete, hash-carrying node type, eager
 canonicalization of sums, products and powers, exact numbers, and support for the
-TermInterface v2 contract. See `docs/src/design.md` for the design.
+TermInterface v2 contract. See `docs/src/design/` for the design.
 """
 module SymJ
 

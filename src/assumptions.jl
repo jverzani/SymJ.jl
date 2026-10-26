@@ -1,5 +1,5 @@
 # Assumptions: facts about symbols, given for a call (`assume = …`) or a block
-# (`assuming(…) do … end`), never stored on the symbols (see design.md).
+# (`assuming(…) do … end`), never stored on the symbols (see docs/src/design/algebra.md).
 #
 # An `Assumptions` value holds the facts normalized:
 #   - equalities solved for a symbol and substituted (`subst`), into the other facts
