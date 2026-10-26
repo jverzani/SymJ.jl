@@ -1133,6 +1133,18 @@ and a finalizer per operation), which dominates the small benchmarks.
   `(r - r₂) tʳ Σ aₘ(r) tᵐ` (roots an integer apart) at `r₂`, which is where the `log t`
   term comes from. Each series is checked: its residual is `O(tⁿ⁻ᵏ)` (Frobenius: over
   `a₂/t²`, `O(t^(r₂ + n))`).
+- **Laplace transforms** (`src/laplace.jl`). Forward, term by term: `dirac(t - a) g` is
+  `e^(-as) g(a)` and `heaviside(t - a) g` is `e^(-as) L{g(t + a)}`; anything else has its
+  `sin`, `cos`, `sinh`, `cosh` written as exponentials, so each term is `c tⁿ e^(αt)`
+  (`α` possibly complex), with transform `c n!/(s - α)ⁿ⁺¹`; the sum is cancelled, which
+  makes it real again. Inverse: the terms grouped by their `e^(-cs)` factor (a
+  `heaviside(t - c)` shift each), each group split by `apart` into `N/qᵏ` with `q`
+  irreducible, and inverted by the residues of `N e^(st)/qᵏ` at the roots of `q`, then
+  made real as for systems. `dsolve` uses them for a linear equation (or system) with
+  constant coefficients when asked (`method = :laplace`) or when the right side has
+  `heaviside` or `dirac`, where the other methods leave integrals undone:
+  `Y(s) = (L{g} + Σₖ aₖ Σⱼ sᵏ⁻¹⁻ʲ y⁽ʲ⁾(a)) / Σₖ aₖ sᵏ`, with `t` shifted to the point `a`
+  of the initial conditions; for a system `Z(s) = (sI - M)⁻¹ (Z(a) + L{F})`.
 - **Systems.** `SymJ.dsolve([eq₁, …], [y₁(t), …], ics...)`, linear with constant
   coefficients. The highest derivative of each unknown is solved for (the matrix of
   their coefficients must be invertible: the system in normal form), and the system made

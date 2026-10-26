@@ -82,7 +82,7 @@ series, assumptions, a basic `simplify`, summation)
 | Numeric root finding, any equation | `nsolve` | `fsolve` | ◐ polynomials only |
 | Diophantine equations | `diophantine` | `isolve` | ❌ |
 | Recurrences | `rsolve` | `rsolve`, `seqsolve` | ✅ `SymJ.rsolve`: linear, polynomial coefficients, by Hyper (hypergeometric solutions, combined), a hypergeometric right side; ◐ not for sums of such right sides, or solutions that are not hypergeometric (Franel), factors over the rationals only |
-| Ordinary differential equations | `dsolve`, `classify_ode`, `checkodesol` | `desolve` | ◐ ★ `SymJ.dsolve`: first order (linear, separable, Bernoulli, exact with integrating factors, homogeneous, Riccati), linear with constant coefficients of any order (undetermined coefficients, variation of parameters), Cauchy–Euler, `y` missing, autonomous second order (`y'' = f(y, y')`); initial conditions (`y'(0) => 1`); linear systems with constant coefficients, of any order; series solutions (`series = n`: Taylor at an ordinary point, nonlinear too; Frobenius at a regular singular point); every solution checked. Not yet: two-branch autonomous (`y'' = -sin y`), Laplace |
+| Ordinary differential equations | `dsolve`, `classify_ode`, `checkodesol` | `desolve` | ◐ ★ `SymJ.dsolve`: first order (linear, separable, Bernoulli, exact with integrating factors, homogeneous, Riccati), linear with constant coefficients of any order (undetermined coefficients, variation of parameters), Cauchy–Euler, `y` missing, autonomous second order (`y'' = f(y, y')`); initial conditions (`y'(0) => 1`); linear systems with constant coefficients, of any order; series solutions (`series = n`: Taylor at an ordinary point, nonlinear too; Frobenius at a regular singular point); Laplace transforms for constant coefficients (chosen for `heaviside`/`dirac` right sides, or `method = :laplace`), systems too; every solution checked. Not yet: two-branch autonomous (`y'' = -sin y`) |
 | Partial differential equations | `pdsolve` | — | ❌ |
 
 ## Calculus
@@ -98,7 +98,7 @@ series, assumptions, a basic `simplify`, summation)
 | Numeric integration | `Integral(...).evalf()` | `romberg`, `gaussquad` | ❌ (QuadGK on a `lambdify`'d function) |
 | Sums of series | `summation`, `Sum` | `sum` | ✅ ★ `SymJ.summation`: Faulhaber, Gosper, partial fractions (harmonic, polygamma, `ζ(2n)`), binomial theorem, hypergeometric series, Zeilberger (definite hypergeometric sums with a first-order recurrence: `Σ binomial(n,k)^2`, Vandermonde); infinite sums by `limit`, convergence by cases; ◐ higher-order recurrences (Hyper) not solved, unevaluated `Sum` otherwise |
 | Products | `product`, `Product` | `product` | ❌ |
-| Laplace, Fourier, Mellin, Z transforms | `laplace_transform`, `inverse_laplace_transform`, `fourier_transform`, `mellin_transform` | `laplace`, `ilaplace`, `fourier`, `ifourier`, `ztrans`, `invztrans` | ❌ |
+| Laplace, Fourier, Mellin, Z transforms | `laplace_transform`, `inverse_laplace_transform`, `fourier_transform`, `mellin_transform` | `laplace`, `ilaplace`, `fourier`, `ifourier`, `ztrans`, `invztrans` | ◐ `SymJ.laplace_transform`, `SymJ.inverse_laplace_transform`: polynomials, exponentials, sines and cosines, `heaviside`/`dirac` shifts; inverse of rational functions times `e^(-cs)`. Not yet: Fourier, Mellin, Z |
 | Residues | `residue` | `residue` | ❌ |
 | Vector calculus | `sympy.vector` | gradient and related | ◐ `diff` with broadcasting; no named operators |
 
@@ -152,7 +152,7 @@ permutation groups (`sympy.combinatorics`), tensors and differential geometry
 ## Gaps worth considering
 
 The planned work (★) still to do is differential equations (under way: `SymJ.dsolve` has the
-first-order and linear methods, linear systems, autonomous reduction, Riccati and series solutions; Laplace transforms remain); series, assumptions, a
+first-order and linear methods, linear systems, autonomous reduction, Riccati, series solutions and Laplace transforms; the two-branch autonomous case remains); series, assumptions, a
 basic `simplify` and summation are done. Of the rest, in rough order of value for
 calculus-level use:
 
@@ -175,7 +175,9 @@ calculus-level use:
 4. **Definite integrals done properly**: improper integrals through `limit`, and
    detecting singularities inside the interval, building on RischIntegrate's
    antiderivatives.
-5. **Laplace transforms**, natural companions to the differential equation work.
+5. **Laplace transforms**: done for the elementary transforms and `heaviside`/`dirac`
+   shifts (and used by `dsolve`). Open: a table of special-function transforms, and
+   Fourier, Mellin and Z transforms.
 6. **Numeric root finding for any equation**, for when `solve` has no closed form.
 7. **Utilities**: `collect`, `coeff`, Horner form, a user-level `cse`, `nsimplify`, and a
    user-level `rewrite` (exp ↔ trig, half-angle; `simplify` already rewrites inside).

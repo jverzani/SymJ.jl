@@ -994,6 +994,21 @@ At a regular singular point it is a Frobenius series, which can have a `log` ter
 SymJ.dsolve(x^2 * y''(x) + x * y'(x) + x^2 * y(x) ~ 0, y(x); series = 6)
 ```
 
+A right side with a step or an impulse (`SymJ.heaviside`, `SymJ.dirac`) is handled by
+Laplace transforms:
+
+```@example tut
+SymJ.dsolve(y''(x) + y(x) ~ SymJ.heaviside(x - 1), y(x), y(0) => 0, y'(0) => 0)
+```
+
+The transforms themselves are `SymJ.laplace_transform` and
+`SymJ.inverse_laplace_transform`:
+
+```@example tut
+@syms s
+SymJ.laplace_transform(x * sin(x), x, s), SymJ.inverse_laplace_transform(exp(-2s) / (s^2 + 1), s, x)
+```
+
 A system of linear equations with constant coefficients is given as vectors of
 equations and unknowns. The answer is a vector of equations:
 
