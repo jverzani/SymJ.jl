@@ -1111,8 +1111,8 @@ and a finalizer per operation), which dominates the small benchmarks.
 
 ## Pattern matching
 
-The design, and the decisions behind it, are in `notes/pattern_matching.md`; stage 1, the
-matcher, is done.
+The design, and the decisions behind it, are in `notes/pattern_matching.md`; stages 1
+and 2, the matcher and rules, are done.
 
 - **Patterns are expressions.** `SymJ.pattern(:(…))` reads a quoted expression with
   SymJ's arithmetic, a slot `~x` being a private function node `_slot(x, flavor)` and a
@@ -1137,6 +1137,18 @@ matcher, is done.
   goal records, not closures, so it is fully typed. On ACPM's 62 benchmark cases the
   first match takes a median 0.83 μs and at most 6.1 μs (ACPM's associative-commutative
   matcher: 13.1 μs and 628 μs).
+
+- **Rules.** `@rule lhs => rhs` reads `lhs` as a pattern, with its predicates (and any
+  `$v`) evaluated where the macro is called, and makes `rhs` a function of the bindings,
+  `~x` becoming the bound value. A rule's search goes on past a match whose right side
+  gives `nothing`. `SymJ.rule(lhs => rhs)` does the same at run time, `rhs` a quoted
+  template (read like a pattern, with the slots filled in) or a function. A right side
+  naming a slot the left side lacks is an error when the rule is made.
+- **Rewriting.** `SymJ.rewrite` walks the parts of an expression (the terms of a sum, the
+  factors of a product, the arguments of a function), bottom up or top down, and at each
+  tries the rules in order; the parts are rebuilt by the canonical constructors. It
+  repeats until a pass changes nothing, up to `maxsteps` passes (with a warning).
+  `replace(ex, rules...)` is one pass.
 
 ## Not yet done / open questions
 

@@ -3,8 +3,8 @@
 A proposal, written 2026-10-25, for pattern matching in SymJ: patterns with wildcards,
 matching against expressions, and rules that rewrite with the matches. The questions
 the first draft left open were settled the same day; the answers are folded in, and
-listed at the end. Stage 1, the matcher, is implemented in `src/patterns.jl`; see
-"Stage 1 as built" at the end.
+listed at the end. Stages 1 and 2, the matcher and rules, are implemented in
+`src/patterns.jl`; see "Stage 1 as built" and "Stage 2 as built" at the end.
 
 ## Decision: inside SymJ, with the SymbolicUtils syntax
 
@@ -330,3 +330,29 @@ except in six cases, all from the decisions above: `~x + ~x` matches `2a` (Symbo
 stores `a + a` as `2a` too, but `ac` doesn't match it) and `a + b` (`x => a/2 + b/2`);
 `~!a` may take no factor (`~!a * ~x` against `3x` also gives `a => 1, x => 3x`); and
 default exponents also match a power as a whole.
+
+## Stage 2 as built
+
+`src/patterns.jl`, 2026-10-25: `SymJ.@pattern`, `SymJ.@rule`, `SymJ.rule`, `SymJ.Rule`,
+`SymJ.rewrite` and a method of `replace`, with 21 tests.
+
+- **`@pattern` and `@rule`** quote the left side with each predicate interpolated, so
+  predicates (and any `$v` the user writes) are evaluated where the macro is called.
+  Names in a pattern are symbols: `a` is `Sym(:a)`, and a value goes in as `$a`. The
+  right side of `@rule` is ordinary Julia code in the caller's scope, `~x` becoming the
+  bound value. The pattern is built each time the macro's code runs, so a rule in a
+  function body is better made once, as a `const`.
+- **Rejected matches.** A right side that gives `nothing` sends the search on to the next
+  match, inside the same backtracking search, so `@rule ~x * ~y => (isinteger(~x) ?
+  nothing : ~x)` against `2a` gives `a`.
+- **`SymJ.rule(lhs => rhs)`** makes a rule at run time. `rhs` is a function of the
+  bindings, or a quoted template read like a pattern with the slots filled in: a
+  sequence slot's arguments go in place (`f(~~r, ~x)`), and a head slot calls the bound
+  function. Either way a right side naming a slot the left side lacks is an error when
+  the rule is made.
+- **`rewrite`** walks the terms of sums, factors of products and arguments, `order =
+  :post` (default) or `:pre`; at each part the first rule with a result wins, and a
+  result equal to the part counts as no change. `fixpoint = true` repeats whole passes,
+  at most `maxsteps` (100), with a warning at the limit. `replace(ex, rules...)` is one
+  `:post` pass.
+- Not done (stage 3): indexing rule sets by head, and generating code from the macros.
