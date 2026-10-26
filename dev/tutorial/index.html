@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=15f7f107">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=b6250f38">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -1199,6 +1199,20 @@ x - 1 &amp; \text{otherwise}
 \end{cases} \right)\]
 </div>
 </div>
+<p><code class="md-code-inline">SymJ.piecewise_fold</code> combines piecewise functions in a sum, product or other expression into one, merging neighbouring pieces that agree; <code class="md-code-inline">simplify</code> does it when the result is smaller (a definite integral with a parameter gives such sums):</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.piecewise_fold(abs(x) + abs(x - 1), x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\begin{cases}
+-2 \cdot x + 1 &amp; \text{if } x \leq 0\\
+1 &amp; \text{if } x \leq 1\\
+2 \cdot x - 1 &amp; \text{otherwise}
+\end{cases}\]
+</div>
+</div>
 <h2 id="Limits" class="md-heading">Limits<a href="#Limits" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p><code class="md-code-inline">limit(f, x =&gt; x0)</code> is the limit of <code class="md-code-inline">f</code> as <code class="md-code-inline">x</code> tends to <code class="md-code-inline">x0</code>, a number, an expression or <code class="md-code-inline">Inf</code>. It is computed by Gruntz&#39;s algorithm, through GruntzLimit. An infinite limit is <code class="md-code-inline">Sym(Inf)</code> or <code class="md-code-inline">Sym(-Inf)</code>:</p>
 <div class="md-multi-output">
@@ -1816,6 +1830,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=15f7f107"></script>
+  <script src="../assets/materialdocs.js?v=b6250f38"></script>
 </body>
 </html>

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Design notes: calculus — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=e102b377">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=22aeb03b">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Design notes: calculus — SymJ.jl">
   <meta property="og:title" content="Design notes: calculus — SymJ.jl">
@@ -82,6 +82,8 @@
 </li>
 <li><p><strong>Integration</strong> (in the RischIntegrate extension, a method of <code class="md-code-inline">integrate</code> for <code class="md-code-inline">Sym</code>): a <code class="md-code-inline">dirac(m x + c, k)</code> term by <code class="md-code-inline">∫ g δ⁽ᵏ⁾(x - a) = (-1)^k g⁽ᵏ⁾(a) heaviside(x - a)</code>; the rest between consecutive breakpoints (sorted real numbers, or a single one with parameters), the integrand read at a point inside each interval and the constants chosen for continuity. <code class="md-code-inline">abs</code>, <code class="md-code-inline">sign</code>, <code class="md-code-inline">max</code> and <code class="md-code-inline">min</code>, which RischIntegrate does not take, are rewritten as pieces when it fails on them.</p>
 </li>
+<li><p><strong>Folding</strong> (<code class="md-code-inline">SymJ.piecewise_fold(e, x)</code>): <code class="md-code-inline">heaviside</code>, <code class="md-code-inline">sign</code>, <code class="md-code-inline">abs</code>, <code class="md-code-inline">max</code>, <code class="md-code-inline">min</code> rewritten as pieces, the breakpoints (roots of the conditions) found and ordered, as numbers or by the assumptions (an order not known is an error, not a case split), then the value on each open interval (at a point inside) and at each breakpoint (exactly), each condition decided by the sign of its difference under the assumptions. Pieces are merged: an interval into the piece before it when the formulas agree, a breakpoint when the formula before it gives its value there (else it starts a piece that the next interval joins when that formula gives the value); each condition is by the piece&#39;s right end (<code class="md-code-inline">x &lt; b</code>, <code class="md-code-inline">x ≤ b</code>, <code class="md-code-inline">true</code>). Without <code class="md-code-inline">x</code>, the one symbol of the conditions. <code class="md-code-inline">simplify</code> tries it for two or more piecewise functions, kept when smaller: <code class="md-code-inline">∫₀¹ |x - a| dx</code>, a difference of two piecewise functions from the integrator, becomes three pieces in <code class="md-code-inline">a</code>.</p>
+</li>
 <li><p><strong>Printing</strong>: <code class="md-code-inline">piecewise(x ≪ 0 =&gt; -x, true =&gt; x)</code>; in LaTeX a <code class="md-code-inline">cases</code> environment, <code class="md-code-inline">heaviside</code> and <code class="md-code-inline">dirac</code> as θ and δ.</p>
 </li>
 </ul>
@@ -141,6 +143,6 @@
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=e102b377"></script>
+  <script src="../../assets/materialdocs.js?v=22aeb03b"></script>
 </body>
 </html>

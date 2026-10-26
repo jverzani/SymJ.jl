@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Piecewise functions — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=d9ddf66b">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=8439b3fd">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Piecewise functions — SymJ.jl">
   <meta property="og:title" content="Piecewise functions — SymJ.jl">
@@ -74,7 +74,7 @@
 <div class="md-docstring" id="SymJ.dirac-Tuple{Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.dirac</code> — <span class="md-docstring-sig">Tuple{Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/c2c5735eccb8fd787f9429951e359351ddcb6e48/src/piecewise.jl#L148-L154" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1e2d600cf3859923561a5e2cde620d881ac126fa/src/piecewise.jl#L148-L154" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -87,7 +87,7 @@
 <div class="md-docstring" id="SymJ.heaviside-Tuple{Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.heaviside</code> — <span class="md-docstring-sig">Tuple{Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/c2c5735eccb8fd787f9429951e359351ddcb6e48/src/piecewise.jl#L139-L144" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1e2d600cf3859923561a5e2cde620d881ac126fa/src/piecewise.jl#L139-L144" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -100,7 +100,7 @@
 <div class="md-docstring" id="SymJ.piecewise-Tuple{Vararg{Pair}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.piecewise</code> — <span class="md-docstring-sig">Tuple{Vararg{Pair}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/c2c5735eccb8fd787f9429951e359351ddcb6e48/src/piecewise.jl#L77-L93" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1e2d600cf3859923561a5e2cde620d881ac126fa/src/piecewise.jl#L77-L93" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -115,6 +115,29 @@ SymJ.piecewise(cs::Cases)</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">f = SymJ.piecewise(x ≪ 0 =&gt; -x, true =&gt; x^2)
 f(x =&gt; -2), diff(f, x)          # 2, piecewise(x ≪ 0 =&gt; -1, true =&gt; 2x)</code></pre>
+</div>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.piecewise_fold-Tuple{Any, Sym}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.piecewise_fold</code> — <span class="md-docstring-sig">Tuple{Any, Sym}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1e2d600cf3859923561a5e2cde620d881ac126fa/src/piecewise.jl#L423-L443" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.piecewise_fold(e, x; assume = nothing)
+SymJ.piecewise_fold(e; assume = nothing)</code></pre>
+</div>
+<p><code class="md-code-inline">e</code>, with piecewise functions (and <code class="md-code-inline">heaviside</code>, <code class="md-code-inline">sign</code>, <code class="md-code-inline">abs</code>, <code class="md-code-inline">max</code>, <code class="md-code-inline">min</code>) in <code class="md-code-inline">x</code> inside sums, products and other functions, as one piecewise function of <code class="md-code-inline">x</code>: its value between consecutive breakpoints (where a condition changes) and at each breakpoint, neighbours with the same value merged. Without <code class="md-code-inline">x</code>, the one symbol in the conditions. The breakpoints are ordered as numbers, or, with parameters, by the assumptions (<code class="md-code-inline">assume</code>, or an <a href="../../reference/assumptions/#SymJ.assuming-Tuple{Any, Vararg{Any}}"><code class="md-code-inline">assuming</code></a> block); an order that is not known is an <code class="md-code-inline">ArgumentError</code>. Not exported.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms x a
+SymJ.piecewise_fold(abs(x) + abs(x - 1), x)
+# piecewise(x ≦ 0 =&gt; -2x + 1, x ≦ 1 =&gt; 1, true =&gt; 2x - 1)
+SymJ.piecewise_fold(SymJ.piecewise(a ≫ 1 =&gt; a - 1//2, true =&gt; a^2 - a + 1//2) -
+                    SymJ.piecewise(a ≫ 0 =&gt; 0, true =&gt; a^2))
+# piecewise(a ≦ 0 =&gt; -a + 1/2, a ≦ 1 =&gt; a^2 - a + 1/2, true =&gt; a - 1/2)</code></pre>
 </div>
 </div>
 </div>
@@ -135,6 +158,6 @@ f(x =&gt; -2), diff(f, x)          # 2, piecewise(x ≪ 0 =&gt; -1, true =&gt; 2
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=d9ddf66b"></script>
+  <script src="../../assets/materialdocs.js?v=8439b3fd"></script>
 </body>
 </html>
