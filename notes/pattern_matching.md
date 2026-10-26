@@ -416,3 +416,42 @@ near 18.
   The probe takes 12.6 ms instead of 11.1 ms (best of five, loaded machine): about
   11 μs per expression for the rules and 7 μs for the two expansions. Expressions
   without trig functions skip all three; a 17-case set of them is unchanged in time.
+
+## Trial: RUBI's rules (2026-10-26)
+
+RUBISymbolicIntegration's 3369 rules were run against the 175 apostol problems with
+SymJ's matcher in place of ACPM's commutative `_ceachmatch`:
+- the same rule files, in the same order;
+- left sides read by `SymJ.@pattern` in the package's module, and right sides compiled
+  to functions of the match;
+- the package's frontend otherwise unchanged.
+
+Both runs used the same local SymJ, with a 120 s limit per problem.
+
+| Matcher | Verified | Time on verified | Time on all | Rules built at start |
+|:--|--:|--:|--:|--:|
+| ACPM `_ceachmatch` | 130 | 23.2 s | 33.7 s | at precompile (2.2 s to load) |
+| SymJ | 137 | 12.1 s | 24.0 s | 9.7 s (`Core.eval` of 3369 right sides) |
+
+With SymJ's matcher, eight problems are newly verified and one is lost:
+- **Gained:** `sqrt((x - a)*(b - x))`, `1/sqrt((x - a)*(b - x))`, two partial-fraction
+  problems, `1/(x^4 + 1)` and three more.
+- **Lost:** `(x^4 + 2x - 6)/(x^3 + x^2 - 2x)`. A different, valid first match leads to a
+  rule whose right side computes on Julia integers (`sqrt(9)` gives `3.0`), and floats
+  then defeat a later rule.
+
+What it needed:
+- **The matcher itself.** Two small widenings:
+  - `~n` and `~!n` may name the same slot (5 rules use both). Other mixes are still an
+    error.
+  - A slot bound to 1 lets `b^(~n)` match `b`, as `x^(~!n) * (c + x^(~n))` needs.
+- **The rule set.** The two rules with a sequence slot were restated:
+  - `∫(+(~~a), ~x)` splits a sum and `∫(*(~~a), ~x)` takes out constant factors. In ACPM
+    `+(~~a)` is a sum whose terms are bound as a tuple. In SymJ a one-argument `+` is its
+    argument, and a sequence slot is bound to its sum or product.
+  - Both now match `∫(~u, ~x)` and take `~u` apart in the right side.
+  - Without them, sums were never split and later rules misfired on constant factors:
+    118 verified, and one wrong answer.
+- **Associativity.** It did not get in the way. RUBI's guards (`!contains_var(~a, ~x)`)
+  reject the groupings that the one-or-more meaning of `~a` allows and the commutative
+  matcher does not.

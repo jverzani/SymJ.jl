@@ -88,6 +88,10 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test sin(-x) == -sin(x)
         @test cos(-x) == cos(x)
         @test sin(y - x) == -sin(x - y)
+        # the minus comes out when the term printed first is negative
+        @test string(sin(x - y)) == "sin(x - y)" && string(sin(y - x)) == "-sin(x - y)" && string(cos(y - x)) == "cos(x - y)"
+        @test string(tan(1 - x)) == "-tan(x - 1)" && string(sinh(2 - x^2)) == "-sinh(x^2 - 2)" && string(sin(x - y + 1)) == "sin(x - y + 1)"
+        @test string(simplify(cos(y) * sin(x) - cos(x) * sin(y))) == "sin(x - y)"
         @test log(Sym(1)) == 0
         @test log(E) == 1
         @test log(exp(Sym(3))) == 3
@@ -1915,6 +1919,11 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test_throws ArgumentError P(:(~x - ~x))
         @test_throws ArgumentError P(:(~x^2))
         @test_throws ArgumentError P(:(~x + ~~x))
+        # ~n and ~!n may name one slot; a slot bound to 1 lets b^(~n) match b
+        @test M(:((~!b * t^(~!n)) * (~c + ~!d * t^(~n))), t * (1 + 3t)) == D(:b => 1, :n => 1, :d => 3, :c => 1)
+        @test M(:((~!b * t^(~!n)) * (~c + ~!d * t^(~n))), t^2 * (1 + 3t^2)) == D(:b => 1, :n => 2, :d => 3, :c => 1)
+        @test M(:((~!b * t^(~!n)) * (~c + ~!d * t^(~n))), t^2 * (1 + 3t^3)) === nothing
+        @test M(:(f(~!n, t^(~n))), f(1, t)) == D(:n => 1) && M(:(f(~n, t^(~n))), f(2, t)) === nothing
         # head slots and predicates
         @test M(:((~f)(~x)), sin(t)) == D(:f => sin, :x => t) && M(:((~f)(~x)), y) === nothing
         @test M(:((~f)(~x)^2), cos(x)^2) == D(:f => cos, :x => x)
