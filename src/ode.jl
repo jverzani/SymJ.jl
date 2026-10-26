@@ -10,6 +10,8 @@
 # - first order, y' = f(x, y): separable, Bernoulli, exact (or with an integrating factor
 #   in x or in y alone), homogeneous (f a function of y/x).
 #
+# Systems, linear with constant coefficients, are at the end ("systems").
+#
 # A solution is explicit, y = S(x, C₁, …), or implicit, φ(x, y) = C₁. It is checked by
 # substitution: symbolically, else numerically at a few points.
 
@@ -39,6 +41,22 @@ SymJ.dsolve(y'(x) ~ y(x), y(x))                          # y(x) ~ C1*exp(x)
 SymJ.dsolve(y''(x) + y(x) ~ 0, y(x), y(0) => 0, y'(0) => 1)   # y(x) ~ sin(x)
 SymJ.dsolve(y'(x) ~ x * y(x)^2, y(x))                    # y(x) ~ -2/(x^2 + 2C1)
 SymJ.dsolve(x^2 * y''(x) - 2y(x) ~ 0, y(x))              # y(x) ~ C1/x + C2*x^2
+```
+
+    SymJ.dsolve([eq₁, eq₂, …], [y₁(t), y₂(t), …], ics...)
+
+A system of linear equations with constant coefficients, of any order, in normal form
+(the highest derivatives can be solved for). The result is a vector of equations, with
+as many constants as the unknowns' orders add up to; the initial conditions fix them, one
+for each unknown and each order below its highest. A right side `F(t)` is integrated in
+closed form when it is made of polynomials, exponentials, sines and cosines.
+
+```julia
+@syms t u() v()
+SymJ.dsolve([u'(t) ~ v(t), v'(t) ~ -u(t)], [u(t), v(t)])
+# [u(t) ~ C1*sin(t) + C2*cos(t), v(t) ~ C1*cos(t) - C2*sin(t)]
+SymJ.dsolve([u'(t) ~ v(t), v'(t) ~ -u(t)], [u(t), v(t)], u(0) => 1, v(0) => 0)
+# [u(t) ~ cos(t), v(t) ~ -sin(t)]
 ```
 """
 function dsolve(eq::Relation, yx::Sym, ics::Pair...)
@@ -93,9 +111,10 @@ function _ode_parse(eq::Relation, yx::Sym)
     _ODE(Fs, ys, x, yx, n)
 end
 
-# C1, …, Cn, skipping names in eq
-function _ode_constants(n::Int, eq::Relation)
-    used = Set(s.name for s in free_symbols(lhs(eq) - rhs(eq)))
+# C1, …, Cn, skipping names in eq (or in the equations)
+_ode_constants(n::Int, eq::Relation) = _ode_constants(n, [eq])
+function _ode_constants(n::Int, eqs::AbstractVector)
+    used = Set(s.name for eq in eqs for s in free_symbols(lhs(eq) - rhs(eq)))
     out = Sym[]
     i = 1
     while length(out) < n
@@ -591,20 +610,22 @@ end
 
 # a condition as (order, point, value)
 function _ode_ic(p::Pair, P::_ODE)
-    k, v = Sym(p.first), Sym(p.second)
-    if k.kind == FN && k.name === P.yx.name && length(k.args) == 1
-        return (0, k.args[1], v)
-    end
-    if _isderivat(k)
-        f, t = k.args[1], k.args[2]
-        o = 1
-        while f.kind == FN && f.name === :Derivative && length(f.args) == 2 && _eq(f.args[2], t)
-            o += 1
-            f = f.args[1]
-        end
-        f.kind == FN && f.name === P.yx.name && length(f.args) == 1 && _eq(f.args[1], t) && return (o, k.args[3], v)
-    end
+    c = _ode_ic_parts(Sym(p.first))
+    c !== nothing && c[1] === P.yx.name && return (c[2], c[3], Sym(p.second))
     throw(ArgumentError("dsolve: an initial condition is y(a) => v or y'(a) => v; got $(p)"))
+end
+
+# y(a) or y⁽ᵒ⁾(a) as (name, order, point), or nothing
+function _ode_ic_parts(k::Sym)
+    k.kind == FN && length(k.args) == 1 && k.name !== :Derivative && return (k.name, 0, k.args[1])
+    _isderivat(k) || return nothing
+    f, t = k.args[1], k.args[2]
+    o = 1
+    while f.kind == FN && f.name === :Derivative && length(f.args) == 2 && _eq(f.args[2], t)
+        o += 1
+        f = f.args[1]
+    end
+    f.kind == FN && length(f.args) == 1 && _eq(f.args[1], t) ? (f.name, o, k.args[3]) : nothing
 end
 
 function _ode_ics(P::_ODE, kind::Symbol, S::Sym, Cs, conds)
@@ -626,4 +647,288 @@ function _ode_ics(P::_ODE, kind::Symbol, S::Sym, Cs, conds)
     good = [y for y in ys if (z = _ode_tidy(subs(y, x => a) - v); iszero(z) || _ode_numzero(z, Sym[]) === true)]
     length(good) == 1 && return (:explicit, _ode_tidy(good[1]), ZERO)
     (:implicit, S, c)
+end
+
+## systems: linear, constant coefficients
+#
+# The equations are put in normal form (each unknown's highest derivative solved for)
+# and made a first-order system Z' = M Z + F(t), Z the unknowns and their lower
+# derivatives. With M = P J P⁻¹ (Jordan form), the columns of P exp(J t) are solutions;
+# a conjugate pair of complex columns is replaced by its real and imaginary parts. A
+# particular solution is P exp(J t) ∫ exp(-J t) P⁻¹ F dt, the integrand taken to
+# complex exponentials, where t^k e^(a t) integrates in closed form.
+
+function dsolve(eqs::AbstractVector, yxs::AbstractVector, ics::Pair...)
+    all(e -> e isa Relation, eqs) || throw(ArgumentError("dsolve: give equations, `lhs ~ rhs`"))
+    length(eqs) == length(yxs) || throw(ArgumentError("dsolve: give as many equations as unknowns"))
+    yxs = Sym[Sym(y) for y in yxs]
+    t = _odesys_var(yxs)
+    Fs, Ys = _odesys_parse(eqs, yxs, t)
+    M, F, Z = _odesys_first_order(Fs, Ys, t)
+    N = length(Z)
+    Cs = _ode_constants(N, eqs)
+    Φ, Ψ, ΨinvF = _odesys_fundamental(M, F, t)
+    yp = Ψ === nothing ? zeros(Sym, N) : _odesys_particular(Φ, Ψ, ΨinvF, F, t)
+    sol = [_ode_tidy(sum(Φ[i, j] * Cs[j] for j in 1:N) + yp[i]) for i in 1:N]
+    S = [sol[findfirst(z -> _eq(z, Ys[j][1]), Z)] for j in eachindex(yxs)]
+    _odesys_verified(Fs, Ys, S, t) || throw(ArgumentError("dsolve: the solution found does not satisfy the equations"))
+    if !isempty(ics)
+        length(ics) == N || throw(ArgumentError("dsolve: give $N initial conditions, one for each unknown and order below its highest"))
+        S = _odesys_ics(S, yxs, Cs, t, ics)
+    end
+    [y ~ s for (y, s) in zip(yxs, S)]
+end
+
+# the independent variable, shared by the unknowns y(t), z(t), …
+function _odesys_var(yxs)
+    for y in yxs
+        (y.kind == FN && length(y.args) == 1 && y.args[1].kind == SYMBOL) ||
+            throw(ArgumentError("dsolve: each unknown is a function of one symbol, y(t); got $y"))
+    end
+    t = yxs[1].args[1]
+    all(y -> _eq(y.args[1], t), yxs) || throw(ArgumentError("dsolve: the unknowns are functions of the same variable"))
+    length(unique(y.name for y in yxs)) == length(yxs) || throw(ArgumentError("dsolve: the unknowns are different functions"))
+    t
+end
+
+# the equations F = 0 in placeholders: Ys[j][k + 1] for the k-th derivative of unknown j
+function _odesys_parse(eqs, yxs, t)
+    function order(e, y)                # e = y⁽ᵒ⁾(t): o, else nothing
+        _eq(e, y) && return 0
+        (e.kind == FN && e.name === :Derivative && length(e.args) == 2 && _eq(e.args[2], t)) || return nothing
+        o = order(e.args[1], y)
+        o === nothing ? nothing : o + 1
+    end
+    ders = [Dict{Sym,Int}() for _ in yxs]
+    function walk(e)
+        if e.kind == FN
+            for (j, y) in enumerate(yxs)
+                o = order(e, y)
+                o isa Int && (ders[j][e] = o; return)
+            end
+        end
+        foreach(walk, e.args)
+        foreach(walk, e.exps)
+    end
+    Fs0 = Sym[lhs(eq) - rhs(eq) for eq in eqs]
+    foreach(walk, Fs0)
+    ns = [isempty(d) ? 0 : maximum(values(d)) for d in ders]
+    for (j, n) in enumerate(ns)
+        n >= 1 || throw(ArgumentError("dsolve: no derivative of $(yxs[j]) in the equations"))
+    end
+    Ys = [[Sym(Symbol("_ode_", yxs[j].name, "_", k)) for k in 0:ns[j]] for j in eachindex(yxs)]
+    sb = [d => Ys[j][o + 1] for j in eachindex(yxs) for (d, o) in ders[j]]
+    Fs = Sym[expand(subs(F, sb...)) for F in Fs0]
+    for F in Fs, y in yxs
+        _hasfn(F, y.name) && throw(ArgumentError("dsolve: $(y.name) appears other than as $y and its derivatives"))
+    end
+    Fs, Ys
+end
+
+# Z' = M Z + F: the highest derivatives solved for (the equations linear, with constant
+# coefficients, and in normal form)
+function _odesys_first_order(Fs, Ys, t)
+    allY = reduce(vcat, Ys)
+    for F in Fs, Y in allY
+        c = diff(F, Y)
+        (any(Z -> has(c, Z), allY) || has(c, t)) &&
+            throw(ArgumentError("dsolve: a system is solved when linear with constant coefficients"))
+    end
+    m = length(Fs)
+    tops = [Ys[j][end] for j in 1:m]
+    B = Sym[diff(Fs[i], tops[j]) for i in 1:m, j in 1:m]
+    R = Sym[expand(Fs[i] - sum(B[i, j] * tops[j] for j in 1:m)) for i in 1:m]
+    iszero(_ode_tidy(LinearAlgebra.det(B))) &&
+        throw(ArgumentError("dsolve: the highest derivatives can't be solved for (not in normal form)"))
+    top = [expand(v) for v in -(inv(B) * R)]
+    Z = reduce(vcat, [Y[1:(end - 1)] for Y in Ys])
+    N = length(Z)
+    M = zeros(Sym, N, N)
+    F = zeros(Sym, N)
+    row = 0
+    for (j, Y) in enumerate(Ys)
+        n = length(Y) - 1
+        for k in 1:n
+            row += 1
+            if k < n                             # (y⁽ᵏ⁻¹⁾)' = y⁽ᵏ⁾
+                M[row, findfirst(z -> _eq(z, Y[k + 1]), Z)] = ONE
+            else                                 # (y⁽ⁿ⁻¹⁾)' = the solved y⁽ⁿ⁾
+                for (c, z) in enumerate(Z)
+                    M[row, c] = diff(top[j], z)
+                end
+                F[row] = _ode_tidy(subs(top[j], (z => ZERO for z in Z)...))
+            end
+        end
+    end
+    M, F, Z
+end
+
+# the real fundamental matrix Φ, and for the particular solution P exp(J t) and
+# exp(-J t) P⁻¹ F (nothing when F = 0)
+function _odesys_fundamental(M, F, t)
+    P, J = jordan_form(M)
+    P = map(_ode_cartesian, P)
+    N = size(M, 1)
+    EJ, EJm = zeros(Sym, N, N), zeros(Sym, N, N)   # exp(J t), exp(-J t)
+    i = 1
+    while i <= N
+        k = 1
+        while i + k <= N && J[i + k - 1, i + k] == ONE
+            k += 1
+        end
+        λ = J[i, i]
+        for r in i:(i + k - 1), c in r:(i + k - 1)
+            d = c - r
+            EJ[r, c] = t^d / factorial(d) * exp(λ * t)
+            EJm[r, c] = (-t)^d / factorial(d) * exp(-λ * t)
+        end
+        i += k
+    end
+    Ψ = P * EJ
+    Φ = zeros(Sym, N, N)
+    skip = Dict{Sym,Int}()
+    col = 0
+    for j in 1:N
+        λ = J[j, j]
+        if get(skip, λ, 0) > 0
+            skip[λ] -= 1
+            continue
+        end
+        v = [expand(_ode_cis(Ψ[r, j])) for r in 1:N]
+        re = [subs(e, IM => ZERO) for e in v]
+        if all(r -> _eq(re[r], v[r]), 1:N)
+            col += 1
+            Φ[:, col] = [_ode_tidy(e) for e in v]
+        else                                     # a complex column: its real and imaginary parts
+            im_ = [expand((v[r] - re[r]) / IM) for r in 1:N]
+            Φ[:, col + 1] = [_ode_tidy(e) for e in re]
+            Φ[:, col + 2] = [_ode_tidy(e) for e in im_]
+            col += 2
+            c = subs(λ, IM => -IM)               # parameters taken to be real
+            skip[c] = get(skip, c, 0) + 1
+        end
+    end
+    col == N || throw(ArgumentError("dsolve: no real fundamental system found"))
+    all(iszero, F) && return Φ, nothing, nothing
+    Φ, Ψ, EJm * (inv(P) * F)
+end
+
+# a particular solution: Ψ ∫ v dt made real, when v is a sum of t^k e^(a t) terms;
+# otherwise Φ ∫ Φ⁻¹ F dt with the real fundamental matrix, by _integrate
+function _odesys_particular(Φ, Ψ, v, F, t)
+    w = Sym[]
+    for e in v
+        r = _odesys_int(_ode_toexp(e), t)
+        r === nothing && break
+        push!(w, r)
+    end
+    if length(w) == length(v)
+        return [_ode_tidy(expand(_ode_cis(expand(sum(Ψ[i, j] * w[j] for j in eachindex(w)))))) for i in 1:size(Ψ, 1)]
+    end
+    u = map(_ode_tidy, inv(Φ) * F)
+    w = [_integrate(e, t) for e in u]
+    [_ode_tidy(sum(Φ[i, j] * w[j] for j in eachindex(w))) for i in 1:size(Φ, 1)]
+end
+
+# ∫ e dt for e a sum of cf t^k e^(a t) terms, or nothing
+function _odesys_int(e::Sym, t::Sym)
+    e = expand(e)
+    terms = e.kind == ADD ? [(Sym(c), a) for (c, a) in zip(e.coefs, e.args)] : [(ONE, e)]
+    out = e.kind == ADD ? Sym(e.num) * t : ZERO
+    for (c, a) in terms
+        r = _odesys_expoly_int(a, t)
+        r === nothing && return nothing
+        out += c * r
+    end
+    out
+end
+
+# ∫ cf t^k e^(a t) dt (cf, a free of t, k ≥ 0 an integer), or nothing
+function _odesys_expoly_int(term::Sym, t::Sym)
+    cf, k, a = ONE, 0, ZERO
+    fs = term.kind == MUL ? collect(zip(term.args, term.exps)) : [(term, ONE)]
+    term.kind == MUL && (cf = Sym(term.num))
+    for (b, p) in fs
+        if !has(b, t) && !has(p, t)
+            cf *= b^p
+        elseif _eq(b, t) && p.kind == NUMBER && _isint(p.num) && p.num >= N0
+            k += _toint(p.num)
+        elseif b === E && (d = diff(p, t); !has(d, t))
+            iszero(subs(p, t => ZERO)) || (cf *= exp(subs(p, t => ZERO)))
+            a += d
+        elseif b.kind == POW && b.args[1] === E && _eq(p, ONE) && (d = diff(b.args[2], t); !has(d, t))
+            a += d
+        else
+            return nothing
+        end
+    end
+    iszero(a) && return cf * t^(k + 1) / (k + 1)
+    # ∫ t^k e^(a t) = e^(a t) Σ_j (-1)^j k!/(k-j)! t^(k-j) / a^(j+1)
+    cf * exp(a * t) * sum((-1)^j * Sym(factorial(big(k)) // factorial(big(k - j))) * t^(k - j) / a^(j + 1) for j in 0:k)
+end
+
+# sin, cos, sinh, cosh as complex exponentials
+function _ode_toexp(e::Sym)
+    isempty(e.args) && return e
+    e = _rebuild_node(e, Sym[_ode_toexp(a) for a in e.args])
+    e.kind == MUL && return Sym(e.num) * prod((_ode_toexp(b)^_ode_toexp(p) for (b, p) in zip(e.args, e.exps)); init = ONE)
+    (e.kind == FN && length(e.args) == 1) || return e
+    u = e.args[1]
+    e.name === :sin && return (exp(IM * u) - exp(-IM * u)) / (2IM)
+    e.name === :cos && return (exp(IM * u) + exp(-IM * u)) / 2
+    e.name === :sinh && return (exp(u) - exp(-u)) / 2
+    e.name === :cosh && return (exp(u) + exp(-u)) / 2
+    e
+end
+
+# a number with i as a + i b (no i in a denominator, as in 2/(i sqrt(3) - 1))
+function _ode_cartesian(p::Sym)
+    _eq(subs(p, IM => ZERO), p) && return p         # (parameters taken to be real)
+    n, d = numer_denom(p)
+    d̄ = subs(d, IM => -IM)                   # i appears as a number: its conjugate
+    n, d = expand(n * d̄), expand(d * d̄)
+    _eq(subs(d, IM => ZERO), d) || return p
+    re = subs(n, IM => ZERO)
+    _ode_tidy(re / d) + IM * _ode_tidy(expand((n - re) / IM) / d)
+end
+
+# exp(a + i b) as exp(a) (cos b + i sin b)
+function _ode_cis(e::Sym)
+    isempty(e.args) && return e
+    if e.kind == POW && e.args[1] === E
+        u = expand(_ode_cis(e.args[2]))
+        re = subs(u, IM => ZERO)
+        _eq(re, u) && return exp(u)
+        b = expand((u - re) / IM)
+        _eq(subs(b, IM => ZERO), b) || return exp(u)
+        return exp(re) * (cos(b) + IM * sin(b))
+    elseif e.kind == MUL
+        return Sym(e.num) * prod((b === E ? _ode_cis(b^p) : _ode_cis(b)^_ode_cis(p) for (b, p) in zip(e.args, e.exps)); init = ONE)
+    end
+    _rebuild_node(e, Sym[_ode_cis(a) for a in e.args])
+end
+
+function _odesys_verified(Fs, Ys, S, t)
+    for F in Fs
+        r = subs(F, (Ys[j][k + 1] => diff(S[j], t, k) for j in eachindex(Ys) for k in 0:(length(Ys[j]) - 1))...)
+        z = try simplify(r) catch; r end
+        iszero(z) && continue
+        ok = _ode_numzero(r, free_symbols(r))
+        ok === false && return false
+    end
+    true
+end
+
+function _odesys_ics(S, yxs, Cs, t, ics)
+    eqs = Relation[]
+    for p in ics
+        c = _ode_ic_parts(Sym(p.first))
+        j = c === nothing ? nothing : findfirst(y -> y.name === c[1], yxs)
+        j === nothing && throw(ArgumentError("dsolve: an initial condition is y(a) => v or y'(a) => v for an unknown y; got $(p)"))
+        push!(eqs, _ode_tidy(subs(diff(S[j], t, c[2]), t => c[3])) ~ Sym(p.second))
+    end
+    sols = solve(eqs, Cs)
+    isempty(sols) && throw(ArgumentError("dsolve: no solution satisfies the initial conditions"))
+    length(sols) == 1 || throw(ArgumentError("dsolve: the initial conditions don't fix the constants"))
+    [_ode_tidy(subs(s, sols[1]...)) for s in S]
 end

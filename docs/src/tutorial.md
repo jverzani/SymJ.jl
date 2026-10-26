@@ -966,6 +966,21 @@ SymJ.dsolve(y''(x) + y(x) ~ 0, y(x), y(0) => 0, y'(0) => 1)
 SymJ.dsolve(y'(x) ~ -x / y(x), y(x), y(0) => 2)
 ```
 
+A system of linear equations with constant coefficients is given as vectors of
+equations and unknowns. The answer is a vector of equations:
+
+```@example tut
+@syms t u() v()
+SymJ.dsolve([u'(t) ~ u(t) - v(t), v'(t) ~ 5u(t) - 3v(t)], [u(t), v(t)])
+```
+
+Higher derivatives, right sides and initial conditions (one for each unknown and each
+order below its highest) are allowed:
+
+```@example tut
+SymJ.dsolve([u''(t) + v(t) ~ 0, v'(t) ~ u(t) + t], [u(t), v(t)], u(0) => 1, u'(0) => 0, v(0) => 0)
+```
+
 ## Pattern matching
 
 `SymJ.pattern` (not exported) makes a pattern from a quoted expression, with `~x` marking

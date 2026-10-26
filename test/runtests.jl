@@ -1812,6 +1812,45 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test_throws ArgumentError D(y'(x) - y(x), y(x))
     end
 
+    @testset "systems of differential equations" begin
+        @syms t a u() v() w()
+        D = SymJ.dsolve
+        C1, C2, C3 = Sym(:C1), Sym(:C2), Sym(:C3)
+        rhs_(r) = [s.rhs for s in r]
+        # each solution satisfies its equations (the residuals simplify to 0)
+        function ok(eqs, us, r)
+            sb = [Pair(u, s) for (u, s) in zip(us, rhs_(r))]
+            all(eq -> iszero(simplify(subs(eq.lhs - eq.rhs, sb...))), eqs)
+        end
+        @test rhs_(D([u'(t) ~ v(t), v'(t) ~ -u(t)], [u(t), v(t)])) == [C1 * sin(t) + C2 * cos(t), C1 * cos(t) - C2 * sin(t)]
+        @test rhs_(D([u'(t) ~ 2u(t) + v(t), v'(t) ~ u(t) + 2v(t)], [u(t), v(t)])) == [-C1 * exp(t) + C2 * exp(3t), C1 * exp(t) + C2 * exp(3t)]
+        @test rhs_(D([u'(t) ~ u(t) + v(t), v'(t) ~ v(t)], [u(t), v(t)])) == [(C2 * t + C1) * exp(t), C2 * exp(t)]   # defective
+        @test rhs_(D([u'(t) ~ v(t), v'(t) ~ -u(t)], [u(t), v(t)], u(0) => 1, v(0) => 0)) == [cos(t), -sin(t)]
+        @test rhs_(D([u'(t) ~ a * v(t), v'(t) ~ -a * u(t)], [u(t), v(t)])) == [C1 * sin(a * t) + C2 * cos(a * t), C1 * cos(a * t) - C2 * sin(a * t)]
+        # complex eigenvalues, a 3×3 system, higher order, implicit form, forcing
+        for (eqs, us) in (([u'(t) ~ u(t) - v(t), v'(t) ~ 5u(t) - 3v(t)], [u(t), v(t)]),
+                          ([u'(t) ~ v(t), v'(t) ~ w(t), w'(t) ~ u(t)], [u(t), v(t), w(t)]),
+                          ([u''(t) ~ -2u(t) + v(t), v''(t) ~ u(t) - 2v(t)], [u(t), v(t)]),
+                          ([u''(t) ~ v(t), v'(t) ~ u(t)], [u(t), v(t)]),
+                          ([u'(t) + v'(t) ~ u(t), u'(t) - v'(t) ~ v(t)], [u(t), v(t)]),
+                          ([u'(t) ~ v(t) + t, v'(t) ~ -u(t)], [u(t), v(t)]),
+                          ([u'(t) ~ v(t) + t * exp(t), v'(t) ~ u(t)], [u(t), v(t)]),
+                          ([u'(t) ~ -v(t) + cos(t), v'(t) ~ u(t)], [u(t), v(t)]))
+            r = D(eqs, us)
+            @test ok(eqs, us, r) && all(s -> !has(s, IM), rhs_(r))
+        end
+        @test rhs_(D([u'(t) ~ u(t) + exp(2t), v'(t) ~ u(t) - v(t)], [u(t), v(t)]))[2] == C1 / exp(t) + C2 * exp(t) + exp(2t) / 3
+        r = D([u''(t) + v(t) ~ 0, v'(t) ~ u(t)], [u(t), v(t)], u(0) => 1, u'(0) => 0, v(0) => 0)
+        @test ok([u''(t) + v(t) ~ 0, v'(t) ~ u(t)], [u(t), v(t)], r) && subs(r[1].rhs, t => 0) == 1 && subs(r[2].rhs, t => 0) == 0
+        # errors
+        @test_throws ArgumentError D([u'(t) ~ v(t)^2, v'(t) ~ u(t)], [u(t), v(t)])           # nonlinear
+        @test_throws ArgumentError D([u'(t) ~ t * v(t), v'(t) ~ u(t)], [u(t), v(t)])         # variable coefficients
+        @test_throws ArgumentError D([u'(t) + v'(t) ~ u(t), u'(t) + v'(t) ~ v(t)], [u(t), v(t)])   # not in normal form
+        @test_throws ArgumentError D([u'(t) ~ v(t)], [u(t), v(t)])
+        @test_throws ArgumentError D([u'(t) ~ v(t), v'(t) ~ -u(t)], [u(t), v(t)], u(0) => 1)
+        @test_throws ArgumentError D([u'(t) ~ v(t), v'(t) ~ -u(t)], [u(t), v(t)], u(0) => 1, w(0) => 1)
+    end
+
     @testset "piecewise, heaviside, dirac" begin
         P, H, D = SymJ.piecewise, SymJ.heaviside, SymJ.dirac
         @syms a

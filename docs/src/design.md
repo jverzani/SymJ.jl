@@ -1104,6 +1104,18 @@ and a finalizer per operation), which dominates the small benchmarks.
   it (`Derivative(y(x), x)` with `y(x) => sin(x)` is `cos(x)`). `y'` on a `SymFunction`
   builds these, so initial conditions read `y'(0) => 1`, and a derivative at a point
   prints the same way (`y''(0)`, not `Derivative(Derivative(y(x), x), x, 0)`).
+- **Systems.** `SymJ.dsolve([eq₁, …], [y₁(t), …], ics...)`, linear with constant
+  coefficients. The highest derivative of each unknown is solved for (the matrix of
+  their coefficients must be invertible: the system in normal form), and the system made
+  first order, `Z' = M Z + F(t)`, with `Z` the unknowns and their lower derivatives. With
+  `M = P J P⁻¹` (Jordan form), the columns of `P exp(J t)` are solutions; a conjugate
+  pair of complex columns is replaced by its real and imaginary parts (`i` rewritten out
+  of denominators first, and `e^((a + ib)t)` as `e^(at)(cos bt + i sin bt)`), giving a
+  real fundamental matrix `Φ`. The general solution is `Φ C`, so a defective `M` gives
+  `t^k e^(λt)` terms. A particular solution is `P exp(J t) ∫ exp(-J t) P⁻¹ F dt` when
+  the integrand, with `sin`, `cos`, `sinh`, `cosh` as exponentials, is a sum of
+  `t^k e^(at)` (integrated in closed form, then made real); otherwise `Φ ∫ Φ⁻¹ F dt`
+  through the integrator. Parameters in `M` are taken to be real.
 - **Integrals** go through an integrator hook that the RischIntegrate extension sets;
   without it a small integrator does polynomials and `exp`, `sin`, `cos`, `sinh`, `cosh`
   of linear arguments, and anything else is an unevaluated `Integral(f, x)` whose
