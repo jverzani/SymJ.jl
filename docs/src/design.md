@@ -1090,6 +1090,23 @@ and a finalizer per operation), which dominates the small benchmarks.
   `θ(θ - 1)…(θ - k + 1) y`), then first order `y' = f(x, y)`: separable (`f` factors as
   `g(x)h(y)`), Bernoulli, exact (with an integrating factor in `x` or `y` alone),
   homogeneous (`f(x, vx)` free of `x`).
+- **Riccati equations**, `y' = q₀ + q₁ y + q₂ y²`, the last first-order method:
+  `y = -u'/(q₂ u)` gives `u'' - (q₁ + q₂'/q₂) u' + q₀ q₂ u = 0`, solved when it has
+  constant coefficients or is Cauchy–Euler, and `u = C u₁ + u₂` gives `y` with one
+  constant. Otherwise a particular solution `y₁ = c xᵏ` (`|k| ≤ 2`) or `c e^(kx)`
+  (`|k| ≤ 2`), with `c` constant, and `y = y₁ + 1/v`, `v` from a linear equation. A
+  first-order method whose answer has an unevaluated integral is kept only if no later
+  one does better: `y' = y² + 4` is separable, but without RischIntegrate the
+  integral is left undone, while as a Riccati equation it has a closed form in `sin`
+  and `cos`.
+- **Autonomous equations**, second order without `x`: with `p = y'` a function of
+  `s = y`, `y'' = p dp/ds`, a first-order equation for `p(s)` solved by the methods
+  above; then `∫ ds/p(s) = x + C₂`, solved for `y` when that gives one solution and
+  implicit otherwise. Only a `p` with one branch is taken (not `p = ±sqrt(q(s))`, as
+  for `y'' = -sin y`). An implicit solution of any order is checked, and its constants
+  fixed by initial conditions at one point, through implicit differentiation: `y' =
+  -φₓ/φ_y` and each higher derivative by `d/dx + y' d/dy`. When the explicit form gives
+  a nonlinear system for the constants (`y = e^(C₁(C₂ + x))`), the implicit one is used.
 - **Particular solutions.** Undetermined coefficients when every term of the right side
   is `c xᵐ e^(αx) cos(βx)` (or `sin`); the trial form is multiplied by `xˢ`, `s` the
   multiplicity of `α + iβ` as a root, and the coefficients come from a linear system.
@@ -1104,9 +1121,21 @@ and a finalizer per operation), which dominates the small benchmarks.
   it (`Derivative(y(x), x)` with `y(x) => sin(x)` is `cos(x)`). `y'` on a `SymFunction`
   builds these, so initial conditions read `y'(0) => 1`, and a derivative at a point
   prints the same way (`y''(0)`, not `Derivative(Derivative(y(x), x), x, 0)`).
+- **Systems.** `SymJ.dsolve([eq₁, …], [y₁(t), …], ics...)`, linear with constant
+  coefficients. The highest derivative of each unknown is solved for (the matrix of
+  their coefficients must be invertible: the system in normal form), and the system made
+  first order, `Z' = M Z + F(t)`, with `Z` the unknowns and their lower derivatives. With
+  `M = P J P⁻¹` (Jordan form), the columns of `P exp(J t)` are solutions; a conjugate
+  pair of complex columns is replaced by its real and imaginary parts (`i` rewritten out
+  of denominators first, and `e^((a + ib)t)` as `e^(at)(cos bt + i sin bt)`), giving a
+  real fundamental matrix `Φ`. The general solution is `Φ C`, so a defective `M` gives
+  `t^k e^(λt)` terms. A particular solution is `P exp(J t) ∫ exp(-J t) P⁻¹ F dt` when
+  the integrand, with `sin`, `cos`, `sinh`, `cosh` as exponentials, is a sum of
+  `t^k e^(at)` (integrated in closed form, then made real); otherwise `Φ ∫ Φ⁻¹ F dt`
+  through the integrator. Parameters in `M` are taken to be real.
 - **Integrals** go through an integrator hook that the RischIntegrate extension sets;
-  without it a small integrator does polynomials and `exp`, `sin`, `cos`, `sinh`, `cosh`
-  of linear arguments, and anything else is an unevaluated `Integral(f, x)` whose
+  without it a small integrator does polynomials, powers of a linear function, and
+  `exp`, `sin`, `cos`, `sinh`, `cosh` of linear arguments, and anything else is an unevaluated `Integral(f, x)` whose
   derivative is `f`.
 
 ## Pattern matching

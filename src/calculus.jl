@@ -56,6 +56,8 @@ function _integrate(f::Sym, x::Sym)
         r = try g(f, x) catch err; err isa InterruptException && rethrow(); nothing end
         r isa Sym && return r
     end
+    r = _integrate_linear_fn(f, x)       # before expanding: (2x + 1)^-2 stays a power
+    r === nothing || return r
     # polynomials in x, term by term
     p = expand(f)
     terms = p.kind == ADD ? [(Sym(c), t) for (c, t) in zip(p.coefs, p.args)] : [(ONE, p)]
@@ -92,6 +94,12 @@ function _integrate_linear_fn(t::Sym, x::Sym)
     if h.kind == POW && _eq(h.args[1], E)
         a = lin(h.args[2])
         return a === nothing ? nothing : cf * h / a
+    end
+    if h.kind == POW && h.args[2].kind == NUMBER     # (a x + b)^k
+        u, k = h.args[1], h.args[2]
+        a = lin(u)
+        a === nothing && return nothing
+        return k == -1 ? cf * log(u) / a : cf * u^(k + 1) / ((k + 1) * a)
     end
     (h.kind == FN && length(h.args) == 1) || return nothing
     a = lin(h.args[1])

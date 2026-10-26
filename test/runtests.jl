@@ -1805,11 +1805,68 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test D(y'(x) ~ y(x), y(x), y(0) => 3) == (y(x) ~ 3exp(x)) && D(y'(x) ~ x * y(x)^2, y(x), y(0) => 1) == (y(x) ~ -2 / (x^2 - 2))
         @test D(y'(x) ~ -x / y(x), y(x), y(0) => 2) == (y(x) ~ sqrt(4 - x^2))                 # the branch through (0, 2)
         @test D(y''(x) - y(x) ~ 1, y(x), y(0) => 0, y'(0) => 0) == (y(x) ~ cosh(x) - 1)
+        # autonomous, y'' = f(y, y'): p = y' as a function of y
+        @test D(y(x) * y''(x) ~ y'(x)^2, y(x)).rhs == exp(C1 * (C2 + x))
+        r = D(y(x) * y''(x) + y'(x)^2 ~ 0, y(x))                      # implicit, of second order
+        @test r.lhs == y(x)^2 / (2C1) - x && r.rhs == C2
+        @test D(y(x) * y''(x) + y'(x)^2 ~ 0, y(x), y(0) => 1, y'(0) => 1).rhs == sqrt(2x + 1)
+        @test D(y''(x) ~ y'(x)^2 / y(x), y(x), y(0) => 1, y'(0) => 2).rhs == exp(2x)   # constants through the implicit form
+        @test D(y''(x) + y'(x)^2 ~ 0, y(x)).rhs == C2 + log(C1 + x)
+        # the built-in integrator: powers of a linear function
+        @test SymJ._integrate(1 / (x + 2), x) == log(x + 2) && SymJ._integrate(3 / (2x + 1)^2, x) == -(3 // 2) / (2x + 1)
+        # Riccati: linearized (u'' … = 0 by constant coefficients or Cauchy–Euler), or from a
+        # particular solution
+        @test D(y'(x) ~ y(x)^2 - 2 / x^2, y(x)).rhs == (-2x^3 + C1) / (x^4 + C1 * x)
+        @test D(y'(x) ~ y(x)^2 + 4, y(x)).rhs == (2C1 * sin(2x) - 2cos(2x)) / (C1 * cos(2x) + sin(2x))   # not an Integral
+        @test D(y'(x) ~ 1 + x^2 - 2x * y(x) + y(x)^2, y(x)).rhs == x + 1 / (C1 - x)                  # y₁ = x
+        @test D(y'(x) ~ exp(2x) + (1 - 2exp(x)) * y(x) + y(x)^2, y(x)).rhs == exp(x) + 1 / (C1 / exp(x) - 1)   # y₁ = eˣ
+        r = D(y'(x) ~ -y(x)^2 + 2 / x^2, y(x), y(1) => 1)
+        @test iszero(simplify(diff(r.rhs, x) + r.rhs^2 - 2 / x^2)) && subs(r.rhs, x => 1) == 1
         # errors
-        @test_throws ArgumentError D(y'(x) ~ y(x)^2 + x, y(x))                                  # Riccati: no method
+        @test_throws ArgumentError D(y''(x) ~ -sin(y(x)), y(x))                                 # y' = ±sqrt(…): not yet
+        @test_throws ArgumentError D(y'(x) ~ y(x)^2 + x, y(x))                                  # Riccati to Airy: no method
         @test_throws ArgumentError D(y'(x) ~ y(x), y(x), y(0) => 1, y(1) => 2)
         @test_throws ArgumentError D(y(x) + x ~ 0, y(x))
         @test_throws ArgumentError D(y'(x) - y(x), y(x))
+    end
+
+    @testset "systems of differential equations" begin
+        @syms t a u() v() w()
+        D = SymJ.dsolve
+        C1, C2, C3 = Sym(:C1), Sym(:C2), Sym(:C3)
+        rhs_(r) = [s.rhs for s in r]
+        # each solution satisfies its equations (the residuals simplify to 0)
+        function ok(eqs, us, r)
+            sb = [Pair(u, s) for (u, s) in zip(us, rhs_(r))]
+            all(eq -> iszero(simplify(subs(eq.lhs - eq.rhs, sb...))), eqs)
+        end
+        @test rhs_(D([u'(t) ~ v(t), v'(t) ~ -u(t)], [u(t), v(t)])) == [C1 * sin(t) + C2 * cos(t), C1 * cos(t) - C2 * sin(t)]
+        @test rhs_(D([u'(t) ~ 2u(t) + v(t), v'(t) ~ u(t) + 2v(t)], [u(t), v(t)])) == [-C1 * exp(t) + C2 * exp(3t), C1 * exp(t) + C2 * exp(3t)]
+        @test rhs_(D([u'(t) ~ u(t) + v(t), v'(t) ~ v(t)], [u(t), v(t)])) == [(C2 * t + C1) * exp(t), C2 * exp(t)]   # defective
+        @test rhs_(D([u'(t) ~ v(t), v'(t) ~ -u(t)], [u(t), v(t)], u(0) => 1, v(0) => 0)) == [cos(t), -sin(t)]
+        @test rhs_(D([u'(t) ~ a * v(t), v'(t) ~ -a * u(t)], [u(t), v(t)])) == [C1 * sin(a * t) + C2 * cos(a * t), C1 * cos(a * t) - C2 * sin(a * t)]
+        # complex eigenvalues, a 3×3 system, higher order, implicit form, forcing
+        for (eqs, us) in (([u'(t) ~ u(t) - v(t), v'(t) ~ 5u(t) - 3v(t)], [u(t), v(t)]),
+                          ([u'(t) ~ v(t), v'(t) ~ w(t), w'(t) ~ u(t)], [u(t), v(t), w(t)]),
+                          ([u''(t) ~ -2u(t) + v(t), v''(t) ~ u(t) - 2v(t)], [u(t), v(t)]),
+                          ([u''(t) ~ v(t), v'(t) ~ u(t)], [u(t), v(t)]),
+                          ([u'(t) + v'(t) ~ u(t), u'(t) - v'(t) ~ v(t)], [u(t), v(t)]),
+                          ([u'(t) ~ v(t) + t, v'(t) ~ -u(t)], [u(t), v(t)]),
+                          ([u'(t) ~ v(t) + t * exp(t), v'(t) ~ u(t)], [u(t), v(t)]),
+                          ([u'(t) ~ -v(t) + cos(t), v'(t) ~ u(t)], [u(t), v(t)]))
+            r = D(eqs, us)
+            @test ok(eqs, us, r) && all(s -> !has(s, IM), rhs_(r))
+        end
+        @test rhs_(D([u'(t) ~ u(t) + exp(2t), v'(t) ~ u(t) - v(t)], [u(t), v(t)]))[2] == C1 / exp(t) + C2 * exp(t) + exp(2t) / 3
+        r = D([u''(t) + v(t) ~ 0, v'(t) ~ u(t)], [u(t), v(t)], u(0) => 1, u'(0) => 0, v(0) => 0)
+        @test ok([u''(t) + v(t) ~ 0, v'(t) ~ u(t)], [u(t), v(t)], r) && subs(r[1].rhs, t => 0) == 1 && subs(r[2].rhs, t => 0) == 0
+        # errors
+        @test_throws ArgumentError D([u'(t) ~ v(t)^2, v'(t) ~ u(t)], [u(t), v(t)])           # nonlinear
+        @test_throws ArgumentError D([u'(t) ~ t * v(t), v'(t) ~ u(t)], [u(t), v(t)])         # variable coefficients
+        @test_throws ArgumentError D([u'(t) + v'(t) ~ u(t), u'(t) + v'(t) ~ v(t)], [u(t), v(t)])   # not in normal form
+        @test_throws ArgumentError D([u'(t) ~ v(t)], [u(t), v(t)])
+        @test_throws ArgumentError D([u'(t) ~ v(t), v'(t) ~ -u(t)], [u(t), v(t)], u(0) => 1)
+        @test_throws ArgumentError D([u'(t) ~ v(t), v'(t) ~ -u(t)], [u(t), v(t)], u(0) => 1, w(0) => 1)
     end
 
     @testset "piecewise, heaviside, dirac" begin

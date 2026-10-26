@@ -932,6 +932,13 @@ recognized:
 SymJ.dsolve(y'(x) ~ x * y(x)^2, y(x)), SymJ.dsolve(y'(x) ~ (x + y(x)) / x, y(x))
 ```
 
+A Riccati equation, `y' = q₀ + q₁ y + q₂ y²`, is made linear (of second order), or
+solved from a particular solution:
+
+```@example tut
+SymJ.dsolve(y'(x) ~ y(x)^2 - 2 / x^2, y(x))
+```
+
 When `y` cannot be solved for, the solution is implicit:
 
 ```@example tut
@@ -956,6 +963,13 @@ Cauchy–Euler equations, with coefficients `x^k` on `y⁽ᵏ⁾`, are solved to
 SymJ.dsolve(x^2 * y''(x) - 2y(x) ~ 0, y(x))
 ```
 
+An equation of second order without `x`, `y'' = f(y, y')`, is reduced to first order
+with `p = y'` as a function of `y`:
+
+```@example tut
+SymJ.dsolve(y(x) * y''(x) ~ y'(x)^2, y(x))
+```
+
 Initial conditions, one for each order, fix the constants:
 
 ```@example tut
@@ -964,6 +978,21 @@ SymJ.dsolve(y''(x) + y(x) ~ 0, y(x), y(0) => 0, y'(0) => 1)
 
 ```@example tut
 SymJ.dsolve(y'(x) ~ -x / y(x), y(x), y(0) => 2)
+```
+
+A system of linear equations with constant coefficients is given as vectors of
+equations and unknowns. The answer is a vector of equations:
+
+```@example tut
+@syms t u() v()
+SymJ.dsolve([u'(t) ~ u(t) - v(t), v'(t) ~ 5u(t) - 3v(t)], [u(t), v(t)])
+```
+
+Higher derivatives, right sides and initial conditions (one for each unknown and each
+order below its highest) are allowed:
+
+```@example tut
+SymJ.dsolve([u''(t) + v(t) ~ 0, v'(t) ~ u(t) + t], [u(t), v(t)], u(0) => 1, u'(0) => 0, v(0) => 0)
 ```
 
 ## Pattern matching
