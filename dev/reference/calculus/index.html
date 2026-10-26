@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Calculus — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=6120ac7b">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=c194e9ee">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Calculus — SymJ.jl">
   <meta property="og:title" content="Calculus — SymJ.jl">
@@ -69,7 +69,7 @@
 <div class="md-docstring" id="SymJ.limit-Tuple{Any, Pair}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.limit</code> — <span class="md-docstring-sig">Tuple{Any, Pair}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/limit.jl#L17-L40" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/207ffe55dbe890509f3840ed2d713b09c6033529/src/limit.jl#L17-L40" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -91,7 +91,7 @@ limit(x^a, x =&gt; Inf; assume = @assume(a &gt; 1))   # Inf</code></pre>
 <div class="md-docstring" id="Base.diff">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>Base.diff</code> — <span class="md-docstring-sig">Union{Tuple{Sym, Sym}, Tuple{Sym, Sym, Integer}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/calculus.jl#L1-L17" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/207ffe55dbe890509f3840ed2d713b09c6033529/src/calculus.jl#L1-L17" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -112,7 +112,7 @@ diff(sin(x * y), x, y)       # -x*y*sin(x*y) + cos(x*y)</code></pre>
 <div class="md-docstring" id="SymJ.SymSeries">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymSeries</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/series.jl#L231-L239" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/207ffe55dbe890509f3840ed2d713b09c6033529/src/series.jl#L231-L239" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -125,7 +125,7 @@ diff(sin(x * y), x, y)       # -x*y*sin(x*y) + cos(x*y)</code></pre>
 <div class="md-docstring" id="Base.diff-Tuple{SymJ.SymSeries, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>Base.diff</code> — <span class="md-docstring-sig">Tuple{SymJ.SymSeries, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/series.jl#L362-L366" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/207ffe55dbe890509f3840ed2d713b09c6033529/src/series.jl#L362-L366" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -138,7 +138,7 @@ diff(sin(x * y), x, y)       # -x*y*sin(x*y) + cos(x*y)</code></pre>
 <div class="md-docstring" id="SymJ.series">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.series</code> — <span class="md-docstring-sig">Union{Tuple{Any, Sym}, Tuple{Any, Sym, Any}, Tuple{Any, Sym, Any, Real}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/91fd36bb2a6dd7ad7f71a55afad3074e56cb12df/src/series.jl#L247-L268" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/207ffe55dbe890509f3840ed2d713b09c6033529/src/series.jl#L247-L268" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -159,6 +159,45 @@ series(x^x, x, 0, 2)           # 1 + log(x)*x + O(x^2)</code></pre>
 <p>An expression with no series at the point (an essential singularity such as <code class="md-code-inline">exp(1/x)</code> at 0, or a function without a derivative rule) gives an <code class="md-code-inline">ArgumentError</code>.</p>
 </div>
 </div>
+<div class="md-docstring" id="SymJ.inverse_laplace_transform-Tuple{Any, Sym, Sym}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.inverse_laplace_transform</code> — <span class="md-docstring-sig">Tuple{Any, Sym, Sym}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/207ffe55dbe890509f3840ed2d713b09c6033529/src/laplace.jl#L130-L144" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.inverse_laplace_transform(F, s, t)</code></pre>
+</div>
+<p>The function of <code class="md-code-inline">t ≥ 0</code> whose Laplace transform is <code class="md-code-inline">F</code>: for <code class="md-code-inline">F</code> a sum of rational functions of <code class="md-code-inline">s</code> times factors <code class="md-code-inline">exp(-c s)</code> (giving <a href="../../reference/piecewise/#SymJ.heaviside-Tuple{Any}"><code class="md-code-inline">SymJ.heaviside</code></a><code class="md-code-inline">(t - c)</code> shifts). A rational function is split into partial fractions and each inverted by residues at the roots of its denominator, so the roots must be found; a constant term gives <a href="../../reference/piecewise/#SymJ.dirac-Tuple{Any}"><code class="md-code-inline">SymJ.dirac</code></a><code class="md-code-inline">(t)</code>. Throws an <code class="md-code-inline">ArgumentError</code> otherwise. Not exported.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms t s
+SymJ.inverse_laplace_transform(1 / (s^2 + 2s + 5), s, t)     # exp(-t)*sin(2t)/2
+SymJ.inverse_laplace_transform(exp(-2s) / s^2, s, t)         # (t - 2)*heaviside(t - 2)</code></pre>
+</div>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.laplace_transform-Tuple{Any, Sym, Sym}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.laplace_transform</code> — <span class="md-docstring-sig">Tuple{Any, Sym, Sym}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/207ffe55dbe890509f3840ed2d713b09c6033529/src/laplace.jl#L14-L28" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.laplace_transform(f, t, s)</code></pre>
+</div>
+<p>The Laplace transform <code class="md-code-inline">∫₀^∞ e^(-st) f(t) dt</code> of <code class="md-code-inline">f</code>: for sums of products of powers of <code class="md-code-inline">t</code>, exponentials, sines, cosines, <code class="md-code-inline">sinh</code>, <code class="md-code-inline">cosh</code>, and their shifts by <a href="../../reference/piecewise/#SymJ.heaviside-Tuple{Any}"><code class="md-code-inline">SymJ.heaviside</code></a><code class="md-code-inline">(t - a)</code>, and <a href="../../reference/piecewise/#SymJ.dirac-Tuple{Any}"><code class="md-code-inline">SymJ.dirac</code></a><code class="md-code-inline">(t - a)</code> (<code class="md-code-inline">a ≥ 0</code>; a symbol <code class="md-code-inline">a</code> is taken to be). Throws an <code class="md-code-inline">ArgumentError</code> for other terms. Not exported.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms t s
+SymJ.laplace_transform(t * exp(-2t), t, s)            # 1/(s + 2)^2
+SymJ.laplace_transform(sin(3t), t, s)                 # 3/(s^2 + 9)
+SymJ.laplace_transform(SymJ.heaviside(t - 1), t, s)   # exp(-s)/s</code></pre>
+</div>
+</div>
+</div>
       </article>
       <footer class="md-footer">
 <p>Built with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and <a href="https://github.com/mthelm85/MaterialDocs.jl">MaterialDocs.jl</a>.</p>
@@ -176,6 +215,6 @@ series(x^x, x, 0, 2)           # 1 + log(x)*x + O(x^2)</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=6120ac7b"></script>
+  <script src="../../assets/materialdocs.js?v=c194e9ee"></script>
 </body>
 </html>

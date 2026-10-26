@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=93fd0222">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=7f6d2961">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -1587,6 +1587,27 @@ SymJ.dsolve(y&#39;(x) + 2y(x) ~ exp(x), y(x))</code></pre>
 \[y\left( x \right) = C1 \cdot \left( \frac{x^{4}}{64} - \frac{x^{2}}{4} + 1 \right) + C2 \cdot \left( \log\left( x \right) \cdot \left( \frac{x^{4}}{64} - \frac{x^{2}}{4} + 1 \right) - \frac{3 \cdot x^{4}}{128} + \frac{x^{2}}{4} \right)\]
 </div>
 </div>
+<p>A right side with a step or an impulse (<code class="md-code-inline">SymJ.heaviside</code>, <code class="md-code-inline">SymJ.dirac</code>) is handled by Laplace transforms:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.dsolve(y&#39;&#39;(x) + y(x) ~ SymJ.heaviside(x - 1), y(x), y(0) =&gt; 0, y&#39;(0) =&gt; 0)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[y\left( x \right) = \left(  - \cos\left( x - 1 \right) + 1 \right) \cdot \theta\left( x - 1 \right)\]
+</div>
+</div>
+<p>The transforms themselves are <code class="md-code-inline">SymJ.laplace_transform</code> and <code class="md-code-inline">SymJ.inverse_laplace_transform</code>:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms s
+SymJ.laplace_transform(x * sin(x), x, s), SymJ.inverse_laplace_transform(exp(-2s) / (s^2 + 1), s, x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \frac{2 \cdot s}{\left( s^{2} + 1 \right)^{2}}, \; \theta\left( x - 2 \right) \cdot \sin\left( x - 2 \right) \right)\]
+</div>
+</div>
 <p>A system of linear equations with constant coefficients is given as vectors of equations and unknowns. The answer is a vector of equations:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -1741,6 +1762,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=93fd0222"></script>
+  <script src="../assets/materialdocs.js?v=7f6d2961"></script>
 </body>
 </html>
