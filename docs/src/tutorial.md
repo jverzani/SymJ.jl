@@ -637,6 +637,12 @@ Fibonacci numbers:
 SymJ.summation(binomial(n - k, k), k, 0, n)
 ```
 
+Bounds other than the summand's own give an inhomogeneous recurrence, solved as well:
+
+```@example tut
+SymJ.summation(binomial(n, k), k, 0, n - 1), SymJ.summation(binomial(2n, k), k, 0, n)
+```
+
 The same algorithm solves linear recurrences, `SymJ.rsolve` (not exported), from initial
 values or in terms of them:
 

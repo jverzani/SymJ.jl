@@ -56,18 +56,35 @@
   the coefficients `c_j(n)` of a recurrence `Σ_j c_j(n) S(n+j) = 0` as further
   unknowns of the same linear system. A first-order recurrence is solved as a product
   (factorials, half-integer shifts through `(2n)!/(4^n n!)`, presented as binomials);
-  higher-order ones are not solved yet. The boundary terms vanish only for natural
-  bounds, so each closed form is checked against direct sums for several `n` (and
-  integer values of other parameters), and a failed check leaves the sum unevaluated.
-  A small positive lower bound is the sum from 0 less its first terms. A recurrence of
-  order 2 or 3 is solved by its hypergeometric solutions (Hyper, below), combined to
-  match the sum's first values.
+  a recurrence of order 2 or 3 by its hypergeometric solutions (Hyper, below), combined
+  to match the sum's first values. Each closed form is checked against direct sums for
+  several `n` (and integer values of other parameters); a failed check leaves the sum
+  unevaluated. With the summand's own bounds the recurrence is homogeneous, and that is
+  tried first. Otherwise (an upper bound `s n + t`, `s` a positive integer, a lower one
+  free of `n`) the telescoper `Σ_j c_j F(n+j, k) = G(n, k+1) - G(n, k)`, `G = R F` with
+  `R` from Gosper's solution, summed over `k = a..b(n)`, gives the right side
+  `G(n, b+1) - G(n, a) + Σ_j c_j Σ_{k=b(n)+1}^{b(n+j)} F(n+j, k)`; `G(n, b+1)` is taken
+  through the ratio `F(n, b+1)/F(n, b)` as a rational function, so a zero of `F` there
+  meets a pole of `R`. The inhomogeneous recurrence is made homogeneous as in `rsolve`
+  (below) and solved by Hyper: `Σ_{k=0}^{n-1} binomial(n, k) = 2^n - 1`,
+  `Σ_{k=0}^{n} binomial(n, k)/(k + 1) = (2^{n+1} - 1)/(n + 1)`,
+  `Σ_{k=0}^{n} binomial(2n, k) = (4^n + binomial(2n, n))/2`.
+- **Right sides.** `rsolve` takes `Σ_i p_i y(n+i) = g` with `g` a sum of hypergeometric
+  terms: grouped into classes (a rational ratio between members), each class
+  annihilated in turn by `L ↦ ρ_den(n) L(n+1) - ρ_num(n) L(n)`, which maps every other
+  class `c` to `c (ρ_den ρ_c - ρ_num)` (rational multiples, so still one term each), one
+  order higher per class, then Hyper on the homogeneous recurrence. Powers with shifted
+  exponents are merged in the answer (`8·2^(n - 3)` as `2^n`).
 - **Hyper** (Petkovšek), for `Σ_i p_i(n) y(n+i) = 0`: a hypergeometric solution has
   `y(n+1)/y(n) = Z A(n)/B(n) C(n+1)/C(n)` with `A` a monic factor of `p_0(n)`, `B` of
   `p_d(n-d+1)`; for each pair, `Z` a nonzero root of the leading coefficients of
   `P_i = p_i Π_{j<i} A(n+j) Π_{j≥i} B(n+j)`, and `C` a polynomial solution of
   `Σ Z^i P_i C(n+i) = 0`, its degree bounded by the indicial polynomial of the
   recurrence written in differences (`E = 1 + Δ`), its coefficients from a nullspace.
+  When that finds too few solutions, it is run again with the coefficients' irreducible
+  factors of higher degree split over their roots (radicals), so `A = n - sqrt(2)` can
+  divide `n^2 - 2`; the values used to fit the solution are simplified first, as they
+  have Γ at algebraic shifts.
   Factors are over the rationals. `SymJ.rsolve(eq, y(n), inits...)` reads the
   recurrence, raises a hypergeometric right side `g` to a homogeneous recurrence one
   order higher (`L(y)(n+1) - ρ(n) L(y)(n) = 0`, `ρ = g(n+1)/g(n)`), fits the solutions

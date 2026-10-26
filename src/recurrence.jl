@@ -16,7 +16,7 @@ const _HYPER_MAX_DEGREE = 40
 
 # the hypergeometric solutions, as (ρ, C): y(n) = C(n) Π ρ(j), ρ = Z A/B; nothing when the
 # search is too large
-function _hyper(p::Vector{Sym}, n::Sym)
+function _hyper(p::Vector{Sym}, n::Sym; algebraic::Bool = false)
     while length(p) > 1 && iszero(p[end])
         pop!(p)
     end
@@ -25,8 +25,8 @@ function _hyper(p::Vector{Sym}, n::Sym)
     end
     d = length(p) - 1
     d >= 1 || return Tuple{Sym,Sym}[]
-    As = _monic_divisors(p[1], n)
-    Bs = _monic_divisors(expand(subs(p[end], n => n - d + 1)), n)
+    As = _monic_divisors(p[1], n; algebraic)
+    Bs = _monic_divisors(expand(subs(p[end], n => n - d + 1)), n; algebraic)
     (As === nothing || Bs === nothing || length(As) * length(Bs) > _HYPER_MAX_PAIRS) && return nothing
     Z = Sym(Symbol("_hyper_Z"))
     out = Tuple{Sym,Sym}[]
@@ -61,8 +61,10 @@ function _hyper(p::Vector{Sym}, n::Sym)
     out
 end
 
-# the monic divisors of a polynomial in n over the rationals (its content dropped)
-function _monic_divisors(p::Sym, n::Sym)
+# the monic divisors of a polynomial in n over the rationals (its content dropped); with
+# `algebraic`, its irreducible factors of higher degree split into linear ones over their
+# roots (radicals), when solve finds them all
+function _monic_divisors(p::Sym, n::Sym; algebraic::Bool = false)
     has(p, n) || return [ONE]
     f = factor(p)
     fs = f.kind == MUL ? collect(zip(f.args, f.exps)) : f.kind == POW ? [(f.args[1], f.args[2])] : [(f, ONE)]
@@ -71,6 +73,13 @@ function _monic_divisors(p::Sym, n::Sym)
         has(b, n) || continue
         (e.kind == NUMBER && _isint(e.num)) || return nothing
         lc = _coef(b, n, _xdeg(b, n))
+        if algebraic && _xdeg(b, n) >= 2
+            rs = try solve(b ~ 0, n) catch; Sym[] end
+            if length(rs) == _xdeg(b, n)
+                append!(facs, ((expand(n - r), _toint(e.num)) for r in rs))
+                continue
+            end
+        end
         push!(facs, (expand(b / lc), _toint(e.num)))
     end
     divs = [ONE]
@@ -107,8 +116,22 @@ end
 # Σ_i p_i(n) S(n+i) = 0 with S(m) given by `value(m)`: S as a combination of the
 # hypergeometric solutions, its coefficients from initial values, checked at further n;
 # nothing when the solutions do not span S
+# the solution through Hyper's solutions over the rationals, else over the algebraic
+# roots of the coefficients' factors (A = n - sqrt(2) dividing n^2 - 2)
 function _recurrence_solve(p::Vector{Sym}, n::Sym, value)
-    sols = _hyper(copy(p), n)
+    r = _recurrence_solve(p, n, value, false)
+    r === nothing || return r
+    any(c -> _has_irreducible_nonlinear(c, n), (p[1], p[end])) || return nothing
+    _recurrence_solve(p, n, value, true)
+end
+function _has_irreducible_nonlinear(c::Sym, n::Sym)
+    has(c, n) || return false
+    f = factor(c)
+    fs = f.kind == MUL ? f.args : f.kind == POW ? [f.args[1]] : [f]
+    any(b -> has(b, n) && _xdeg(b, n) >= 2, fs)
+end
+function _recurrence_solve(p::Vector{Sym}, n::Sym, value, algebraic::Bool)
+    sols = _hyper(copy(p), n; algebraic)
     (sols === nothing || isempty(sols)) && return nothing
     # start past the integer zeros and poles of the ratios and of the leading coefficient
     bad = Int[]
@@ -125,7 +148,8 @@ function _recurrence_solve(p::Vector{Sym}, n::Sym, value)
     for m in n0:(n0 + r + 12)
         length(eqs) == r + 2 && break
         v = value(m)
-        v === nothing || push!(eqs, subs(S, n => m) ~ v)
+        # (the solutions' values simplified: Γ of algebraic shifts, factorial(√2 + 2)/factorial(√2 - 1))
+        v === nothing || push!(eqs, _add_many(cs[j] * simplify(subs(hs[j], n => m)) for j in 1:r) ~ v)
     end
     length(eqs) == r + 2 || return nothing
     sol = try solve(eqs, cs) catch; return nothing end
@@ -151,8 +175,8 @@ The solution of a linear recurrence with polynomial coefficients in `n`, such as
 `y(n+2) ~ y(n+1) + y(n)`, as a combination of hypergeometric terms (Petkovšek's
 algorithm Hyper). `inits` are initial values, `y(0) => 0, y(1) => 1`; without them the
 answer is in terms of `y(0), …, y(d-1)` for a recurrence of order `d`. The right side
-may also be a single hypergeometric term in `n` (a polynomial, `2^n`, `n!`). Not
-exported.
+may also be a sum of hypergeometric terms in `n` (polynomials, `2^n`, `n!`, `(-1)^n`).
+Not exported.
 
 An error when the solution is not a combination of hypergeometric terms (or Hyper's
 search for them is too large).
@@ -224,19 +248,8 @@ function rsolve(eq, yn::Sym, inits::Pair...)
         iszero(pd) && return nothing
         vals[m] = expand((subs(g, n => m - d) - _add_many(subs(p[i+1], n => m - d) * prev[i+1] for i in 0:(d - 1))) / pd)
     end
-    # a hypergeometric right side: raised to a homogeneous recurrence one order higher,
-    # L(y)(n+1) ρ_den(n) - L(y)(n) ρ_num(n) = 0 for g(n+1)/g(n) = ρ_num/ρ_den
-    hom = p
-    if !iszero(g)
-        ρ = _hyper_ratio(g, n)
-        ρ === nothing && throw(ArgumentError("rsolve: the right side $g is not a hypergeometric term in $n"))
-        rn, rd = numer_denom(ρ)
-        hom = [ZERO for _ in 0:(d + 1)]
-        for i in 0:d
-            hom[i+2] += expand(rd * subs(p[i+1], n => n + 1))
-            hom[i+1] -= expand(rn * p[i+1])
-        end
-    end
+    hom = _annihilate(p, g, n)
+    hom === nothing && throw(ArgumentError("rsolve: the right side $g is not a sum of hypergeometric terms in $n"))
     sol = _recurrence_solve(hom, n, value)
     sol === nothing && throw(ArgumentError("rsolve: the solution is not a combination of hypergeometric terms"))
     S, n0 = sol
@@ -247,7 +260,73 @@ function rsolve(eq, yn::Sym, inits::Pair...)
         iszero(expand(simplify(subs(S, n => m) - v))) ||
             throw(ArgumentError("rsolve: the solution is not a combination of hypergeometric terms"))
     end
-    S                                              # (y's own index: the shift was only of n)
+    _merge_powers_terms(S)                         # (y's own index: the shift was only of n)
+end
+
+# 8·2^(n - 3) as 2^n, term by term
+function _merge_powers_terms(e::Sym)
+    e.kind == ADD || return _merge_powers(e)
+    r = Sym(e.num) + _add_many(_merge_powers(Sym(c) * t) for (c, t) in zip(e.coefs, e.args))
+    _nodes(r) <= _nodes(e) ? r : e
+end
+
+# Σ p_i y(n+i) = g, g a sum of hypergeometric terms, as a homogeneous recurrence that
+# y satisfies: g's terms grouped into classes (two terms are alike when their ratio is
+# rational in n; a class sums to one hypergeometric term), and each class annihilated in
+# turn by L ↦ ρ_den(n) L(n+1) - ρ_num(n) L(n) for its ratio ρ = ρ_num/ρ_den, which maps
+# the other classes to rational multiples of themselves. One order higher per class;
+# nothing when g is not such a sum.
+function _annihilate(p::Vector{Sym}, g::Sym, n::Sym)
+    hom = p
+    classes = _hyper_classes(g, n)
+    classes === nothing && return nothing
+    while !isempty(classes)
+        h = popfirst!(classes)
+        ρ = _hyper_ratio(h, n)
+        ρ === nothing && return nothing
+        rn, rd = numer_denom(ρ)
+        d = length(hom) - 1
+        new = [ZERO for _ in 0:(d + 1)]
+        for i in 0:d
+            new[i+2] += expand(rd * subs(hom[i+1], n => n + 1))
+            new[i+1] -= expand(rn * hom[i+1])
+        end
+        hom = new
+        # the other classes under the same operator: c ↦ c (ρ_den ρ_c - ρ_num), ρ_c = c(n+1)/c(n)
+        new_classes = Sym[]
+        for c in classes
+            ρc = _hyper_ratio(c, n)
+            ρc === nothing && return nothing
+            q = cancel(rd * ρc - rn)
+            iszero(q) || push!(new_classes, q * c)
+        end
+        classes = new_classes
+    end
+    # common factors of the coefficients removed
+    gc = reduce(gcd, filter(!iszero, hom))
+    has(gc, n) && (hom = [cancel(c / gc) for c in hom])
+    [expand(c) for c in hom]
+end
+
+# the terms of g grouped by ratio (rational in n between members of a class), each class
+# summed; nothing when a term is not hypergeometric
+function _hyper_classes(g::Sym, n::Sym)
+    iszero(g) && return Sym[]
+    g = expand(g)
+    terms = g.kind == ADD ? [Sym(c) * t for (c, t) in zip(g.coefs, g.args)] : [g]
+    g.kind == ADD && !iszero(g.num) && push!(terms, Sym(g.num))
+    classes = Vector{Sym}[]
+    for t in terms
+        _hyper_ratio(t, n) === nothing && return nothing
+        i = findfirst(cl -> _alike(cl[1], t, n), classes)
+        i === nothing ? push!(classes, [t]) : push!(classes[i], t)
+    end
+    [simplify_gamma(_add_many(cl)) for cl in classes]
+end
+function _alike(u::Sym, v::Sym, n::Sym)
+    q = simplify_gamma(cancel(u / v))
+    num, den = numer_denom(q)
+    _ispolyin(num, [n]) && _ispolyin(den, [n])
 end
 
 function _yfactors(t::Sym, yname::Symbol)

@@ -338,7 +338,7 @@ end
 # a constant: powers, logarithms and radicals of numbers
 function _simplify_const(e::Sym, A::Assumptions)
     best = e
-    for g in (simplify_powers, simplify_log, simplify_radicals)
+    for g in (simplify_powers, simplify_log, simplify_radicals, (x; assume) -> simplify_gamma(x))
         c = try g(e; assume = A) catch err; err isa InterruptException && rethrow(); e end
         c = try expand(c) catch; c end
         _nodes(c) < _nodes(best) && (best = c)

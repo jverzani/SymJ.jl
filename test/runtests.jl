@@ -1773,7 +1773,7 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test Σ(binomial(n + k, k) / 2^k, k, 0, n) == 2^n
         @test Σ(binomial(n, k)^2, k, 1, n) == binomial(2n, n) - 1                             # from 1
         # a second-order recurrence (Franel numbers), and bounds that cut the summand off
-        @test Σ(binomial(n, k)^3, k, 0, n).name === :Sum && Σ(binomial(2n, k), k, 0, n).name === :Sum
+        @test Σ(binomial(n, k)^3, k, 0, n).name === :Sum                # Franel: no hypergeometric closed form
         @test Σ(binomial(n, k)^3, k, 0, n)(n => 3) == 56
         # a second-order recurrence with hypergeometric solutions (Hyper): Binet's formula
         fib = Σ(binomial(n - k, k), k, 0, n)
@@ -1781,8 +1781,8 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
     end
 
     @testset "recurrences (Hyper)" begin
-        @syms n y() a
-        R = SymJ.rsolve
+        @syms n y() a k
+        R, Σ = SymJ.rsolve, SymJ.summation
         φ, ψ = (1 + sqrt(Sym(5))) / 2, (1 - sqrt(Sym(5))) / 2
         @test simplify(R(y(n + 2) ~ y(n + 1) + y(n), y(n), y(0) => 0, y(1) => 1) - (φ^n - ψ^n) / sqrt(Sym(5))) == 0
         @test R(y(n + 2) - 4y(n + 1) + 4y(n) ~ 0, y(n), y(0) => 1, y(1) => 4) == (n + 1) * 2^n   # a double root
@@ -1798,6 +1798,21 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test length(SymJ._hyper(Sym[4, -4, 1], n)) == 2
         @test isempty(SymJ._hyper(Sym[-8(n + 1)^2, -(7n^2 + 21n + 16), (n + 2)^2], n))
         @test_throws ArgumentError R((n + 2)^2 * y(n + 2) - (7n^2 + 21n + 16) * y(n + 1) - 8(n + 1)^2 * y(n) ~ 0, y(n), y(0) => 1, y(1) => 2)
+        # a right side that is a sum of hypergeometric terms (one class at a time)
+        @test R(y(n + 1) - y(n) ~ n * 2^n + 3^n, y(n), y(0) => 0) == 2^n * (n - 2) + 3^n / 2 + 3 // 2
+        @test simplify(R(y(n + 2) - y(n) ~ 1 + (-1)^n, y(n), y(0) => 0, y(1) => 0) - (n / 2 + (-1)^n * n / 2)) == 0
+        @test simplify(R(y(n + 1) - 2y(n) ~ n + 2^n, y(n), y(0) => 0) - (2^(n - 1) * n + 2^n - n - 1)) == 0
+        # algebraic factors: A = n - sqrt(2) dividing n^2 - 2
+        @test R(y(n + 2) - (2n + 1) * y(n + 1) + (n^2 - 2) * y(n) ~ 0, y(n), y(0) => 1, y(1) => -sqrt(Sym(2))) ==
+              factorial(n - sqrt(Sym(2)) - 1) / factorial(-sqrt(Sym(2)) - 1)
+        @test simplify(subs(R(y(n + 1) ~ (n^2 - 2) * y(n), y(n), y(0) => 1), n => 3)) == 4
+        # definite sums with bounds other than the summand's own: inhomogeneous recurrences
+        @test Σ(binomial(n, k), k, 0, n - 1) == 2^n - 1 && Σ(binomial(n, k)^2, k, 0, n - 1) == binomial(2n, n) - 1
+        @test Σ(binomial(n, k) / (k + 1), k, 0, n) == (2 * 2^n - 1) / (n + 1)
+        @test Σ(binomial(n, k) * k, k, 1, n - 1) == 2^(n - 1) * n - n
+        @test Σ(binomial(2n, k), k, 0, n) == 4^n / 2 + binomial(2n, n) / 2
+        @test Σ(binomial(n, k) / binomial(2n, k), k, 0, n) == (2n + 1) / (n + 1)
+        @test binomial(n, n + 1) == 0 && binomial(n, n) == 1
         @test_throws ArgumentError R(y(n + 1) ~ y(n)^2, y(n))
         @test_throws ArgumentError R(y(n + 2) ~ y(n + 1) + y(n), y(n), y(1) => 1)
     end
