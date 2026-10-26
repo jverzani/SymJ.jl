@@ -744,6 +744,14 @@ H = SymJ.heaviside
 diff(H(x - 1), x), SymJ.piecewise(abs(x - 1))
 ```
 
+`SymJ.piecewise_fold` combines piecewise functions in a sum, product or other
+expression into one, merging neighbouring pieces that agree; `simplify` does it when
+the result is smaller (a definite integral with a parameter gives such sums):
+
+```@example tut
+SymJ.piecewise_fold(abs(x) + abs(x - 1), x)
+```
+
 ## Limits
 
 `limit(f, x => x0)` is the limit of `f` as `x` tends to `x0`, a number, an expression or
