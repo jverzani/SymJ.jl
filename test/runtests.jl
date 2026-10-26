@@ -2016,7 +2016,11 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test F(H(x) - H(x - 1), x) == P(x ≪ 0 => 0, x ≦ 0 => 1 // 2, x ≪ 1 => 1, x ≦ 1 => 1 // 2, true => 0)
         @test F(max(x, 0) + min(x, 1), x) == P(x ≦ 0 => x, x ≦ 1 => 2x, true => x + 1)
         @syms b
-        @test_throws ArgumentError F(H(x - a) - H(x - b), x)                       # the order of a, b unknown
+        cs = F(H(x - a) - H(x - b), x)                                            # the order of a, b: by cases
+        @test cs isa SymJ.Cases && length(cs) == 3 && cs[a => 1, b => 1].second == 0
+        cs = F(abs(x - a) + abs(x - b), x)
+        @test cs(a => 0, b => 1) == F(abs(x) + abs(x - 1), x) && cs(a => 2, b => 1) == P(x ≦ 1 => 3 - 2x, x ≦ 2 => 1, true => 2x - 3)
+        @test F(abs(x - a) + abs(x), x; assume = @assume(a > 0)) == P(x ≦ 0 => a - 2x, x ≦ a => a, true => 2x - a)
         @test F(H(x - a) - H(x - b), x; assume = @assume(a < b)) == P(x ≪ a => 0, x ≦ a => 1 // 2, x ≪ b => 1, x ≦ b => 1 // 2, true => 0)
         @test_throws ArgumentError F(P(x ≪ 0 => 1, true => 2) + P(a ≪ 0 => 1, true => 2))   # which variable?
         @test F(x^2 + 1, x) == x^2 + 1

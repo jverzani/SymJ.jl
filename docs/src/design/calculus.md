@@ -25,7 +25,9 @@
   take, are rewritten as pieces when it fails on them.
 - **Folding** (`SymJ.piecewise_fold(e, x)`): `heaviside`, `sign`, `abs`, `max`, `min`
   rewritten as pieces, the breakpoints (roots of the conditions) found and ordered, as
-  numbers or by the assumptions (an order not known is an error, not a case split), then
+  numbers or by the assumptions, the parameters taken to be real; an order they do not
+  decide, and a condition they do not decide at a point, are split into cases (the
+  machinery of `Cases`: `a < b`, `a = b`, `a > b`, the equal points merged), then
   the value on each open interval (at a point inside) and at each breakpoint (exactly),
   each condition decided by the sign of its difference under the assumptions. Pieces
   are merged: an interval into the piece before it when the formulas agree, a

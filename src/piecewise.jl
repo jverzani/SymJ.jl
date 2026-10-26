@@ -428,9 +428,10 @@ end
 inside sums, products and other functions, as one piecewise function of `x`: its value
 between consecutive breakpoints (where a condition changes) and at each breakpoint,
 neighbours with the same value merged. Without `x`, the one symbol in the conditions.
-The breakpoints are ordered as numbers, or, with parameters, by the assumptions
-(`assume`, or an [`assuming`](@ref) block); an order that is not known is an
-`ArgumentError`. Not exported.
+The breakpoints are ordered as numbers, or, with parameters (taken to be real), by the
+assumptions (`assume`, or an [`assuming`](@ref) block); when they do not decide an
+order the result is a [`SymJ.Cases`](@ref), a folded function for each (`a < b`,
+`a = b`, `a > b`). Not exported.
 
 ```julia
 @syms x a
@@ -447,6 +448,16 @@ function piecewise_fold(e, x::Sym; assume = nothing)
     A === nothing && (A = Assumptions())
     g = piecewise(Sym(e))                    # heaviside, sign, abs, max, min as piecewise
     _hasfn(g, :dirac) && throw(ArgumentError("piecewise_fold: dirac has no value at its point"))
+    # the parameters of the conditions are real (x ≪ a needs a real a): an order the
+    # assumptions do not decide gives a case for each (a < b, a = b, a > b)
+    ps = Set{Sym}()
+    _pw_condsyms!(ps, g)
+    delete!(ps, x)
+    B = isempty(ps) ? A : _with_fact(A, FactAnd(Any[p ∈ ℝ for p in sort!(collect(ps); by = string)]))
+    _by_cases(C -> _piecewise_fold(g, x, C), B)
+end
+
+function _piecewise_fold(g::Sym, x::Sym, A::Assumptions)
     bps = _pw_breakpoints(g, x, A)
     isempty(bps) && return g
     # segments: (-∞, b₁), b₁, (b₁, b₂), …, bₖ, (bₖ, ∞), each with its value
@@ -459,7 +470,7 @@ function piecewise_fold(e, x::Sym; assume = nothing)
     vals = Sym[]
     for p in pts
         v = _pw_select(g, x, p, A)
-        v === nothing && throw(ArgumentError("piecewise_fold: a condition of $e could not be decided at $x = $p"))
+        v === nothing && throw(ArgumentError("piecewise_fold: a condition of $g could not be decided at $x = $p"))
         push!(vals, simplify(v; assume = A))
     end
     # merge neighbours: an interval into the piece before it when the formulas agree, a
@@ -527,18 +538,18 @@ function _pw_breakpoints(g::Sym, x::Sym, A::Assumptions)
         n.kind == MUL && foreach(visit, n.exps)
     end
     visit(g)
-    # insertion sort: the order of two points from their difference's sign
+    # insertion sort: the order of two points decided (by cases when not known); equal
+    # points are one
     sorted = Sym[]
     for r in out
-        k = 1
+        k, dup = 1, false
         while k <= length(sorted)
-            m = _signs(expand(r - sorted[k]), A)
-            (m === nothing || (m & _NEG != 0 && m & _POS != 0) || m == _ZER) &&
-                throw(ArgumentError("piecewise_fold: the order of $(sorted[k]) and $r is not known; give assumptions"))
-            m & _POS == 0 && break                 # r < sorted[k]
+            d = expand(r - sorted[k])
+            _decide(Relation(:lt, d, ZERO), A) && break                  # r < sorted[k]
+            _decide(Relation(:eq, d, ZERO), A) && (dup = true; break)
             k += 1
         end
-        insert!(sorted, k, r)
+        dup || insert!(sorted, k, r)
     end
     sorted
 end
@@ -558,12 +569,7 @@ function _pw_holds(c::Sym, x::Sym, p::Sym, A::Assumptions)
         return r
     end
     (c.kind == FN && haskey(_COND_RELS, c.name)) || return nothing
-    m = _signs(expand(c.args[1] - c.args[2]), A)
-    m === nothing && return nothing
-    ok = Dict(:lt => _NEG, :le => _NEG | _ZER, :gt => _POS, :ge => _POS | _ZER, :eq => _ZER, :ne => _NEG | _POS)[_COND_RELS[c.name]]
-    m & ~ok == 0 && return true
-    m & ok == 0 && return false
-    nothing
+    _decide(Relation(_COND_RELS[c.name], expand(c.args[1] - c.args[2]), ZERO), A)
 end
 
 # g with each piecewise in x replaced by its piece at x = p (conditions decided there)

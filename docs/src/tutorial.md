@@ -752,6 +752,13 @@ the result is smaller (a definite integral with a parameter gives such sums):
 SymJ.piecewise_fold(abs(x) + abs(x - 1), x)
 ```
 
+With parameters whose order is not known, the answer is by cases:
+
+```@example tut
+@syms a b
+SymJ.piecewise_fold(abs(x - a) + abs(x - b), x)
+```
+
 ## Limits
 
 `limit(f, x => x0)` is the limit of `f` as `x` tends to `x0`, a number, an expression or

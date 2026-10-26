@@ -168,8 +168,8 @@ transforms). Of the rest, in rough order of value for calculus-level use:
    non-natural bounds, and A, B factors needing algebraic numbers.
 3. **Piecewise functions, Heaviside and Dirac**: done, with `SymJ.piecewise_fold`
    combining sums and products of them into one (and `simplify` doing so when smaller).
-   Breakpoints with several parameters are ordered by the assumptions; open: splitting
-   into cases when the assumptions do not order them.
+   Breakpoints with several parameters are ordered by the assumptions, and split into
+   cases (a `Cases`) when the assumptions do not order them.
 4. **Definite integrals done properly**: improper integrals through `limit`, and
    detecting singularities inside the interval, building on RischIntegrate's
    antiderivatives.
