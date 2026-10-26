@@ -1121,6 +1121,18 @@ and a finalizer per operation), which dominates the small benchmarks.
   it (`Derivative(y(x), x)` with `y(x) => sin(x)` is `cos(x)`). `y'` on a `SymFunction`
   builds these, so initial conditions read `y'(0) => 1`, and a derivative at a point
   prints the same way (`y''(0)`, not `Derivative(Derivative(y(x), x), x, 0)`).
+- **Series solutions** (`series = n`, about `x0`). At an ordinary point, the equation
+  solved for `y⁽ᵏ⁾ = f`: the first `k` Taylor coefficients are constants (or initial
+  values), and each next `cₘ` is the coefficient of `tᵐ⁻ᵏ` in the series of
+  `f(x₀ + t, y, …)` with the coefficients so far, which is all it depends on. This is
+  the series code doing the work, so nonlinear equations need nothing more. A pole or a
+  fractional power in that series marks a singular point. There, for a second-order
+  linear homogeneous equation with `t p(t)`, `t² q(t)` analytic, Frobenius: the
+  indicial equation, the recurrence for `aₘ(r)` with `r` a symbol (rational functions,
+  cancelled), and for the second solution `∂/∂r` of `tʳ Σ aₘ(r) tᵐ` (equal roots) or of
+  `(r - r₂) tʳ Σ aₘ(r) tᵐ` (roots an integer apart) at `r₂`, which is where the `log t`
+  term comes from. Each series is checked: its residual is `O(tⁿ⁻ᵏ)` (Frobenius: over
+  `a₂/t²`, `O(t^(r₂ + n))`).
 - **Systems.** `SymJ.dsolve([eq₁, …], [y₁(t), …], ics...)`, linear with constant
   coefficients. The highest derivative of each unknown is solved for (the matrix of
   their coefficients must be invertible: the system in normal form), and the system made
