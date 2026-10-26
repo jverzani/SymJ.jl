@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=c2b31f5b">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=40f78454">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -1474,6 +1474,16 @@ SymJ.dsolve(y&#39;(x) + 2y(x) ~ exp(x), y(x))</code></pre>
 \[\left( y\left( x \right) = \frac{-2}{x^{2} + C1}, \; y\left( x \right) = \left( C1 + \log\left( x \right) \right) \cdot x \right)\]
 </div>
 </div>
+<p>A Riccati equation, <code class="md-code-inline">y&#39; = q₀ + q₁ y + q₂ y²</code>, is made linear (of second order), or solved from a particular solution:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.dsolve(y&#39;(x) ~ y(x)^2 - 2 / x^2, y(x))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[y\left( x \right) = \frac{-2 \cdot x^{3} + C1}{x^{4} + C1 \cdot x}\]
+</div>
+</div>
 <p>When <code class="md-code-inline">y</code> cannot be solved for, the solution is implicit:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -1513,6 +1523,16 @@ SymJ.dsolve(y&#39;(x) + 2y(x) ~ exp(x), y(x))</code></pre>
 \[y\left( x \right) = C2 \cdot x^{2} + \frac{C1}{x}\]
 </div>
 </div>
+<p>An equation of second order without <code class="md-code-inline">x</code>, <code class="md-code-inline">y&#39;&#39; = f(y, y&#39;)</code>, is reduced to first order with <code class="md-code-inline">p = y&#39;</code> as a function of <code class="md-code-inline">y</code>:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.dsolve(y(x) * y&#39;&#39;(x) ~ y&#39;(x)^2, y(x))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[y\left( x \right) = e^{C1 \cdot \left( C2 + x \right)}\]
+</div>
+</div>
 <p>Initial conditions, one for each order, fix the constants:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -1531,6 +1551,27 @@ SymJ.dsolve(y&#39;(x) + 2y(x) ~ exp(x), y(x))</code></pre>
 <div class="md-math md-math-display">
 \[y\left( x \right) = \sqrt{ - x^{2} + 4}\]
 </div>
+</div>
+<p>A system of linear equations with constant coefficients is given as vectors of equations and unknowns. The answer is a vector of equations:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms t u() v()
+SymJ.dsolve([u&#39;(t) ~ u(t) - v(t), v&#39;(t) ~ 5u(t) - 3v(t)], [u(t), v(t)])</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">2-element Vector{Relation}:
+ u(t) ~ (2*C1*cos(t) - C1*sin(t) - C2*cos(t) - 2*C2*sin(t))/(5*exp(t))
+ v(t) ~ (C1*cos(t) - C2*sin(t))/exp(t)</code></pre>
+</div>
+<p>Higher derivatives, right sides and initial conditions (one for each unknown and each order below its highest) are allowed:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.dsolve([u&#39;&#39;(t) + v(t) ~ 0, v&#39;(t) ~ u(t) + t], [u(t), v(t)], u(0) =&gt; 1, u&#39;(0) =&gt; 0, v(0) =&gt; 0)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">2-element Vector{Relation}:
+ u(t) ~ -t + sqrt(3)*(sin(sqrt(3)*t/2) + sqrt(3)*cos(sqrt(3)*t/2))*exp(t/2)/3
+ v(t) ~ 2*sqrt(3)*sin(sqrt(3)*t/2)*exp(t/2)/3</code></pre>
 </div>
 <h2 id="Pattern-matching" class="md-heading">Pattern matching<a href="#Pattern-matching" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p><code class="md-code-inline">SymJ.pattern</code> (not exported) makes a pattern from a quoted expression, with <code class="md-code-inline">~x</code> marking a slot. <code class="md-code-inline">match</code> gives the first match as a <code class="md-code-inline">Dict</code>, <code class="md-code-inline">eachmatch</code> every match, and <code class="md-code-inline">occursin</code> whether a part of an expression matches:</p>
@@ -1665,6 +1706,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=c2b31f5b"></script>
+  <script src="../assets/materialdocs.js?v=40f78454"></script>
 </body>
 </html>
