@@ -115,12 +115,39 @@ _fn_operation(name::Symbol) =
 ## helpers for rules
 
 # Would `-x` print more simply than `x`? Exactly one of `x`, `-x` answers true (or both
-# false), which makes it usable to canonicalize odd and even functions.
+# false), which makes it usable to canonicalize odd and even functions. A sum is asked
+# about the term it prints first (show.jl's order, which ignores signs), so sin(y - x)
+# becomes -sin(x - y), not -sin(-x + y).
 function _could_extract_minus(x::Sym)
     k = x.kind
     (k == NUMBER || k == MUL) && return sign(x.num) < 0
-    k == ADD && return iszero(x.num) ? sign(x.coefs[1]) < 0 : sign(x.num) < 0
+    k == ADD && return sign(x.coefs[_first_printed(x)]) < 0
     false
+end
+
+# the index of the term of a sum printed first: the highest degree, then the printed form
+function _first_printed(x::Sym)
+    best, deg = 1, _degree(x.args[1])
+    tie = false
+    for i in 2:length(x.args)
+        d = _degree(x.args[i])
+        d > deg ? ((best, deg, tie) = (i, d, false)) : d == deg && (tie = true)
+    end
+    tie || return best
+    if all(a -> a.kind == SYMBOL || _degree(a) != deg, x.args)   # names compare as printed
+        best = 0
+        for i in eachindex(x.args)
+            _degree(x.args[i]) == deg && (best == 0 || isless(x.args[i].name, x.args[best].name)) && (best = i)
+        end
+        return best
+    end
+    key = nothing
+    for i in eachindex(x.args)
+        _degree(x.args[i]) == deg || continue
+        s = _sortstring(x.args[i])
+        (key === nothing || s < key) && ((best, key) = (i, s))
+    end
+    best
 end
 
 # x == r*π for an exact rational r
