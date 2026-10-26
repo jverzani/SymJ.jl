@@ -507,9 +507,8 @@ function _pm_slots(p::_PNode, order::Vector{_PNode}, i::Int, s::Sym, elems::Vect
     sl = order[i]
     old = _getb(B, sl.name)
     if old !== nothing                       # a bound slot takes its value's elements
-        old isa Sym || return false
+        old isa Sym || return false          # (none for 1 in a product, 0 in a sum)
         parts = p.kind == _P_ADD ? _add_parts(sl.num == N1 ? old : Sym(sl.num) * old) : _mul_slot_parts(old)
-        isempty(parts) && !_zero_ok(sl) && return false
         idx = Int[]
         for v in parts
             j = findfirst(jj -> !used[jj] && !(jj in idx) && _eq(elems[jj], v), eachindex(elems))
@@ -777,13 +776,13 @@ end
 
 # rules indexed by what their left side can match: those whose left side is a function
 # application (or a literal one) only at function nodes of that name, head slots only at
-# function nodes, the rest everywhere; each list keeps the rules' order
+# function nodes, the rest everywhere; each list keeps the rules' order. The lists are
+# built once, so a set can be shared (as simplify's is).
 struct _RuleSet
     rules::Vector{Rule}
     generic::Vector{Int}
-    anyfn::Vector{Int}
-    byname::Dict{Symbol,Vector{Int}}
-    merged::Dict{Symbol,Vector{Int}}   # per function name, the three lists merged
+    anyfn::Vector{Int}                 # at a function node with no rules for its name
+    byname::Dict{Symbol,Vector{Int}}   # per function name, all three kinds merged
 end
 
 function _RuleSet(rules::Vector{Rule})
@@ -798,15 +797,13 @@ function _RuleSet(rules::Vector{Rule})
             push!(generic, i)
         end
     end
-    _RuleSet(rules, generic, anyfn, byname, Dict{Symbol,Vector{Int}}())
+    for (name, is) in byname
+        byname[name] = sort!(vcat(is, anyfn, generic))
+    end
+    _RuleSet(rules, generic, sort!(vcat(anyfn, generic)), byname)
 end
 
-function _candidates(R::_RuleSet, e::Sym)
-    e.kind == FN || return R.generic
-    get!(R.merged, e.name) do
-        sort!(vcat(get(R.byname, e.name, Int[]), R.anyfn, R.generic))
-    end
-end
+_candidates(R::_RuleSet, e::Sym) = e.kind == FN ? get(R.byname, e.name, R.anyfn) : R.generic
 
 function _rw_at(R::_RuleSet, e::Sym, changed::Ref{Bool})
     for i in _candidates(R, e)
@@ -843,8 +840,10 @@ function rewrite(ex, rules...; order::Symbol = :post, fixpoint::Bool = true, max
         r isa Rule ? push!(rs, r) : append!(rs, r)
     end
     order in (:post, :pre) || throw(ArgumentError("rewrite: order is :post or :pre, not $order"))
-    R = _RuleSet(rs)
-    e = _matchsubject(ex)
+    _rewrite(_RuleSet(rs), _matchsubject(ex), order, fixpoint, maxsteps)
+end
+
+function _rewrite(R::_RuleSet, e::Sym, order::Symbol = :post, fixpoint::Bool = true, maxsteps::Integer = 100)
     for _ in 1:(fixpoint ? maxsteps : 1)
         changed = Ref(false)
         e = order === :post ? _rw_post(R, e, changed) : _rw_pre(R, e, changed)

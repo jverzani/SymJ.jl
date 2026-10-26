@@ -1111,8 +1111,8 @@ and a finalizer per operation), which dominates the small benchmarks.
 
 ## Pattern matching
 
-The design, and the decisions behind it, are in `notes/pattern_matching.md`; stages 1–3,
-the matcher, rules and their speed, are done.
+The design, and the decisions behind it, are in `notes/pattern_matching.md`; stages 1–4,
+the matcher, rules, their speed and their first use in `simplify`, are done.
 
 - **Patterns are expressions.** `SymJ.pattern(:(…))` reads a quoted expression with
   SymJ's arithmetic, a slot `~x` being a private function node `_slot(x, flavor)` and a
@@ -1153,6 +1153,13 @@ the matcher, rules and their speed, are done.
 - **Speed.** On ACPM's 62 benchmark cases the first match takes a median 0.78 μs and at
   most 3.6 μs (ACPM's associative-commutative matcher: 13.1 and 628 μs). A 66-rule set
   rewrites a 30-term expression in 0.43 ms.
+- **Use in `simplify`.** For an expression with trigonometric or hyperbolic functions,
+  `simplify` adds three candidates: a small rule set (`src/simprules.jl`) for the
+  identities the trig normal form does not reach (`(1 - cos(2x))/2 = sin(x)^2`,
+  `sin(x)/(1 + cos(x)) = tan(x/2)`), `expand_trig`, and `expand_trig` then
+  `simplify_rational`. Each is kept only when it is smaller, so `simplify` stays
+  size-based. A rule for `cos(2u)` asks with a predicate that the 2 be written:
+  otherwise coefficient division would match `cos(x)` as `cos(2 * (x/2))`.
 
 ## Not yet done / open questions
 

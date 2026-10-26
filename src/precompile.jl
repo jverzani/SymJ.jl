@@ -54,7 +54,7 @@ using PrecompileTools: @setup_workload, @compile_workload
         simplify(sin(x)^2 + cos(x)^2); simplify(1 - cos(x)^2); simplify(2sin(x) * cos(x))
         simplify(sin(x) * cos(y) + cos(x) * sin(y)); simplify(tan(x) * cos(x))
         simplify(cosh(x)^2 - sinh(x)^2); simplify(exp(x) + exp(-x)); simplify(log(Sym(2)) + log(Sym(3)))
-        simplify(sqrt(3 + 2sqrt(Sym(2))))
+        simplify(sqrt(3 + 2sqrt(Sym(2)))); simplify((1 - cos(2x)) / 2); simplify(sin(x) / (1 + cos(x)))
         SymJ.expand_trig(sin(x + y)); SymJ.expand_trig(cos(3x)); SymJ.expand_trig(tan(2x)); SymJ.expand_trig(sinh(2x))
         SymJ.expand_log(log(x^2 * y); force = true)
         SymJ.simplify_gamma(factorial(x + 2) / factorial(x)); SymJ.simplify_gamma(binomial(x + 1, y) / binomial(x, y))

@@ -1968,6 +1968,23 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         rs = SymJ.@rule sin(~x) => tan(~x)
         @test replace(sin(t), rh, rs) == cos(t) && replace(sin(t), rs, rh) == tan(t)
         @test replace(sin(t) + h(t), rs, rh) == tan(t) + h(t) && R(sin(t)^3, SymJ.@rule((~x)^3 => ~x)) == sin(t)
+        # a bound slot whose value is 1 takes no factors in a product
+        @test match(SymJ.pattern(:(h(~c, ~c * a))), h(1, a)) == Dict(:c => 1)
+        @test match(SymJ.pattern(:(~!c - ~!c * a)), 1 - a) == Dict(:c => 1)
+    end
+
+    @testset "simplify with rules" begin
+        @syms t a b
+        @test simplify((1 - cos(2t)) / 2) == sin(t)^2 && simplify((1 + cos(2t)) / 2) == cos(t)^2
+        @test simplify(3 - 3cos(2t) + a) == a + 6sin(t)^2 && simplify((cosh(2t) - 1) / 2) == sinh(t)^2
+        @test simplify(sin(t) / (1 + cos(t))) == tan(t / 2) && simplify((1 - cos(t)) / sin(t)) == tan(t / 2)
+        @test simplify(a * sin(t) / (1 + cos(t))) == a * tan(t / 2)
+        @test simplify(1 - cos(t)) == 1 - cos(t)                 # not 2sin(t/2)^2, which is larger
+        @test simplify(sin(t + a) - cos(a) * sin(t)) == cos(t) * sin(a)
+        # exp(u) and radicands are simplified as function arguments are
+        @test simplify(exp(sin(t)^2 + cos(t)^2)) == Sym(ℯ) && simplify(sqrt(1 - sin(t)^2)) == sqrt(cos(t)^2)
+        @test simplify(t * exp(t^2 + 2t + 1 - (t + 1)^2)) == t
+        @test SymJ._halvable(2t) && SymJ._halvable(2t + 4a) && !SymJ._halvable(t) && !SymJ._halvable(2t + 1)
     end
 
     @testset "ambiguities" begin

@@ -4,7 +4,8 @@ A proposal, written 2026-10-25, for pattern matching in SymJ: patterns with wild
 matching against expressions, and rules that rewrite with the matches. The questions
 the first draft left open were settled the same day; the answers are folded in, and
 listed at the end. Stages 1–3, the matcher, rules and speed, are implemented in
-`src/patterns.jl`; see the "as built" sections at the end.
+`src/patterns.jl`, and stage 4, rules in `simplify`, in `src/simprules.jl`; see the
+"as built" sections at the end.
 
 ## Decision: inside SymJ, with the SymbolicUtils syntax
 
@@ -364,7 +365,8 @@ near 18.
 - **Rule sets are indexed.** `rewrite` sorts its rules once into those whose left side is
   a function application (keyed by the name), head slots (any function node) and the
   rest; at a node it tries only the rules that could match there, in their original
-  order (the merged list per function name is cached for the call).
+  order. The merged list per function name is built with the set, so a set can be
+  shared, as `simplify`'s is (stage 4).
 - **A quick reject** runs before any search state is allocated: the head, a function's
   arity (unless a sequence slot is among its arguments), whether a power is a power, and
   whether a sum or product has as many terms or factors as the pattern needs.
@@ -382,3 +384,35 @@ near 18.
   the remaining cost is mostly building the subject's element lists and the bound
   values, which generated code would still do. Not worth it until a real rule set shows
   the matcher as the bottleneck.
+
+## Stage 4 as built
+
+`src/simprules.jl` and `_simplify` in `src/simplify.jl`, 2026-10-26.
+
+- **Gaps first.** A probe of 44 trigonometric and hyperbolic expressions found the
+  existing `simplify_trig` (a normal form modulo `sin^2 + cos^2 = 1`, with products
+  linearized) already handles most identities. What it misses: power reduction read
+  backwards (`(1 - cos(2x))/2`), half angles (`sin(x)/(1 + cos(x))`), forms that need
+  expanding first (`sin(x + y) - cos(y)*sin(x)`), and arguments of `exp` and of roots,
+  which are powers and were not simplified as function arguments are.
+- **The rules** are seven: four for power reduction (trig and hyperbolic) and three for
+  half angles, as one `_RuleSet` built when the package loads. They are a candidate
+  together with `expand_trig` and `simplify_rational ∘ expand_trig`, all only for
+  expressions with a trig or hyperbolic function; a candidate is kept only when smaller.
+  `tan(x) + cot(x) = 2csc(2x)` was tried and dropped: the right side is larger.
+- **Lessons for writing rules.**
+  - Coefficient division (decision 2) makes `cos(2 * ~u)` match `cos(x)` with
+    `u => x/2`. Bottom up, that rewrote `1 + cos(x)` inside `sin(x)/(1 + cos(x))`
+    before the half-angle rule could see it, and a rule `cos(2 * ~u) => …` loops. The
+    rules use `cos(~v::_halvable)`, a predicate that the factor 2 is written.
+  - A one-or-more slot takes no implicit coefficient 1: `~c - ~c * cos(…)` misses
+    `1 - cos(2x)`, as `~c * cos(…)` is matched (with `c` free) before `~c`. The rules
+    use `~!c`, whose default in a product is 1.
+  - A constant is not split: `~!c - ~!c * cos(2x) + ~!r` misses `2 + y - cos(2x)`.
+- **A matcher fix.** A bound slot whose value is 1 in a product now takes no factors
+  (`h(~c, ~c * a)` matches `h(1, a)`). The sum analogue, a bound 0, is still turned away
+  by the quick reject, which does not see bindings.
+- **Effect.** Seven of the probe's expressions simplify further; none changes otherwise.
+  The probe takes 12.6 ms instead of 11.1 ms (best of five, loaded machine): about
+  11 μs per expression for the rules and 7 μs for the two expansions. Expressions
+  without trig functions skip all three; a 17-case set of them is unchanged in time.
