@@ -1845,6 +1845,39 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test_throws ArgumentError D(y'(x) - y(x), y(x))
     end
 
+    @testset "Laplace transforms" begin
+        @syms t s w y() u() v()
+        H, δ = SymJ.heaviside, SymJ.dirac
+        L(f) = SymJ.laplace_transform(f, t, s)
+        IL(F) = SymJ.inverse_laplace_transform(F, s, t)
+        C1, C2 = Sym(:C1), Sym(:C2)
+        @test L(Sym(1)) == 1 / s && L(t^3) == 6 / s^4 && L(exp(2t)) == 1 / (s - 2) && L(sin(3t)) == 3 / (s^2 + 9)
+        @test L(cos(w * t)) == s / (s^2 + w^2) && L(sinh(t)) == 1 / (s^2 - 1) && L(t * sin(t)) == 2s / (s^2 + 1)^2
+        @test L(exp(-t) * cos(2t)) == (s + 1) / (s^2 + 2s + 5) && L(sqrt(t)) == SymJ.apply_function(:gamma, Sym[Sym(3 // 2)]) / s^(3 // 2)
+        @test L(H(t - 1)) == exp(-s) / s && L(δ(t - 3)) == exp(-3s) && L(δ(t)) == 1 && L(H(t - 1) * exp(t)) == exp(1 - s) / (s - 1)
+        @test IL(1 / (s^2 + 2s + 5)) == sin(2t) / (2exp(t)) && IL(1 / (s^2 * (s^2 + 1))) == t - sin(t)
+        @test IL((s + 1) / (s^2 + 2s + 5)^2) == t * sin(2t) / (4exp(t)) && IL(1 / (s^2 - 2)) == sqrt(Sym(2)) * sinh(sqrt(Sym(2)) * t) / 2
+        @test IL(exp(-2s) / s^2) == H(t - 2) * (t - 2) && IL(s / (s + 1)) == δ(t) - exp(-t)
+        for f in (t^2 * exp(-t), cos(3t) - 2sin(t), exp(2t) * sin(t), t * cosh(t))
+            @test iszero(simplify(IL(L(f)) - f))
+        end
+        @test_throws ArgumentError L(log(t))
+        @test_throws ArgumentError IL(s^2)
+        # dsolve: chosen for a right side with heaviside or dirac, or with method = :laplace
+        D = SymJ.dsolve
+        @test D(y''(t) + y(t) ~ H(t - 1), y(t), y(0) => 0, y'(0) => 0).rhs == (1 - cos(t - 1)) * H(t - 1)
+        @test D(y''(t) + 4y(t) ~ δ(t - 2), y(t), y(0) => 0, y'(0) => 0).rhs == H(t - 2) * sin(2t - 4) / 2
+        @test D(y'(t) + y(t) ~ H(t - 1) - H(t - 2), y(t), y(0) => 0).rhs == (1 - exp(1 - t)) * H(t - 1) + (exp(2 - t) - 1) * H(t - 2)
+        @test D(y''(t) + y(t) ~ H(t - 1), y(t)).rhs == C1 * cos(t) + C2 * sin(t) + (1 - cos(t - 1)) * H(t - 1)
+        @test D(y''(t) + y(t) ~ H(t - 1), y(t), y(1) => 0, y'(1) => 0).rhs == 1 - cos(t - 1)          # shifted to the point
+        @test D(y''(t) + 3y'(t) + 2y(t) ~ exp(-t), y(t), y(0) => 1, y'(0) => 0; method = :laplace).rhs == (t + 1) / exp(t)
+        @test_throws ArgumentError D(y''(t) - t * y(t) ~ 0, y(t); method = :laplace)
+        @test_throws ArgumentError D(y'(t) ~ y(t), y(t); method = :fourier)
+        r = D([u'(t) ~ v(t), v'(t) ~ -u(t) + H(t - 1)], [u(t), v(t)], u(0) => 0, v(0) => 0)
+        @test [q.rhs for q in r] == [(1 - cos(t - 1)) * H(t - 1), H(t - 1) * sin(t - 1)]
+        @test [q.rhs for q in D([u'(t) ~ v(t), v'(t) ~ -u(t)], [u(t), v(t)], u(0) => 1, v(0) => 0; method = :laplace)] == [cos(t), -sin(t)]
+    end
+
     @testset "systems of differential equations" begin
         @syms t a u() v() w()
         D = SymJ.dsolve

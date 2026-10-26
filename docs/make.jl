@@ -39,7 +39,7 @@ const REFERENCE = [
     (title = "Piecewise functions", file = "piecewise",
      files = ["piecewise.jl"]),
     (title = "Calculus", file = "calculus",
-     files = ["limit.jl", "calculus.jl", "series.jl"]),
+     files = ["limit.jl", "calculus.jl", "series.jl", "laplace.jl"]),
     (title = "Differential equations", file = "ode",
      files = ["ode.jl"]),
     (title = "Pattern matching", file = "patterns",

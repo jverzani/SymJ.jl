@@ -12,7 +12,9 @@
 #   from a particular solution);
 # - autonomous, y'' = f(y, y'): p = y' as a function of y, then ∫ dy/p = x + C₂.
 #
-# With `series = n`, a series solution instead ("series solutions", at the end).
+# With `series = n`, a series solution instead ("series solutions", at the end); with
+# method = :laplace, or heaviside or dirac on the right side, Laplace transforms
+# (laplace.jl).
 #
 # Systems, linear with constant coefficients, are at the end ("systems").
 #
@@ -29,6 +31,12 @@ solution `φ(x, y(x)) ~ C1` when `y` cannot be solved for.
 
 Initial conditions are pairs, one for each order: `y(0) => 1, y'(0) => 0`. They fix the
 constants.
+
+With `method = :laplace`, a linear equation with constant coefficients is solved by
+Laplace transforms ([`SymJ.laplace_transform`](@ref)); this is the method used, without
+asking, when the right side has [`SymJ.heaviside`](@ref) or [`SymJ.dirac`](@ref). The
+initial conditions (constants for those not given) are at one point, and the solution
+holds from there on.
 
 With `series = n`, the solution is a series about `x0` (the point of the initial
 conditions, else `0`) with error `O((x - x0)^n)`, returned as the truncated sum. At an
@@ -73,10 +81,23 @@ SymJ.dsolve([u'(t) ~ v(t), v'(t) ~ -u(t)], [u(t), v(t)], u(0) => 1, v(0) => 0)
 # [u(t) ~ cos(t), v(t) ~ -sin(t)]
 ```
 """
-function dsolve(eq::Relation, yx::Sym, ics::Pair...; series::Union{Nothing,Integer} = nothing, x0 = nothing)
+function dsolve(eq::Relation, yx::Sym, ics::Pair...; series::Union{Nothing,Integer} = nothing, x0 = nothing,
+                method::Symbol = :auto)
+    method in (:auto, :laplace) || throw(ArgumentError("dsolve: method is :auto or :laplace, not $method"))
     P = _ode_parse(eq, yx)
     Cs = _ode_constants(P.n, eq)
     series === nothing || return yx ~ _ode_series(P, Cs, series, x0, [_ode_ic(p, P) for p in ics])
+    # Laplace transforms: asked for, or a right side with heaviside or dirac
+    if method === :laplace || (_hasfn(P.F, :heaviside) || _hasfn(P.F, :dirac))
+        conds = [_ode_ic(p, P) for p in ics]
+        isempty(ics) || length(ics) == P.n || throw(ArgumentError("dsolve: give $(P.n) initial condition$(P.n == 1 ? "" : "s"), one for each order"))
+        S = try _ode_laplace(P, Cs, conds) catch err; err isa ArgumentError || rethrow(); nothing end
+        if S !== nothing
+            _ode_verified(P, :explicit, S, Cs) || throw(ArgumentError("dsolve: the solution found does not satisfy $(eq)"))
+            return yx ~ S
+        end
+        method === :laplace && throw(ArgumentError("dsolve: no Laplace transform solution for $(eq) (linear, constant coefficients, transformable right side)"))
+    end
     sol = _ode_solve(P, Cs)
     sol === nothing && throw(ArgumentError("dsolve: no method for $(eq)"))
     kind, S = sol
@@ -788,7 +809,8 @@ end
 # particular solution is P exp(J t) ∫ exp(-J t) P⁻¹ F dt, the integrand taken to
 # complex exponentials, where t^k e^(a t) integrates in closed form.
 
-function dsolve(eqs::AbstractVector, yxs::AbstractVector, ics::Pair...)
+function dsolve(eqs::AbstractVector, yxs::AbstractVector, ics::Pair...; method::Symbol = :auto)
+    method in (:auto, :laplace) || throw(ArgumentError("dsolve: method is :auto or :laplace, not $method"))
     all(e -> e isa Relation, eqs) || throw(ArgumentError("dsolve: give equations, `lhs ~ rhs`"))
     length(eqs) == length(yxs) || throw(ArgumentError("dsolve: give as many equations as unknowns"))
     yxs = Sym[Sym(y) for y in yxs]
@@ -797,6 +819,12 @@ function dsolve(eqs::AbstractVector, yxs::AbstractVector, ics::Pair...)
     M, F, Z = _odesys_first_order(Fs, Ys, t)
     N = length(Z)
     Cs = _ode_constants(N, eqs)
+    if method === :laplace || any(f -> _hasfn(f, :heaviside) || _hasfn(f, :dirac), F)
+        isempty(ics) || length(ics) == N || throw(ArgumentError("dsolve: give $N initial conditions, one for each unknown and order below its highest"))
+        S = _odesys_laplace(M, F, Z, Ys, yxs, Cs, t, ics)
+        _odesys_verified(Fs, Ys, S, t) || throw(ArgumentError("dsolve: the solution found does not satisfy the equations"))
+        return [y ~ v for (y, v) in zip(yxs, S)]
+    end
     Φ, Ψ, ΨinvF = _odesys_fundamental(M, F, t)
     yp = Ψ === nothing ? zeros(Sym, N) : _odesys_particular(Φ, Ψ, ΨinvF, F, t)
     sol = [_ode_tidy(sum(Φ[i, j] * Cs[j] for j in 1:N) + yp[i]) for i in 1:N]
@@ -1193,5 +1221,28 @@ function _ode_frobenius(P::_ODE, Cs, N::Integer, a::Sym)
         end
     end
     Cs[1] * y1 + Cs[2] * y2
+end
+
+# Z' = M Z + F by Laplace transforms: Z(s) = (sI - M)⁻¹ (Z(a) + L{F}), Z(a) the initial
+# conditions (constants for those not given), t shifted to their point a
+function _odesys_laplace(M, F, Z, Ys, yxs, Cs, t, ics)
+    N = length(Z)
+    Z0 = Sym[Cs[i] for i in 1:N]
+    a = ZERO
+    for (k, p) in enumerate(ics)
+        c = _ode_ic_parts(Sym(p.first))
+        j = c === nothing ? nothing : findfirst(y -> y.name === c[1], yxs)
+        j === nothing && throw(ArgumentError("dsolve: an initial condition is y(a) => v or y'(a) => v for an unknown y; got $(p)"))
+        k == 1 && (a = c[3])
+        _eq(c[3], a) || throw(ArgumentError("dsolve: the initial conditions are at one point"))
+        i = findfirst(z -> _eq(z, Ys[j][c[2] + 1]), Z)
+        i === nothing && throw(ArgumentError("dsolve: $(p.first) is not below the highest derivative of $(yxs[j])"))
+        Z0[i] = Sym(p.second)
+    end
+    s = Sym(:_ode_s)
+    Fs = Sym[laplace_transform(subs(f, t => t + a), t, s) for f in F]
+    R = map(cancel, inv(s * Matrix{Sym}(LinearAlgebra.I, N, N) - M))
+    Zs = R * (Z0 + Fs)
+    [_ode_tidy(subs(inverse_laplace_transform(Zs[findfirst(z -> _eq(z, Ys[j][1]), Z)], s, t), t => t - a)) for j in eachindex(yxs)]
 end
 
