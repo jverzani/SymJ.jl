@@ -3,8 +3,8 @@
 A proposal, written 2026-10-25, for pattern matching in SymJ: patterns with wildcards,
 matching against expressions, and rules that rewrite with the matches. The questions
 the first draft left open were settled the same day; the answers are folded in, and
-listed at the end. Stage 1, the matcher, is implemented in `src/patterns.jl`; see
-"Stage 1 as built" at the end.
+listed at the end. Stages 1–3, the matcher, rules and speed, are implemented in
+`src/patterns.jl`; see the "as built" sections at the end.
 
 ## Decision: inside SymJ, with the SymbolicUtils syntax
 
@@ -330,3 +330,55 @@ except in six cases, all from the decisions above: `~x + ~x` matches `2a` (Symbo
 stores `a + a` as `2a` too, but `ac` doesn't match it) and `a + b` (`x => a/2 + b/2`);
 `~!a` may take no factor (`~!a * ~x` against `3x` also gives `a => 1, x => 3x`); and
 default exponents also match a power as a whole.
+
+## Stage 2 as built
+
+`src/patterns.jl`, 2026-10-25: `SymJ.@pattern`, `SymJ.@rule`, `SymJ.rule`, `SymJ.Rule`,
+`SymJ.rewrite` and a method of `replace`, with 21 tests.
+
+- **`@pattern` and `@rule`** quote the left side with each predicate interpolated, so
+  predicates (and any `$v` the user writes) are evaluated where the macro is called.
+  Names in a pattern are symbols: `a` is `Sym(:a)`, and a value goes in as `$a`. The
+  right side of `@rule` is ordinary Julia code in the caller's scope, `~x` becoming the
+  bound value. The pattern is built each time the macro's code runs, so a rule in a
+  function body is better made once, as a `const`.
+- **Rejected matches.** A right side that gives `nothing` sends the search on to the next
+  match, inside the same backtracking search, so `@rule ~x * ~y => (isinteger(~x) ?
+  nothing : ~x)` against `2a` gives `a`.
+- **`SymJ.rule(lhs => rhs)`** makes a rule at run time. `rhs` is a function of the
+  bindings, or a quoted template read like a pattern with the slots filled in: a
+  sequence slot's arguments go in place (`f(~~r, ~x)`), and a head slot calls the bound
+  function. Either way a right side naming a slot the left side lacks is an error when
+  the rule is made.
+- **`rewrite`** walks the terms of sums, factors of products and arguments, `order =
+  :post` (default) or `:pre`; at each part the first rule with a result wins, and a
+  result equal to the part counts as no change. `fixpoint = true` repeats whole passes,
+  at most `maxsteps` (100), with a warning at the limit. `replace(ex, rules...)` is one
+  `:post` pass.
+
+## Stage 3 as built
+
+`src/patterns.jl`, 2026-10-26. Times are best of five, on a machine with a load average
+near 18.
+
+- **Rule sets are indexed.** `rewrite` sorts its rules once into those whose left side is
+  a function application (keyed by the name), head slots (any function node) and the
+  rest; at a node it tries only the rules that could match there, in their original
+  order (the merged list per function name is cached for the call).
+- **A quick reject** runs before any search state is allocated: the head, a function's
+  arity (unless a sequence slot is among its arguments), whether a power is a power, and
+  whether a sum or product has as many terms or factors as the pattern needs.
+- **Smaller savings:** no sorting of the slots when none is bound; the free elements are
+  listed with the number first without a sort; a slot that takes all of a sum or product
+  is bound to the subject itself; a rule's right side reads the bindings in place, so no
+  `Dict` is built per match (a user function given to `SymJ.rule` still gets one).
+- **Effect.** A 66-rule set (64 rules keyed by function names that never match, the
+  Pythagorean identity and the log-of-a-product rule) rewriting a 30-term expression:
+  4.3 ms before, 0.43 ms after. On ACPM's 62 cases the first match is a median 0.78 μs
+  and at most 3.6 μs (stage 1: 0.83 and 6.1 μs).
+- **Not done: generating code from the macros.** The matcher is now within 2x of ACPM's
+  commutative-only `cc` (0.45 μs median), with associativity, which `cc` lacks. A
+  generated matcher would remove the dispatch on node kinds and the goal records, but
+  the remaining cost is mostly building the subject's element lists and the bound
+  values, which generated code would still do. Not worth it until a real rule set shows
+  the matcher as the bottleneck.

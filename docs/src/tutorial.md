@@ -994,3 +994,25 @@ A head slot matches a function and binds it:
 ```@example tut
 match(SymJ.pattern(:((~f)(~x)^2)), cos(x)^2)
 ```
+
+A rule rewrites what a pattern matches. `SymJ.@rule lhs => rhs` takes the right side as
+Julia code, with `~x` the matched value; `SymJ.rewrite` applies rules to every part of an
+expression until nothing changes, and `replace` applies them once:
+
+```@example tut
+r = SymJ.@rule log(~x * ~y) => log(~x) + log(~y)
+SymJ.rewrite(log(a * b * c), r), replace(log(a * b * c), r)
+```
+
+```@example tut
+pyth = SymJ.@rule sin(~x)^2 + cos(~x)^2 + ~~r => 1 + ~r
+SymJ.rewrite(3 + sin(2x)^2 + cos(2x)^2 + x, pyth)
+```
+
+A predicate on a slot, or a right side that gives `nothing`, limits where a rule
+applies:
+
+```@example tut
+d = SymJ.@rule (~x)^(~n::isinteger) => ~n * (~x)^(~n - 1)
+d(x^3), d(x^a)
+```

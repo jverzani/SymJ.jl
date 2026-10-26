@@ -34,7 +34,16 @@ struct _PatBuild
     flavors::Dict{Symbol,UInt8}
     preds::Dict{Symbol,Any}
     order::Dict{Symbol,Int}      # where each slot first appears in the written pattern
+    binds::Any                   # a rule's template: the slots' values (a _Binds), or nothing
 end
+_PatBuild(binds = nothing) = _PatBuild(Dict{Symbol,UInt8}(), Dict{Symbol,Any}(), Dict{Symbol,Int}(), binds)
+
+# a template slot's value
+function _boundvalue(P::_PatBuild, name::Symbol)
+    haskey(P.binds, name) || throw(ArgumentError("rule: ~$name is not a slot of the rule's left side"))
+    P.binds[name]
+end
+_isslotexpr(a) = a isa Expr && a.head === :call && length(a.args) == 2 && a.args[1] === :~
 
 # the argument of the outermost ~: (name, flavor, predicate expression or nothing)
 function _slotspec(a)
@@ -84,13 +93,19 @@ function _to_pat(ex::Expr, P::_PatBuild)
     f = ex.args[1]
     if f === :~ && length(ex.args) == 2
         name, fl, pred = _slotspec(ex.args[2])
+        P.binds === nothing || return _boundvalue(P, name)::Sym
         _regslot!(P, name, fl, pred)
         return _slot(name, fl)
     end
-    args = Sym[_to_pat(a, P) for a in ex.args[2:end]]
-    if f isa Expr && f.head === :call && length(f.args) == 2 && f.args[1] === :~
+    args = Sym[]
+    for a in ex.args[2:end]                  # in a template, a sequence's arguments in place
+        v = P.binds !== nothing && _isslotexpr(a) ? _boundvalue(P, first(_slotspec(a.args[2]))) : nothing
+        v isa Vector ? append!(args, v) : push!(args, _to_pat(a, P))
+    end
+    if _isslotexpr(f)
         name, fl, pred = _slotspec(f.args[2])
         fl == _SL_ONE || throw(ArgumentError("pattern: a head slot is written (~f)(…)"))
+        P.binds === nothing || return Sym(_boundvalue(P, name)(args...))
         _regslot!(P, name, _SL_HEAD, pred)
         return _mkfn_node(:_hslot, Sym[Sym(name); args])
     end
@@ -232,7 +247,7 @@ occursin(SymJ.pattern(:(sin(~x)^2)), 1 + sin(t)^2)   # true
 Not exported.
 """
 function pattern(ex)
-    P = _PatBuild(Dict{Symbol,UInt8}(), Dict{Symbol,Any}(), Dict{Symbol,Int}())
+    P = _PatBuild()
     p = _to_pat(ex, P)
     gone = setdiff(keys(P.flavors), _slotnames!(Set{Symbol}(), p))
     isempty(gone) || throw(ArgumentError("pattern: the slot ~$(first(gone)) is lost in the pattern's canonical form, $p"))
@@ -312,6 +327,14 @@ end
 
 _bdict(B::_Binds) = Dict{Symbol,Any}(zip(B.names, B.vals))
 
+# a rule's right side reads the bindings in place, without building a Dict
+function Base.getindex(B::_Binds, n::Symbol)
+    v = _getb(B, n)
+    v === nothing && throw(KeyError(n))
+    v
+end
+Base.haskey(B::_Binds, n::Symbol) = _getb(B, n) !== nothing
+
 # ---- matching
 
 function _pm(p::_PNode, s::Sym, B::_Binds, k::_Goal)::Bool
@@ -383,7 +406,29 @@ function _ac_elems(p::_PNode, s::Sym)
     out
 end
 
+# a cheap test that p can't match s, before any search: the head, a function's arity,
+# whether a sum or product has enough terms or factors
+function _quickfail(p::_PNode, s::Sym)
+    K = p.kind
+    K == _P_LIT && return !_eq(p.sym, s)
+    if K == _P_FN || K == _P_HEAD
+        s.kind == FN || return true
+        K == _P_FN && s.name !== p.name && return true
+        any(q -> q.kind == _P_SLOT && (q.flavor == _SL_STAR || q.flavor == _SL_PLUS), p.kids) && return false
+        return length(s.args) != length(p.kids)
+    end
+    K == _P_POW && return !(s.kind == POW || (p.kids[2].kind == _P_SLOT && p.kids[2].flavor == _SL_DEF))
+    if K == _P_ADD || K == _P_MUL
+        need = length(p.lits) + length(p.kids) + count(sl -> !_zero_ok(sl), p.slots)
+        have = K == _P_ADD ? (s.kind == ADD ? length(s.args) + (s.num != N0) : !iszero(s)) :
+            (s.kind == MUL ? length(s.args) + 1 : 2)   # a product's coefficient may be an element
+        return have < need
+    end
+    false
+end
+
 function _pm_ac(p::_PNode, s::Sym, B::_Binds, k::_Goal)::Bool
+    _quickfail(p, s) && return false
     elems = _ac_elems(p, s)
     elems === nothing && return false
     used = falses(length(elems))
@@ -405,7 +450,9 @@ end
 # the parts that are not slots, each matching one element
 function _pm_others(p::_PNode, i::Int, s::Sym, elems::Vector{Sym}, used::BitVector, B::_Binds, k::_Goal)::Bool
     if i > length(p.kids)
-        order = sort(p.slots; by = sl -> _getb(B, sl.name) === nothing)   # bound slots first
+        slots = p.slots                      # bound slots first
+        order = length(slots) <= 1 || all(sl -> _getb(B, sl.name) === nothing, slots) ? slots :
+            sort(slots; by = sl -> _getb(B, sl.name) === nothing)
         return _pm_slots(p, order, 1, s, elems, used, B, k)
     end
     q = p.kids[i]
@@ -423,6 +470,10 @@ end
 # product. The group's terms (factors) are a subsequence of the subject's, so already in
 # canonical order: the node is built from them directly.
 function _group_value(p::_PNode, sl::_PNode, s::Sym, elems::Vector{Sym}, G::Vector{Int})
+    if length(G) == length(elems) && sl.num == N1 &&     # all of s: s itself
+       (p.kind == _P_ADD ? s.kind == ADD : s.kind == MUL && p.num == N1)
+        return s
+    end
     issorted(G) || (G = sort(G))
     if p.kind == _P_ADD
         if s.kind == ADD
@@ -470,8 +521,13 @@ function _pm_slots(p::_PNode, order::Vector{_PNode}, i::Int, s::Sym, elems::Vect
         used[idx] .= false
         return r
     end
-    free = [j for j in eachindex(elems) if !used[j]]
-    sort!(free; by = j -> elems[j].kind != NUMBER)    # the number first: ~a*~x against 2x is a => 2
+    # the free elements, the number (always last in elems) first: ~a*~x against 2x is a => 2
+    n = length(elems)
+    numlast = n > 0 && !used[n] && elems[n].kind == NUMBER
+    free = numlast ? [n] : Int[]
+    for j in 1:(numlast ? n - 1 : n)
+        used[j] || push!(free, j)
+    end
     if i == length(order)                    # the last slot takes what is left
         isempty(free) && !_zero_ok(sl) && return false
         return _bind(B, sl.name, _group_value(p, sl, s, elems, free), sl.pred, k)
@@ -570,3 +626,238 @@ function _occurs(p::_PNode, s::Sym)
     parts = s.kind == ADD ? _add_parts(s) : s.kind == MUL ? first(_mul_parts(s)) : s.args
     s.kind == ADD || s.kind == MUL ? any(t -> !_eq(t, s) && _occurs(p, t), parts) : any(t -> _occurs(p, t), parts)
 end
+
+# ---- macros: patterns and rules written in code
+
+# the pattern expression with each slot's predicate interpolated, so that it is
+# evaluated where the macro is called
+function _interp_preds(ex)
+    ex isa Expr || return ex
+    if _isslotexpr(ex)
+        return Expr(:call, :~, _interp_pred_spec(ex.args[2]))
+    end
+    Expr(ex.head, (_interp_preds(a) for a in ex.args)...)
+end
+function _interp_pred_spec(a)
+    a isa Expr && a.head === :(::) && return Expr(:(::), a.args[1], Expr(:$, a.args[2]))
+    a isa Expr && a.head === :call && length(a.args) == 2 && a.args[1] in (:~, :!) &&
+        return Expr(:call, a.args[1], _interp_pred_spec(a.args[2]))
+    a
+end
+
+"""
+    SymJ.@pattern ex
+
+The pattern [`SymJ.pattern`](@ref) makes from `ex`, written without quoting. The
+slots' predicates are evaluated where the macro is called, and `\$v` puts in the value
+of `v`; other names are symbols (`a` in a pattern is `Sym(:a)`). Not exported.
+
+```julia
+isodd3(n) = isodd(n) && n > 3
+p = SymJ.@pattern (~x)^(~n::isodd3)
+c = sin(t)
+q = SymJ.@pattern ~x + \$c
+```
+"""
+macro pattern(ex)
+    esc(:($pattern($(Expr(:quote, _interp_preds(ex))))))
+end
+
+"""
+    SymJ.Rule
+
+A rewrite rule, made by [`SymJ.@rule`](@ref) or [`SymJ.rule`](@ref). Called on an
+expression, it gives the rewritten expression, or `nothing` when the left side doesn't
+match (or every match's right side is `nothing`).
+"""
+struct Rule
+    lhs::Pattern
+    rhs::Any            # the bindings (a _Binds) to the value, or nothing to reject the match
+    text::String
+end
+Base.show(io::IO, r::Rule) = print(io, "rule(", r.text, ")")
+
+function (r::Rule)(ex)
+    _quickfail(r.lhs.node, _matchsubject(ex)) && return nothing
+    out = Ref{Any}(nothing)
+    done(B) = (v = r.rhs(B); v === nothing ? false : (out[] = v isa Sym ? v : Sym(v); true))
+    _pm(r.lhs.node, _matchsubject(ex), _Binds(), _gdone(done))
+    out[]
+end
+
+# a rule, once its right side's slots are known to be the left side's
+function _mkrule(lhs::Pattern, f, t)
+    missing = setdiff(_rhs_slots!(Set{Symbol}(), t), _slotnames!(Set{Symbol}(), lhs.ex))
+    isempty(missing) || throw(ArgumentError("rule: ~$(first(missing)) is not a slot of the left side, $(lhs.ex)"))
+    Rule(lhs, f, string(lhs.ex, " => ", t))
+end
+function _rhs_slots!(out::Set{Symbol}, ex)
+    ex isa Expr || return out
+    _isslotexpr(ex) && (push!(out, first(_slotspec(ex.args[2]))); return out)
+    foreach(a -> _rhs_slots!(out, a), ex.args)
+    out
+end
+
+# the right side's code, with ~x the bound value b[:x]
+function _rhs_code(ex, b::Symbol)
+    ex isa Expr || return ex
+    _isslotexpr(ex) && return :($b[$(QuoteNode(first(_slotspec(ex.args[2]))))])
+    Expr(ex.head, (_rhs_code(a, b) for a in ex.args)...)
+end
+
+"""
+    SymJ.@rule lhs => rhs
+
+A rewrite rule: when the pattern `lhs` (as for [`SymJ.@pattern`](@ref)) matches, the
+result is `rhs`, Julia code run where the macro is called with `~x` the value bound to
+the slot `~x`. A right side that gives `nothing` rejects the match, and the search goes
+on to the next. Use with [`SymJ.rewrite`](@ref) or `replace`, or call the rule on an
+expression. Not exported.
+
+```julia
+r = SymJ.@rule sin(~x)^2 + cos(~x)^2 + ~~r => 1 + ~r
+r(sin(t)^2 + cos(t)^2 + a)               # 1 + a
+SymJ.@rule log(~x * ~y) => log(~x) + log(~y)
+SymJ.@rule ~x^(~n::isinteger) => ~n * ~x^(~n - 1)
+SymJ.@rule (~f)(~x + 2π) => (~f in (sin, cos) ? (~f)(~x) : nothing)
+```
+"""
+macro rule(ex)
+    (ex isa Expr && ex.head === :call && length(ex.args) == 3 && ex.args[1] === :(=>)) ||
+        throw(ArgumentError("@rule: write the rule as lhs => rhs"))
+    lhs, rhs = ex.args[2], ex.args[3]
+    b = gensym(:b)
+    esc(:($_mkrule($pattern($(Expr(:quote, _interp_preds(lhs)))), $b -> $(_rhs_code(rhs, b)), $(QuoteNode(rhs)))))
+end
+
+"""
+    SymJ.rule(lhs => rhs)
+
+A rewrite rule made at run time: `lhs` is a pattern or a quoted pattern, and `rhs` either
+a quoted template, filled in with the bindings (`~x` its value, `(~f)(…)` the bound
+function, a sequence slot's arguments in place), or a function of the bindings (a
+`Dict`) that gives the value, or `nothing` to reject the match. See
+[`SymJ.@rule`](@ref). Not exported.
+
+```julia
+SymJ.rule(:(sin(~x)^2) => :(1 - cos(~x)^2))
+SymJ.rule(:((~x)^(~n)) => d -> d[:n] * d[:x]^(d[:n] - 1))
+```
+"""
+function rule(p::Pair)
+    lhs = p.first isa Pattern ? p.first : pattern(p.first)
+    t = p.second
+    t isa Function && !(t isa Sym) && return Rule(lhs, B -> t(_bdict(B)), string(lhs.ex, " => ", t))
+    _mkrule(lhs, d -> _to_pat(t, _PatBuild(d)), t)
+end
+
+# ---- rewriting
+
+# e with f applied to its parts: a sum's terms, a product's factors, a power's base and
+# exponent, a function's arguments; e itself when nothing changes
+function _rw_parts(f, e::Sym)
+    isempty(e.args) && return e
+    k = e.kind
+    if k == ADD
+        ts = _add_parts(e)
+        e.num == N0 || pop!(ts)
+        new = Sym[f(t) for t in ts]
+        all(i -> new[i] === ts[i], eachindex(ts)) && return e
+        return Sym(e.num) + _add_many(new)
+    elseif k == MUL
+        fs, c = _mul_parts(e)
+        new = Sym[f(t) for t in fs]
+        all(i -> new[i] === fs[i], eachindex(fs)) && return e
+        return Sym(c) * prod(new; init = ONE)
+    end
+    new = Sym[f(a) for a in e.args]
+    all(i -> new[i] === e.args[i], eachindex(new)) && return e
+    _rebuild_node(e, new)
+end
+
+# rules indexed by what their left side can match: those whose left side is a function
+# application (or a literal one) only at function nodes of that name, head slots only at
+# function nodes, the rest everywhere; each list keeps the rules' order
+struct _RuleSet
+    rules::Vector{Rule}
+    generic::Vector{Int}
+    anyfn::Vector{Int}
+    byname::Dict{Symbol,Vector{Int}}
+    merged::Dict{Symbol,Vector{Int}}   # per function name, the three lists merged
+end
+
+function _RuleSet(rules::Vector{Rule})
+    generic, anyfn, byname = Int[], Int[], Dict{Symbol,Vector{Int}}()
+    for (i, r) in enumerate(rules)
+        n = r.lhs.node
+        if n.kind == _P_FN || (n.kind == _P_LIT && n.sym.kind == FN)
+            push!(get!(byname, n.kind == _P_FN ? n.name : n.sym.name, Int[]), i)
+        elseif n.kind == _P_HEAD
+            push!(anyfn, i)
+        else
+            push!(generic, i)
+        end
+    end
+    _RuleSet(rules, generic, anyfn, byname, Dict{Symbol,Vector{Int}}())
+end
+
+function _candidates(R::_RuleSet, e::Sym)
+    e.kind == FN || return R.generic
+    get!(R.merged, e.name) do
+        sort!(vcat(get(R.byname, e.name, Int[]), R.anyfn, R.generic))
+    end
+end
+
+function _rw_at(R::_RuleSet, e::Sym, changed::Ref{Bool})
+    for i in _candidates(R, e)
+        v = R.rules[i](e)
+        v === nothing && continue
+        _eq(v, e) && return e
+        changed[] = true
+        return v
+    end
+    e
+end
+
+_rw_post(rules, e::Sym, changed) = _rw_at(rules, _rw_parts(t -> _rw_post(rules, t, changed), e), changed)
+_rw_pre(rules, e::Sym, changed) = _rw_parts(t -> _rw_pre(rules, t, changed), _rw_at(rules, e, changed))
+
+"""
+    SymJ.rewrite(ex, rules...; order = :post, fixpoint = true, maxsteps = 100)
+
+`ex` with the rules applied wherever they match: to every part (the terms of a sum, the
+factors of a product, the arguments of a function), from the leaves up (`order =
+:post`) or from the top down (`:pre`). At each part the first rule that gives a result
+is used. With `fixpoint = true` the walk is repeated until nothing changes, at most
+`maxsteps` times, with a warning when that limit is reached. `rules` are
+[`SymJ.Rule`](@ref)s, or vectors of them. Not exported.
+
+```julia
+r = SymJ.@rule log(~x * ~y) => log(~x) + log(~y)
+SymJ.rewrite(log(a * b * c), r)          # log(a) + log(b) + log(c)
+```
+"""
+function rewrite(ex, rules...; order::Symbol = :post, fixpoint::Bool = true, maxsteps::Integer = 100)
+    rs = Rule[]
+    for r in rules
+        r isa Rule ? push!(rs, r) : append!(rs, r)
+    end
+    order in (:post, :pre) || throw(ArgumentError("rewrite: order is :post or :pre, not $order"))
+    R = _RuleSet(rs)
+    e = _matchsubject(ex)
+    for _ in 1:(fixpoint ? maxsteps : 1)
+        changed = Ref(false)
+        e = order === :post ? _rw_post(R, e, changed) : _rw_pre(R, e, changed)
+        changed[] || return e
+    end
+    fixpoint && @warn "rewrite: still changing after $maxsteps passes; stopping"
+    e
+end
+
+"""
+    replace(ex::Sym, rules::SymJ.Rule...)
+
+`ex` with each rule applied once wherever it matches, in one pass from the leaves up:
+[`SymJ.rewrite`](@ref) with `fixpoint = false`.
+"""
+Base.replace(ex::Sym, r::Rule, rs::Rule...) = rewrite(ex, r, rs...; fixpoint = false)

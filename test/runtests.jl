@@ -1932,6 +1932,44 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test occursin(P(:(exp(~u))), x * exp(2x)) && string(P(:(~!a * sin(~x) + ~~r))) == "pattern(sin(~x)*~!a + ~~r)"
     end
 
+    @testset "rewrite rules" begin
+        @syms t a b c f() h()
+        R = SymJ.rewrite
+        r1 = SymJ.@rule sin(~x)^2 + cos(~x)^2 + ~~r => 1 + ~r
+        @test r1(sin(t)^2 + cos(t)^2 + a) == 1 + a && r1(sin(t)^2 + cos(t)^2) == 1 && r1(sin(t)) === nothing
+        @test string(r1) == "rule(cos(~x)^2 + sin(~x)^2 + ~~r => 1 + ~r)"
+        # predicates and values from the calling scope; a right side of nothing rejects the match
+        issym(v) = v isa Sym && v.kind == SymJ.SYMBOL
+        @test (SymJ.@rule ~x::issym * sin(~y) => ~x)(a * sin(t)) == a
+        @test (SymJ.@rule ~x * ~y => (isinteger(~x) ? nothing : ~x))(2a) == a
+        c0 = Sym(3)
+        @test match(SymJ.@pattern(~x + $c0), a + 3) == Dict{Symbol,Any}(:x => a) && match(SymJ.@pattern(~x + $c0), a + 2) === nothing
+        @test (SymJ.@rule (~x)^(~n::isinteger) => ~n * (~x)^(~n - 1))(x^3) == 3x^2
+        @test (SymJ.@rule (~x)^(~n::isinteger) => ~n * (~x)^(~n - 1))(x^y) === nothing
+        @test (SymJ.@rule (~f)(-~x) => (~f)(~x))(h(-t)) == h(t)
+        @test_throws ArgumentError SymJ.@rule(sin(~x) => cos(~y))
+        # rules at run time: a template or a function of the bindings
+        @test SymJ.rule(:(sin(~x)^2) => :(1 - cos(~x)^2))(sin(t)^2) == 1 - cos(t)^2
+        @test SymJ.rule(:((~x)^(~n)) => d -> d[:n] * d[:x]^(d[:n] - 1))(x^4) == 4x^3
+        @test SymJ.rule(:(f(~x, ~~r)) => :(f(~~r, ~x)))(f(a, b, c)) == f(b, c, a)
+        @test SymJ.rule(:((~f)(~x)^2) => :((~f)(2 * ~x)))(cos(t)^2) == cos(2t)
+        @test_throws ArgumentError SymJ.rule(:(sin(~x)) => :(cos(~y)))
+        # rewriting every part, to a fixpoint or once
+        r6 = SymJ.@rule sin(~x)^2 => 1 - cos(~x)^2
+        @test R(2sin(t)^2 + cos(t)^2, r6) == 2 - cos(t)^2 && R(sin(sin(t)^2), r6) == sin(1 - cos(t)^2)
+        r7 = SymJ.@rule log(~x * ~y) => log(~x) + log(~y)
+        @test R(log(a * b * c), r7) == log(a) + log(b) + log(c) && R(log(a * b * c), r7; order = :pre) == log(a) + log(b) + log(c)
+        @test length(replace(log(a * b * c), r7).args) == 2 && replace(sin(t), r7) == sin(t)
+        @test R(x * sin(t)^2, [r6, r7]) == x * (1 - cos(t)^2)
+        @test (@test_logs (:warn,) R(a, SymJ.@rule(~x::issym => ~x + 1); maxsteps = 3)) == a + 3
+        @test_throws ArgumentError R(a, r6; order = :up)
+        # indexed rule sets keep the rules' order
+        rh = SymJ.@rule (~f)(~x) => (~f === sin ? cos(~x) : nothing)
+        rs = SymJ.@rule sin(~x) => tan(~x)
+        @test replace(sin(t), rh, rs) == cos(t) && replace(sin(t), rs, rh) == tan(t)
+        @test replace(sin(t) + h(t), rs, rh) == tan(t) + h(t) && R(sin(t)^3, SymJ.@rule((~x)^3 => ~x)) == sin(t)
+    end
+
     @testset "ambiguities" begin
         @test isempty(Test.detect_ambiguities(SymJ; recursive = true))
     end

@@ -71,6 +71,8 @@ using PrecompileTools: @setup_workload, @compile_workload
         # pattern matching
         pat = pattern(:(~!a * sin(~x)^(~!n) + ~~r)); match(pat, 3sin(x)^2 + y); eachmatch(pattern(:(~x + ~y)), x + y + n)
         match(pattern(:((~f)(~x, ~~r))), yf(x)); occursin(pattern(:(cos(~x))), x + cos(y))
+        rw = @rule sin(~x)^2 => 1 - cos(~x)^2; rewrite(2sin(x)^2 + y, rw); replace(sin(y)^2, rw)
+        rule(:(log(~x * ~y)) => :(log(~x) + log(~y)))(log(x * y))
         # piecewise
         pw = piecewise(x ≪ 0 => -x, true => x^2)
         pw(x => 2); diff(pw, x); limit(pw, x => 0); diff(heaviside(x - 1), x); piecewise(abs(x))
