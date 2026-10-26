@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Design notes: algebra — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=a7c8eb0c">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=98994ead">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Design notes: algebra — SymJ.jl">
   <meta property="og:title" content="Design notes: algebra — SymJ.jl">
@@ -629,6 +629,8 @@ end</code></pre>
 </li>
 </ul>
 </li>
+<li><p><strong>Real roots, numerically</strong> (<code class="md-code-inline">src/realroots.jl</code>): <code class="md-code-inline">SymJ.root_intervals</code> and <code class="md-code-inline">SymJ.real_roots</code> for polynomials with rational coefficients. The square-free decomposition gives the multiplicities; each factor is isolated by Descartes&#39; rule of signs with bisection (Vincent–Collins–Akritas), in exact <code class="md-code-inline">BigInt</code> arithmetic, the positive roots mapped into (0, 1) by <code class="md-code-inline">x -&gt; 2ᵏ x</code>. A node&#39;s polynomial comes from its parent&#39;s (the left half <code class="md-code-inline">2ⁿ q(x/2)</code> by bit shifts, the right half that shifted by 1, additions only), and the count for (0, 1) is the sign variations of <code class="md-code-inline">(x + 1)ⁿ q(1/(x + 1))</code>. Intervals are refined by bisection with exact signs; an endpoint that is a root of the same factor (an exact root found next to it) is divided out first. Intervals of different factors are refined until apart. A root from <code class="md-code-inline">real_roots</code> is the common rounding of a refined interval&#39;s endpoints, so it is correctly rounded. Compared with RealPolynomialRoots.jl&#39;s ANewDsc on the same polynomials, Wilkinson&#39;s of degree 20 and a Mignotte-like one of degree 50, this is about 150 and 60 times faster (1.1 ms against 164 ms, 5.8 ms against 369 ms): that implementation works at worst-case precision in MPFR intervals and redoes the Möbius transform of the original polynomial at each node. Clusters of very close roots make bisection deep (where ANewDsc&#39;s Newton steps help); numeric root finding for other equations is left to Roots.jl and NonlinearSolve.jl, which take SymJ expressions as they are.</p>
+</li>
 <li><p><strong><code class="md-code-inline">&lt;</code> and friends.</strong> <code class="md-code-inline">&lt;</code>, <code class="md-code-inline">≤</code>, <code class="md-code-inline">&gt;</code>, <code class="md-code-inline">≥</code> compare constant expressions as numbers, returning a <code class="md-code-inline">Bool</code>. With a symbol, they raise an error naming the symbolic operator to use instead (<code class="md-code-inline">≪</code>, <code class="md-code-inline">≦</code>, <code class="md-code-inline">≫</code>, <code class="md-code-inline">≧</code>).</p>
 </li>
 <li><p><strong>Not yet:</strong></p>
@@ -773,6 +775,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=a7c8eb0c"></script>
+  <script src="../../assets/materialdocs.js?v=98994ead"></script>
 </body>
 </html>

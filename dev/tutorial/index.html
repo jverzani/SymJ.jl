@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=b828f654">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=15f7f107">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -895,6 +895,24 @@ end</code></pre>
 </div>
 </div>
 <p>Contradictory facts are an error (<code class="md-code-inline">@assume(x &gt; 1 &amp;&amp; x &lt; 0)</code>), and the <code class="md-code-inline">Assumptions</code> value <code class="md-code-inline">@assume</code> makes can be reused: <code class="md-code-inline">A = @assume(x &gt; 0, n in Integers)</code>, then <code class="md-code-inline">assume = A</code>.</p>
+<p>The real roots of a polynomial with rational coefficients can be found numerically, with certainty, when the closed form is unwieldy (<code class="md-code-inline">solve</code> gives this cubic&#39;s roots through complex cube roots). <code class="md-code-inline">SymJ.real_roots</code> gives them correctly rounded, each repeated by its multiplicity, and <code class="md-code-inline">SymJ.root_intervals</code> exact isolating intervals:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.real_roots(x^3 - 2x - 5, x), SymJ.real_roots((x - 1)^2 * (x^2 - 2), x)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">([2.0945514815423265], [-1.4142135623730951, 1.0, 1.0, 1.4142135623730951])</code></pre>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.root_intervals(x^2 - 2, x; width = 1 // 100)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">2-element Vector{Tuple{Rational{BigInt}, Rational{BigInt}, Int64}}:
+ (-91//64, -181//128, 1)
+ (181//128, 91//64, 1)</code></pre>
+</div>
+<p>For other equations, the packages for numerical root finding take SymJ expressions as they are, since an expression is callable (<code class="md-code-inline">lambdify</code> makes a faster function): <code class="md-code-inline">Roots.find_zero(cos(x) - x, 0.5)</code>, or with Newton&#39;s method and the exact derivative, <code class="md-code-inline">find_zero((lambdify(f, x), lambdify(diff(f, x), x)), x0, Roots.Newton())</code>.</p>
 <h2 id="Sums" class="md-heading">Sums<a href="#Sums" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p><code class="md-code-inline">SymJ.summation(f, k, a, b)</code> (not exported) sums <code class="md-code-inline">f</code> over <code class="md-code-inline">k = a, …, b</code>, in closed form where it finds one; <code class="md-code-inline">b</code> may be <code class="md-code-inline">Inf</code>:</p>
 <div class="md-multi-output">
@@ -1798,6 +1816,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=b828f654"></script>
+  <script src="../assets/materialdocs.js?v=15f7f107"></script>
 </body>
 </html>
