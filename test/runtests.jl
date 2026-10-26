@@ -1822,6 +1822,21 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test D(y'(x) ~ exp(2x) + (1 - 2exp(x)) * y(x) + y(x)^2, y(x)).rhs == exp(x) + 1 / (C1 / exp(x) - 1)   # y₁ = eˣ
         r = D(y'(x) ~ -y(x)^2 + 2 / x^2, y(x), y(1) => 1)
         @test iszero(simplify(diff(r.rhs, x) + r.rhs^2 - 2 / x^2)) && subs(r.rhs, x => 1) == 1
+        # series solutions: Taylor at an ordinary point, Frobenius at a regular singular point
+        S = (eq, ics...; kw...) -> D(eq, y(x), ics...; kw...).rhs
+        @test S(y''(x) + y(x) ~ 0; series = 6) == C1 * (1 - x^2 / 2 + x^4 / 24) + C2 * (x - x^3 / 6 + x^5 / 120)
+        @test S(y''(x) - x * y(x) ~ 0; series = 8) == C1 * (1 + x^3 / 6 + x^6 / 180) + C2 * (x + x^4 / 12 + x^7 / 504)   # Airy
+        @test S((1 - x^2) * y''(x) - 2x * y'(x) + 6y(x) ~ 0; series = 6) == C1 * (1 - 3x^2) + C2 * (x - 2x^3 / 3 - x^5 / 5)
+        @test S(y'(x) ~ x + y(x)^2, y(0) => 1; series = 5) == 1 + x + 3x^2 / 2 + 4x^3 / 3 + 17x^4 / 12   # nonlinear
+        @test S(y''(x) + y(x) ~ x, y(1) => 0, y'(1) => 1; series = 4) == (x - 1) + (x - 1)^2 / 2
+        J0 = 1 - x^2 / 4 + x^4 / 64
+        @test S(x^2 * y''(x) + x * y'(x) + x^2 * y(x) ~ 0; series = 6) == C1 * J0 + C2 * (log(x) * J0 + x^2 / 4 - 3x^4 / 128)   # equal roots
+        @test S(2x^2 * y''(x) + x * y'(x) - (x + 1) * y(x) ~ 0; series = 4) ==
+              C1 * (x + x^2 / 5 + x^3 / 70 + x^4 / 1890) + C2 * (1 / sqrt(x) - sqrt(x) - x^(3 // 2) / 2 - x^(5 // 2) / 18)   # r = 1, -1/2
+        @test has(S(x * y''(x) - y(x) ~ 0; series = 4), log(x))                                # roots 1, 0: a log term
+        @test_throws ArgumentError S(x^3 * y''(x) + y(x) ~ 0; series = 4)                      # irregular singular point
+        @test_throws ArgumentError S(x * y''(x) - y(x) ~ 0, y(0) => 1, y'(0) => 0; series = 4)
+        @test_throws ArgumentError S(y'(x) ~ y(x); series = 0)
         # errors
         @test_throws ArgumentError D(y''(x) ~ -sin(y(x)), y(x))                                 # y' = ±sqrt(…): not yet
         @test_throws ArgumentError D(y'(x) ~ y(x)^2 + x, y(x))                                  # Riccati to Airy: no method

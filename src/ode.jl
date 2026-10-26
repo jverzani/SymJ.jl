@@ -12,6 +12,8 @@
 #   from a particular solution);
 # - autonomous, y'' = f(y, y'): p = y' as a function of y, then ∫ dy/p = x + C₂.
 #
+# With `series = n`, a series solution instead ("series solutions", at the end).
+#
 # Systems, linear with constant coefficients, are at the end ("systems").
 #
 # A solution is explicit, y = S(x, C₁, …), or implicit, φ(x, y) = C₁. It is checked by
@@ -27,6 +29,14 @@ solution `φ(x, y(x)) ~ C1` when `y` cannot be solved for.
 
 Initial conditions are pairs, one for each order: `y(0) => 1, y'(0) => 0`. They fix the
 constants.
+
+With `series = n`, the solution is a series about `x0` (the point of the initial
+conditions, else `0`) with error `O((x - x0)^n)`, returned as the truncated sum. At an
+ordinary point it is the Taylor series, for any equation that can be solved for its
+highest derivative, nonlinear ones included; a linear one is grouped by constant,
+`C1*(…) + C2*(…)`. At a regular singular point of a second-order linear homogeneous
+equation it is the Frobenius series, with a `log` term when the indicial roots are equal
+or an integer apart.
 
 Methods: first order linear, separable, Bernoulli, exact (with an integrating factor in
 `x` or `y` alone), homogeneous, Riccati; linear with constant coefficients, of any order
@@ -44,6 +54,7 @@ SymJ.dsolve(y'(x) ~ y(x), y(x))                          # y(x) ~ C1*exp(x)
 SymJ.dsolve(y''(x) + y(x) ~ 0, y(x), y(0) => 0, y'(0) => 1)   # y(x) ~ sin(x)
 SymJ.dsolve(y'(x) ~ x * y(x)^2, y(x))                    # y(x) ~ -2/(x^2 + 2C1)
 SymJ.dsolve(x^2 * y''(x) - 2y(x) ~ 0, y(x))              # y(x) ~ C1/x + C2*x^2
+SymJ.dsolve(y''(x) - x * y(x) ~ 0, y(x); series = 6)      # C1*(1 + x^3/6) + C2*(x + x^4/12)
 ```
 
     SymJ.dsolve([eq₁, eq₂, …], [y₁(t), y₂(t), …], ics...)
@@ -62,9 +73,10 @@ SymJ.dsolve([u'(t) ~ v(t), v'(t) ~ -u(t)], [u(t), v(t)], u(0) => 1, v(0) => 0)
 # [u(t) ~ cos(t), v(t) ~ -sin(t)]
 ```
 """
-function dsolve(eq::Relation, yx::Sym, ics::Pair...)
+function dsolve(eq::Relation, yx::Sym, ics::Pair...; series::Union{Nothing,Integer} = nothing, x0 = nothing)
     P = _ode_parse(eq, yx)
     Cs = _ode_constants(P.n, eq)
+    series === nothing || return yx ~ _ode_series(P, Cs, series, x0, [_ode_ic(p, P) for p in ics])
     sol = _ode_solve(P, Cs)
     sol === nothing && throw(ArgumentError("dsolve: no method for $(eq)"))
     kind, S = sol
@@ -1050,3 +1062,136 @@ function _odesys_ics(S, yxs, Cs, t, ics)
     length(sols) == 1 || throw(ArgumentError("dsolve: the initial conditions don't fix the constants"))
     [_ode_tidy(subs(s, sols[1]...)) for s in S]
 end
+
+## series solutions
+
+# The solution as a series in t = x - x₀, terms below tⁿ. At an ordinary point (the
+# equation solved for y⁽ᵏ⁾ = f, f with a series at x₀ in the lower derivatives), the
+# Taylor coefficients: y⁽ʲ⁾(x₀) = Cⱼ₊₁ (or an initial condition) for j < k, then cₘ from
+# the coefficient of tᵐ⁻ᵏ in f(x₀ + t, y, …, y⁽ᵏ⁻¹⁾), which needs only c₀, …, cₘ₋₁. At a
+# regular singular point of a second-order linear homogeneous equation, Frobenius.
+function _ode_series(P::_ODE, Cs, N::Integer, x0, conds)
+    N >= 1 || throw(ArgumentError("dsolve: series = n takes n ≥ 1 terms"))
+    a = x0 === nothing ? (isempty(conds) ? ZERO : conds[1][2]) : Sym(x0)
+    all(c -> _eq(c[2], a), conds) || throw(ArgumentError("dsolve: initial conditions for a series solution are at its point, $a"))
+    isempty(conds) || length(conds) == P.n || throw(ArgumentError("dsolve: give $(P.n) initial condition$(P.n == 1 ? "" : "s"), one for each order"))
+    t = Sym(:_ode_t)
+    n, x = P.n, P.x
+    Yn = P.ys[end]
+    c = diff(P.F, Yn)
+    f = if has(c, Yn)
+        fs = solve(P.F ~ 0, Yn)
+        length(fs) == 1 || throw(ArgumentError("dsolve: the highest derivative can't be solved for uniquely"))
+        fs[1]
+    else
+        -subs(P.F, Yn => ZERO) / c
+    end
+    ft = subs(f, x => a + t)
+    vals = Sym[Cs[k + 1] for k in 0:(n - 1)]
+    for (o, _, v) in conds
+        vals[o + 1] = v
+    end
+    cs = Sym[vals[k + 1] / factorial(big(k)) for k in 0:(min(n, N) - 1)]
+    for m in n:(N - 1)
+        S = sum(cs[j + 1] * t^j for j in 0:(m - 1))
+        e = subs(ft, (P.ys[k + 1] => diff(S, t, k) for k in 0:(n - 1))...)
+        ps = try Base.invokelatest(SymJ.series, e, t, 0, m - n + 1).ps catch; nothing end
+        if ps === nothing || any(<(0), ps.e) || any(r -> denominator(r) != 1, ps.e)
+            isempty(conds) || throw(ArgumentError("dsolve: $a is a singular point; no series solution with initial conditions"))
+            return _ode_frobenius(P, Cs, N, a)
+        end
+        i = findfirst(==(m - n), ps.e)
+        cm = i === nothing ? ZERO : ps.c[i]
+        push!(cs, _ode_tidy(expand(cm * factorial(big(m - n)) / factorial(big(m)))))
+    end
+    St = expand(sum(cs[j + 1] * t^j for j in 0:(length(cs) - 1)))
+    _ode_series_check(P, St, t, a, N - n) || throw(ArgumentError("dsolve: the series found does not satisfy the equation"))
+    _ode_series_group(St, Cs, t, x - a)
+end
+
+# Σ C (its series) + the rest, when the series is linear in the constants
+function _ode_series_group(St::Sym, Cs, t::Sym, back::Sym)
+    used = [C for C in Cs if has(St, C)]
+    lin = all(C -> iszero(diff(St, C, 2)) && all(D -> iszero(diff(diff(St, C), D)), used), used)
+    lin || return subs(St, t => back)
+    rest = subs(St, (C => ZERO for C in used)...)
+    sum((C * subs(diff(St, C), t => back) for C in used); init = subs(rest, t => back))
+end
+
+# the residual of a truncated series is O(tᵐ) (m the terms checked)
+function _ode_series_check(P::_ODE, St::Sym, t::Sym, a::Sym, m::Integer, shift = 0)
+    m <= 0 && return true
+    R = subs(P.F, P.x => a + t, (P.ys[k + 1] => diff(St, t, k) for k in 0:P.n)...)
+    ps = try Base.invokelatest(SymJ.series, R, t, 0, shift + m).ps catch; return true end
+    all(i -> ps.e[i] >= shift + m || iszero(simplify(ps.c[i])), eachindex(ps.e))
+end
+
+# Frobenius at a regular singular point of a₂ y'' + a₁ y' + a₀ y = 0: t p = t a₁/a₂ and
+# t² q = t² a₀/a₂ with series p₀ + p₁ t + …, q₀ + …; the indicial equation
+# F(r) = r(r - 1) + p₀ r + q₀ = 0, and aₘ(r) F(r + m) = -Σₖ ((r + m - k) pₖ + qₖ) aₘ₋ₖ(r).
+# Roots r₁ ≥ r₂: tʳ¹ Σ aₘ(r₁) tᵐ, and for the second solution tʳ² Σ aₘ(r₂) tᵐ when
+# r₁ - r₂ is not an integer, else ∂/∂r of tʳ Σ aₘ(r) tᵐ (equal roots) or of
+# (r - r₂) tʳ Σ aₘ(r) tᵐ (roots an integer apart) at r₂, which has the log(t) term.
+function _ode_frobenius(P::_ODE, Cs, N::Integer, a::Sym)
+    nope() = throw(ArgumentError("dsolve: $a is a singular point; a series there is found for a second-order linear homogeneous equation with a regular singular point"))
+    P.n == 2 || nope()
+    lc = _ode_linear_coefs(P)
+    lc === nothing && nope()
+    (A, g) = lc
+    iszero(g) || nope()
+    t, x = Sym(:_ode_t), P.x
+    coefs(e) = begin
+        ps = try Base.invokelatest(SymJ.series, _ode_tidy(subs(e, x => a + t)), t, 0, N).ps catch; nope() end
+        all(r -> r >= 0 && denominator(r) == 1, ps.e) || nope()        # an irregular singular point
+        v = zeros(Sym, N)
+        for (e_, c_) in zip(ps.e, ps.c)
+            e_ < N && (v[Int(e_) + 1] = c_)
+        end
+        v
+    end
+    p = coefs(_ode_tidy(subs(t, t => x - a) * A[2] / A[3]))
+    q = coefs(_ode_tidy((x - a)^2 * A[1] / A[3]))
+    r = Sym(:_ode_r)
+    F(ρ) = ρ * (ρ - 1) + p[1] * ρ + q[1]
+    rs = solve(expand(F(r)) ~ 0, r)
+    isempty(rs) && nope()
+    all(ρ -> _eq(subs(ρ, IM => ZERO), ρ), rs) ||
+        throw(ArgumentError("dsolve: the indicial roots at $a are complex; not done"))
+    r1, r2 = length(rs) == 1 ? (rs[1], rs[1]) : (rs[1], rs[2])
+    d = _ode_tidy(r1 - r2)
+    if d.kind == NUMBER && d.num < N0
+        r1, r2, d = r2, r1, -d
+    end
+    function coeffs(ρ)
+        out = Sym[ONE]
+        for m in 1:(N - 1)
+            s = sum(((ρ + m - k) * p[k + 1] + q[k + 1]) * out[m - k + 1] for k in 1:m)
+            push!(out, cancel(-s / F(ρ + m)))
+        end
+        out
+    end
+    T = x - a
+    ser(ρ, cs) = sum(_ode_tidy(c_) * T^(ρ + m) for (m, c_) in zip(0:(N - 1), cs))
+    y1 = ser(r1, [_ode_tidy(subs(c_, r => r1)) for c_ in coeffs(r)])
+    if !(d.kind == NUMBER && _isint(d.num))
+        y2 = ser(r2, [_ode_tidy(subs(c_, r => r2)) for c_ in coeffs(r)])
+    elseif iszero(d)
+        ar = coeffs(r)
+        y2 = y1 * log(T) + ser(r1, [_ode_tidy(subs(cancel(diff(c_, r)), r => r1)) for c_ in ar])
+    else
+        br = [cancel((r - r2) * c_) for c_ in coeffs(r)]
+        y2 = log(T) * ser(r2, [_ode_tidy(subs(c_, r => r2)) for c_ in br]) +
+             ser(r2, [_ode_tidy(subs(cancel(diff(c_, r)), r => r2)) for c_ in br])
+    end
+    # each solution's residual, over a₂/t², is O(t^(r₂ + n)) (when r₂ is a number)
+    if r2.kind == NUMBER
+        for y in (y1, y2)
+            R = _ode_residual(P, :explicit, y) * (x - a)^2 / A[3]
+            ps = try Base.invokelatest(SymJ.series, subs(R, x => a + t), t, 0, _jlnum(r2.num) + N).ps catch; continue end
+            all(i -> ps.e[i] >= r2.num + N || iszero(simplify(ps.c[i])), eachindex(ps.e)) ||
+                throw(ArgumentError("dsolve: the series found does not satisfy the equation"))
+        end
+    end
+    Cs[1] * y1 + Cs[2] * y2
+end
+

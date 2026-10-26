@@ -980,6 +980,20 @@ SymJ.dsolve(y''(x) + y(x) ~ 0, y(x), y(0) => 0, y'(0) => 1)
 SymJ.dsolve(y'(x) ~ -x / y(x), y(x), y(0) => 2)
 ```
 
+With `series = n` the solution is a series, here about `0` (Airy's equation), with error
+`O(x^n)`:
+
+```@example tut
+SymJ.dsolve(y''(x) - x * y(x) ~ 0, y(x); series = 8)
+```
+
+At a regular singular point it is a Frobenius series, which can have a `log` term
+(Bessel's equation of order 0):
+
+```@example tut
+SymJ.dsolve(x^2 * y''(x) + x * y'(x) + x^2 * y(x) ~ 0, y(x); series = 6)
+```
+
 A system of linear equations with constant coefficients is given as vectors of
 equations and unknowns. The answer is a vector of equations:
 
