@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=c33ea84e">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=b828f654">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -1072,6 +1072,27 @@ Q, R</code></pre>
 \right] \right)\]
 </div>
 </div>
+<p>The singular value decomposition, exactly, for small matrices:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">F = svd(Sym[3 0; 4 5])
+F.S, F.U, F.Vt</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \left[ 3 \cdot \sqrt{5}, \; \sqrt{5} \right], \; \left[
+\begin{array}{cc}
+\frac{\sqrt{10}}{10} &amp; \frac{-3 \cdot \sqrt{10}}{10} \\
+\frac{3 \cdot \sqrt{10}}{10} &amp; \frac{\sqrt{10}}{10} \\
+\end{array}
+\right], \; \left[
+\begin{array}{cc}
+\frac{\sqrt{2}}{2} &amp; \frac{\sqrt{2}}{2} \\
+\frac{ - \sqrt{2}}{2} &amp; \frac{\sqrt{2}}{2} \\
+\end{array}
+\right] \right)\]
+</div>
+</div>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -1777,6 +1798,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=c33ea84e"></script>
+  <script src="../assets/materialdocs.js?v=b828f654"></script>
 </body>
 </html>
