@@ -1606,6 +1606,24 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test R(x ≫ real(x) - 1, x ∈ ℝ) === true
     end
 
+    @testset "real root isolation" begin
+        RR, RI = SymJ.real_roots, SymJ.root_intervals
+        @test RR(x^3 - 2x - 5, x) == [2.0945514815423265] && RR(x^2 + 1, x) == Float64[] && RR(Sym(5), x) == Float64[]
+        @test RR((x - 1)^2 * (x^2 - 2), x) == [-sqrt(2), 1.0, 1.0, sqrt(2)]
+        @test RR(prod(x - k for k in 1:20), x) == Float64.(1:20)                   # Wilkinson
+        @test RR(x * (x - 1 // 2) * (x + 3 // 7), x) == [-3 / 7, 0.0, 0.5]
+        @test RR(x^5 - x - 1, x; T = BigFloat)[1] ≈ big"1.167303978261418684256045899854842180720560371525489039140082449275651903429519"
+        I = RI((x - 1)^2 * (x^2 - 2), x)
+        @test length(I) == 3 && I[2] == (1, 1, 2) && all(t -> t[1] < t[2] || t[1] == t[2], I)
+        @test all(t -> t[2] - t[1] < 1 // 100, RI(x^2 - 2, x; width = 1 // 100))
+        # an exact root next to an interval of the same factor (its endpoint)
+        rs = [-11 // 7, 0, 5 // 7, -27 // 7, -2, -23 // 7, 18 // 7]
+        @test RR(prod(x - r for r in rs), x) == sort(Float64.(rs))
+        @test_throws ArgumentError RR(x^2 - sqrt(Sym(2)), x)
+        @test_throws ArgumentError RR(Sym(0), x)
+        @test_throws ArgumentError RR(sin(x), x)
+    end
+
     @testset "linear algebra" begin
         @syms a b c d λ
         LA = SymJ.LinearAlgebra

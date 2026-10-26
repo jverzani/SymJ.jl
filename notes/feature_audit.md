@@ -79,7 +79,7 @@ with assumptions, `refine` and `simplify`, complex parts and LaTeX output are do
 | Solutions under assumptions (domain, range, parameter cases) | `solveset(…, domain)`, assumptions on symbols | `assume` | ✅ `solve(…; assume)`: roots filtered by the unknown's facts; a `Cases` result when they depend on open facts. Not yet for systems |
 | Equations in several unrelated functions of the unknown | `solve` | `solve` | ❌ e.g. `sin(x) + cos(x) ~ 1` |
 | Nonlinear inequality systems | partial | partial | ❌ |
-| Numeric root finding, any equation | `nsolve` | `fsolve` | ◐ polynomials only |
+| Numeric root finding, any equation | `nsolve` | `fsolve` | ◐ polynomials: `SymJ.real_roots` (correctly rounded) and `SymJ.root_intervals` (exact isolation); other equations through Roots.jl or NonlinearSolve.jl, which take SymJ expressions as they are |
 | Diophantine equations | `diophantine` | `isolve` | ❌ |
 | Recurrences | `rsolve` | `rsolve`, `seqsolve` | ✅ `SymJ.rsolve`: linear, polynomial coefficients, by Hyper (hypergeometric solutions, combined), a hypergeometric right side; ◐ not for sums of such right sides, or solutions that are not hypergeometric (Franel), factors over the rationals only |
 | Ordinary differential equations | `dsolve`, `classify_ode`, `checkodesol` | `desolve` | ◐ ★ `SymJ.dsolve`: first order (linear, separable, Bernoulli, exact with integrating factors, homogeneous, Riccati), linear with constant coefficients of any order (undetermined coefficients, variation of parameters), Cauchy–Euler, `y` missing, autonomous second order (`y'' = f(y, y')`); initial conditions (`y'(0) => 1`); linear systems with constant coefficients, of any order; series solutions (`series = n`: Taylor at an ordinary point, nonlinear too; Frobenius at a regular singular point); Laplace transforms for constant coefficients (chosen for `heaviside`/`dirac` right sides, or `method = :laplace`), systems too; every solution checked; several branches of `y'` give a solution each |
@@ -176,7 +176,10 @@ transforms). Of the rest, in rough order of value for calculus-level use:
 5. **Laplace transforms**: done for the elementary transforms and `heaviside`/`dirac`
    shifts (and used by `dsolve`). Open: a table of special-function transforms, and
    Fourier, Mellin and Z transforms.
-6. **Numeric root finding for any equation**, for when `solve` has no closed form.
+6. **Numeric root finding**: real roots of polynomials are isolated exactly
+   (`SymJ.root_intervals`, `SymJ.real_roots`); for other equations Roots.jl and
+   NonlinearSolve.jl work on SymJ expressions directly (callable, or through
+   `lambdify`), so no solver of its own is planned.
 7. **Utilities**: `collect`, `coeff`, Horner form, a user-level `cse`, `nsimplify`, and a
    user-level `rewrite` (exp ↔ trig, half-angle; `simplify` already rewrites inside).
 8. **Assumptions, the remaining pieces**: integer congruences, `assume` for systems of
