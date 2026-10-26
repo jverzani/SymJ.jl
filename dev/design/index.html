@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Design notes — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=a44d5ccc">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=a79bff2e">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Design notes — SymJ.jl">
   <meta property="og:title" content="Design notes — SymJ.jl">
@@ -1228,8 +1228,8 @@ end</code></pre>
 </li>
 </ul>
 <h2 id="Pattern-matching" class="md-heading">Pattern matching<a href="#Pattern-matching" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
-<p>The design, and the decisions behind it, are in <code class="md-code-inline">notes/pattern_matching.md</code>; stage 1, the matcher, is done.</p>
-<ul class="md-list-tight">
+<p>The design, and the decisions behind it, are in <code class="md-code-inline">notes/pattern_matching.md</code>; stages 1–3, the matcher, rules and their speed, are done.</p>
+<ul>
 <li><p><strong>Patterns are expressions.</strong> <code class="md-code-inline">SymJ.pattern(:(…))</code> reads a quoted expression with SymJ&#39;s arithmetic, a slot <code class="md-code-inline">~x</code> being a private function node <code class="md-code-inline">_slot(x, flavor)</code> and a head slot <code class="md-code-inline">(~f)(…)</code> a node <code class="md-code-inline">_hslot(f, …)</code>. So a pattern is in canonical form and means what that form means: <code class="md-code-inline">~x + ~x</code> is <code class="md-code-inline">2*~x</code>, <code class="md-code-inline">exp(log(~x))</code> is <code class="md-code-inline">~x</code>. A slot that vanishes (<code class="md-code-inline">~x - ~x</code>) is an error.</p>
 </li>
 <li><p><strong>Sums and products are associative and commutative.</strong> Their elements are the terms (the constant last) or the factors (the coefficient last). A pattern&#39;s parts without slots are found by hash; its other parts each match one element, tried only against elements with the same head; its slots take groups, <code class="md-code-inline">~x</code> one or more and <code class="md-code-inline">~!x</code>, <code class="md-code-inline">~~x</code> any number, bound to the group&#39;s sum or product. A group is a subsequence of the subject&#39;s terms, already in canonical order, so its sum is built directly.</p>
@@ -1238,7 +1238,13 @@ end</code></pre>
 </li>
 <li><p><strong>The first match.</strong> Slots already bound take their value&#39;s elements, then defaults (offered the number first, else taking none), scaled slots (negative terms first), slots with predicates and plain slots, each in the order written; the last takes what is left. Ambiguous splits (<code class="md-code-inline">~x + ~y</code> against <code class="md-code-inline">a + b</code>) follow the stored order of the terms, not the printed one, which would cost a string comparison.</p>
 </li>
-<li><p><strong>The search</strong> is backtracking with the continuation as a linked list of concrete goal records, not closures, so it is fully typed. On ACPM&#39;s 62 benchmark cases the first match takes a median 0.83 μs and at most 6.1 μs (ACPM&#39;s associative-commutative matcher: 13.1 μs and 628 μs).</p>
+<li><p><strong>The search</strong> is backtracking with the continuation as a linked list of concrete goal records, not closures, so it is fully typed.</p>
+</li>
+<li><p><strong>Rules.</strong> <code class="md-code-inline">@rule lhs =&gt; rhs</code> reads <code class="md-code-inline">lhs</code> as a pattern, with its predicates (and any <code class="md-code-inline">$v</code>) evaluated where the macro is called, and makes <code class="md-code-inline">rhs</code> a function of the bindings, <code class="md-code-inline">~x</code> becoming the bound value. A rule&#39;s search goes on past a match whose right side gives <code class="md-code-inline">nothing</code>. <code class="md-code-inline">SymJ.rule(lhs =&gt; rhs)</code> does the same at run time, <code class="md-code-inline">rhs</code> a quoted template (read like a pattern, with the slots filled in) or a function. A right side naming a slot the left side lacks is an error when the rule is made.</p>
+</li>
+<li><p><strong>Rewriting.</strong> <code class="md-code-inline">SymJ.rewrite</code> walks the parts of an expression (the terms of a sum, the factors of a product, the arguments of a function), bottom up or top down, and at each tries the rules in order; the parts are rebuilt by the canonical constructors. It repeats until a pass changes nothing, up to <code class="md-code-inline">maxsteps</code> passes (with a warning). <code class="md-code-inline">replace(ex, rules...)</code> is one pass. The rules are indexed by the head of their left side (a function&#39;s name, any function, anything), so a node is tried only against rules that could match it, and a quick check of head, arity and the number of terms rejects most of those before any search.</p>
+</li>
+<li><p><strong>Speed.</strong> On ACPM&#39;s 62 benchmark cases the first match takes a median 0.78 μs and at most 3.6 μs (ACPM&#39;s associative-commutative matcher: 13.1 and 628 μs). A 66-rule set rewrites a 30-term expression in 0.43 ms.</p>
 </li>
 </ul>
 <h2 id="Not-yet-done-/-open-questions" class="md-heading">Not yet done / open questions<a href="#Not-yet-done-/-open-questions" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
@@ -1320,6 +1326,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=a44d5ccc"></script>
+  <script src="../assets/materialdocs.js?v=a79bff2e"></script>
 </body>
 </html>

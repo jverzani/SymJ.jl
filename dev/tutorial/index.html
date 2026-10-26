@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=58fb8b26">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=3eb1bcce">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -1577,6 +1577,36 @@ eachmatch(SymJ.pattern(:(~x + ~y)), a + b + c)</code></pre>
   :f =&gt; cos
   :x =&gt; x</code></pre>
 </div>
+<p>A rule rewrites what a pattern matches. <code class="md-code-inline">SymJ.@rule lhs =&gt; rhs</code> takes the right side as Julia code, with <code class="md-code-inline">~x</code> the matched value; <code class="md-code-inline">SymJ.rewrite</code> applies rules to every part of an expression until nothing changes, and <code class="md-code-inline">replace</code> applies them once:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">r = SymJ.@rule log(~x * ~y) =&gt; log(~x) + log(~y)
+SymJ.rewrite(log(a * b * c), r), replace(log(a * b * c), r)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \log\left( a \right) + \log\left( b \right) + \log\left( c \right), \; \log\left( a \cdot c \right) + \log\left( b \right) \right)\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">pyth = SymJ.@rule sin(~x)^2 + cos(~x)^2 + ~~r =&gt; 1 + ~r
+SymJ.rewrite(3 + sin(2x)^2 + cos(2x)^2 + x, pyth)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[x + 4\]
+</div>
+</div>
+<p>A predicate on a slot, or a right side that gives <code class="md-code-inline">nothing</code>, limits where a rule applies:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">d = SymJ.@rule (~x)^(~n::isinteger) =&gt; ~n * (~x)^(~n - 1)
+d(x^3), d(x^a)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">(3*x^2, nothing)</code></pre>
+</div>
       </article>
       <footer class="md-footer">
 <p>Built with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and <a href="https://github.com/mthelm85/MaterialDocs.jl">MaterialDocs.jl</a>.</p>
@@ -1635,6 +1665,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=58fb8b26"></script>
+  <script src="../assets/materialdocs.js?v=3eb1bcce"></script>
 </body>
 </html>
