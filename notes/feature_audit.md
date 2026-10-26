@@ -82,7 +82,7 @@ series, assumptions, a basic `simplify`, summation)
 | Numeric root finding, any equation | `nsolve` | `fsolve` | ◐ polynomials only |
 | Diophantine equations | `diophantine` | `isolve` | ❌ |
 | Recurrences | `rsolve` | `rsolve`, `seqsolve` | ✅ `SymJ.rsolve`: linear, polynomial coefficients, by Hyper (hypergeometric solutions, combined), a hypergeometric right side; ◐ not for sums of such right sides, or solutions that are not hypergeometric (Franel), factors over the rationals only |
-| Ordinary differential equations | `dsolve`, `classify_ode`, `checkodesol` | `desolve` | ◐ ★ `SymJ.dsolve`: first order (linear, separable, Bernoulli, exact with integrating factors, homogeneous), linear with constant coefficients of any order (undetermined coefficients, variation of parameters), Cauchy–Euler, `y` missing, autonomous second order (`y'' = f(y, y')`); initial conditions (`y'(0) => 1`); linear systems with constant coefficients, of any order; every solution checked. Not yet: series solutions, Riccati, two-branch autonomous (`y'' = -sin y`), Laplace |
+| Ordinary differential equations | `dsolve`, `classify_ode`, `checkodesol` | `desolve` | ◐ ★ `SymJ.dsolve`: first order (linear, separable, Bernoulli, exact with integrating factors, homogeneous, Riccati), linear with constant coefficients of any order (undetermined coefficients, variation of parameters), Cauchy–Euler, `y` missing, autonomous second order (`y'' = f(y, y')`); initial conditions (`y'(0) => 1`); linear systems with constant coefficients, of any order; every solution checked. Not yet: series solutions, two-branch autonomous (`y'' = -sin y`), Laplace |
 | Partial differential equations | `pdsolve` | — | ❌ |
 
 ## Calculus
@@ -152,7 +152,7 @@ permutation groups (`sympy.combinatorics`), tensors and differential geometry
 ## Gaps worth considering
 
 The planned work (★) still to do is differential equations (under way: `SymJ.dsolve` has the
-first-order and linear methods, linear systems and autonomous reduction; series solutions, Riccati and Laplace transforms remain); series, assumptions, a
+first-order and linear methods, linear systems, autonomous reduction and Riccati; series solutions and Laplace transforms remain); series, assumptions, a
 basic `simplify` and summation are done. Of the rest, in rough order of value for
 calculus-level use:
 

@@ -1090,6 +1090,15 @@ and a finalizer per operation), which dominates the small benchmarks.
   `θ(θ - 1)…(θ - k + 1) y`), then first order `y' = f(x, y)`: separable (`f` factors as
   `g(x)h(y)`), Bernoulli, exact (with an integrating factor in `x` or `y` alone),
   homogeneous (`f(x, vx)` free of `x`).
+- **Riccati equations**, `y' = q₀ + q₁ y + q₂ y²`, the last first-order method:
+  `y = -u'/(q₂ u)` gives `u'' - (q₁ + q₂'/q₂) u' + q₀ q₂ u = 0`, solved when it has
+  constant coefficients or is Cauchy–Euler, and `u = C u₁ + u₂` gives `y` with one
+  constant. Otherwise a particular solution `y₁ = c xᵏ` (`|k| ≤ 2`) or `c e^(kx)`
+  (`|k| ≤ 2`), with `c` constant, and `y = y₁ + 1/v`, `v` from a linear equation. A
+  first-order method whose answer has an unevaluated integral is kept only if no later
+  one does better: `y' = y² + 4` is separable, but without RischIntegrate the
+  integral is left undone, while as a Riccati equation it has a closed form in `sin`
+  and `cos`.
 - **Autonomous equations**, second order without `x`: with `p = y'` a function of
   `s = y`, `y'' = p dp/ds`, a first-order equation for `p(s)` solved by the methods
   above; then `∫ ds/p(s) = x + C₂`, solved for `y` when that gives one solution and

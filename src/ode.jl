@@ -8,7 +8,8 @@
 #   coefficients by the roots of the characteristic polynomial, a particular solution by
 #   undetermined coefficients or variation of parameters; Cauchy–Euler through x = eᵗ;
 # - first order, y' = f(x, y): separable, Bernoulli, exact (or with an integrating factor
-#   in x or in y alone), homogeneous (f a function of y/x);
+#   in x or in y alone), homogeneous (f a function of y/x), Riccati (made linear, or
+#   from a particular solution);
 # - autonomous, y'' = f(y, y'): p = y' as a function of y, then ∫ dy/p = x + C₂.
 #
 # Systems, linear with constant coefficients, are at the end ("systems").
@@ -28,7 +29,7 @@ Initial conditions are pairs, one for each order: `y(0) => 1, y'(0) => 0`. They 
 constants.
 
 Methods: first order linear, separable, Bernoulli, exact (with an integrating factor in
-`x` or `y` alone), homogeneous; linear with constant coefficients, of any order
+`x` or `y` alone), homogeneous, Riccati; linear with constant coefficients, of any order
 (undetermined coefficients, else variation of parameters, for the right side);
 Cauchy–Euler; equations without `y` (reduced to a lower order); second order without
 `x` (autonomous: `p = y'` as a function of `y`). Integrals are done by
@@ -499,12 +500,15 @@ function _ode_first_order(P::_ODE, Cs)
     f = has(a, Y1) ? (fs = solve(P.F ~ 0, Y1); length(fs) == 1 ? fs[1] : return nothing) : -subs(P.F, Y1 => ZERO) / a
     f = _ode_tidy(f)
     C = Cs[1]
-    for m in (_ode_separable, _ode_bernoulli, _ode_exact, _ode_homogeneous)
+    fallback = nothing             # a solution with an unevaluated integral, if no other
+    for m in (_ode_separable, _ode_bernoulli, _ode_exact, _ode_homogeneous, _ode_riccati)
         r = try m(P, f, a, C) catch err; err isa InterruptException && rethrow(); nothing end
         r === nothing && continue
-        return _ode_explicit(r, Y0, C)
+        r = _ode_explicit(r, Y0, C)
+        _hasfn(r[2], :Integral) || return r
+        fallback === nothing && (fallback = r)
     end
-    nothing
+    fallback
 end
 
 # φ = C solved for y when that has one solution
@@ -627,6 +631,58 @@ function _ode_homogeneous(P::_ODE, f::Sym, a::Sym, C::Sym)
     iszero(d) && return nothing
     φ = _integrate(_ode_tidy(1 / d), v) - log(x)
     (:implicit, _ode_tidy(subs(φ, v => Y0 / x)))
+end
+
+## Riccati: y' = q₀ + q₁ y + q₂ y²
+
+# y = -u'/(q₂ u) makes u'' - (q₁ + q₂'/q₂) u' + q₀ q₂ u = 0, linear, solved by the
+# methods above (constant coefficients, Cauchy–Euler); u = C u₁ + u₂ gives y with one
+# constant. Else a particular solution y₁ = c xᵏ or c eᵏˣ, and y = y₁ + 1/v with v linear:
+# v' = -(q₁ + 2 q₂ y₁) v - q₂.
+function _ode_riccati(P::_ODE, f::Sym, a::Sym, C::Sym)
+    Y0, x = P.ys[1], P.x
+    q2 = _ode_tidy(diff(f, Y0, 2) / 2)
+    q1 = _ode_tidy(subs(diff(f, Y0), Y0 => ZERO))
+    q0 = _ode_tidy(subs(f, Y0 => ZERO))
+    (iszero(q2) || any(q -> has(q, Y0), (q0, q1, q2))) && return nothing
+    iszero(_ode_tidy(f - q0 - q1 * Y0 - q2 * Y0^2)) || return nothing
+    r = _ode_riccati_linear(P, q0, q1, q2, C)
+    r === nothing || return r
+    _ode_riccati_particular(P, q0, q1, q2, C)
+end
+
+function _ode_riccati_linear(P::_ODE, q0, q1, q2, C)
+    x = P.x
+    U = [Sym(Symbol("_ode_u", k)) for k in 0:2]
+    G = U[3] - _ode_tidy(q1 + diff(q2, x) / q2) * U[2] + _ode_tidy(q0 * q2) * U[1]
+    C2 = Sym(:_ode_C2)
+    sol = _ode_linear(_ODE(G, U, x, P.yx, 2), [C, C2])
+    sol === nothing && return nothing
+    u = subs(sol[2], C2 => ONE)
+    (has(u, C) && !_hasfn(u, :Integral)) || return nothing
+    (:explicit, _ode_tidy(-diff(u, x) / (q2 * u)))
+end
+
+function _ode_riccati_particular(P::_ODE, q0, q1, q2, C)
+    x, c = P.x, Sym(:_ode_c)
+    for y1 in (c, c * x, c / x, c * x^2, c / x^2, c * exp(x), c * exp(-x), c * exp(2x), c * exp(-2x))
+        res = _ode_tidy(diff(y1, x) - q0 - q1 * y1 - q2 * y1^2)
+        n, _ = numer_denom(res)
+        has(n, c) || continue
+        cs = try solve(expand(n) ~ 0, c) catch; continue end
+        for cv in cs
+            has(cv, x) && continue                    # c must be a constant
+            y1v = _ode_tidy(subs(y1, c => cv))
+            iszero(y1v) && continue
+            iszero(_ode_tidy(subs(res, c => cv))) || continue
+            # v' + (q₁ + 2 q₂ y₁) v = -q₂
+            p = _ode_tidy(q1 + 2q2 * y1v)
+            μ = _ode_tidy(exp(_integrate(p, x)))
+            v = _ode_tidy((_integrate(_ode_tidy(-μ * q2), x) + C) / μ)
+            return (:explicit, _ode_tidy(y1v + 1 / v))
+        end
+    end
+    nothing
 end
 
 ## autonomous: y'' = f(y, y')

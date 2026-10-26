@@ -1814,9 +1814,17 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test D(y''(x) + y'(x)^2 ~ 0, y(x)).rhs == C2 + log(C1 + x)
         # the built-in integrator: powers of a linear function
         @test SymJ._integrate(1 / (x + 2), x) == log(x + 2) && SymJ._integrate(3 / (2x + 1)^2, x) == -(3 // 2) / (2x + 1)
+        # Riccati: linearized (u'' … = 0 by constant coefficients or Cauchy–Euler), or from a
+        # particular solution
+        @test D(y'(x) ~ y(x)^2 - 2 / x^2, y(x)).rhs == (-2x^3 + C1) / (x^4 + C1 * x)
+        @test D(y'(x) ~ y(x)^2 + 4, y(x)).rhs == (2C1 * sin(2x) - 2cos(2x)) / (C1 * cos(2x) + sin(2x))   # not an Integral
+        @test D(y'(x) ~ 1 + x^2 - 2x * y(x) + y(x)^2, y(x)).rhs == x + 1 / (C1 - x)                  # y₁ = x
+        @test D(y'(x) ~ exp(2x) + (1 - 2exp(x)) * y(x) + y(x)^2, y(x)).rhs == exp(x) + 1 / (C1 / exp(x) - 1)   # y₁ = eˣ
+        r = D(y'(x) ~ -y(x)^2 + 2 / x^2, y(x), y(1) => 1)
+        @test iszero(simplify(diff(r.rhs, x) + r.rhs^2 - 2 / x^2)) && subs(r.rhs, x => 1) == 1
         # errors
         @test_throws ArgumentError D(y''(x) ~ -sin(y(x)), y(x))                                 # y' = ±sqrt(…): not yet
-        @test_throws ArgumentError D(y'(x) ~ y(x)^2 + x, y(x))                                  # Riccati: no method
+        @test_throws ArgumentError D(y'(x) ~ y(x)^2 + x, y(x))                                  # Riccati to Airy: no method
         @test_throws ArgumentError D(y'(x) ~ y(x), y(x), y(0) => 1, y(1) => 2)
         @test_throws ArgumentError D(y(x) + x ~ 0, y(x))
         @test_throws ArgumentError D(y'(x) - y(x), y(x))

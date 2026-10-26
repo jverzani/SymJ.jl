@@ -932,6 +932,13 @@ recognized:
 SymJ.dsolve(y'(x) ~ x * y(x)^2, y(x)), SymJ.dsolve(y'(x) ~ (x + y(x)) / x, y(x))
 ```
 
+A Riccati equation, `y' = q₀ + q₁ y + q₂ y²`, is made linear (of second order), or
+solved from a particular solution:
+
+```@example tut
+SymJ.dsolve(y'(x) ~ y(x)^2 - 2 / x^2, y(x))
+```
+
 When `y` cannot be solved for, the solution is implicit:
 
 ```@example tut
