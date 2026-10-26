@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=7f6d2961">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=5c0f688d">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -1548,6 +1548,16 @@ SymJ.dsolve(y&#39;(x) + 2y(x) ~ exp(x), y(x))</code></pre>
 \[y\left( x \right) = e^{C1 \cdot \left( C2 + x \right)}\]
 </div>
 </div>
+<p>When <code class="md-code-inline">y&#39;</code> has two branches, <code class="md-code-inline">±sqrt(…)</code>, there is a solution for each; initial conditions pick one:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.dsolve(y&#39;&#39;(x) ~ 2y(x)^3, y(x), y(0) =&gt; 1, y&#39;(0) =&gt; 1)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[y\left( x \right) = \frac{-1}{x - 1}\]
+</div>
+</div>
 <p>Initial conditions, one for each order, fix the constants:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -1762,6 +1772,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=7f6d2961"></script>
+  <script src="../assets/materialdocs.js?v=5c0f688d"></script>
 </body>
 </html>
