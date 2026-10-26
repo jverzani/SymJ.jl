@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=18e21da0">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=58fb8b26">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -1454,6 +1454,16 @@ SymJ.dsolve(y&#39;(x) + 2y(x) ~ exp(x), y(x))</code></pre>
 \[y\left( x \right) = \frac{C1}{e^{2 \cdot x}} + \frac{e^{x}}{3}\]
 </div>
 </div>
+<p>The prime goes on the function, before the call. After the call, <code class="md-code-inline">&#39;</code> is Julia&#39;s adjoint of the value <code class="md-code-inline">y(x)</code>, its complex conjugate, and not a derivative:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">y&#39;(x), y(x)&#39;</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \mathrm{Derivative}\left( y\left( x \right), x \right), \; \mathrm{conj}\left( y\left( x \right) \right) \right)\]
+</div>
+</div>
 <p>First-order equations that are linear, separable, Bernoulli, exact or homogeneous are recognized:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -1522,6 +1532,51 @@ SymJ.dsolve(y&#39;(x) + 2y(x) ~ exp(x), y(x))</code></pre>
 \[y\left( x \right) = \sqrt{ - x^{2} + 4}\]
 </div>
 </div>
+<h2 id="Pattern-matching" class="md-heading">Pattern matching<a href="#Pattern-matching" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p><code class="md-code-inline">SymJ.pattern</code> (not exported) makes a pattern from a quoted expression, with <code class="md-code-inline">~x</code> marking a slot. <code class="md-code-inline">match</code> gives the first match as a <code class="md-code-inline">Dict</code>, <code class="md-code-inline">eachmatch</code> every match, and <code class="md-code-inline">occursin</code> whether a part of an expression matches:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">p = SymJ.pattern(:(~!a * sin(~x) + ~~r))
+match(p, 3sin(2x) + x + 1)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">Dict{Symbol, Any} with 3 entries:
+  :a =&gt; 3
+  :r =&gt; x + 1
+  :x =&gt; 2*x</code></pre>
+</div>
+<p>In a sum or product a slot takes a group of terms (factors), so there can be several matches; <code class="md-code-inline">~!a</code> is 1 when there is no factor for it:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms a b c
+eachmatch(SymJ.pattern(:(~x + ~y)), a + b + c)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">6-element Vector{Dict{Symbol, Any}}:
+ Dict(:y =&gt; a + c, :x =&gt; b)
+ Dict(:y =&gt; a + b, :x =&gt; c)
+ Dict(:y =&gt; b + c, :x =&gt; a)
+ Dict(:y =&gt; a, :x =&gt; b + c)
+ Dict(:y =&gt; c, :x =&gt; a + b)
+ Dict(:y =&gt; b, :x =&gt; a + c)</code></pre>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">match(p, sin(x)), occursin(SymJ.pattern(:(cos(~x)^2)), 1 + cos(x)^2)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">(Dict{Symbol, Any}(:a =&gt; 1, :r =&gt; 0, :x =&gt; x), true)</code></pre>
+</div>
+<p>A head slot matches a function and binds it:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">match(SymJ.pattern(:((~f)(~x)^2)), cos(x)^2)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">Dict{Symbol, Any} with 2 entries:
+  :f =&gt; cos
+  :x =&gt; x</code></pre>
+</div>
       </article>
       <footer class="md-footer">
 <p>Built with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and <a href="https://github.com/mthelm85/MaterialDocs.jl">MaterialDocs.jl</a>.</p>
@@ -1562,6 +1617,7 @@ SymJ.dsolve(y&#39;(x) + 2y(x) ~ exp(x), y(x))</code></pre>
           <a class="md-toc-link md-toc-h2" href="#Integrals">Integrals</a>
             <a class="md-toc-link md-toc-h3" href="#Definite-integrals">Definite integrals</a>
           <a class="md-toc-link md-toc-h2" href="#Differential-equations">Differential equations</a>
+          <a class="md-toc-link md-toc-h2" href="#Pattern-matching">Pattern matching</a>
       </div>
     </aside>
   </div>
@@ -1579,6 +1635,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=18e21da0"></script>
+  <script src="../assets/materialdocs.js?v=58fb8b26"></script>
 </body>
 </html>

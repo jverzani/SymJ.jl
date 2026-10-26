@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Design notes — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=c0a46f74">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=a44d5ccc">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Design notes — SymJ.jl">
   <meta property="og:title" content="Design notes — SymJ.jl">
@@ -1037,7 +1037,7 @@ end</code></pre>
 </li>
 <li><p><strong><code class="md-code-inline">simplify</code></strong> refines, simplifies function arguments, then searches: specialized routines (<code class="md-code-inline">simplify_rational</code>, <code class="md-code-inline">simplify_powers</code>, <code class="md-code-inline">simplify_trig</code>, expansion, factoring) each give a candidate, and the one with the fewest nodes is kept, the input if none is smaller. As in SymPy and Mathematica, a front end over specialized routines; their names start with <code class="md-code-inline">simplify_</code>, and only <code class="md-code-inline">simplify</code> and <code class="md-code-inline">refine</code> are exported.</p>
 </li>
-<li><p><strong>Rules are Julia functions</strong> on the canonical form, not a general pattern matcher: the canonical form already orders sums and products, which is most of what a matcher&#39;s associative-commutative matching is for, and the rule sets are small.</p>
+<li><p><strong>Rules are Julia functions</strong> on the canonical form: the canonical form already orders sums and products, which is most of what a matcher&#39;s associative-commutative matching is for, and the rule sets are small. (<code class="md-code-inline">SymJ.pattern</code>, below, is not used here yet.)</p>
 </li>
 <li><p><strong><code class="md-code-inline">simplify_trig</code>.</strong> Arguments are grouped into base angles (multiples of one another share a base), and sines and cosines of multiples written as polynomials in <code class="md-code-inline">S = sin g</code>, <code class="md-code-inline">C = cos g</code> (Chebyshev). Reducing modulo <code class="md-code-inline">S² + C² - 1</code> is a normal form; with one relation per base, whose leading term is <code class="md-code-inline">S²</code> or <code class="md-code-inline">C²</code>, the reduction is the substitution <code class="md-code-inline">S² → 1 - C²</code> (or the reverse), both tried. Linearizing through <code class="md-code-inline">S = (z - 1/z)/2i</code>, <code class="md-code-inline">C = (z + 1/z)/2</code>, <code class="md-code-inline">z = exp(i g)</code>, turns products into sines and cosines of sums of multiples of the bases (Fu&#39;s product-to-sum rule), which gives multiple and sum angles. The smallest candidate is kept, <code class="md-code-inline">sin/cos</code> shown as <code class="md-code-inline">tan</code>.</p>
 </li>
@@ -1227,6 +1227,20 @@ end</code></pre>
 <li><p><strong>Integrals</strong> go through an integrator hook that the RischIntegrate extension sets; without it a small integrator does polynomials and <code class="md-code-inline">exp</code>, <code class="md-code-inline">sin</code>, <code class="md-code-inline">cos</code>, <code class="md-code-inline">sinh</code>, <code class="md-code-inline">cosh</code> of linear arguments, and anything else is an unevaluated <code class="md-code-inline">Integral(f, x)</code> whose derivative is <code class="md-code-inline">f</code>.</p>
 </li>
 </ul>
+<h2 id="Pattern-matching" class="md-heading">Pattern matching<a href="#Pattern-matching" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>The design, and the decisions behind it, are in <code class="md-code-inline">notes/pattern_matching.md</code>; stage 1, the matcher, is done.</p>
+<ul class="md-list-tight">
+<li><p><strong>Patterns are expressions.</strong> <code class="md-code-inline">SymJ.pattern(:(…))</code> reads a quoted expression with SymJ&#39;s arithmetic, a slot <code class="md-code-inline">~x</code> being a private function node <code class="md-code-inline">_slot(x, flavor)</code> and a head slot <code class="md-code-inline">(~f)(…)</code> a node <code class="md-code-inline">_hslot(f, …)</code>. So a pattern is in canonical form and means what that form means: <code class="md-code-inline">~x + ~x</code> is <code class="md-code-inline">2*~x</code>, <code class="md-code-inline">exp(log(~x))</code> is <code class="md-code-inline">~x</code>. A slot that vanishes (<code class="md-code-inline">~x - ~x</code>) is an error.</p>
+</li>
+<li><p><strong>Sums and products are associative and commutative.</strong> Their elements are the terms (the constant last) or the factors (the coefficient last). A pattern&#39;s parts without slots are found by hash; its other parts each match one element, tried only against elements with the same head; its slots take groups, <code class="md-code-inline">~x</code> one or more and <code class="md-code-inline">~!x</code>, <code class="md-code-inline">~~x</code> any number, bound to the group&#39;s sum or product. A group is a subsequence of the subject&#39;s terms, already in canonical order, so its sum is built directly.</p>
+</li>
+<li><p><strong>Numbers divide into slots.</strong> A product&#39;s coefficient over the pattern&#39;s is one more element (<code class="md-code-inline">2*~x</code> against <code class="md-code-inline">6a</code> gives <code class="md-code-inline">x =&gt; 3a</code>), and a scaled slot in a sum takes a group divided by its scale (<code class="md-code-inline">~x - ~y</code> against <code class="md-code-inline">a - 2b</code> gives <code class="md-code-inline">y =&gt; 2b</code>).</p>
+</li>
+<li><p><strong>The first match.</strong> Slots already bound take their value&#39;s elements, then defaults (offered the number first, else taking none), scaled slots (negative terms first), slots with predicates and plain slots, each in the order written; the last takes what is left. Ambiguous splits (<code class="md-code-inline">~x + ~y</code> against <code class="md-code-inline">a + b</code>) follow the stored order of the terms, not the printed one, which would cost a string comparison.</p>
+</li>
+<li><p><strong>The search</strong> is backtracking with the continuation as a linked list of concrete goal records, not closures, so it is fully typed. On ACPM&#39;s 62 benchmark cases the first match takes a median 0.83 μs and at most 6.1 μs (ACPM&#39;s associative-commutative matcher: 13.1 μs and 628 μs).</p>
+</li>
+</ul>
 <h2 id="Not-yet-done-/-open-questions" class="md-heading">Not yet done / open questions<a href="#Not-yet-done-/-open-questions" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <ul class="md-list-tight">
 <li><p><strong>Parameters and variables sharing a name.</strong> Prohibit it, or print them distinctly? See Parameters above.</p>
@@ -1295,6 +1309,7 @@ end</code></pre>
           <a class="md-toc-link md-toc-h2" href="#Assumptions">Assumptions</a>
           <a class="md-toc-link md-toc-h2" href="#Performance-snapshot">Performance snapshot</a>
           <a class="md-toc-link md-toc-h2" href="#Differential-equations">Differential equations</a>
+          <a class="md-toc-link md-toc-h2" href="#Pattern-matching">Pattern matching</a>
           <a class="md-toc-link md-toc-h2" href="#Not-yet-done-/-open-questions">Not yet done / open questions</a>
       </div>
     </aside>
@@ -1305,6 +1320,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=c0a46f74"></script>
+  <script src="../assets/materialdocs.js?v=a44d5ccc"></script>
 </body>
 </html>
