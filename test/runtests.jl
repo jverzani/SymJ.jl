@@ -1920,6 +1920,10 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test M(:((~f)(~x)^2), cos(x)^2) == D(:f => cos, :x => x)
         @test M(:((~f)(~x) + (~f)(~y)), cos(b) + sin(a)) === nothing
         @test M(:((~g)(~x)), f(t)) == D(:g => f, :x => t)
+        @test M(:((~x)^(~n::iseven)), x^2) == D(:x => x, :n => 2) && M(:((~x)^(~n::iseven)), x^3) === nothing
+        @test M(:(~a::isinteger * ~x), 3x) == D(:a => 3, :x => x) && M(:((~x)^(~n::isodd) + ~y), x^3 + a) == D(:x => x, :n => 3, :y => a)
+        @test isinteger(Sym(3)) && isinteger(Sym(2.0)) && !isinteger(Sym(3 // 2)) && !isinteger(x) && !isinteger(Sym(2.5))
+        @test iseven(Sym(4)) && !iseven(Sym(3)) && isodd(Sym(-3)) && !isodd(x) && iseven(Sym(big(2)^70)) && isodd(Sym(5.0))
         isnum(v) = v isa Sym && v.kind == SymJ.NUMBER
         @test match(P(:(~n::$isnum * ~x)), 3a) == D(:n => 3, :x => a)
         @test match(P(:(~n::$isnum * sin(~x))), a * sin(t)) === nothing

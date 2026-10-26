@@ -319,8 +319,9 @@ The first draft's open questions, as settled:
   first, then `x => x^3, m => 1`. ACPM gives only the first.
 - **Continuations** are a linked list of concrete goal records, not closures, which
   halved the search time.
-- **Predicates** get `Sym`s. Base's `isinteger`, `iseven` and `isodd` have no methods for
-  `Sym`, so `~n::isinteger` rejects everything; the benchmark defined them locally.
+- **Predicates** get `Sym`s. SymJ defines Base's `isinteger`, `iseven` and `isodd` for
+  `Sym`, true for numbers only (a symbol `n` is not known to be an integer), so
+  `~n::isinteger` takes integer values.
 
 On ACPM's 62 cases (run in a scratch script; ACPM's checkout is unchanged), the first
 match takes a median 0.83 μs and at most 6.1 μs, against `ac`'s 13.1 and 628 μs, `cc`'s
