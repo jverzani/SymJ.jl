@@ -11,3 +11,4 @@
 *.iml
 /bench/cas/env_sympy/.CondaPkg/
 /bench/cas/results/run_all.log
+/docs/src/reference/
