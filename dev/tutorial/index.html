@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=53aa7f2c">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=d0c1d7ac">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -995,6 +995,19 @@ SymJ.rsolve(w(n + 2) ~ w(n + 1) + w(n), w(n), w(0) =&gt; 0, w(1) =&gt; 1), SymJ.
 \[\mathrm{harmonic}\left( n \right)\]
 </div>
 </div>
+<p>Solutions that are hypergeometric only on every second (or <code class="md-code-inline">m</code>-th) term are found too, as piecewise functions of <code class="md-code-inline">mod(n, m)</code>:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.summation((-1)^k * binomial(n, k)^2, k, 0, n)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\begin{cases}
+0 \Rightarrow \left( -1 \right)^{\frac{n}{2}} \cdot \binom{n}{\frac{n}{2}} &amp; \text{if } \mathrm{mod}\left( n, 2 \right)\\
+0 &amp; \text{otherwise}
+\end{cases}\]
+</div>
+</div>
 <p>Harmonic numbers times a term that has an antidifference are summed by parts:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -1901,6 +1914,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=53aa7f2c"></script>
+  <script src="../assets/materialdocs.js?v=d0c1d7ac"></script>
 </body>
 </html>
