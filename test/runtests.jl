@@ -389,6 +389,28 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test expand(sin((x + 1)^2)) == sin(x^2 + 2x + 1)
     end
 
+    @testset "gather, coeff, rationalize" begin
+        @syms a b c t w()
+        G, C = SymJ.gather, SymJ.coeff
+        @test G(a * x^2 + b * x^2 + a * x - b * x + c, x) == (a + b) * x^2 + (a - b) * x + c
+        @test G(x * y + a * x * y + x + b * y, [x, y]) == (a + 1) * x * y + b * y + x
+        @test G(a * (x + 1)^2 + sin(x) + x * sin(x), x) == a * x^2 + 2a * x + a + sin(x) + x * sin(x)
+        @test G(a / x + b / x + c * sqrt(x) + sqrt(x), x) == (a + b) / x + (c + 1) * sqrt(x)
+        @test G(a * w(t)^2 + b * w(t)^2 + w(t), w(t)) == (a + b) * w(t)^2 + w(t)
+        @test G(a * x^c + b * x^c, x) == (a + b) * x^c
+        @test_throws ArgumentError G(x + 1, x + 1)
+        @test C(a * x^2 + b * x + c, x, 2) == a && C(a * x^2 + b * x + c, x) == b
+        @test C((x + y)^3, x^2) == 3y && C((x + y)^3, x, 0) == y^3
+        @test C(a * x + sin(x) + b + 3, x, 0) == b + 3
+        @test C(a / x + 2, x, -1) == a && C(a * x^2, x) == 0 && C(3x, x) == 3
+        @test rationalize(0.5x + 1.25) == x / 2 + Sym(5 // 4)
+        @test rationalize(x^0.5 + sin(0.1x)) == sqrt(x) + sin(x / 10)
+        @test rationalize(Sym(3.14159) * x; tol = 1e-3) == Sym(201 // 64) * x
+        @test rationalize(Sym(1.5) + 2.5im * x) == Sym(3 // 2) + Sym(5 // 2) * IM * x
+        @test rationalize(Sym(1 // 3) * x) == x / 3
+        @test rationalize(BigInt, Sym(0.1) * x) == x / 10
+    end
+
     @testset "Poly" begin
         @syms a b
         p = Poly((x + y + 1)^3, x, y)

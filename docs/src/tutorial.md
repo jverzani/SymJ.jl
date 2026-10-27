@@ -112,6 +112,20 @@ points are simplified:
 sin(x), sin(Sym(π) / 4), log(Sym(1)), sin(2)
 ```
 
+`SymJ.gather` groups the terms of an expression by powers of a variable (SymPy's
+`collect`), and `SymJ.coeff` picks out one coefficient:
+
+```@example tut
+@syms a b c
+SymJ.gather(a * x^2 + b * x^2 + a * x - b * x + c, x), SymJ.coeff((x + y)^3, x^2)
+```
+
+`rationalize` replaces the floating-point numbers in an expression by nearby rationals:
+
+```@example tut
+rationalize(0.5x + 1.25)
+```
+
 An expression is a tree: an operation applied to arguments. SymJ implements
 TermInterface, so `operation` and `arguments` take it apart:
 
