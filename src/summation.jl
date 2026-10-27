@@ -632,6 +632,14 @@ function _merge_powers(e::Sym)
         end
     end
     isempty(groups) && return e
+    # a sum's rational content taken into the coefficient (2^(n-3)(8n - 16) = 2^n (n - 2))
+    for (i, t) in enumerate(other)
+        t.kind == ADD && all(isexact, t.coefs) && isexact(t.num) || continue
+        g = reduce(gcd, Rational{BigInt}.(t.coefs); init = Rational{BigInt}(t.num))
+        (iszero(g) || isone(g)) && continue
+        c *= g
+        other[i] = expand(t / g)
+    end
     pows = Sym[]
     for (q, b) in groups
         j = 0
