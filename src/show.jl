@@ -45,6 +45,8 @@ function _show(io::IO, x::Sym, p::Int)
         _negexp(e) ? _show_mul(io, N1, x.args[1:1], x.args[2:2]) : _show_pow(io, b, e)
     elseif x.name === :piecewise
         _show_piecewise(io, x)
+    elseif x.name === :DifferenceRoot && length(x.args) >= 8
+        _show_droot(io, x)
     elseif _iscond(x)
         _show_cond(io, x)
     elseif x.name === :_slot

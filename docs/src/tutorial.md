@@ -671,6 +671,17 @@ as piecewise functions of `mod(n, m)`:
 SymJ.summation((-1)^k * binomial(n, k)^2, k, 0, n)
 ```
 
+With no closed form, `rsolve` returns the recurrence itself, which is evaluated at
+integers by unrolling it:
+
+```@example tut
+F = SymJ.rsolve((n + 2)^2 * w(n + 2) - (7n^2 + 21n + 16) * w(n + 1) - 8(n + 1)^2 * w(n) ~ 0, w(n), w(0) => 1, w(1) => 2)
+```
+
+```@example tut
+[subs(F, n => m) for m in 0:6]
+```
+
 Harmonic numbers times a term that has an antidifference are summed by parts:
 
 ```@example tut
