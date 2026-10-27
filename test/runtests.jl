@@ -1847,6 +1847,30 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test Σ((-1)^k * binomial(4, k) / (k + 1)^2, k, 0, 4) == SymJ.harmonic(Sym(5)) / 5
         @test SymJ.kind(Σ(binomial(n, k)^3, k, 0, n)) == FN                 # Franel: no d'Alembertian solution
         @test_throws ArgumentError R((n + 2)^2 * y(n + 2) - (7n^2 + 21n + 16) * y(n + 1) - 8(n + 1)^2 * y(n) ~ 0, y(n))
+        # Liouvillian solutions: interlaced, piecewise in mod(n, m)
+        let s = R(y(n + 2) ~ (n + 1) * y(n), y(n), y(0) => 1, y(1) => 1)        # (n - 1)!!
+            @test [subs(s, n => m) for m in 0:7] == [1, 1, 1, 2, 3, 8, 15, 48]
+            @test SymJ.kind(s) == FN && s.name === :piecewise
+        end
+        let s = R(y(n + 2) ~ (n + 1) * y(n), y(n))
+            @test [subs(s, n => m) for m in 2:5] == [y(0), 2y(1), 3y(0), 8y(1)]
+        end
+        let s = R(y(n + 3) ~ (n + 1) * y(n), y(n), y(0) => 1, y(1) => 1, y(2) => 1)
+            @test [simplify(subs(s, n => m)) for m in 0:8] == [1, 1, 1, 1, 2, 3, 4, 10, 18]
+        end
+        let s = R(y(n + 2) ~ (n + 1) * y(n) + 1, y(n), y(0) => 0, y(1) => 0)  # sums in the pieces
+            @test [subs(s, n => m) for m in 0:6] == [0, 0, 1, 1, 4, 5, 21]
+        end
+        @test Σ((-1)^k * binomial(n, k)^2, k, 0, n) ==
+              SymJ.piecewise((mod(n, 2) ~ 0) => (-1)^(n / 2) * binomial(n, n / 2), true => 0)
+        let s = Σ((-1)^k * binomial(n, k)^3, k, 0, n)                         # Dixon
+            @test [subs(s, n => m) for m in 0:6] == [Σ((-1)^k * binomial(m, k)^3, k, 0, m) for m in 0:6]
+            @test s == SymJ.piecewise((mod(n, 2) ~ 0) => (-1)^(n / 2) * factorial(3n / 2) / factorial(n / 2)^3, true => 0)
+        end
+        let g = SymJ._present_product(factorial(n - Sym(1 // 3)) * factorial(n - Sym(2 // 3)) / factorial(n))   # Gauss
+            @test !has(g, factorial(n - Sym(1 // 3)))
+            @test all(m -> subs(g, n => m) == subs(2PI * 3^(-3n - Sym(1 // 2)) * factorial(3n) / factorial(n)^2, n => m), 1:4)
+        end
         @test_throws ArgumentError R(y(n + 1) ~ y(n)^2, y(n))
         @test_throws ArgumentError R(y(n + 2) ~ y(n + 1) + y(n), y(n), y(1) => 1)
     end

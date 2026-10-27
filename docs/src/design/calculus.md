@@ -103,9 +103,21 @@
   `harmonic(n)`, `y(n+1) = (n+1) y(n) + 1` gives `n! (1 + Σ 1/(k+1)!)`. Zeilberger's
   recurrences go the same way when Hyper falls short:
   `Σ_{k=1}^{n} (-1)^(k+1) binomial(n, k)/k = harmonic(n)`. A level without a
-  hypergeometric solution ends it, so the solution is not d'Alembertian: the Franel
-  recurrence of `Σ binomial(n, k)^3` is irreducible of order 2, and that sum stays
-  unevaluated (Liouvillian solutions, Hendriks–Singer, would not help either).
+  hypergeometric solution ends it, so the solution is not d'Alembertian.
+- **Liouvillian solutions** (Hendriks–Singer: `y(n+m)/y(n)` rational for some `m ≤ d`),
+  by sections. `y(n+t)` is reduced by the recurrence to the basis `y(n), …, y(n+d-1)`
+  plus a term free of `y`; the first linear dependency among `y(n), y(n+m), …,
+  y(n+km)` over the rational functions (a nullspace) gives `Σ_j c_j(n) y(n+jm) = r(n)`,
+  and `n = mN + i` a recurrence for `z_i(N) = y(mN + i)`. Each section is solved from
+  its own values (Hyper, else d'Alembertian), and the answer is
+  `piecewise(mod(n, m) ~ 0 => z_0(n/m), …)`: `y(n+2) = (n+1) y(n)` gives the double
+  factorial, and Zeilberger's `(n+2) S(n+2) + 4(n+1) S(n) = 0` gives
+  `Σ (-1)^k binomial(n, k)^2 = (-1)^(n/2) binomial(n, n/2)` for even `n`, 0 for odd.
+  Products with `Γ(N + j/m)` for every `j = 1..m-1` are combined by Gauss's
+  multiplication theorem, `Π_j Γ(z + j/m) = (2π)^((m-1)/2) m^(1/2-mz) Γ(mz)/Γ(z)`,
+  and `b^(cN)` is taken as `(b^c)^N` before powers are merged, so Dixon's
+  `Σ (-1)^k binomial(n, k)^3` is `(-1)^(n/2) (3n/2)!/((n/2)!)^3`. The Franel recurrence of
+  `Σ binomial(n, k)^3` has no Liouvillian solution, and that sum stays unevaluated.
 - **Harmonic numbers**, `Σ_{k=a}^{b} g(k) H(k + c)` with `c` an integer and `g` with an
   antidifference `G`, by parts: `G(b+1) H(b+c+1) - G(a) H(a+c) - Σ G(k+1)/(k+c+1)`.
   A polynomial `G` is shifted by a constant to vanish at `-c`, so the last sum is of a

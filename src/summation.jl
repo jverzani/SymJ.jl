@@ -568,8 +568,11 @@ function _zeilberger_sum(f::Sym, k::Sym, a::Sym, b::Sym, n::Sym)
             sol = hom === nothing ? nothing : _recurrence_solve(hom, n, value)
             sol !== nothing && _zeil_verified(sol[1], f, k, n, a, b, sol[2]) && return _merge_powers_terms(sol[1])
         end
-        # else d'Alembertian solutions (harmonic numbers), checked with their sums unevaluated
-        sol = _dalembert_solve(rec, g, n, value, vcat(_named(f), _named(a), _named(b)))
+        # else d'Alembertian solutions (harmonic numbers), checked with their sums
+        # unevaluated, else interlaced ones (Σ (-1)^k binomial(n, k)^2)
+        avoid = vcat(_named(f), _named(a), _named(b))
+        sol = _dalembert_solve(rec, g, n, value, avoid)
+        sol === nothing && (sol = _liouvillian_solve(rec, g, n, value, avoid))
         sol === nothing && return nothing
         S, n0, raw = sol
         return _zeil_verified(raw, f, k, n, a, b, n0) ? _merge_powers_terms(S) : nothing
@@ -702,10 +705,44 @@ end
 # factorial(a)/(factorial(b) factorial(a - b)) written binomial(a, b), and factorials
 # whose arguments differ by an integer combined (n!/(n - 1)! = n)
 function _present_product(e::Sym)
-    s = _merge_powers(simplify(_factorial_ratios(e)))
+    s = _merge_powers(simplify(_factorial_ratios(_gauss_multiplication(e))))
     r = _binomial_form(s)
     _nodes(r) < _nodes(s) ? r : s
 end
+# Gauss's multiplication theorem in a product: factorials (x - 1)! = Γ(x) at
+# x = z + j/m for every j = 1, …, m-1, all to the same power, as
+#   Π_j Γ(z + j/m) = (2π)^((m-1)/2) m^(1/2 - m z) Γ(m z)/Γ(z)
+# (Γ(N + 1/3) Γ(N + 2/3) = 2π 3^(-1/2-3N) (3N)!/N!)
+function _gauss_multiplication(e::Sym)
+    e.kind == MUL || return e
+    facs = [(i, b.args[1], p) for (i, (b, p)) in enumerate(zip(e.args, e.exps))
+            if b.kind == FN && b.name === :factorial && length(b.args) == 1]
+    length(facs) >= 1 || return e
+    for (i, u, p) in facs
+        x = expand(u + 1)                          # Γ(x)
+        c = x.kind == ADD ? Sym(x.num) : ZERO
+        (c.kind == NUMBER && !_isint(c.num) && isexact(c.num)) || continue
+        m = Int(denominator(Rational{BigInt}(c.num)))
+        m <= 12 || continue
+        base = expand(x - c)                       # x = base + c
+        fl = floor(Rational{BigInt}(c.num))
+        z = expand(base + Sym(SymNumber(fl)))      # x = z + j/m, 0 < j < m
+        # Γ(z + j/m) for every j, each to the power p
+        idx = Int[]
+        for j in 1:(m - 1)
+            xj = expand(z + Sym(j // m))
+            k = findfirst(t -> _eq(expand(t[2] + 1), xj) && _eq(t[3], p), facs)
+            k === nothing && break
+            push!(idx, facs[k][1])
+        end
+        length(idx) == m - 1 || continue
+        rest = Sym(e.num) * prod((b^q for (l, (b, q)) in enumerate(zip(e.args, e.exps)) if !(l in idx)); init = ONE)
+        g = (2 * PI)^(Sym(m - 1) / 2) * Sym(m)^(Sym(1 // 2) - m * z) * factorial(expand(m * z - 1)) / factorial(expand(z - 1))
+        return _gauss_multiplication(rest * g^p)
+    end
+    e
+end
+
 # powers of numbers with the same exponent multiplied ((-4)^n/4^n = (-1)^n), and a
 # rational coefficient that is a power of such a base taken in (2^(n-1)/2 = 2^(n-2))
 function _merge_powers(e::Sym)
@@ -718,6 +755,11 @@ function _merge_powers(e::Sym)
             p0 = p.kind == ADD ? Sym(p.num) : ZERO
             q = expand(p - p0)
             c *= b^p0
+            # an integer multiple taken into the base: 3^(3n) = 27^n
+            if q.kind == MUL && _isint(q.num) && 1 < abs(q.num) <= 12
+                t = abs(q.num)
+                b, q = b^t, expand(q / t)
+            end
             if haskey(groups, -q)                  # b^(-q) = (1/b)^q
                 groups[-q] *= 1 / b
             else
