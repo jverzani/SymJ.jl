@@ -1,5 +1,6 @@
 # Linear recurrences with polynomial coefficients: their hypergeometric solutions, by
-# Petkovšek's algorithm Hyper, and d'Alembertian ones by reduction of order.
+# Petkovšek's algorithm Hyper, d'Alembertian ones by reduction of order, and Liouvillian
+# ones by sections.
 #
 # For Σ_{i=0}^{d} p_i(n) y(n+i) = 0, a hypergeometric solution has
 #     y(n+1)/y(n) = Z A(n)/B(n) C(n+1)/C(n)
@@ -263,6 +264,85 @@ function _dal_close(e::Sym)
     e.kind == FN && e.name === :Sum && length(e.args) == 4 ? summation(e.args...) : e
 end
 
+## Liouvillian solutions: interlaced hypergeometric terms
+
+# A solution y whose sections z_i(N) = y(mN + i) are each hypergeometric (or
+# d'Alembertian) for some m ≤ d, such as the double factorial of y(n+2) = (n+1) y(n)
+# (Hendriks–Singer: a Liouvillian solution has y(n+m)/y(n) rational for some m ≤ d).
+# The m-section of Σ p_i y(n+i) = g: y(n+t) reduced by the recurrence to the basis
+# y(n), …, y(n+d-1) (plus a term free of y), the first linear dependency among
+# y(n), y(n+m), …, y(n+km) over the rational functions gives Σ_j c_j(n) y(n+jm) = r(n),
+# and with n = mN + i a recurrence for z_i. Each section is solved from its own values;
+# the answer is piecewise in mod(n, m).
+
+# (c_0, …, c_k), r for the m-section, or nothing
+function _section(p::Vector{Sym}, g::Sym, n::Sym, m::Int)
+    d = length(p) - 1
+    vs = Vector{Vector{Sym}}()                     # y(n+t): d coefficients, then the free term
+    for t in 0:(m * d)
+        if t < d
+            push!(vs, Sym[i == t ? ONE : ZERO for i in 0:d])
+            continue
+        end
+        s = t - d
+        pd = subs(p[end], n => n + s)
+        v = Sym[ZERO for _ in 0:d]
+        for i in 0:(d - 1)
+            c = -subs(p[i+1], n => n + s) / pd
+            v = v .+ c .* vs[s + i + 1]
+        end
+        v[end] += subs(g, n => n + s) / pd
+        push!(vs, Sym[cancel(x) for x in v])
+    end
+    for k in 1:d
+        W = Sym[vs[m * j + 1][r] for r in 1:d, j in 0:k]
+        N = try LinearAlgebra.nullspace(W) catch; return nothing end
+        size(N, 2) == 0 && continue
+        c = Sym[cancel(x) for x in N[:, 1]]
+        den = reduce((a, x) -> (q = numer_denom(x)[2]; cancel(a * q / gcd(a, q))), c; init = ONE)
+        c = Sym[expand(cancel(x * den)) for x in c]
+        gc = reduce(gcd, filter(!iszero, c))
+        has(gc, n) && (c = Sym[expand(cancel(x / gc)) for x in c]; den = den / gc)
+        r = cancel(den * _add_many(N[j+1, 1] * vs[m * j + 1][end] for j in 0:k))
+        return c, iszero(g) ? ZERO : r
+    end
+    nothing
+end
+
+# the solution through Hyper's solutions, else d'Alembertian ones: (S, n0, S with its
+# sums unevaluated), or nothing
+function _solve_chain(p::Vector{Sym}, g::Sym, n::Sym, value, avoid)
+    hom = _annihilate(p, g, n)
+    sol = hom === nothing ? nothing : _recurrence_solve(hom, n, value)
+    sol === nothing || return (sol[1], sol[2], sol[1])
+    _dalembert_solve(p, g, n, value, avoid)
+end
+
+# (S, n0, S unevaluated) with S piecewise in mod(n, m), or nothing
+function _liouvillian_solve(p::Vector{Sym}, g::Sym, n::Sym, value, avoid)
+    d = length(p) - 1
+    for m in 2:d
+        sec = _section(p, g, n, m)
+        sec === nothing && continue
+        c, r = sec
+        pieces = Tuple{Sym,Int,Sym}[]
+        for i in 0:(m - 1)
+            q = Sym[expand(subs(cj, n => m * n + i)) for cj in c]
+            gi = iszero(r) ? ZERO : subs(r, n => m * n + i)
+            sol = try _solve_chain(q, gi, n, N -> value(m * N + i), avoid) catch; nothing end
+            sol === nothing && break
+            push!(pieces, sol)
+        end
+        length(pieces) == m || continue
+        at(e, i) = simplify(subs(e, n => (n - i) / m))
+        pw(j) = piecewise(((mod(n, m) ~ i) => at(pieces[i+1][j], i) for i in 0:(m - 2))...,
+                          true => at(pieces[m][j], m - 1))
+        n0 = maximum(m * pieces[i+1][2] + i for i in 0:(m - 1))
+        return pw(1), n0, pw(3)
+    end
+    nothing
+end
+
 ## rsolve
 
 """
@@ -278,13 +358,16 @@ Not exported.
 When the hypergeometric solutions are too few, the order is reduced through one of them
 (d'Alembertian solutions): the answer is then in iterated sums of hypergeometric terms,
 such as `harmonic(n)` or an unevaluated `Sum`, and the right side may be any function of
-`n`. An error when the solution is not d'Alembertian (or Hyper's search is too large).
+`n`. Failing that, the sections `y(m N + i)` (`m` up to the order) are solved each in
+those ways and interlaced (Liouvillian solutions), the answer piecewise in `mod(n, m)`.
+An error when the solution is none of these (or Hyper's search is too large).
 
 ```julia
 @syms n y()
 SymJ.rsolve(y(n+2) ~ y(n+1) + y(n), y(n), y(0) => 0, y(1) => 1)   # Binet's formula
 SymJ.rsolve(y(n+1) ~ 2y(n) + 1, y(n))                              # 2^n (y(0) + 1) - 1
 SymJ.rsolve(y(n+1) - y(n) ~ 1/(n+1), y(n), y(0) => 0)              # harmonic(n)
+SymJ.rsolve(y(n+2) ~ (n+1)*y(n), y(n), y(0) => 1, y(1) => 1)       # (n - 1)!!, by parity
 ```
 """
 function rsolve(eq, yn::Sym, inits::Pair...)
@@ -348,11 +431,13 @@ function rsolve(eq, yn::Sym, inits::Pair...)
         iszero(pd) && return nothing
         vals[m] = expand((subs(g, n => m - d) - _add_many(subs(p[i+1], n => m - d) * prev[i+1] for i in 0:(d - 1))) / pd)
     end
-    # hypergeometric solutions (of the recurrence made homogeneous), else d'Alembertian ones
+    # hypergeometric solutions (of the recurrence made homogeneous), else d'Alembertian
+    # ones, else interlaced ones (Liouvillian)
     hom = _annihilate(p, g, n)
     sol = hom === nothing ? nothing : _recurrence_solve(hom, n, value)
     sol === nothing && (sol = _dalembert_solve(p, g, n, value, _named(e)))
-    sol === nothing && throw(ArgumentError("rsolve: the solution is not d'Alembertian (iterated sums of hypergeometric terms)"))
+    sol === nothing && (sol = _liouvillian_solve(p, g, n, value, _named(e)))
+    sol === nothing && throw(ArgumentError("rsolve: the solution is not Liouvillian (interlaced iterated sums of hypergeometric terms)"))
     S, n0 = sol
     Sv = length(sol) == 3 ? sol[3] : S             # (sums unevaluated: added up at numbers)
     # checked against the recurrence's own values

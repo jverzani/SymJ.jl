@@ -664,6 +664,13 @@ SymJ.rsolve(w(n + 1) - w(n) ~ 1 / (n + 1), w(n), w(0) => 0), SymJ.rsolve(w(n + 1
 SymJ.summation((-1)^(k + 1) * binomial(n, k) / k, k, 1, n)
 ```
 
+Solutions that are hypergeometric only on every second (or `m`-th) term are found too,
+as piecewise functions of `mod(n, m)`:
+
+```@example tut
+SymJ.summation((-1)^k * binomial(n, k)^2, k, 0, n)
+```
+
 Harmonic numbers times a term that has an antidifference are summed by parts:
 
 ```@example tut
