@@ -1820,8 +1820,16 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         let s = R(y(n + 1) - (n + 1) * y(n) ~ 1, y(n), y(0) => 1)          # n! Σ 1/k!
             @test [subs(s, n => m) for m in 0:4] == [1, 2, 5, 16, 65]
         end
-        let s = R(y(n + 2) - 2y(n + 1) + y(n) ~ 1 / (n + 1), y(n), y(0) => 0, y(1) => 0)   # Σ H_k, nested
-            @test [subs(s, n => m) for m in 0:3] == [0, 0, 1, Sym(5 // 2)]
+        @test R(y(n + 2) - 2y(n + 1) + y(n) ~ 1 / (n + 1), y(n), y(0) => 0, y(1) => 0) == n * SymJ.harmonic(n) - n
+        # harmonic numbers summed by parts
+        let H = SymJ.harmonic
+            @test Σ(H(k), k, 1, n) == (n + 1) * H(n) - n
+            @test Σ(k * H(k), k, 1, n) == n * (n + 1) * H(n) / 2 - n * (n - 1) / 4
+            @test simplify(Σ(k^2 * H(k), k, 1, n) - (n * (n + 1) * (2n + 1) * H(n) / 6 - n * (n - 1) * (4n + 1) / 36)) == 0
+            @test Σ(H(k + 1), k, 0, n) == (n + 2) * H(n + 1) - n - 1
+            @test Σ(H(k) / ((k + 1) * (k + 2)), k, 0, n) == n / (n + 1) - H(n) / (n + 2)
+            @test Σ(H(k), k, 1, 10) == Sym(55991 // 2520)
+            @test SymJ.kind(Σ(2^k * H(k), k, 0, n)) == FN               # Σ 2^(k+1)/(k+1) does not close
         end
         @test Σ((-1)^(k + 1) * binomial(n, k) / k, k, 1, n) == SymJ.harmonic(n)
         @test Σ((-1)^k * binomial(n, k) / (k + 1)^2, k, 0, n) == SymJ.harmonic(n + 1) / (n + 1)

@@ -106,6 +106,13 @@
   hypergeometric solution ends it, so the solution is not d'Alembertian: the Franel
   recurrence of `Σ binomial(n, k)^3` is irreducible of order 2, and that sum stays
   unevaluated (Liouvillian solutions, Hendriks–Singer, would not help either).
+- **Harmonic numbers**, `Σ_{k=a}^{b} g(k) H(k + c)` with `c` an integer and `g` with an
+  antidifference `G`, by parts: `G(b+1) H(b+c+1) - G(a) H(a+c) - Σ G(k+1)/(k+c+1)`.
+  A polynomial `G` is shifted by a constant to vanish at `-c`, so the last sum is of a
+  polynomial; the answer is written with `H(b+c+1)` or `H(b+c)`, whichever is smaller:
+  `Σ_{k=1}^{n} k H(k) = n(n+1) H(n)/2 - n(n-1)/4`. The sum stays unevaluated when the
+  last sum does not close (`Σ 2^k H(k)`), and for `Σ H(k)/(k+1)`, which needs
+  generalized harmonic numbers.
 - **Infinite sums** are limits of the antidifference (`limit`). A polynomial times
   `r^k` converges exactly when `-1 < r < 1`, decided by cases on a parameter.
 - **Otherwise** the sum stays unevaluated, `Sum(f, k, a, b)`, which adds up once its
