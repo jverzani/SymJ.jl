@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sums and recurrences — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=4ae72790">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=bfa68efe">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Sums and recurrences — SymJ.jl">
   <meta property="og:title" content="Sums and recurrences — SymJ.jl">
@@ -74,7 +74,7 @@
 <div class="md-docstring" id="SymJ.harmonic-Tuple{Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.harmonic</code> — <span class="md-docstring-sig">Tuple{Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1e2d600cf3859923561a5e2cde620d881ac126fa/src/summation.jl#L778-L783" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/0030f75fddc7445c5b6c5fc5cd36679eb2caf497/src/summation.jl#L826-L831" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -87,7 +87,7 @@
 <div class="md-docstring" id="SymJ.summation-Tuple{Any, Sym, Any, Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.summation</code> — <span class="md-docstring-sig">Tuple{Any, Sym, Any, Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1e2d600cf3859923561a5e2cde620d881ac126fa/src/summation.jl#L17-L37" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/0030f75fddc7445c5b6c5fc5cd36679eb2caf497/src/summation.jl#L17-L37" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -108,14 +108,14 @@ SymJ.summation(1/k^2, k, 1, Inf)        # π^2/6</code></pre>
 <div class="md-docstring" id="SymJ.rsolve-Tuple{Any, Sym, Vararg{Pair}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.rsolve</code> — <span class="md-docstring-sig">Tuple{Any, Sym, Vararg{Pair}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1e2d600cf3859923561a5e2cde620d881ac126fa/src/recurrence.jl#L147-L165" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/0030f75fddc7445c5b6c5fc5cd36679eb2caf497/src/recurrence.jl#L171-L189" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">SymJ.rsolve(eq, y(n), inits...)</code></pre>
 </div>
-<p>The solution of a linear recurrence with polynomial coefficients in <code class="md-code-inline">n</code>, such as <code class="md-code-inline">y(n+2) ~ y(n+1) + y(n)</code>, as a combination of hypergeometric terms (Petkovšek&#39;s algorithm Hyper). <code class="md-code-inline">inits</code> are initial values, <code class="md-code-inline">y(0) =&gt; 0, y(1) =&gt; 1</code>; without them the answer is in terms of <code class="md-code-inline">y(0), …, y(d-1)</code> for a recurrence of order <code class="md-code-inline">d</code>. The right side may also be a single hypergeometric term in <code class="md-code-inline">n</code> (a polynomial, <code class="md-code-inline">2^n</code>, <code class="md-code-inline">n!</code>). Not exported.</p>
+<p>The solution of a linear recurrence with polynomial coefficients in <code class="md-code-inline">n</code>, such as <code class="md-code-inline">y(n+2) ~ y(n+1) + y(n)</code>, as a combination of hypergeometric terms (Petkovšek&#39;s algorithm Hyper). <code class="md-code-inline">inits</code> are initial values, <code class="md-code-inline">y(0) =&gt; 0, y(1) =&gt; 1</code>; without them the answer is in terms of <code class="md-code-inline">y(0), …, y(d-1)</code> for a recurrence of order <code class="md-code-inline">d</code>. The right side may also be a sum of hypergeometric terms in <code class="md-code-inline">n</code> (polynomials, <code class="md-code-inline">2^n</code>, <code class="md-code-inline">n!</code>, <code class="md-code-inline">(-1)^n</code>). Not exported.</p>
 <p>An error when the solution is not a combination of hypergeometric terms (or Hyper&#39;s search for them is too large).</p>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -142,6 +142,6 @@ SymJ.rsolve(y(n+1) ~ 2y(n) + 1, y(n))                              # 2^n (y(0) +
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=4ae72790"></script>
+  <script src="../../assets/materialdocs.js?v=bfa68efe"></script>
 </body>
 </html>

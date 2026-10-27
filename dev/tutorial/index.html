@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=b6250f38">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=70940243">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -955,6 +955,16 @@ SymJ.summation(binomial(n, k)^2, k, 0, n), SymJ.summation(binomial(n, k) * binom
 \[\left( \frac{ - \sqrt{5}}{10} + \frac{1}{2} \right) \cdot \left( \frac{ - \sqrt{5}}{2} + \frac{1}{2} \right)^{n} + \left( \frac{\sqrt{5}}{10} + \frac{1}{2} \right) \cdot \left( \frac{\sqrt{5}}{2} + \frac{1}{2} \right)^{n}\]
 </div>
 </div>
+<p>Bounds other than the summand&#39;s own give an inhomogeneous recurrence, solved as well:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.summation(binomial(n, k), k, 0, n - 1), SymJ.summation(binomial(2n, k), k, 0, n)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( 2^{n} - 1, \; \frac{4^{n}}{2} + \frac{\binom{2 \cdot n}{n}}{2} \right)\]
+</div>
+</div>
 <p>The same algorithm solves linear recurrences, <code class="md-code-inline">SymJ.rsolve</code> (not exported), from initial values or in terms of them:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -1211,6 +1221,28 @@ x - 1 &amp; \text{otherwise}
 1 &amp; \text{if } x \leq 1\\
 2 \cdot x - 1 &amp; \text{otherwise}
 \end{cases}\]
+</div>
+</div>
+<p>With parameters whose order is not known, the answer is by cases:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms a b
+SymJ.piecewise_fold(abs(x - a) + abs(x - b), x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\begin{cases} \begin{cases}
+a + b - 2 \cdot x &amp; \text{if } x \leq b\\
+a - b &amp; \text{if } x \leq a\\
+ - a - b + 2 \cdot x &amp; \text{otherwise}
+\end{cases} &amp; b &lt; a \\ \begin{cases}
+a + b - 2 \cdot x &amp; \text{if } x \leq a\\
+ - a - b + 2 \cdot x &amp; \text{otherwise}
+\end{cases} &amp; b = a \\ \begin{cases}
+a + b - 2 \cdot x &amp; \text{if } x \leq a\\
+ - a + b &amp; \text{if } x \leq b\\
+ - a - b + 2 \cdot x &amp; \text{otherwise}
+\end{cases} &amp; b &gt; a \end{cases}\]
 </div>
 </div>
 <h2 id="Limits" class="md-heading">Limits<a href="#Limits" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
@@ -1830,6 +1862,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=b6250f38"></script>
+  <script src="../assets/materialdocs.js?v=70940243"></script>
 </body>
 </html>
