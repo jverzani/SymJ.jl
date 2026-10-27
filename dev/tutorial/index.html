@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=b15a2757">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=6df4f876">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -995,6 +995,16 @@ SymJ.rsolve(w(n + 2) ~ w(n + 1) + w(n), w(n), w(0) =&gt; 0, w(1) =&gt; 1), SymJ.
 \[\mathrm{harmonic}\left( n \right)\]
 </div>
 </div>
+<p>Harmonic numbers times a term that has an antidifference are summed by parts:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.summation(k * SymJ.harmonic(k), k, 1, n)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\frac{\mathrm{harmonic}\left( n \right) \cdot n \cdot \left( n + 1 \right)}{2} - \frac{n \cdot \left( n - 1 \right)}{4}\]
+</div>
+</div>
 <p>Whether a series converges can depend on a parameter; the answer then has cases, which assumptions settle:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -1881,6 +1891,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=b15a2757"></script>
+  <script src="../assets/materialdocs.js?v=6df4f876"></script>
 </body>
 </html>

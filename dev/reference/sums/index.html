@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sums and recurrences — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=f0807092">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=e32a882f">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Sums and recurrences — SymJ.jl">
   <meta property="og:title" content="Sums and recurrences — SymJ.jl">
@@ -74,7 +74,7 @@
 <div class="md-docstring" id="SymJ.harmonic-Tuple{Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.harmonic</code> — <span class="md-docstring-sig">Tuple{Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/0b9f83193ba909c66e0d97ac008c804f0227081a/src/summation.jl#L830-L835" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1291be8128d0843857f7e79c02ba6b2408795698/src/summation.jl#L868-L873" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -87,7 +87,7 @@
 <div class="md-docstring" id="SymJ.summation-Tuple{Any, Sym, Any, Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.summation</code> — <span class="md-docstring-sig">Tuple{Any, Sym, Any, Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/0b9f83193ba909c66e0d97ac008c804f0227081a/src/summation.jl#L17-L37" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1291be8128d0843857f7e79c02ba6b2408795698/src/summation.jl#L18-L39" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -95,7 +95,7 @@
 <pre><code class="language-julia">SymJ.summation(f, k, a, b; assume = nothing)</code></pre>
 </div>
 <p>The sum of <code class="md-code-inline">f</code> over the integers <code class="md-code-inline">k = a, a+1, ..., b</code>, in closed form where one is found. <code class="md-code-inline">b</code> may be <code class="md-code-inline">Inf</code> (an infinite series, whose value is found as a limit, so it may be <code class="md-code-inline">Inf</code>, or by cases of a parameter); <code class="md-code-inline">a</code> and <code class="md-code-inline">b</code> may be expressions. Assumptions about the other symbols are given with <code class="md-code-inline">assume</code>, as for <a href="../../reference/calculus/#SymJ.limit-Tuple{Any, Pair}"><code class="md-code-inline">limit</code></a>.</p>
-<p>Polynomials in <code class="md-code-inline">k</code> are summed by Faulhaber&#39;s formula, hypergeometric terms (polynomials times <code class="md-code-inline">r^k</code>, factorials, binomials, rational functions that telescope) by Gosper&#39;s algorithm, and other rational functions through partial fractions, as harmonic numbers and polygamma functions (exact zeta values for even powers). A sum with no closed form is returned unevaluated, <code class="md-code-inline">Sum(f, k, a, b)</code>. Not exported.</p>
+<p>Polynomials in <code class="md-code-inline">k</code> are summed by Faulhaber&#39;s formula, hypergeometric terms (polynomials times <code class="md-code-inline">r^k</code>, factorials, binomials, rational functions that telescope) by Gosper&#39;s algorithm, and other rational functions through partial fractions, as harmonic numbers and polygamma functions (exact zeta values for even powers). Harmonic numbers times a term with an antidifference are summed by parts. A sum with no closed form is returned unevaluated, <code class="md-code-inline">Sum(f, k, a, b)</code>. Not exported.</p>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">SymJ.summation(k^2, k, 1, n)            # n^3/3 + n^2/2 + n/6
@@ -108,7 +108,7 @@ SymJ.summation(1/k^2, k, 1, Inf)        # π^2/6</code></pre>
 <div class="md-docstring" id="SymJ.rsolve-Tuple{Any, Sym, Vararg{Pair}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.rsolve</code> — <span class="md-docstring-sig">Tuple{Any, Sym, Vararg{Pair}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/0b9f83193ba909c66e0d97ac008c804f0227081a/src/recurrence.jl#L268-L289" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1291be8128d0843857f7e79c02ba6b2408795698/src/recurrence.jl#L268-L289" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -143,6 +143,6 @@ SymJ.rsolve(y(n+1) - y(n) ~ 1/(n+1), y(n), y(0) =&gt; 0)              # harmonic
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=f0807092"></script>
+  <script src="../../assets/materialdocs.js?v=e32a882f"></script>
 </body>
 </html>
