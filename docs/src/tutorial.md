@@ -670,6 +670,12 @@ Harmonic numbers times a term that has an antidifference are summed by parts:
 SymJ.summation(k * SymJ.harmonic(k), k, 1, n)
 ```
 
+`SymJ.harmonic(n, m)` is the generalized harmonic number `1 + 1/2^m + ... + 1/n^m`:
+
+```@example tut
+SymJ.summation(1 / k^2, k, 1, n), SymJ.summation(SymJ.harmonic(k) / k, k, 1, n)
+```
+
 Whether a series converges can depend on a parameter; the answer then has cases, which
 assumptions settle:
 

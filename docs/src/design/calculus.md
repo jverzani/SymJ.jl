@@ -110,9 +110,16 @@
   antidifference `G`, by parts: `G(b+1) H(b+c+1) - G(a) H(a+c) - Σ G(k+1)/(k+c+1)`.
   A polynomial `G` is shifted by a constant to vanish at `-c`, so the last sum is of a
   polynomial; the answer is written with `H(b+c+1)` or `H(b+c)`, whichever is smaller:
-  `Σ_{k=1}^{n} k H(k) = n(n+1) H(n)/2 - n(n-1)/4`. The sum stays unevaluated when the
-  last sum does not close (`Σ 2^k H(k)`), and for `Σ H(k)/(k+1)`, which needs
-  generalized harmonic numbers.
+  `Σ_{k=1}^{n} k H(k) = n(n+1) H(n)/2 - n(n-1)/4`. The same holds for the generalized
+  `H(n, m) = Σ_{j=1}^{n} 1/j^m` (`SymJ.harmonic(n, m)`), with `ΔH(k + c, m) =
+  1/(k+c+1)^m`; integer-shifted `Σ 1/(k + α)^m` are themselves `H(·, m)` (polygamma for
+  other shifts). A rational `g` without an antidifference is split into partial
+  fractions: the polynomial part by parts, and `1/(k + α)^m` with the order of `H` by
+  `Σ_{j=1}^{q} H(j, m)/j^m = (H(q, m)^2 + H(q, 2m))/2` (the pairs `i ≤ j`), after moving
+  `H(k + c, m)` to `H(k + α, m)` by finitely many terms:
+  `Σ_{k=1}^{n} H(k)/k = (H(n)^2 + H(n, 2))/2`. Other powers are Euler sums
+  (`Σ H(k)/k^2`), with no closed form for finite `n`, and stay unevaluated, as does a
+  sum whose last part does not close (`Σ 2^k H(k)`).
 - **Infinite sums** are limits of the antidifference (`limit`). A polynomial times
   `r^k` converges exactly when `-1 < r < 1`, decided by cases on a parameter.
 - **Otherwise** the sum stays unevaluated, `Sum(f, k, a, b)`, which adds up once its

@@ -1816,7 +1816,7 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         # d'Alembertian solutions: reduction of order, iterated sums
         @test R(y(n + 1) - y(n) ~ 1 / (n + 1), y(n), y(0) => 0) == SymJ.harmonic(n)
         @test R((n + 2) * y(n + 2) - (2n + 3) * y(n + 1) + (n + 1) * y(n) ~ 0, y(n)) == (y(1) - y(0)) * SymJ.harmonic(n) + y(0)
-        @test R(y(n + 1) - y(n) ~ 1 / (n + 1)^2, y(n), y(0) => 0) == PI^2 / 6 - SymJ.apply_function(:polygamma, [Sym(1), n + 1])
+        @test R(y(n + 1) - y(n) ~ 1 / (n + 1)^2, y(n), y(0) => 0) == SymJ.harmonic(n, 2)
         let s = R(y(n + 1) - (n + 1) * y(n) ~ 1, y(n), y(0) => 1)          # n! Σ 1/k!
             @test [subs(s, n => m) for m in 0:4] == [1, 2, 5, 16, 65]
         end
@@ -1830,6 +1830,17 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
             @test Σ(H(k) / ((k + 1) * (k + 2)), k, 0, n) == n / (n + 1) - H(n) / (n + 2)
             @test Σ(H(k), k, 1, 10) == Sym(55991 // 2520)
             @test SymJ.kind(Σ(2^k * H(k), k, 0, n)) == FN               # Σ 2^(k+1)/(k+1) does not close
+            # generalized harmonic numbers
+            @test H(Sym(3), 2) == Sym(49 // 36) && H(n, 1) == H(n) && Σ(1 / k^3, k, 1, n) == H(n, 3)
+            @test Σ(1 / (k + 1)^2, k, 0, n - 1) == H(n, 2)
+            @test Σ(H(k) / k, k, 1, n) == (H(n)^2 + H(n, 2)) / 2
+            @test Σ(H(k) / (k + 1), k, 0, n) == (H(n + 1)^2 - H(n + 1, 2)) / 2
+            @test Σ(H(k, 2) / k^2, k, 1, n) == (H(n, 2)^2 + H(n, 4)) / 2
+            @test Σ(H(k, 2), k, 1, n) == (n + 1) * H(n, 2) - H(n)
+            @test simplify(Σ(k * H(k, 2), k, 1, n) - (n * (n + 1) * H(n, 2) / 2 - n / 2 + H(n) / 2)) == 0
+            @test Σ(k / (k + 1), k, 0, n - 1) == n - H(n)                 # a polynomial part
+            @test subs(Σ(H(k + 1) / k, k, 1, n), n => 6) == Σ(H(k + 1) / k, k, 1, 6)
+            @test SymJ.kind(Σ(H(k) / k^2, k, 1, n)) == FN                 # an Euler sum
         end
         @test Σ((-1)^(k + 1) * binomial(n, k) / k, k, 1, n) == SymJ.harmonic(n)
         @test Σ((-1)^k * binomial(n, k) / (k + 1)^2, k, 0, n) == SymJ.harmonic(n + 1) / (n + 1)
