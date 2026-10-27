@@ -664,6 +664,12 @@ SymJ.rsolve(w(n + 1) - w(n) ~ 1 / (n + 1), w(n), w(0) => 0), SymJ.rsolve(w(n + 1
 SymJ.summation((-1)^(k + 1) * binomial(n, k) / k, k, 1, n)
 ```
 
+Harmonic numbers times a term that has an antidifference are summed by parts:
+
+```@example tut
+SymJ.summation(k * SymJ.harmonic(k), k, 1, n)
+```
+
 Whether a series converges can depend on a parameter; the answer then has cases, which
 assumptions settle:
 

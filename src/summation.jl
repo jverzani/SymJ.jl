@@ -10,6 +10,7 @@
 #       binomials, gamma) by Gosper's algorithm, which finds one or proves there is none;
 #   - rational functions without one: partial fractions, Σ 1/(k+α)^m as polygamma
 #     functions, exact harmonic and zeta values for integer shifts;
+#   - harmonic numbers times a term with an antidifference: by parts;
 #   - an infinite sum is the limit of the antidifference (`limit`, so convergence and
 #     the cases of a parameter come from it);
 #   - otherwise the sum is left unevaluated, as Sum(f, k, a, b).
@@ -25,7 +26,8 @@ other symbols are given with `assume`, as for [`limit`](@ref).
 Polynomials in `k` are summed by Faulhaber's formula, hypergeometric terms (polynomials
 times `r^k`, factorials, binomials, rational functions that telescope) by Gosper's
 algorithm, and other rational functions through partial fractions, as harmonic numbers
-and polygamma functions (exact zeta values for even powers). A sum with no closed form
+and polygamma functions (exact zeta values for even powers). Harmonic numbers times a
+term with an antidifference are summed by parts. A sum with no closed form
 is returned unevaluated, `Sum(f, k, a, b)`. Not exported.
 
 ```julia
@@ -78,6 +80,8 @@ function _summation(f::Sym, k::Sym, a::Sym, b, assume)
         b === nothing || return expand(f * (b - a + 1))
         return _summation_unevaluated(f, k, a, b)
     end
+    r = _harmonic_sum(f, k, a, b, assume)
+    r === nothing || return r
     F = _antidifference(f, k)
     F === nothing || return _from_antidifference(F, k, a, b, assume)
     if b !== nothing                                 # a definite sum: Zeilberger
@@ -255,6 +259,40 @@ end
 
 _map_cases(g, cs::Cases) = Cases{Any}([c.first => (c.second isa Exception ? c.second : g(c.second)) for c in cs.cases])
 _sum_cases(parts) = throw(ArgumentError("summation: a sum of terms whose sums depend on cases is not supported yet; sum the terms separately"))
+
+## harmonic numbers: summation by parts
+
+# Σ_{k=a}^{b} g(k) H(k + c), c an integer, g with an antidifference G (G(k+1) - G(k) = g):
+#   G(b+1) H(b+c+1) - G(a) H(a+c) - Σ_{k=a}^{b} G(k+1)/(k+c+1)
+# by ΔH(k + c) = 1/(k+c+1); the last sum is free of H, and H(b+c+1) is written
+# H(b+c) + 1/(b+c+1). Finite sums only (the infinite ones diverge or need ζ values),
+# and only when the last sum closes.
+function _harmonic_sum(f::Sym, k::Sym, a::Sym, b, assume)
+    b === nothing && return nothing
+    hs = _collect_fn!(Sym[], f, :harmonic)
+    length(hs) == 1 || return nothing
+    h = only(hs)
+    length(h.args) == 1 || return nothing
+    c = expand(h.args[1] - k)
+    (c.kind == NUMBER && _isint(c.num)) || return nothing
+    g = cancel(f / h)
+    (has(g, k) || !iszero(g)) && isempty(_collect_fn!(Sym[], g, :harmonic)) || return nothing
+    # H(a + c) defined: a + c not a negative integer
+    ac = expand(a + c)
+    ac.kind == NUMBER && ac.num < N0 && return nothing
+    G = has(g, k) ? _antidifference(g, k) : g * k
+    G === nothing && return nothing
+    # a polynomial G is free up to a constant: G(-c) = 0 makes G(k+1)/(k+c+1) a polynomial
+    _ispolyin(G, [k]) && (G = expand(G - subs(G, k => -c)))
+    rest = _summation(cancel(subs(G, k => k + 1) / (k + c + 1)), k, a, b, assume)
+    (rest isa Cases || _count_fn(rest, :Sum) > 0) && return nothing    # (no closed form)
+    Gb = subs(G, k => b + 1)
+    tail = -subs(G, k => a) * harmonic(ac) - rest
+    # with H(b+c+1), or with H(b+c) and its last term apart, whichever is smaller
+    r1 = _present(Gb) * harmonic(expand(b + c + 1)) + _present(tail)
+    r2 = _present(Gb) * harmonic(expand(b + c)) + _present(Gb / (b + c + 1) + tail)
+    _nodes(r2) <= _nodes(r1) ? r2 : r1
+end
 
 ## antidifferences
 
