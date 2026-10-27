@@ -1813,6 +1813,21 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test Σ(binomial(2n, k), k, 0, n) == 4^n / 2 + binomial(2n, n) / 2
         @test Σ(binomial(n, k) / binomial(2n, k), k, 0, n) == (2n + 1) / (n + 1)
         @test binomial(n, n + 1) == 0 && binomial(n, n) == 1
+        # d'Alembertian solutions: reduction of order, iterated sums
+        @test R(y(n + 1) - y(n) ~ 1 / (n + 1), y(n), y(0) => 0) == SymJ.harmonic(n)
+        @test R((n + 2) * y(n + 2) - (2n + 3) * y(n + 1) + (n + 1) * y(n) ~ 0, y(n)) == (y(1) - y(0)) * SymJ.harmonic(n) + y(0)
+        @test R(y(n + 1) - y(n) ~ 1 / (n + 1)^2, y(n), y(0) => 0) == PI^2 / 6 - SymJ.apply_function(:polygamma, [Sym(1), n + 1])
+        let s = R(y(n + 1) - (n + 1) * y(n) ~ 1, y(n), y(0) => 1)          # n! Σ 1/k!
+            @test [subs(s, n => m) for m in 0:4] == [1, 2, 5, 16, 65]
+        end
+        let s = R(y(n + 2) - 2y(n + 1) + y(n) ~ 1 / (n + 1), y(n), y(0) => 0, y(1) => 0)   # Σ H_k, nested
+            @test [subs(s, n => m) for m in 0:3] == [0, 0, 1, Sym(5 // 2)]
+        end
+        @test Σ((-1)^(k + 1) * binomial(n, k) / k, k, 1, n) == SymJ.harmonic(n)
+        @test Σ((-1)^k * binomial(n, k) / (k + 1)^2, k, 0, n) == SymJ.harmonic(n + 1) / (n + 1)
+        @test Σ((-1)^k * binomial(4, k) / (k + 1)^2, k, 0, 4) == SymJ.harmonic(Sym(5)) / 5
+        @test SymJ.kind(Σ(binomial(n, k)^3, k, 0, n)) == FN                 # Franel: no d'Alembertian solution
+        @test_throws ArgumentError R((n + 2)^2 * y(n + 2) - (7n^2 + 21n + 16) * y(n + 1) - 8(n + 1)^2 * y(n) ~ 0, y(n))
         @test_throws ArgumentError R(y(n + 1) ~ y(n)^2, y(n))
         @test_throws ArgumentError R(y(n + 2) ~ y(n + 1) + y(n), y(n), y(1) => 1)
     end

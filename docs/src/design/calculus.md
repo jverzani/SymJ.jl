@@ -85,11 +85,27 @@
   factors of higher degree split over their roots (radicals), so `A = n - sqrt(2)` can
   divide `n^2 - 2`; the values used to fit the solution are simplified first, as they
   have Γ at algebraic shifts.
-  Factors are over the rationals. `SymJ.rsolve(eq, y(n), inits...)` reads the
+  `SymJ.rsolve(eq, y(n), inits...)` reads the
   recurrence, raises a hypergeometric right side `g` to a homogeneous recurrence one
   order higher (`L(y)(n+1) - ρ(n) L(y)(n) = 0`, `ρ = g(n+1)/g(n)`), fits the solutions
   to the initial values (or to `y(0), …, y(d-1)` themselves) and checks the result
-  against values from the recurrence; a solution outside their span is an error.
+  against values from the recurrence.
+- **d'Alembertian solutions** (Abramov–Petkovšek), when Hyper's solutions do not span:
+  reduction of order. A hypergeometric solution `h` of the homogeneous recurrence, with
+  `y = h z` and `z(n+i) = z(n) + Σ_{j<i} u(n+j)` (`u = Δz`), gives
+  `Σ_j s_j u(n+j) = g/h`, `s_j = Σ_{i>j} p_i h(n+i)/h(n)`, one order lower (the
+  coefficient of `z(n)` is `L(h)/h = 0`). At order 0, `u = g/s_0`, so the right side
+  need not be hypergeometric. Each level adds a solution `h Σ_{m=n0}^{n-1} u(m)`; `n0`
+  is past the integer zeros and poles of every level's ratios and leading coefficient.
+  The constants are fitted with the sums unevaluated (added up at numbers, so
+  `polygamma` need not evaluate), then the sums are summed, innermost first, and the
+  answer is checked in the unevaluated form: `y(n+1) - y(n) = 1/(n+1)` gives
+  `harmonic(n)`, `y(n+1) = (n+1) y(n) + 1` gives `n! (1 + Σ 1/(k+1)!)`. Zeilberger's
+  recurrences go the same way when Hyper falls short:
+  `Σ_{k=1}^{n} (-1)^(k+1) binomial(n, k)/k = harmonic(n)`. A level without a
+  hypergeometric solution ends it, so the solution is not d'Alembertian: the Franel
+  recurrence of `Σ binomial(n, k)^3` is irreducible of order 2, and that sum stays
+  unevaluated (Liouvillian solutions, Hendriks–Singer, would not help either).
 - **Infinite sums** are limits of the antidifference (`limit`). A polynomial times
   `r^k` converges exactly when `-1 < r < 1`, decided by cases on a parameter.
 - **Otherwise** the sum stays unevaluated, `Sum(f, k, a, b)`, which adds up once its

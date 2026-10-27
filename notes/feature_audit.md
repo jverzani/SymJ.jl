@@ -81,7 +81,7 @@ with assumptions, `refine` and `simplify`, complex parts and LaTeX output are do
 | Nonlinear inequality systems | partial | partial | ❌ |
 | Numeric root finding, any equation | `nsolve` | `fsolve` | ◐ polynomials: `SymJ.real_roots` (correctly rounded) and `SymJ.root_intervals` (exact isolation); other equations through Roots.jl or NonlinearSolve.jl, which take SymJ expressions as they are |
 | Diophantine equations | `diophantine` | `isolve` | ❌ |
-| Recurrences | `rsolve` | `rsolve`, `seqsolve` | ✅ `SymJ.rsolve`: linear, polynomial coefficients, by Hyper (hypergeometric solutions, combined), a hypergeometric right side; ◐ not for sums of such right sides, or solutions that are not hypergeometric (Franel), factors over the rationals only |
+| Recurrences | `rsolve` | `rsolve`, `seqsolve` | ✅ `SymJ.rsolve`: linear, polynomial coefficients, by Hyper (hypergeometric solutions, combined, A and B over algebraic numbers too), right sides that are sums of hypergeometric terms; d'Alembertian solutions by reduction of order (harmonic numbers, iterated sums), any right side; ◐ not Liouvillian solutions, or ones that are not d'Alembertian (Franel) |
 | Ordinary differential equations | `dsolve`, `classify_ode`, `checkodesol` | `desolve` | ◐ ★ `SymJ.dsolve`: first order (linear, separable, Bernoulli, exact with integrating factors, homogeneous, Riccati), linear with constant coefficients of any order (undetermined coefficients, variation of parameters), Cauchy–Euler, `y` missing, autonomous second order (`y'' = f(y, y')`); initial conditions (`y'(0) => 1`); linear systems with constant coefficients, of any order; series solutions (`series = n`: Taylor at an ordinary point, nonlinear too; Frobenius at a regular singular point); Laplace transforms for constant coefficients (chosen for `heaviside`/`dirac` right sides, or `method = :laplace`), systems too; every solution checked; several branches of `y'` give a solution each |
 | Partial differential equations | `pdsolve` | — | ❌ |
 
@@ -96,7 +96,7 @@ with assumptions, `refine` and `simplify`, complex parts and LaTeX output are do
 | Indefinite integrals | `integrate` | `integrate` | ✅ RischIntegrate (175/175 of the Apostol set, more than either) |
 | Definite and improper integrals | `integrate(f, (x, a, b))` | `integrate(f, x, a, b)` | ◐ by evaluating an antiderivative; no improper integrals or check for singularities |
 | Numeric integration | `Integral(...).evalf()` | `romberg`, `gaussquad` | ❌ (QuadGK on a `lambdify`'d function) |
-| Sums of series | `summation`, `Sum` | `sum` | ✅ ★ `SymJ.summation`: Faulhaber, Gosper, partial fractions (harmonic, polygamma, `ζ(2n)`), binomial theorem, hypergeometric series, Zeilberger (definite hypergeometric sums with a first-order recurrence: `Σ binomial(n,k)^2`, Vandermonde); infinite sums by `limit`, convergence by cases; ◐ higher-order recurrences (Hyper) not solved, unevaluated `Sum` otherwise |
+| Sums of series | `summation`, `Sum` | `sum` | ✅ ★ `SymJ.summation`: Faulhaber, Gosper, partial fractions (harmonic, polygamma, `ζ(2n)`), binomial theorem, hypergeometric series, Zeilberger (definite hypergeometric sums: `Σ binomial(n,k)^2`, Vandermonde; recurrences of order up to 3 by Hyper, else d'Alembertian solutions, `Σ (-1)^(k+1) binomial(n,k)/k = H_n`; bounds other than the summand's own); infinite sums by `limit`, convergence by cases; ◐ unevaluated `Sum` when the recurrence's solutions are not d'Alembertian (`Σ binomial(n,k)^3`) |
 | Products | `product`, `Product` | `product` | ❌ |
 | Laplace, Fourier, Mellin, Z transforms | `laplace_transform`, `inverse_laplace_transform`, `fourier_transform`, `mellin_transform` | `laplace`, `ilaplace`, `fourier`, `ifourier`, `ztrans`, `invztrans` | ◐ `SymJ.laplace_transform`, `SymJ.inverse_laplace_transform`: polynomials, exponentials, sines and cosines, `heaviside`/`dirac` shifts; inverse of rational functions times `e^(-cs)`. Not yet: Fourier, Mellin, Z |
 | Residues | `residue` | `residue` | ❌ |
@@ -166,8 +166,11 @@ transforms). Of the rest, in rough order of value for calculus-level use:
    hypergeometric solutions, Binet's formula from `Σ binomial(n-k, k)`), with right
    sides that are sums of hypergeometric terms, the inhomogeneous recurrences of
    bounds other than the summand's own (`Σ_{k=0}^{n-1} binomial(n, k)`), and A, B
-   factors over algebraic numbers. Open: recurrences without hypergeometric solutions
-   (d'Alembertian or Liouvillian ones, `Σ binomial(n, k)^3`).
+   factors over algebraic numbers; d'Alembertian solutions by reduction of order
+   (`harmonic(n)`, iterated sums, any right side), for `rsolve` and Zeilberger. Open:
+   Liouvillian solutions (interlaced hypergeometric terms), and sums such as
+   `Σ binomial(n, k)^3`, whose recurrence has no d'Alembertian solution (only the
+   recurrence itself could be returned).
 3. **Piecewise functions, Heaviside and Dirac**: done, with `SymJ.piecewise_fold`
    combining sums and products of them into one (and `simplify` doing so when smaller).
    Breakpoints with several parameters are ordered by the assumptions, and split into
