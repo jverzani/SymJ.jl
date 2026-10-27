@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sums and recurrences — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=18c7ee67">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=ffdb9804">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Sums and recurrences — SymJ.jl">
   <meta property="og:title" content="Sums and recurrences — SymJ.jl">
@@ -74,7 +74,7 @@
 <div class="md-docstring" id="SymJ.harmonic-Tuple{Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.harmonic</code> — <span class="md-docstring-sig">Tuple{Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/09a175f4befc11e26ce04dfacfdddc1e7403a3f0/src/summation.jl#L974-L981" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/970bd0c26a60a437720b01722dabda8fe482b98a/src/summation.jl#L974-L981" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -88,7 +88,7 @@ SymJ.harmonic(n, m)</code></pre>
 <div class="md-docstring" id="SymJ.summation-Tuple{Any, Sym, Any, Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.summation</code> — <span class="md-docstring-sig">Tuple{Any, Sym, Any, Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/09a175f4befc11e26ce04dfacfdddc1e7403a3f0/src/summation.jl#L20-L41" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/970bd0c26a60a437720b01722dabda8fe482b98a/src/summation.jl#L20-L41" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -109,7 +109,7 @@ SymJ.summation(1/k^2, k, 1, Inf)        # π^2/6</code></pre>
 <div class="md-docstring" id="SymJ.rsolve-Tuple{Any, Sym, Vararg{Pair}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.rsolve</code> — <span class="md-docstring-sig">Tuple{Any, Sym, Vararg{Pair}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/09a175f4befc11e26ce04dfacfdddc1e7403a3f0/src/recurrence.jl#L348-L372" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/970bd0c26a60a437720b01722dabda8fe482b98a/src/recurrence.jl#L414-L441" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -117,7 +117,7 @@ SymJ.summation(1/k^2, k, 1, Inf)        # π^2/6</code></pre>
 <pre><code class="language-julia">SymJ.rsolve(eq, y(n), inits...)</code></pre>
 </div>
 <p>The solution of a linear recurrence with polynomial coefficients in <code class="md-code-inline">n</code>, such as <code class="md-code-inline">y(n+2) ~ y(n+1) + y(n)</code>, as a combination of hypergeometric terms (Petkovšek&#39;s algorithm Hyper). <code class="md-code-inline">inits</code> are initial values, <code class="md-code-inline">y(0) =&gt; 0, y(1) =&gt; 1</code>; without them the answer is in terms of <code class="md-code-inline">y(0), …, y(d-1)</code> for a recurrence of order <code class="md-code-inline">d</code>. The right side may also be a sum of hypergeometric terms in <code class="md-code-inline">n</code> (polynomials, <code class="md-code-inline">2^n</code>, <code class="md-code-inline">n!</code>, <code class="md-code-inline">(-1)^n</code>). Not exported.</p>
-<p>When the hypergeometric solutions are too few, the order is reduced through one of them (d&#39;Alembertian solutions): the answer is then in iterated sums of hypergeometric terms, such as <code class="md-code-inline">harmonic(n)</code> or an unevaluated <code class="md-code-inline">Sum</code>, and the right side may be any function of <code class="md-code-inline">n</code>. Failing that, the sections <code class="md-code-inline">y(m N + i)</code> (<code class="md-code-inline">m</code> up to the order) are solved each in those ways and interlaced (Liouvillian solutions), the answer piecewise in <code class="md-code-inline">mod(n, m)</code>. An error when the solution is none of these (or Hyper&#39;s search is too large).</p>
+<p>When the hypergeometric solutions are too few, the order is reduced through one of them (d&#39;Alembertian solutions): the answer is then in iterated sums of hypergeometric terms, such as <code class="md-code-inline">harmonic(n)</code> or an unevaluated <code class="md-code-inline">Sum</code>, and the right side may be any function of <code class="md-code-inline">n</code>. Failing that, the sections <code class="md-code-inline">y(m N + i)</code> (<code class="md-code-inline">m</code> up to the order) are solved each in those ways and interlaced (Liouvillian solutions), the answer piecewise in <code class="md-code-inline">mod(n, m)</code>. When the solution is none of these (or Hyper&#39;s search is too large), the answer is the recurrence itself, <code class="md-code-inline">DifferenceRoot(... ~ ..., y(0) =&gt; ..., ...)</code>, which gives its value at an integer by unrolling the recurrence (no arithmetic is done on it). An error when the equation is not a linear recurrence or the initial values do not fit its order.</p>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">@syms n y()
@@ -145,6 +145,6 @@ SymJ.rsolve(y(n+2) ~ (n+1)*y(n), y(n), y(0) =&gt; 1, y(1) =&gt; 1)       # (n - 
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=18c7ee67"></script>
+  <script src="../../assets/materialdocs.js?v=ffdb9804"></script>
 </body>
 </html>
