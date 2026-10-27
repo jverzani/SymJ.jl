@@ -33,8 +33,8 @@ with assumptions, `refine` and `simplify`, complex parts and LaTeX output are do
 | Generic term interface | — | — | ✅ TermInterface |
 | Pattern matching and rewrite rules | `Wild`, `match`, `replace` | rules | ✅ `SymJ.pattern`/`SymJ.@pattern` with `match`, `eachmatch`, `occursin`: associative-commutative, slots `~x`, `~!x`, `~~x`, `~~~x`, head slots, predicates; `SymJ.@rule`, `SymJ.rule`, `SymJ.rewrite`, `replace` (stages 1–4 of `notes/pattern_matching.md`: rule sets indexed by head; trig rules among `simplify`'s candidates) |
 | Collect by powers, coefficients | `collect`, `coeff` | `collect`, `coeff` | ✅ `SymJ.gather` (one variable or several, any powers, function calls), `SymJ.coeff`; `Poly` for polynomials |
-| Horner form | `horner` | `horner` | ❌ |
-| Common subexpressions | `cse` | — | ◐ `lambdify` shares them; no user-level `cse` |
+| Horner form | `horner` | `horner` | ✅ `SymJ.horner`, in one variable or recursively in several |
+| Common subexpressions | `cse` | — | ✅ `SymJ.cse` (repeated nodes, as `lambdify` shares them; not parts of larger sums) |
 | Rewriting between forms (exp ↔ trig, …) | `ex.rewrite(...)` | `exp2pow`, `pow2exp`, `halftan`, `sincos`, `tan2sincos` | ◐ inside `simplify` (exponentials ↔ trig and hyperbolic, whichever is smaller); no user-level `rewrite` |
 | Floats to exact numbers | `nsimplify` | — | ◐ `rationalize(ex)`: the floats in an expression as rationals; no recognition of constants (`√2`, `π`) |
 
@@ -187,7 +187,7 @@ transforms). Of the rest, in rough order of value for calculus-level use:
    NonlinearSolve.jl work on SymJ expressions directly (callable, or through
    `lambdify`), so no solver of its own is planned.
 7. **Utilities**: `SymJ.gather` (SymPy's `collect`), `SymJ.coeff` and `rationalize(ex)`
-   are done. Open: Horner form, a user-level `cse`, constant recognition (`nsimplify`),
+   are done, and `SymJ.horner`, `SymJ.cse`. Open: constant recognition (`nsimplify`),
    and a user-level `rewrite` (exp ↔ trig, half-angle; `simplify` already rewrites
    inside).
 8. **Assumptions, the remaining pieces**: integer congruences, `assume` for systems of

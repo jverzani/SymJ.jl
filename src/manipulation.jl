@@ -620,6 +620,47 @@ function gather(ex, xs::AbstractVector)
     out
 end
 
+## Horner form
+
+"""
+    SymJ.horner(p, x)
+    SymJ.horner(p, [x, y, ...])
+    SymJ.horner(p)
+
+The polynomial `p` in nested (Horner) form in `x`: `2x^3 - x + 5` as `(2x^2 - 1)x + 5`
+(`((2x)x - 1)x + 5`, a run of zero coefficients as one power), so it evaluates with
+the fewest multiplications. With several variables (all of `p`'s, in order, when none are
+given), each coefficient is put in Horner form in the next ones. The coefficients may be
+any expressions free of the variables. Julia's `evalpoly` evaluates numbers this way.
+Not exported.
+
+```julia
+@syms x y
+SymJ.horner(2x^3 - x + 5, x)                  # (2x^2 - 1)*x + 5
+SymJ.horner(x^2*y + x*y^2 + x + 1)            # x*(x*y + y^2 + 1) + 1
+```
+"""
+horner(p, x::Sym) = horner(p, [x])
+horner(p) = horner(p, free_symbols(Sym(p)))
+function horner(p, xs::AbstractVector)
+    e = expand(Sym(p))
+    isempty(xs) && return e
+    x = Sym(first(xs))
+    _isnamed(x) || throw(ArgumentError("horner: $x is not a symbol"))
+    has(e, x) || return horner(e, xs[2:end])
+    P = try Poly{Sym}(e, [x]) catch
+        throw(ArgumentError("horner: $p is not a polynomial in $x"))
+    end
+    cs = Dict{Int,Sym}(ev[1] => c for (ev, c) in zip(exponent_vectors(P), coefficients(P)))
+    n = maximum(keys(cs))
+    h = horner(cs[n], xs[2:end])
+    for i in (n - 1):-1:0
+        c = get(cs, i, ZERO)
+        h = h * x + (iszero(c) ? ZERO : horner(c, xs[2:end]))
+    end
+    h
+end
+
 ## floats as rationals
 
 """

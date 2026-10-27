@@ -192,3 +192,60 @@ function _powcode(cg::_Codegen, b::Sym, e::Sym)
     positive = (b.kind == NUMBER && sign(b.num) > 0) || b.kind == CONSTANT
     positive ? :($bc^$ec) : :($_RPOW($bc, $ec))
 end
+
+## common subexpressions
+
+"""
+    SymJ.cse(ex; prefix = :t)
+
+Common subexpression elimination: `(replacements, reduced)`, with `replacements` a vector
+of `t1 => s1, t2 => s2, ...` (each `s` in terms of the earlier `t`s) and `reduced` the
+expressions with the repeated parts replaced. `ex` is an expression or a vector (tuple)
+of them, and `reduced` has the same shape. A subexpression is repeated when the same
+node (a sum, product, power or function call, a power also as a factor of a product)
+occurs more than once; a part of a larger sum or product (`x + y` inside `x + y + z`)
+is not separated out. The names avoid the symbols in `ex`. Not exported.
+
+```julia
+@syms x y
+SymJ.cse((x + y)^2 + sin(x + y))      # ([t1 => x + y], t1^2 + sin(t1))
+```
+"""
+function cse(ex; prefix = :t)
+    outs = _outputs(ex)
+    # a product's factor b^p is counted as the power it is (exp(u) in exp(u)*sin(u) and
+    # in exp(u) + 1 alike)
+    factors(e) = e.kind == MUL ? Sym[isone(p) ? b : b^p for (b, p) in zip(e.args, e.exps)] : e.args
+    counts = Dict{Sym,Int}()
+    function count!(e)
+        n = get(counts, e, 0)
+        counts[e] = n + 1
+        n == 0 && foreach(count!, factors(e))
+    end
+    foreach(count!, outs)
+    used = Set{Symbol}(Symbol(string(s)) for o in outs for s in free_symbols(o))
+    i = Ref(0)
+    function fresh()
+        while true
+            i[] += 1
+            s = Symbol(prefix, i[])
+            s in used || return Sym(s)
+        end
+    end
+    reps = Pair{Sym,Sym}[]
+    memo = Dict{Sym,Sym}()
+    function rep(e)
+        haskey(memo, e) && return memo[e]
+        isempty(e.args) && return e
+        r = e.kind == MUL ? Sym(e.num) * prod((rep(f) for f in factors(e)); init = ONE) :
+            _rebuild_node(e, Sym[rep(a) for a in e.args])
+        if get(counts, e, 0) > 1 && e.kind in (ADD, MUL, POW, FN)
+            t = fresh()
+            push!(reps, t => r)
+            r = t
+        end
+        memo[e] = r
+    end
+    reduced = Sym[rep(o) for o in outs]
+    reps, ex isa Tuple ? Tuple(reduced) : ex isa AbstractArray ? reshape(reduced, size(ex)) : only(reduced)
+end
