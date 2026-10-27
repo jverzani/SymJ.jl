@@ -132,6 +132,12 @@ register_function!(:binomial; julia = binomial,
     eval = function (args)
         length(args) == 2 || throw(ArgumentError("binomial takes two arguments"))
         n, k = args
+        # binomial(n, n + m) = 0 for a positive integer m (1/Γ(1 - m) = 0), binomial(n, n) = 1
+        d = expand(k - n)
+        if d.kind == NUMBER && _isint(d.num) && (_hassymbol(n) || _hassymbol(k))
+            d.num > N0 && return ZERO
+            iszero(d.num) && return ONE
+        end
         (k.kind == NUMBER && _isint(k.num)) || return nothing
         kk = _toint(k.num)
         kk < 0 && return ZERO

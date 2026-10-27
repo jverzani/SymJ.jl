@@ -457,16 +457,53 @@ function _zeilberger_sum(f::Sym, k::Sym, a::Sym, b::Sym)
 end
 function _zeilberger_sum(f::Sym, k::Sym, a::Sym, b::Sym, n::Sym)
     for J in 1:_ZEIL_MAX_ORDER
-        rec = _zeilberger(f, k, n, J)
-        rec === nothing && continue
-        # first order: a product; higher: the hypergeometric solutions (Hyper) that span S
-        sol = J == 1 ? _first_order_solve(rec, f, k, n, a, b) :
-            _recurrence_solve(rec, n, m -> _direct(f, k, n, a, b, m))
+        z = _zeilberger(f, k, n, J)
+        z === nothing && continue
+        rec, R = z
+        value = m -> _direct(f, k, n, a, b, m)
+        # the summand's own bounds: the recurrence is homogeneous. First order: a product;
+        # higher: the hypergeometric solutions (Hyper) that span S
+        sol = J == 1 ? _first_order_solve(rec, f, k, n, a, b) : _recurrence_solve(rec, n, value)
+        if sol !== nothing && _zeil_verified(sol[1], f, k, n, a, b, sol[2])
+            return _merge_powers_terms(sol[1])
+        end
+        # other bounds: an inhomogeneous recurrence, its right side the boundary terms (a
+        # sum of hypergeometric terms), made homogeneous
+        g = _zeil_rhs(rec, R, f, k, n, a, b)
+        (g === nothing || iszero(g)) && return nothing
+        hom = _annihilate(rec, g, n)
+        hom === nothing && return nothing
+        sol = _recurrence_solve(hom, n, value)
         sol === nothing && return nothing
         S, n0 = sol
-        return _zeil_verified(S, f, k, n, a, b, n0) ? S : nothing
+        return _zeil_verified(S, f, k, n, a, b, n0) ? _merge_powers_terms(S) : nothing
     end
     nothing
+end
+
+# the right side of Σ_j c_j S(n+j) = g for S(n) = Σ_{k=a}^{b(n)} F(n, k): summing the
+# telescoper over k = a..b, g = G(n, b+1) - G(n, a) + Σ_j c_j Σ_{k=b(n)+1}^{b(n+j)} F(n+j, k)
+# (the terms of S(n+j) past b(n)). G(n, b+1) is R(n, b+1) F(n, b) F(n, b+1)/F(n, b), the
+# ratio as a rational function, so a zero of F there meets a pole of R. For an upper
+# bound s n + t (s a positive integer) and a lower one free of n; nothing otherwise.
+function _zeil_rhs(rec, R::Sym, F::Sym, k::Sym, n::Sym, a::Sym, b::Sym)
+    has(a, n) && return nothing
+    sl = expand(subs(b, n => n + 1) - b)
+    (sl.kind == NUMBER && _isint(sl.num) && sl.num > N0) || return nothing
+    s = _toint(sl.num)
+    ρk = _hyper_ratio(F, k)
+    ρk === nothing && return nothing
+    Fb = subs(F, k => b)
+    Gb = cancel(subs(cancel(subs(R, k => k + 1) * ρk), k => b)) * Fb
+    Ga = subs(R, k => a) * subs(F, k => a)
+    extra = ZERO
+    for j in 1:(length(rec) - 1)
+        for m in 1:(s * j)
+            extra += rec[j+1] * subs(F, n => n + j, k => b + m)
+        end
+    end
+    g = expand(simplify_gamma(Gb - Ga + extra))
+    iszero(g) ? ZERO : g
 end
 
 # the recurrence coefficients [c_0, ..., c_J] (polynomials in n), or nothing
@@ -492,12 +529,15 @@ function _zeilberger(F::Sym, k::Sym, n::Sym, J::Int)
     Bm = expand(subs(B, k => k - 1))
     sol = _gosper_x(expand(A), Bm, expand(C * N), k, cs)
     sol === nothing && return nothing
-    _, cvals = sol
+    x, cvals = sol
     coefs = vcat([cvals[c] for c in cs], ONE)
     all(iszero, coefs[1:end-1]) && return nothing
     # clear denominators: polynomial coefficients
     den = reduce((p, c) -> (d = numer_denom(c)[2]; cancel(p * d / gcd(p, d))), coefs; init = ONE)
-    [expand(cancel(c * den)) for c in coefs]
+    # the certificate: Σ_j c_j F(n+j, k) = G(n, k+1) - G(n, k), G = R F, the antidifference
+    # of t = N F/Q from Gosper's x (scaled with the coefficients)
+    R = cancel(den * Bm * subs(x, (c => cvals[c] for c in cs)...) / (C * Q))
+    [expand(cancel(c * den)) for c in coefs], R
 end
 
 # c_0(n) S(n) + c_1(n) S(n+1) = 0: S(n) = S(n0) Π_{j=n0}^{n-1} ρ(j), ρ = -c_0/c_1
@@ -592,6 +632,14 @@ function _merge_powers(e::Sym)
         end
     end
     isempty(groups) && return e
+    # a sum's rational content taken into the coefficient (2^(n-3)(8n - 16) = 2^n (n - 2))
+    for (i, t) in enumerate(other)
+        t.kind == ADD && all(isexact, t.coefs) && isexact(t.num) || continue
+        g = reduce(gcd, Rational{BigInt}.(t.coefs); init = Rational{BigInt}(t.num))
+        (iszero(g) || isone(g)) && continue
+        c *= g
+        other[i] = expand(t / g)
+    end
     pows = Sym[]
     for (q, b) in groups
         j = 0

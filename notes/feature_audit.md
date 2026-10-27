@@ -163,13 +163,15 @@ transforms). Of the rest, in rough order of value for calculus-level use:
    usable closed form.
 2. **Definite hypergeometric sums and recurrences**: Zeilberger and Hyper are done
    (`SymJ.rsolve`; second- and third-order Zeilberger recurrences solved by their
-   hypergeometric solutions, Binet's formula from `Σ binomial(n-k, k)`). Open:
-   right sides that are sums of hypergeometric terms, inhomogeneous recurrences from
-   non-natural bounds, and A, B factors needing algebraic numbers.
+   hypergeometric solutions, Binet's formula from `Σ binomial(n-k, k)`), with right
+   sides that are sums of hypergeometric terms, the inhomogeneous recurrences of
+   bounds other than the summand's own (`Σ_{k=0}^{n-1} binomial(n, k)`), and A, B
+   factors over algebraic numbers. Open: recurrences without hypergeometric solutions
+   (d'Alembertian or Liouvillian ones, `Σ binomial(n, k)^3`).
 3. **Piecewise functions, Heaviside and Dirac**: done, with `SymJ.piecewise_fold`
    combining sums and products of them into one (and `simplify` doing so when smaller).
-   Breakpoints with several parameters are ordered by the assumptions; open: splitting
-   into cases when the assumptions do not order them.
+   Breakpoints with several parameters are ordered by the assumptions, and split into
+   cases (a `Cases`) when the assumptions do not order them.
 4. **Definite integrals done properly**: improper integrals through `limit`, and
    detecting singularities inside the interval, building on RischIntegrate's
    antiderivatives.
