@@ -62,6 +62,16 @@ function zeta_value(args)
     n == 0 ? Sym(-1 // 2) : get(ZETA_EVEN, n, nothing)
 end
 
+# ψ⁽ᵐ⁾(k) = (-1)^(m+1) m! (ζ(m + 1) - Σ_{j<k} 1/j^(m+1)) at a positive integer k, m ≥ 1
+function polygamma_value(args)
+    m, a = args
+    (isint(m) && m.num >= SymNumber(1) && isint(a) && a.num >= SymNumber(1)) || return nothing
+    m, k = _toint(m.num), _toint(a.num)
+    k <= 1000 || return nothing
+    s = sum((big(1) // big(j)^(m + 1) for j in 1:(k - 1)); init = big(0) // 1)
+    Sym(isodd(m) ? factorial(big(m)) : -factorial(big(m))) * (SF.zeta(Sym(m + 1)) - Sym(s))
+end
+
 at0(v) = _unary(a -> iszero(a) ? v : nothing)
 odd_at0(name) = _unary(a -> iszero(a) ? ZERO : _odd(name, a))
 
@@ -92,7 +102,7 @@ function __init__()
     reg(:digamma; diff = d1(SF.trigamma))
     reg(:trigamma; diff = d1(a -> SF.polygamma(2, a)))
     reg(:invdigamma; diff = d1(a -> inv(SF.trigamma(SF.invdigamma(a)))))
-    reg(:polygamma; diff = dx((m, a) -> SF.polygamma(m + 1, a)))
+    reg(:polygamma; eval = polygamma_value, diff = dx((m, a) -> SF.polygamma(m + 1, a)))
     reg(:beta; eval = beta_value,
         diff = (args, i) -> SF.beta(args...) * (SF.digamma(args[i]) - SF.digamma(args[1] + args[2])))
     reg(:logbeta; diff = (args, i) -> SF.digamma(args[i]) - SF.digamma(args[1] + args[2]))

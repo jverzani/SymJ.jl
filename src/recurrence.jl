@@ -1,5 +1,5 @@
 # Linear recurrences with polynomial coefficients: their hypergeometric solutions, by
-# Petkovšek's algorithm Hyper.
+# Petkovšek's algorithm Hyper, and d'Alembertian ones by reduction of order.
 #
 # For Σ_{i=0}^{d} p_i(n) y(n+i) = 0, a hypergeometric solution has
 #     y(n+1)/y(n) = Z A(n)/B(n) C(n+1)/C(n)
@@ -166,6 +166,103 @@ function _int_roots!(out, q::Sym, n::Sym)
     out
 end
 
+## d'Alembertian solutions: reduction of order
+
+# Σ p_i y(n+i) = g through iterated sums of hypergeometric terms (Abramov–Petkovšek): for
+# a hypergeometric solution h of the homogeneous recurrence (Hyper), y = h z and
+# z(n+i) = z(n) + Σ_{j<i} u(n+j), u = Δz, give
+#     Σ_j s_j u(n+j) = g/h,   s_j = Σ_{i>j} p_i h(n+i)/h(n),
+# one order lower (Σ_i p_i h(n+i)/h(n) = 0 drops z(n)). At order 0, u = g/s_0. Each level
+# adds the solution h Σ_{m=n0}^{n-1} u(m), and the particular solution comes up the same
+# way; the right side g need not be hypergeometric. The sums are left unevaluated for
+# fitting the constants (added up directly at numbers), then summed. Nothing when a level has no
+# hypergeometric solution.
+
+# (particular, basis) from n0 on, or an Int: the start the solution needs instead
+function _dalembert(p::Vector{Sym}, g::Sym, n::Sym, n0::Int, idx::Vector{Sym})
+    d = length(p) - 1
+    if d == 0
+        bad = _int_roots!(Int[], p[1], n)
+        any(>=(n0), bad) && return maximum(bad) + 1
+        return (iszero(g) ? ZERO : _dal_present(g / p[1]), Sym[])
+    end
+    isempty(idx) && return nothing
+    sols = _hyper(copy(p), n)
+    (sols === nothing || isempty(sols)) && return nothing
+    ρ, C = sols[argmin([_nodes(ρ) + _nodes(C) for (ρ, C) in sols])]
+    # past the zeros and poles of h's ratio and the zeros of the leading coefficient
+    bad = Int[]
+    for q in (numer_denom(ρ)..., C, p[end])
+        _int_roots!(bad, q, n)
+    end
+    any(>=(n0), bad) && return maximum(bad) + 1
+    h = _present_product(C * _hyper_product(ρ, n, n0))
+    r = cancel(ρ * subs(C, n => n + 1) / C)                # h(n+1)/h(n)
+    q = Sym[p[1]]
+    R = ONE
+    for i in 1:d
+        R = cancel(R * subs(r, n => n + i - 1))
+        push!(q, cancel(p[i+1] * R))
+    end
+    D = reduce((a, c) -> (b = numer_denom(c)[2]; cancel(a * b / gcd(a, b))), q; init = ONE)
+    s = Sym[expand(cancel(D * _add_many(q[i+1] for i in (j + 1):d))) for j in 0:(d - 1)]
+    g2 = iszero(g) ? ZERO : _dal_present(D * g / h)
+    sub = _dalembert(s, g2, n, n0, idx[2:end])
+    sub === nothing && return nothing
+    sub isa Int && return sub
+    up, us = sub
+    k = idx[1]
+    Σn(u) = _summation_unevaluated(subs(u, n => k), k, Sym(n0), n - 1)   # (closed after the fit)
+    (iszero(up) ? ZERO : h * Σn(up), Sym[h; [h * Σn(u) for u in us]])
+end
+
+# a summand at its smallest: cancelled, or factored with powers merged (2^(-k-1)/(k+1))
+function _dal_present(e::Sym)
+    c = _present_product(cancel(_merge_powers_terms(expand(e))))   # (-1)^(k+1) + (-1)^k = 0
+    f = try _merge_powers(factor(c)) catch; c end
+    _nodes(f) < _nodes(c) ? f : c
+end
+
+# Σ p_i y(n+i) = g with y(m) given by `value(m)`, through its d'Alembertian solutions, the
+# constants from the values: (S, n0, S with its sums unevaluated); nothing when the
+# solutions are not all d'Alembertian.
+# `avoid`: names the summation indices must not take
+function _dalembert_solve(p::Vector{Sym}, g::Sym, n::Sym, value, avoid)
+    used = Set{Symbol}(Symbol(string(s)) for s in avoid)
+    idx = Sym[Sym(s) for s in (:k, :j, :i, :m, :l, :r) if !(s in used)]
+    n0 = 0
+    for _ in 1:4
+        res = _dalembert(p, g, n, n0, idx)
+        res === nothing && return nothing
+        res isa Int && (n0 = res; continue)
+        yp, B = res
+        r = length(B)
+        cs = [Sym(Symbol("_dal_c", j)) for j in 1:r]
+        eqs = Relation[]
+        for m in n0:(n0 + r + 12)
+            length(eqs) == r + 2 && break
+            v = value(m)
+            v === nothing && continue
+            push!(eqs, _add_many(cs[j] * simplify(subs(B[j], n => m)) for j in 1:r) ~ v - simplify(subs(yp, n => m)))
+        end
+        length(eqs) == r + 2 || return nothing
+        sol = try solve(eqs, cs) catch; return nothing end
+        (sol isa AbstractVector && !isempty(sol)) || return nothing
+        c = first(sol)
+        all(x -> haskey(c, x), cs) || return nothing
+        raw = yp + _add_many(c[cs[j]] * B[j] for j in 1:r)
+        return simplify(_dal_close(raw)), n0, raw
+    end
+    nothing
+end
+
+# the unevaluated sums in e summed (closed forms, or Sum still), innermost first
+function _dal_close(e::Sym)
+    isempty(e.args) && return e
+    e = _rebuild_node(e, Sym[_dal_close(a) for a in e.args])
+    e.kind == FN && e.name === :Sum && length(e.args) == 4 ? summation(e.args...) : e
+end
+
 ## rsolve
 
 """
@@ -178,13 +275,16 @@ answer is in terms of `y(0), …, y(d-1)` for a recurrence of order `d`. The rig
 may also be a sum of hypergeometric terms in `n` (polynomials, `2^n`, `n!`, `(-1)^n`).
 Not exported.
 
-An error when the solution is not a combination of hypergeometric terms (or Hyper's
-search for them is too large).
+When the hypergeometric solutions are too few, the order is reduced through one of them
+(d'Alembertian solutions): the answer is then in iterated sums of hypergeometric terms,
+such as `harmonic(n)` or an unevaluated `Sum`, and the right side may be any function of
+`n`. An error when the solution is not d'Alembertian (or Hyper's search is too large).
 
 ```julia
 @syms n y()
 SymJ.rsolve(y(n+2) ~ y(n+1) + y(n), y(n), y(0) => 0, y(1) => 1)   # Binet's formula
 SymJ.rsolve(y(n+1) ~ 2y(n) + 1, y(n))                              # 2^n (y(0) + 1) - 1
+SymJ.rsolve(y(n+1) - y(n) ~ 1/(n+1), y(n), y(0) => 0)              # harmonic(n)
 ```
 """
 function rsolve(eq, yn::Sym, inits::Pair...)
@@ -248,17 +348,19 @@ function rsolve(eq, yn::Sym, inits::Pair...)
         iszero(pd) && return nothing
         vals[m] = expand((subs(g, n => m - d) - _add_many(subs(p[i+1], n => m - d) * prev[i+1] for i in 0:(d - 1))) / pd)
     end
+    # hypergeometric solutions (of the recurrence made homogeneous), else d'Alembertian ones
     hom = _annihilate(p, g, n)
-    hom === nothing && throw(ArgumentError("rsolve: the right side $g is not a sum of hypergeometric terms in $n"))
-    sol = _recurrence_solve(hom, n, value)
-    sol === nothing && throw(ArgumentError("rsolve: the solution is not a combination of hypergeometric terms"))
+    sol = hom === nothing ? nothing : _recurrence_solve(hom, n, value)
+    sol === nothing && (sol = _dalembert_solve(p, g, n, value, _named(e)))
+    sol === nothing && throw(ArgumentError("rsolve: the solution is not d'Alembertian (iterated sums of hypergeometric terms)"))
     S, n0 = sol
+    Sv = length(sol) == 3 ? sol[3] : S             # (sums unevaluated: added up at numbers)
     # checked against the recurrence's own values
-    for m in n0:(n0 + length(hom) + 3)
+    for m in n0:(n0 + d + 4)
         v = value(m)
         v === nothing && continue
-        iszero(expand(simplify(subs(S, n => m) - v))) ||
-            throw(ArgumentError("rsolve: the solution is not a combination of hypergeometric terms"))
+        iszero(expand(simplify(subs(Sv, n => m) - v))) ||
+            throw(ArgumentError("rsolve: the solution found does not satisfy the recurrence"))
     end
     _merge_powers_terms(S)                         # (y's own index: the shift was only of n)
 end

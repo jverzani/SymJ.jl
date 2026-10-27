@@ -470,13 +470,17 @@ function _zeilberger_sum(f::Sym, k::Sym, a::Sym, b::Sym, n::Sym)
         # other bounds: an inhomogeneous recurrence, its right side the boundary terms (a
         # sum of hypergeometric terms), made homogeneous
         g = _zeil_rhs(rec, R, f, k, n, a, b)
-        (g === nothing || iszero(g)) && return nothing
-        hom = _annihilate(rec, g, n)
-        hom === nothing && return nothing
-        sol = _recurrence_solve(hom, n, value)
+        g === nothing && return nothing
+        if !iszero(g)
+            hom = _annihilate(rec, g, n)
+            sol = hom === nothing ? nothing : _recurrence_solve(hom, n, value)
+            sol !== nothing && _zeil_verified(sol[1], f, k, n, a, b, sol[2]) && return _merge_powers_terms(sol[1])
+        end
+        # else d'Alembertian solutions (harmonic numbers), checked with their sums unevaluated
+        sol = _dalembert_solve(rec, g, n, value, vcat(_named(f), _named(a), _named(b)))
         sol === nothing && return nothing
-        S, n0 = sol
-        return _zeil_verified(S, f, k, n, a, b, n0) ? _merge_powers_terms(S) : nothing
+        S, n0, raw = sol
+        return _zeil_verified(raw, f, k, n, a, b, n0) ? _merge_powers_terms(S) : nothing
     end
     nothing
 end
@@ -785,7 +789,7 @@ function _hurwitz_finite(c::Sym, α::Sym, m::Int, a::Sym, b::Sym)
         return c * (apply_function(:digamma, Sym[hi]) - apply_function(:digamma, Sym[lo]))
     end
     s = (-1)^m / Sym(SymNumber(factorial(big(m - 1))))
-    c * s * (apply_function(:polygamma, Sym[Sym(m - 1), hi]) - apply_function(:polygamma, Sym[Sym(m - 1), lo]))
+    c * s * (apply_function(:polygamma, Sym[Sym(m - 1), lo]) - apply_function(:polygamma, Sym[Sym(m - 1), hi]))
 end
 
 # Σ_{k=a}^{∞} Σ c/(k + α)^m: the m = 1 terms converge together only when their

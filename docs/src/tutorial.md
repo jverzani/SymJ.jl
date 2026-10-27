@@ -651,6 +651,19 @@ values or in terms of them:
 SymJ.rsolve(w(n + 2) ~ w(n + 1) + w(n), w(n), w(0) => 0, w(1) => 1), SymJ.rsolve(w(n + 1) ~ 2w(n) + 1, w(n))
 ```
 
+When a recurrence has too few hypergeometric solutions, its order is reduced through
+one of them; the solutions are then iterated sums of hypergeometric terms (harmonic
+numbers, or a `Sum` that does not close), and the right side may be any function of
+`n`:
+
+```@example tut
+SymJ.rsolve(w(n + 1) - w(n) ~ 1 / (n + 1), w(n), w(0) => 0), SymJ.rsolve(w(n + 1) ~ (n + 1) * w(n) + 1, w(n), w(0) => 1)
+```
+
+```@example tut
+SymJ.summation((-1)^(k + 1) * binomial(n, k) / k, k, 1, n)
+```
+
 Whether a series converges can depend on a parameter; the answer then has cases, which
 assumptions settle:
 
