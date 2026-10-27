@@ -1797,7 +1797,6 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         # the internal search: solutions of (E - 2)^2, none for the Franel recurrence
         @test length(SymJ._hyper(Sym[4, -4, 1], n)) == 2
         @test isempty(SymJ._hyper(Sym[-8(n + 1)^2, -(7n^2 + 21n + 16), (n + 2)^2], n))
-        @test_throws ArgumentError R((n + 2)^2 * y(n + 2) - (7n^2 + 21n + 16) * y(n + 1) - 8(n + 1)^2 * y(n) ~ 0, y(n), y(0) => 1, y(1) => 2)
         # a right side that is a sum of hypergeometric terms (one class at a time)
         @test R(y(n + 1) - y(n) ~ n * 2^n + 3^n, y(n), y(0) => 0) == 2^n * (n - 2) + 3^n / 2 + 3 // 2
         @test simplify(R(y(n + 2) - y(n) ~ 1 + (-1)^n, y(n), y(0) => 0, y(1) => 0) - (n / 2 + (-1)^n * n / 2)) == 0
@@ -1846,7 +1845,17 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test Σ((-1)^k * binomial(n, k) / (k + 1)^2, k, 0, n) == SymJ.harmonic(n + 1) / (n + 1)
         @test Σ((-1)^k * binomial(4, k) / (k + 1)^2, k, 0, 4) == SymJ.harmonic(Sym(5)) / 5
         @test SymJ.kind(Σ(binomial(n, k)^3, k, 0, n)) == FN                 # Franel: no d'Alembertian solution
-        @test_throws ArgumentError R((n + 2)^2 * y(n + 2) - (7n^2 + 21n + 16) * y(n + 1) - 8(n + 1)^2 * y(n) ~ 0, y(n))
+        # no closed form: the recurrence itself (Franel), evaluated by unrolling
+        let s = R((n + 2)^2 * y(n + 2) - (7n^2 + 21n + 16) * y(n + 1) - 8(n + 1)^2 * y(n) ~ 0, y(n), y(0) => 1, y(1) => 2)
+            @test SymJ.kind(s) == FN && s.name === :DifferenceRoot
+            @test [subs(s, n => m) for m in 0:6] == [sum(binomial(m, j)^3 for j in 0:m) for m in 0:6]
+            @test string(s) == "DifferenceRoot((n + 2)^2*y(n + 2) - (7*n^2 + 21*n + 16)*y(n + 1) - 8*(n + 1)^2*y(n) ~ 0, y(0) => 1, y(1) => 2)"
+            @test subs(subs(s, n => n + 1), n => 2) == 56
+            @test subs(s, n => 200) == sum(binomial(big(200), j)^3 for j in 0:200)
+        end
+        let s = R(y(n + 2) ~ (n^2 + a) * y(n + 1) + y(n), y(n))              # free initial values, a parameter
+            @test expand(subs(s, n => 3) - ((a^2 + a + 1) * y(1) + (a + 1) * y(0))) == 0
+        end
         # Liouvillian solutions: interlaced, piecewise in mod(n, m)
         let s = R(y(n + 2) ~ (n + 1) * y(n), y(n), y(0) => 1, y(1) => 1)        # (n - 1)!!
             @test [subs(s, n => m) for m in 0:7] == [1, 1, 1, 2, 3, 8, 15, 48]

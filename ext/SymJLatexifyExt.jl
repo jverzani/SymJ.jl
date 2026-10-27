@@ -24,6 +24,13 @@ function _letters(e::Expr)
     e.head === :macrocall && e.args[end] isa String && return parse(BigInt, e.args[end])
     if e.head === :call && e.args[1] === :piecewise
         return _ifchain(map(_letters, e.args[2:end]))
+    elseif e.head === :call && e.args[1] === :DifferenceRoot
+        # the recurrence and its initial values as equations
+        eq(a) = a isa Expr && a.head === :call && a.args[1] in (:~, :(=>)) ?
+            Expr(:call, :(==), map(_letters, a.args[2:end])...) : _letters(a)
+        # (built here: Latexify reads a leading a == b argument as a keyword)
+        parts = [Latexify.latexraw(eq(a)) for a in e.args[2:end]]
+        return Expr(:call, :DifferenceRoot, Latexify.LaTeXString(join(parts, raw",\; ")))
     elseif e.head === :call && e.args[1] in (:heaviside, :dirac)
         return Expr(:call, e.args[1] === :heaviside ? :θ : :δ, map(_letters, e.args[2:end])...)
     elseif e.head === :call && haskey(_RELOPS, e.args[1])

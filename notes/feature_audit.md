@@ -81,7 +81,7 @@ with assumptions, `refine` and `simplify`, complex parts and LaTeX output are do
 | Nonlinear inequality systems | partial | partial | ❌ |
 | Numeric root finding, any equation | `nsolve` | `fsolve` | ◐ polynomials: `SymJ.real_roots` (correctly rounded) and `SymJ.root_intervals` (exact isolation); other equations through Roots.jl or NonlinearSolve.jl, which take SymJ expressions as they are |
 | Diophantine equations | `diophantine` | `isolve` | ❌ |
-| Recurrences | `rsolve` | `rsolve`, `seqsolve` | ✅ `SymJ.rsolve`: linear, polynomial coefficients, by Hyper (hypergeometric solutions, combined, A and B over algebraic numbers too), right sides that are sums of hypergeometric terms; d'Alembertian solutions by reduction of order (harmonic numbers, iterated sums), any right side; Liouvillian solutions by sections, piecewise in `mod(n, m)` (the double factorial); ◐ not solutions beyond these (Franel) |
+| Recurrences | `rsolve` | `rsolve`, `seqsolve` | ✅ `SymJ.rsolve`: linear, polynomial coefficients, by Hyper (hypergeometric solutions, combined, A and B over algebraic numbers too), right sides that are sums of hypergeometric terms; d'Alembertian solutions by reduction of order (harmonic numbers, iterated sums), any right side; Liouvillian solutions by sections, piecewise in `mod(n, m)` (the double factorial); otherwise the recurrence itself, `DifferenceRoot`, evaluated at integers (Franel); ◐ no arithmetic on those |
 | Ordinary differential equations | `dsolve`, `classify_ode`, `checkodesol` | `desolve` | ◐ ★ `SymJ.dsolve`: first order (linear, separable, Bernoulli, exact with integrating factors, homogeneous, Riccati), linear with constant coefficients of any order (undetermined coefficients, variation of parameters), Cauchy–Euler, `y` missing, autonomous second order (`y'' = f(y, y')`); initial conditions (`y'(0) => 1`); linear systems with constant coefficients, of any order; series solutions (`series = n`: Taylor at an ordinary point, nonlinear too; Frobenius at a regular singular point); Laplace transforms for constant coefficients (chosen for `heaviside`/`dirac` right sides, or `method = :laplace`), systems too; every solution checked; several branches of `y'` give a solution each |
 | Partial differential equations | `pdsolve` | — | ❌ |
 
@@ -168,9 +168,10 @@ transforms). Of the rest, in rough order of value for calculus-level use:
    bounds other than the summand's own (`Σ_{k=0}^{n-1} binomial(n, k)`), and A, B
    factors over algebraic numbers; d'Alembertian solutions by reduction of order
    (`harmonic(n)`, iterated sums, any right side), and Liouvillian ones by sections
-   (piecewise in `mod(n, m)`), for `rsolve` and Zeilberger. Open: sums such as
-   `Σ binomial(n, k)^3`, whose recurrence has no Liouvillian solution (only the
-   recurrence itself could be returned).
+   (piecewise in `mod(n, m)`), for `rsolve` and Zeilberger; otherwise `rsolve` returns
+   the recurrence itself (`DifferenceRoot`, evaluated at integers). Open: arithmetic on
+   those (holonomic closure properties), and returning one from `summation` (which keeps
+   `Sum` for `Σ binomial(n, k)^3`).
 3. **Piecewise functions, Heaviside and Dirac**: done, with `SymJ.piecewise_fold`
    combining sums and products of them into one (and `simplify` doing so when smaller).
    Breakpoints with several parameters are ordered by the assumptions, and split into

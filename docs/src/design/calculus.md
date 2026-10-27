@@ -118,6 +118,14 @@
   and `b^(cN)` is taken as `(b^c)^N` before powers are merged, so Dixon's
   `Σ (-1)^k binomial(n, k)^3` is `(-1)^(n/2) (3n/2)!/((n/2)!)^3`. The Franel recurrence of
   `Σ binomial(n, k)^3` has no Liouvillian solution, and that sum stays unevaluated.
+- **The recurrence as the answer.** When none of these apply, `rsolve` returns
+  `DifferenceRoot(x, k, y, d, m0, g, p_0, …, p_d, v_0, …, v_{d-1})` (as Mathematica's
+  `DifferenceRoot`): `Σ p_i(k) y(k+i) = g(k)` with `y(m0 + j) = v_j`, at `x`. The
+  coefficients are in a bound symbol `k`, so substituting for `x` leaves them alone; it
+  prints as the recurrence in `x`'s symbol, highest shift first with factored
+  coefficients, and at an integer `x` its value is the recurrence unrolled (exact, up to
+  100 000 steps). There is no arithmetic on these (sums and products of holonomic
+  sequences, asymptotics); `summation` keeps `Sum`, which is clearer for a sum.
 - **Harmonic numbers**, `Σ_{k=a}^{b} g(k) H(k + c)` with `c` an integer and `g` with an
   antidifference `G`, by parts: `G(b+1) H(b+c+1) - G(a) H(a+c) - Σ G(k+1)/(k+c+1)`.
   A polynomial `G` is shifted by a constant to vanish at `-c`, so the last sum is of a

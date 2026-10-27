@@ -343,6 +343,72 @@ function _liouvillian_solve(p::Vector{Sym}, g::Sym, n::Sym, value, avoid)
     nothing
 end
 
+## the recurrence as the answer: DifferenceRoot
+
+# DifferenceRoot(x, k, y, d, m0, g, p_0, …, p_d, v_0, …, v_{d-1}): the solution of
+# Σ_i p_i(k) y(k+i) = g(k) with y(m0 + j) = v_j, at x. The coefficients are in the bound
+# symbol k, so substituting for x leaves them alone; at an integer x the recurrence is
+# unrolled. (Mathematica's DifferenceRoot; no arithmetic on them.)
+function _droot(x::Sym, k::Sym, yname::Symbol, p::Vector{Sym}, g::Sym, m0::Int, vs::Vector{Sym})
+    apply_function(:DifferenceRoot, Sym[x, k, Sym(yname), Sym(length(p) - 1), Sym(m0), g, p..., vs...])
+end
+_droot_parts(e::Sym) = _droot_parts(e.args)
+function _droot_parts(a::Vector{Sym})
+    d = _toint(a[4].num)
+    (x = a[1], k = a[2], y = a[3].name, d = d, m0 = _toint(a[5].num), g = a[6],
+     p = a[7:(7 + d)], vs = a[(8 + d):(7 + 2d)])
+end
+
+const _DROOT_MAX = 100_000
+
+register_function!(:DifferenceRoot; eval = args -> begin
+    length(args) >= 8 || return nothing
+    x = args[1]
+    (x.kind == NUMBER && _isint(x.num)) || return nothing
+    P = _droot_parts(args)
+    t = _toint(x.num)
+    m0, d, k = P.m0, P.d, P.k
+    t < m0 && return nothing
+    t < m0 + d && return P.vs[t - m0 + 1]
+    t - m0 <= _DROOT_MAX || return nothing
+    w = collect(P.vs)                              # y(s), …, y(s + d - 1)
+    for s in m0:(t - d)
+        pd = subs(P.p[end], k => s)
+        iszero(pd) && return nothing
+        nxt = expand((subs(P.g, k => s) - _add_many(subs(P.p[i+1], k => s) * w[i+1] for i in 0:(d - 1))) / pd)
+        w = vcat(w[2:end], nxt)
+    end
+    w[end]
+end)
+
+# printed as the recurrence in the variable of x (or in k, then applied to x)
+function _show_droot(io::IO, e::Sym)
+    P = _droot_parts(e)
+    v = _isnamed(P.x) ? P.x : P.k
+    print(io, "DifferenceRoot(")
+    # highest shift first, each coefficient factored
+    first = true
+    for i in P.d:-1:0
+        c = subs(P.p[i+1], P.k => v)
+        iszero(c) && continue
+        c = try factor(c) catch; c end
+        neg = c.kind == NUMBER ? c.num < N0 : c.kind == MUL ? c.num < N0 :
+              (lc = _coef(expand(c), v, _xdeg(c, v)); lc.kind == NUMBER && lc.num < N0)
+        t = (neg ? -c : c) * apply_function(P.y, Sym[expand(v + i)])
+        print(io, first ? (neg ? "-" : "") : (neg ? " - " : " + "))
+        _show(io, t, first && neg ? 100 : 0)
+        first = false
+    end
+    print(io, " ~ ")
+    _show(io, subs(P.g, P.k => v), 0)
+    for (j, val) in enumerate(P.vs)
+        print(io, ", ", P.y, "(", P.m0 + j - 1, ") => ")
+        _show(io, val, 0)
+    end
+    print(io, ")")
+    v === P.x || (print(io, "("); _show(io, P.x, 0); print(io, ")"))
+end
+
 ## rsolve
 
 """
@@ -360,7 +426,10 @@ When the hypergeometric solutions are too few, the order is reduced through one 
 such as `harmonic(n)` or an unevaluated `Sum`, and the right side may be any function of
 `n`. Failing that, the sections `y(m N + i)` (`m` up to the order) are solved each in
 those ways and interlaced (Liouvillian solutions), the answer piecewise in `mod(n, m)`.
-An error when the solution is none of these (or Hyper's search is too large).
+When the solution is none of these (or Hyper's search is too large), the answer is the
+recurrence itself, `DifferenceRoot(... ~ ..., y(0) => ..., ...)`, which gives its value
+at an integer by unrolling the recurrence (no arithmetic is done on it). An error when
+the equation is not a linear recurrence or the initial values do not fit its order.
 
 ```julia
 @syms n y()
@@ -437,7 +506,20 @@ function rsolve(eq, yn::Sym, inits::Pair...)
     sol = hom === nothing ? nothing : _recurrence_solve(hom, n, value)
     sol === nothing && (sol = _dalembert_solve(p, g, n, value, _named(e)))
     sol === nothing && (sol = _liouvillian_solve(p, g, n, value, _named(e)))
-    sol === nothing && throw(ArgumentError("rsolve: the solution is not Liouvillian (interlaced iterated sums of hypergeometric terms)"))
+    if sol === nothing
+        # no closed form: the recurrence itself, with d consecutive values
+        vs = Sym[]
+        for j in 0:(d - 1)
+            v = value(m0 + j)
+            v === nothing && throw(ArgumentError("rsolve: no closed form, and the initial values do not determine y($(m0 + j))"))
+            push!(vs, v)
+        end
+        # (the shift by lo renamed n only: y's own index is unchanged)
+        used = Set{Symbol}(Symbol(string(t)) for t in _named(e))
+        free = [s for s in (:k, :j, :i, :m, :l, :r) if !(s in used)]
+        k = Sym(isempty(free) ? :_k : free[1])
+        return _droot(n, k, yname, Sym[subs(c, n => k) for c in p], subs(g, n => k), m0, vs)
+    end
     S, n0 = sol
     Sv = length(sol) == 3 ? sol[3] : S             # (sums unevaluated: added up at numbers)
     # checked against the recurrence's own values
