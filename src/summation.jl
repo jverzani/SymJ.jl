@@ -8,9 +8,11 @@
 #       polynomials in k by Bernoulli polynomials, B_{p+1}(k)/(p+1) for k^p;
 #       hypergeometric terms (f(k+1)/f(k) rational in k: polynomials, r^k, factorials,
 #       binomials, gamma) by Gosper's algorithm, which finds one or proves there is none;
-#   - rational functions without one: partial fractions, Σ 1/(k+α)^m as polygamma
-#     functions, exact harmonic and zeta values for integer shifts;
-#   - harmonic numbers times a term with an antidifference: by parts;
+#   - rational functions without one: partial fractions, Σ 1/(k+α)^m as generalized
+#     harmonic numbers for integer shifts, polygamma functions otherwise, zeta values
+#     for infinite sums;
+#   - harmonic numbers (generalized too) times a term with an antidifference: by
+#     parts; times 1/(k + α)^m of their own order: (H(q, m)^2 + H(q, 2m))/2;
 #   - an infinite sum is the limit of the antidifference (`limit`, so convergence and
 #     the cases of a parameter come from it);
 #   - otherwise the sum is left unevaluated, as Sum(f, k, a, b).
@@ -26,9 +28,9 @@ other symbols are given with `assume`, as for [`limit`](@ref).
 Polynomials in `k` are summed by Faulhaber's formula, hypergeometric terms (polynomials
 times `r^k`, factorials, binomials, rational functions that telescope) by Gosper's
 algorithm, and other rational functions through partial fractions, as harmonic numbers
-and polygamma functions (exact zeta values for even powers). Harmonic numbers times a
-term with an antidifference are summed by parts. A sum with no closed form
-is returned unevaluated, `Sum(f, k, a, b)`. Not exported.
+(generalized, `SymJ.harmonic(n, m)`) and polygamma functions (exact zeta values for even
+powers). Harmonic numbers times a term with an antidifference are summed by parts. A
+sum with no closed form is returned unevaluated, `Sum(f, k, a, b)`. Not exported.
 
 ```julia
 SymJ.summation(k^2, k, 1, n)            # n^3/3 + n^2/2 + n/6
@@ -262,36 +264,88 @@ _sum_cases(parts) = throw(ArgumentError("summation: a sum of terms whose sums de
 
 ## harmonic numbers: summation by parts
 
-# Σ_{k=a}^{b} g(k) H(k + c), c an integer, g with an antidifference G (G(k+1) - G(k) = g):
-#   G(b+1) H(b+c+1) - G(a) H(a+c) - Σ_{k=a}^{b} G(k+1)/(k+c+1)
-# by ΔH(k + c) = 1/(k+c+1); the last sum is free of H, and H(b+c+1) is written
-# H(b+c) + 1/(b+c+1). Finite sums only (the infinite ones diverge or need ζ values),
-# and only when the last sum closes.
+# Σ_{k=a}^{b} g(k) H(k + c, m), c an integer, g with an antidifference G (G(k+1) - G(k) = g):
+#   G(b+1) H(b+c+1, m) - G(a) H(a+c, m) - Σ_{k=a}^{b} G(k+1)/(k+c+1)^m
+# by ΔH(k + c, m) = 1/(k+c+1)^m; the last sum is free of H, and H(b+c+1, m) is written
+# H(b+c, m) + 1/(b+c+1)^m when smaller. A rational g without one is split into partial
+# fractions: the polynomial part by parts, and 1/(k+α)^m (the same m, α an integer) by
+#   Σ_{j=1}^{q} H(j, m)/j^m = (H(q, m)^2 + H(q, 2m))/2,
+# H(k+c, m) moved to H(k+α, m) by finitely many terms. Other powers are Euler sums,
+# without a closed form. Finite sums only, and only when every part closes.
 function _harmonic_sum(f::Sym, k::Sym, a::Sym, b, assume)
     b === nothing && return nothing
     hs = _collect_fn!(Sym[], f, :harmonic)
     length(hs) == 1 || return nothing
     h = only(hs)
-    length(h.args) == 1 || return nothing
     c = expand(h.args[1] - k)
-    (c.kind == NUMBER && _isint(c.num)) || return nothing
+    m = _horder(h)
+    (c.kind == NUMBER && _isint(c.num) && m.kind == NUMBER && _isint(m.num) && m.num >= N1) || return nothing
     g = cancel(f / h)
     (has(g, k) || !iszero(g)) && isempty(_collect_fn!(Sym[], g, :harmonic)) || return nothing
     # H(a + c) defined: a + c not a negative integer
     ac = expand(a + c)
     ac.kind == NUMBER && ac.num < N0 && return nothing
     G = has(g, k) ? _antidifference(g, k) : g * k
-    G === nothing && return nothing
-    # a polynomial G is free up to a constant: G(-c) = 0 makes G(k+1)/(k+c+1) a polynomial
+    G === nothing && return _harmonic_sum_pf(g, h, k, a, b, assume)
+    # a polynomial G is free up to a constant: G(-c) = 0 cancels a factor k + c + 1
     _ispolyin(G, [k]) && (G = expand(G - subs(G, k => -c)))
-    rest = _summation(cancel(subs(G, k => k + 1) / (k + c + 1)), k, a, b, assume)
+    rest = _summation(cancel(subs(G, k => k + 1) / (k + c + 1)^m), k, a, b, assume)
     (rest isa Cases || _count_fn(rest, :Sum) > 0) && return nothing    # (no closed form)
     Gb = subs(G, k => b + 1)
-    tail = -subs(G, k => a) * harmonic(ac) - rest
-    # with H(b+c+1), or with H(b+c) and its last term apart, whichever is smaller
-    r1 = _present(Gb) * harmonic(expand(b + c + 1)) + _present(tail)
-    r2 = _present(Gb) * harmonic(expand(b + c)) + _present(Gb / (b + c + 1) + tail)
+    tail = -subs(G, k => a) * harmonic(ac, m) - rest
+    # with H(b+c+1, m), or with H(b+c, m) and its last term apart, whichever is smaller
+    q = expand(b + c)
+    r1 = _present(Gb) * harmonic(q + 1, m) + _present(tail)
+    r2 = _present(Gb) * harmonic(q, m) + _present(_harmonic_lower(Gb / (q + 1)^m + tail, q))
     _nodes(r2) <= _nodes(r1) ? r2 : r1
+end
+# H(q + 1, p) as H(q, p) + 1/(q + 1)^p, for every order p
+function _harmonic_lower(e::Sym, q::Sym)
+    hs = filter(h -> _eq(expand(h.args[1] - q), ONE), _collect_fn!(Sym[], e, :harmonic))
+    isempty(hs) ? e : subs(e, (h => harmonic(q, _horder(h)) + 1 / (q + 1)^_horder(h) for h in hs)...)
+end
+
+# g rational in k without an antidifference, times h = H(k + c, m)
+function _harmonic_sum_pf(g::Sym, h::Sym, k::Sym, a::Sym, b::Sym, assume)
+    nu, de = numer_denom(g)
+    (_ispolyin(nu, [k]) && _ispolyin(de, [k]) && has(de, k)) || return nothing
+    pf = try apart(g, k) catch; return nothing end
+    terms = pf.kind == ADD ? [Sym(t) * u for (t, u) in zip(pf.coefs, pf.args)] : [pf]
+    pf.kind == ADD && !iszero(pf.num) && push!(terms, Sym(pf.num))
+    c = _toint(expand(h.args[1] - k).num)
+    m = _horder(h)
+    poly = ZERO
+    out = ZERO
+    for t in terms
+        if _ispolyin(t, [k])
+            poly += t
+            continue
+        end
+        w, u = _split_kfree(t, k)
+        (u.kind == POW && u.args[2] == -m && _xdeg(u.args[1], k) == 1) || return nothing
+        lin = u.args[1]
+        c1 = _coef(lin, k, 1)
+        isone(c1) || return nothing
+        α = expand(_coef(lin, k, 0))
+        (α.kind == NUMBER && _isint(α.num)) || return nothing
+        αi = _toint(α.num)
+        # H(k + c, m) = H(k + α, m) + D(k), D finitely many terms
+        D = c >= αi ? _add_many(1 / (k + j)^m for j in (αi + 1):c) : -_add_many(1 / (k + j)^m for j in (c + 1):αi)
+        T(q) = (harmonic(q, m)^2 + harmonic(q, 2m)) / 2
+        lo, hi = expand(a + α - 1), expand(b + α)
+        lo.kind == NUMBER && lo.num < N0 && return nothing
+        out += w * (T(hi) - T(lo))
+        iszero(D) && continue
+        r = _summation(cancel(D / (k + α)^m), k, a, b, assume)
+        (r isa Cases || _count_fn(r, :Sum) > 0) && return nothing
+        out += w * r
+    end
+    if !iszero(poly)
+        r = _harmonic_sum(poly * h, k, a, b, assume)
+        r === nothing && return nothing
+        out += r
+    end
+    _harmonic_combine(expand(out))
 end
 
 ## antidifferences
@@ -772,7 +826,16 @@ function _rational_sum(f::Sym, k::Sym, a::Sym, b)
     (_ispolyin(n, [k]) && _ispolyin(d, [k]) && has(d, k)) || return nothing
     pf = try apart(f, k) catch; return nothing end
     terms = pf.kind == ADD ? [Sym(c) * t for (c, t) in zip(pf.coefs, pf.args)] : [pf]
-    pf.kind == ADD && !iszero(pf.num) && return nothing          # a polynomial part
+    pf.kind == ADD && !iszero(pf.num) && push!(terms, Sym(pf.num))
+    # a polynomial part summed on its own
+    poly = _add_many(t for t in terms if _ispolyin(t, [k]))
+    if !iszero(poly)
+        rest = _add_many(t for t in terms if !_ispolyin(t, [k]))
+        rp = _summation(poly, k, a, b, nothing)
+        rr = _rational_sum(rest, k, a, b)
+        (rr === nothing || rp isa Cases) && return nothing
+        return rr isa Sym && rp isa Sym ? _harmonic_combine(rp + rr) : nothing
+    end
     parts = Tuple{Sym,Sym,Int}[]                                 # (c, α, m)
     for t in terms
         c, u = _split_kfree(t, k)
@@ -794,20 +857,20 @@ function _harmonic_combine(e::Sym)
     hs = Sym[]
     _collect_fn!(hs, e, :harmonic)
     length(hs) <= 1 && return _present(e)
-    groups = Dict{Sym,Vector{Tuple{Int,Sym}}}()
+    groups = Dict{Tuple{Sym,Sym},Vector{Tuple{Int,Sym}}}()        # (base, order)
     for h in hs
         u = h.args[1]
         c = u.kind == ADD ? Sym(u.num) : ZERO
         (c.kind == NUMBER && _isint(c.num)) || continue
-        push!(get!(groups, expand(u - c), Tuple{Int,Sym}[]), (_toint(c.num), h))
+        push!(get!(groups, (expand(u - c), _horder(h)), Tuple{Int,Sym}[]), (_toint(c.num), h))
     end
     subsd = Pair{Sym,Sym}[]
-    for (base, list) in groups
+    for ((base, m), list) in groups
         c0 = minimum(first, list)
-        h0 = harmonic(base + c0)
+        h0 = harmonic(base + c0, m)
         for (c, h) in list
             c == c0 && continue
-            push!(subsd, h => h0 + _add_many(1 / (base + j) for j in (c0 + 1):c))
+            push!(subsd, h => h0 + _add_many(1 / (base + j)^m for j in (c0 + 1):c))
         end
     end
     _present(isempty(subsd) ? e : subs(e, subsd...))
@@ -819,11 +882,12 @@ function _collect_fn!(out, e::Sym, name::Symbol)
     out
 end
 
-# Σ_{k=a}^{b} c/(k + α)^m: harmonic numbers for m = 1 and integer shifts, polygamma else
+# Σ_{k=a}^{b} c/(k + α)^m: harmonic numbers (of order m) for integer shifts, digamma and
+# polygamma else
 function _hurwitz_finite(c::Sym, α::Sym, m::Int, a::Sym, b::Sym)
     lo, hi = a + α, b + α + 1
+    α.kind == NUMBER && _isint(α.num) && return c * (harmonic(b + α, m) - harmonic(a + α - 1, m))
     if m == 1
-        α.kind == NUMBER && _isint(α.num) && return c * (harmonic(b + α) - harmonic(a + α - 1))
         return c * (apply_function(:digamma, Sym[hi]) - apply_function(:digamma, Sym[lo]))
     end
     s = (-1)^m / Sym(SymNumber(factorial(big(m - 1))))
@@ -867,15 +931,26 @@ end
 
 """
     SymJ.harmonic(n)
+    SymJ.harmonic(n, m)
 
-The `n`-th harmonic number `1 + 1/2 + ... + 1/n`: exact for an integer `n`, otherwise
-left as it is (`harmonic(n)`). Not exported.
+The `n`-th harmonic number `1 + 1/2 + ... + 1/n`, and the generalized one of order `m`,
+`1 + 1/2^m + ... + 1/n^m` (`harmonic(n, 1)` is `harmonic(n)`): exact for an integer `n`,
+otherwise left as it is. Not exported.
 """
 harmonic(n) = apply_function(:harmonic, Sym[Sym(n)])
-register_function!(:harmonic; julia = n -> (isinteger(n) && n >= 0 ? sum(1 / i for i in 1:Int(n); init = 0.0) :
-        throw(DomainError(n, "harmonic: an integer argument for numeric evaluation"))),
+harmonic(n, m) = apply_function(:harmonic, Sym[Sym(n), Sym(m)])
+_harmonic_float(n, m = 1) = isinteger(n) && n >= 0 ? sum(1 / Float64(i)^m for i in 1:Int(n); init = 0.0) :
+    throw(DomainError(n, "harmonic: an integer argument for numeric evaluation"))
+register_function!(:harmonic; julia = _harmonic_float,
     eval = args -> begin
+        length(args) in (1, 2) || return nothing
         n = args[1]
+        m = length(args) == 2 ? args[2] : ONE
+        length(args) == 2 && isone(m) && return harmonic(n)
+        (m.kind == NUMBER && _isint(m.num) && m.num >= N1) || return nothing
         (n.kind == NUMBER && _isint(n.num) && n.num >= N0 && _toint(n.num) <= 10_000) || return nothing
-        Sym(SymNumber(sum(1 // big(i) for i in 1:_toint(n.num); init = big(0) // 1)))
+        p = _toint(m.num)
+        Sym(SymNumber(sum(1 // big(i)^p for i in 1:_toint(n.num); init = big(0) // 1)))
     end)
+# the order of a harmonic number, 1 for harmonic(n)
+_horder(h::Sym) = length(h.args) == 2 ? h.args[2] : ONE
