@@ -141,6 +141,13 @@ SymJ.horner(3x^4 - 2x^3 + x - 7, x), SymJ.cse((x + y)^2 + sin(x + y))
 rationalize(0.5x + 1.25)
 ```
 
+`SymJ.nsimplify` recognizes floats as exact numbers: rationals, algebraic numbers of low
+degree in radicals, and rational combinations of given constants:
+
+```@example tut
+SymJ.nsimplify(0.5x + 1.4142135623730951), SymJ.nsimplify(1.618033988749895), SymJ.nsimplify(2.0943951023931953; constants = [pi])
+```
+
 An expression is a tree: an operation applied to arguments. SymJ implements
 TermInterface, so `operation` and `arguments` take it apart:
 

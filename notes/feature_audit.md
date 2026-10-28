@@ -36,7 +36,7 @@ with assumptions, `refine` and `simplify`, complex parts and LaTeX output are do
 | Horner form | `horner` | `horner` | ✅ `SymJ.horner`, in one variable or recursively in several |
 | Common subexpressions | `cse` | — | ✅ `SymJ.cse` (repeated nodes, as `lambdify` shares them; not parts of larger sums) |
 | Rewriting between forms (exp ↔ trig, …) | `ex.rewrite(...)` | `exp2pow`, `pow2exp`, `halftan`, `sincos`, `tan2sincos` | ✅ `SymJ.rewrite(ex, target)` (and `fs => target`): through `exp`, `log` (inverse functions), `sin`/`cos`, `sinh`/`cosh`, half-angle `tan`/`tanh`, `gamma`, `factorial`; `simplify` also moves between exponentials and trig, whichever is smaller |
-| Floats to exact numbers | `nsimplify` | — | ◐ `rationalize(ex)`: the floats in an expression as rationals; no recognition of constants (`√2`, `π`) |
+| Floats to exact numbers | `nsimplify` | — | ✅ `rationalize(ex)`: the floats in an expression as rationals; `SymJ.nsimplify(ex; constants)`: floats recognized as rationals, algebraic numbers (degree ≤ 4, in radicals) and rational combinations of constants (PSLQ) |
 
 ## Simplification ★
 
@@ -187,8 +187,8 @@ transforms). Of the rest, in rough order of value for calculus-level use:
    NonlinearSolve.jl work on SymJ expressions directly (callable, or through
    `lambdify`), so no solver of its own is planned.
 7. **Utilities**: `SymJ.gather` (SymPy's `collect`), `SymJ.coeff` and `rationalize(ex)`
-   are done, and `SymJ.horner`, `SymJ.cse`, `SymJ.rewrite(ex, target)`. Open: constant
-   recognition (`nsimplify`).
+   are done, and `SymJ.horner`, `SymJ.cse`, `SymJ.rewrite(ex, target)`,
+   `SymJ.nsimplify` (constant recognition).
 8. **Assumptions, the remaining pieces**: integer congruences, `assume` for systems of
    equations, and assumptions in `integrate`.
 
