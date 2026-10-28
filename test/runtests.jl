@@ -411,6 +411,30 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test rationalize(BigInt, Sym(0.1) * x) == x / 10
     end
 
+    @testset "horner, cse" begin
+        @syms a t1
+        H, CSE = SymJ.horner, SymJ.cse
+        @test H(2x^3 - x + 5, x) == (2x^2 - 1) * x + 5
+        @test H(x^2 * y + x * y^2 + x + 1) == x * (x * y + y^2 + 1) + 1
+        @test H(x^5 + 1, x) == x^5 + 1 && H(Sym(7), x) == 7
+        @test H(a * x^2 + 2a * x + 3, x) == (a * x + 2a) * x + 3
+        let p = 3x^4 - 2x^3 + x - 7, h = H(p, x)
+            @test h == ((3x - 2) * x^2 + 1) * x - 7 && expand(h - p) == 0
+        end
+        @test_throws ArgumentError H(sin(x) + x, x)
+        @test CSE((x + y)^2 + sin(x + y)) == ([Sym(:t1) => x + y], Sym(:t1)^2 + sin(Sym(:t1)))
+        let (r, e) = CSE([exp(x + y) * sin(x + y), cos(x + y)^2 + exp(x + y)])
+            @test length(r) == 2 && r[2].second == exp(r[1].first)       # exp(u) shared as a factor too
+            back(u) = subs(subs(u, r[2]), r[1])                              # the replacements undone
+            @test e isa Vector && back.(e) == [exp(x + y) * sin(x + y), cos(x + y)^2 + exp(x + y)]
+        end
+        @test first(CSE((t1 + x)^2 + cos(t1 + x)))[1].first == Sym(:t2)   # names avoid the symbols
+        @test CSE(x + y) == (Pair{Sym,Sym}[], x + y)
+        let (r, e) = CSE(sqrt(x^2 + y^2) / (x^2 + y^2) + log(x^2 + y^2); prefix = :s)
+            @test r == [Sym(:s1) => x^2 + y^2] && e == log(Sym(:s1)) + 1 / sqrt(Sym(:s1))
+        end
+    end
+
     @testset "Poly" begin
         @syms a b
         p = Poly((x + y + 1)^3, x, y)

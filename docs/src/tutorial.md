@@ -120,6 +120,13 @@ sin(x), sin(Sym(π) / 4), log(Sym(1)), sin(2)
 SymJ.gather(a * x^2 + b * x^2 + a * x - b * x + c, x), SymJ.coeff((x + y)^3, x^2)
 ```
 
+For evaluation, `SymJ.horner` writes a polynomial in nested form, and `SymJ.cse` names
+the subexpressions that occur more than once:
+
+```@example tut
+SymJ.horner(3x^4 - 2x^3 + x - 7, x), SymJ.cse((x + y)^2 + sin(x + y))
+```
+
 `rationalize` replaces the floating-point numbers in an expression by nearby rationals:
 
 ```@example tut
