@@ -468,6 +468,16 @@ functions of sums and integer multiples through functions of the terms:
 SymJ.expand_trig(sin(x + y)), SymJ.expand_trig(cos(3x)), SymJ.expand_trig(tan(2x))
 ```
 
+`SymJ.rewrite(ex, target)` writes the functions of an expression through another one:
+trigonometric and hyperbolic functions through `exp`, inverse ones through `log`,
+`tan` and `sec` through `sin` and `cos`, exponentials with imaginary parts through `cos`
+and `sin`, factorials through `gamma` and back. `fs => target` rewrites only the
+functions `fs`:
+
+```@example tut
+SymJ.rewrite(sin(x), exp), SymJ.rewrite(exp(im * x), cos), SymJ.rewrite(asinh(x), log), SymJ.rewrite(tan(x) + cos(x), tan => sin)
+```
+
 `SymJ.expand_log` splits logarithms of products and powers where the assumptions allow
 it; `force = true` takes every base as positive:
 

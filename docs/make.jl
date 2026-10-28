@@ -26,7 +26,7 @@ const REFERENCE = [
     (title = "Rational functions", file = "rational",
      files = ["rational.jl", "apart.jl"]),
     (title = "Simplification", file = "simplification",
-     files = ["simplify.jl", "gammasimp.jl"],
+     files = ["simplify.jl", "gammasimp.jl", "rewrite.jl"],
      first = ["simplify", "refine"]),
     (title = "Assumptions", file = "assumptions",
      files = ["assumptions.jl", "cases.jl"]),
@@ -45,7 +45,7 @@ const REFERENCE = [
      files = ["ode.jl"]),
     (title = "Pattern matching", file = "patterns",
      files = ["patterns.jl"],
-     first = ["pattern", "@pattern", "rule", "@rule", "rewrite"]),
+     first = ["pattern", "@pattern", "rule", "@rule"]),
 ]
 
 function write_reference(dir)
