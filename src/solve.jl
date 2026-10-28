@@ -127,7 +127,11 @@ function _solve_eq(eq::Relation, x::Sym)
     atoms = Set{Sym}()
     exact = _poly_atoms!(atoms, n)
     bad = [a for a in atoms if !_eq(a, x) && has(a, x)]
-    isempty(bad) || return _sort_roots!(unique(_solve_through(eq, n, x, bad)))
+    if !isempty(bad)
+        fs = _product_factors(eq.lhs - eq.rhs, n, x)
+        roots = fs === nothing ? _solve_through(eq, n, x, bad) : _solve_product(eq, fs, x)
+        return _sort_roots!(unique(roots))
+    end
     roots = exact ? _solve_exact(n, x, atoms) : _solve_inexact(n, x)
     _sort_roots!(unique(roots))
 end
@@ -139,6 +143,59 @@ solve(eq::Relation, vars::Union{AbstractVector,Tuple}) = throw(ArgumentError("so
 solve(eqs::AbstractVector{<:Relation}, x::Sym) = throw(ArgumentError("solve: a system takes a vector of unknowns; use $_SOLVE_FORMS"))
 solve(ex::Sym, x::Sym) = throw(ArgumentError(
     "solve needs an equation, e.g. solve($ex ~ 0, $x); an expression is not taken to mean \"= 0\""))
+
+# a product is zero where one of its factors is: solved factor by factor, a power b^p
+# through its base (exp(x) has none). The candidates are checked in the whole equation
+# and must leave every factor defined (x*log(x) = 0 has no root at 0, where log is not).
+function _solve_product(eq::Relation, fs::Vector{Tuple{Sym,Sym}}, x::Sym)
+    out = Sym[]
+    for (b, p) in fs
+        p.kind == NUMBER && p.num < N0 && continue                 # a denominator
+        (has(b, x) || has(p, x)) && append!(out, _solve_eq(b ~ 0, x))
+    end
+    filter(r -> _satisfies(eq, x, r) && all(((b, p),) -> _defined_at(b^p, x, r), fs), out)
+end
+
+function _defined_at(f::Sym, x::Sym, r::Sym)
+    v = try
+        subs(f, x => r)
+    catch err
+        err isa DivideError && return false
+        rethrow()
+    end
+    _hassymbol(v) && return true
+    w = try N(v) catch; return true end
+    isfinite(w)
+end
+
+# the factors (base, exponent) of e as a product, through which it is solved: e's own
+# when it is one, else those of its numerator n, or the factors with x common to the
+# terms of n with what remains; nothing when there are none
+function _product_factors(e::Sym, n::Sym, x::Sym)
+    e.kind == MUL && return _factor_pairs(e)
+    n.kind == MUL && return _factor_pairs(n)
+    n.kind == ADD && iszero(n.num) || return nothing
+    terms = [Sym(c) * a for (c, a) in zip(n.coefs, n.args)]
+    common = Dict{Sym,Sym}(b => p for (b, p) in _factor_pairs(terms[1]) if has(b, x) || has(p, x))
+    for t in terms[2:end]
+        ft = Dict{Sym,Sym}(_factor_pairs(t))
+        for (b, p) in collect(common)
+            q = get(ft, b, nothing)
+            if q === nothing
+                delete!(common, b)
+            elseif !_eq(p, q)
+                d = p - q
+                d.kind == NUMBER ? (common[b] = d.num < N0 ? p : q) : delete!(common, b)
+            end
+        end
+    end
+    isempty(common) && return nothing
+    C = prod((b^p for (b, p) in common); init = ONE)
+    [Tuple{Sym,Sym}[(b, p) for (b, p) in common]; (_add_many(t / C for t in terms), ONE)]
+end
+
+_factor_pairs(t::Sym) = t.kind == MUL ? Tuple{Sym,Sym}[(b, p) for (b, p) in zip(t.args, t.exps)] :
+                        t.kind == POW ? Tuple{Sym,Sym}[(t.args[1], t.args[2])] : Tuple{Sym,Sym}[(t, ONE)]
 
 ## equations in one function of x: f(g(x)) with f polynomial
 #
