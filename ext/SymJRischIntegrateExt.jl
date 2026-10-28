@@ -9,8 +9,15 @@ using PrecompileTools: @setup_workload, @compile_workload
 
 # piecewise functions, heaviside and dirac: interval by interval (see SymJ's piecewise.jl);
 # abs, sign, max and min, which the integrator does not take, as piecewise functions
-# (for real x)
-function RischIntegrate.integrate(ex::Sym, x::Sym; kw...)
+# (for real x). The assumptions (assume = …, or an @assuming block) decide the signs of
+# parameter expressions the answer's form depends on, through the integrator's sign
+# oracle, when the installed RischIntegrate has one; signs they leave open take its
+# default.
+function RischIntegrate.integrate(ex::Sym, x::Sym; assume = nothing, kw...)
+    A = SymJ._assumptions(assume)
+    if A !== nothing && _has_oracle() && !haskey(kw, :sign)
+        kw = (; sign = SymJ._sign_oracle(A), kw...)
+    end
     integ = f -> RischIntegrate.risch_integrate(f, x; kw...)
     SymJ._haspieces(ex, x) && return SymJ._integrate_pieces(ex, x, integ)
     try
@@ -21,6 +28,25 @@ function RischIntegrate.integrate(ex::Sym, x::Sym; kw...)
         SymJ._haspieces(pw, x) || rethrow()
         SymJ._integrate_pieces(pw, x, integ)
     end
+end
+
+# does risch_integrate take a sign oracle (RischIntegrate with PR #70)?
+const _ORACLE = Ref{Union{Nothing,Bool}}(nothing)
+function _has_oracle()
+    _ORACLE[] === nothing && (_ORACLE[] = any(m -> :sign in Base.kwarg_decl(m), methods(RischIntegrate.risch_integrate)))
+    _ORACLE[]::Bool
+end
+
+# definite integrals: split at the integrand's singular points, one-sided limits at them
+# and at ±∞, by cases on parameters (see SymJ's definite.jl)
+function RischIntegrate.integrate(ex::Sym, xab::Tuple, more::Tuple...; assume = nothing, kw...)
+    antider = (f, x, A) -> RischIntegrate.integrate(f, x; assume = A, kw...)
+    v = SymJ._definite_integral(ex, xab, assume, antider)
+    for t in more
+        v isa Sym || throw(ArgumentError("integrate: an iterated integral whose inner integral has cases"))
+        v = SymJ._definite_integral(v, t, assume, antider)
+    end
+    v
 end
 
 # the integrator SymJ uses inside (dsolve)

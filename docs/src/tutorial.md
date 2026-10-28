@@ -1100,6 +1100,25 @@ F(3) - F(0)
 integrate(abs(x - 1), (x, 0, 3))
 ```
 
+`integrate(f, (x, a, b))` splits the interval at the points where `f` is singular and
+takes one-sided limits there and at infinite limits, so improper integrals come out
+right; one that diverges is `±∞`, or an error when it has no value:
+
+```@example tut
+integrate(1 / (1 + x^2), (x, 0, Inf)), integrate(exp(-x^2), (x, -Inf, Inf)), integrate(log(x), (x, 0, 1)), integrate(1 / x^2, (x, -1, 1))
+```
+
+With a parameter the answer may depend on its sign; the cases are listed unless the
+assumptions decide them:
+
+```@example tut
+integrate(exp(-a * x), (x, 0, Inf))
+```
+
+```@example tut
+integrate(exp(-a * x), (x, 0, Inf); assume = @assume(a > 0))
+```
+
 ```@example tut
 G = integrate(sin(x), x)
 G(x => Sym(π)) - G(x => 0)

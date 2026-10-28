@@ -94,7 +94,7 @@ with assumptions, `refine` and `simplify`, complex parts and LaTeX output are do
 | Series, Taylor, asymptotic, `O` | `series`, `fps`, `O` | `series`, `taylor` | ✅ Taylor, Laurent, Puiseux, at ∞, log terms (no `fps`, no `O` in expressions) |
 | Padé approximants | — | `pade` | ❌ |
 | Indefinite integrals | `integrate` | `integrate` | ✅ RischIntegrate (175/175 of the Apostol set, more than either) |
-| Definite and improper integrals | `integrate(f, (x, a, b))` | `integrate(f, x, a, b)` | ◐ by evaluating an antiderivative; no improper integrals or check for singularities |
+| Definite and improper integrals | `integrate(f, (x, a, b))` | `integrate(f, x, a, b)` | ✅ split at the integrand's singular points, one-sided limits there and at ±∞, `±∞` or an error when divergent, `Cases` on parameters (`∫₀^∞ e^(-ax)`); assumptions pick antiderivative forms through RischIntegrate's sign oracle (needs a RischIntegrate with it) |
 | Numeric integration | `Integral(...).evalf()` | `romberg`, `gaussquad` | ❌ (QuadGK on a `lambdify`'d function) |
 | Sums of series | `summation`, `Sum` | `sum` | ✅ ★ `SymJ.summation`: Faulhaber, Gosper, partial fractions (harmonic, polygamma, `ζ(2n)`), binomial theorem, hypergeometric series, Zeilberger (definite hypergeometric sums: `Σ binomial(n,k)^2`, Vandermonde; recurrences of order up to 3 by Hyper, else d'Alembertian solutions, `Σ (-1)^(k+1) binomial(n,k)/k = H_n`, else interlaced ones, `Σ (-1)^k binomial(n,k)^3` (Dixon); bounds other than the summand's own); harmonic numbers by parts (`Σ k H_k`), generalized ones `H(n, m)` (`Σ 1/k^m`, `Σ H_k/k = (H_n² + H_n^(2))/2`; not Euler sums such as `Σ H_k/k²`); infinite sums by `limit`, convergence by cases; ◐ unevaluated `Sum` when the recurrence's solutions are not d'Alembertian (`Σ binomial(n,k)^3`) |
 | Products | `product`, `Product` | `product` | ❌ |
@@ -176,9 +176,9 @@ transforms). Of the rest, in rough order of value for calculus-level use:
    combining sums and products of them into one (and `simplify` doing so when smaller).
    Breakpoints with several parameters are ordered by the assumptions, and split into
    cases (a `Cases`) when the assumptions do not order them.
-4. **Definite integrals done properly**: improper integrals through `limit`, and
-   detecting singularities inside the interval, building on RischIntegrate's
-   antiderivatives.
+4. **Definite integrals**: done (singular points, limits, divergence, cases on
+   parameters). Open: principal values, and limits of special functions the limit code
+   does not know beyond `erf`, `erfc`, `erfi`, `sinint`, `cosint` at ±∞.
 5. **Laplace transforms**: done for the elementary transforms and `heaviside`/`dirac`
    shifts (and used by `dsolve`). Open: a table of special-function transforms, and
    Fourier, Mellin and Z transforms.
