@@ -1184,6 +1184,15 @@ pyth = SymJ.@rule sin(~x)^2 + cos(~x)^2 + ~~r => 1 + ~r
 SymJ.rewrite(3 + sin(2x)^2 + cos(2x)^2 + x, pyth)
 ```
 
+`replace` also takes `old => new` pairs, applied in one pass from the leaves up: a
+quoted pattern and template, a predicate and a function of the subexpression, or a
+subexpression and its value:
+
+```@example tut
+replace(sin(a) + sin(b)^2, :(sin(~u)) => :(cos(~u))),
+replace(x^2 + 3x + 5, (e -> SymJ.isnumber(e) && e > 2) => (e -> e - 1))
+```
+
 A predicate on a slot, or a right side that gives `nothing`, limits where a rule
 applies:
 

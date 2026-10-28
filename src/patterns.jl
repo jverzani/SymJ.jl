@@ -863,8 +863,93 @@ end
 
 """
     replace(ex::Sym, rules::SymJ.Rule...)
+    replace(ex::Sym, old => new, ...)
+    replace(f, ex::Sym)
 
-`ex` with each rule applied once wherever it matches, in one pass from the leaves up:
-[`SymJ.rewrite`](@ref) with `fixpoint = false`.
+`ex` with its subexpressions replaced, in one pass from the leaves up (SymPy's
+`replace`): each part (a term of a sum, a factor of a product, a numeric coefficient, a
+power's base and exponent, a function's argument) is done first, then the expression
+made of the results is tried. At each subexpression the first replacement that applies
+is used, and a result is not searched again. `old => new` is one of:
+
+- a pattern (a [`SymJ.Pattern`](@ref) or a quoted one, `:(sin(~x))`) and a template or
+  a function of the bindings, as for [`SymJ.rule`](@ref);
+- a predicate and a function, `(e -> SymJ.isnumber(e) && e > 2) => (e -> e - 1)`: each
+  subexpression for which `old(e)` is `true` replaced by `new(e)`;
+- an expression and a value: that subexpression (as `subs` does).
+
+`replace(f, ex)` (as Julia's `replace(f, A)`) replaces each subexpression `e` by `f(e)`
+(return `e` to keep it). With rules only, the one pass of [`SymJ.rewrite`](@ref) with
+`fixpoint = false`.
+
+```julia
+@syms x y
+replace(sin(x) + sin(y)^2, :(sin(~u)) => :(cos(~u)))              # cos(x) + cos(y)^2
+replace(exp(x) + exp(2y), :(exp(~u)) => :(1 + ~u))                 # x + 2y + 2
+replace(x^2 + 3x + 5, (e -> SymJ.isnumber(e) && e > 2) => (e -> e - 1))   # x^2 + 2x + 4
+replace(e -> SymJ.isnumber(e) ? 2e : e, x^2 + 3x + 1)              # x^4 + 6x + 2
+```
 """
-Base.replace(ex::Sym, r::Rule, rs::Rule...) = rewrite(ex, r, rs...; fixpoint = false)
+Base.replace(ex::Sym, r::Rule) = rewrite(ex, r; fixpoint = false)
+Base.replace(ex::Sym, r::Rule, s::Rule, rs::Rule...) = rewrite(ex, r, s, rs...; fixpoint = false)
+# (a Sym is callable, so these are written out against Base's replace(f::Function, p::Pair))
+Base.replace(ex::Sym, p::Pair) = _replace_with(ex, (p,))
+Base.replace(ex::Sym, p::Pair, q::Pair, rest::Pair...) = _replace_with(ex, (p, q, rest...))
+Base.replace(ex::Sym, p::Union{Pair,Rule}, q::Union{Pair,Rule}, rest::Union{Pair,Rule}...) = _replace_with(ex, (p, q, rest...))
+function _replace_with(ex::Sym, ps)
+    fs = Any[_replacer(q) for q in ps]
+    _replace_walk(e -> (for f in fs; v = f(e); v === nothing || return v; end; nothing), ex)
+end
+function Base.replace(f::Function, ex::Sym)
+    f isa Sym && throw(ArgumentError("replace: give the replacements as old => new"))
+    _replace_walk(e -> (v = f(e); v === nothing ? nothing : Sym(v)), ex)
+end
+
+# bottom-up: the parts first (numeric coefficients and constants among them), then the
+# node built from them; an unchanged node is kept as it is
+function _replace_walk(f, e::Sym)
+    e2 = _replace_parts(t -> _replace_walk(f, t), e)
+    v = f(e2)
+    v === nothing ? e2 : Sym(v)
+end
+function _replace_parts(g, e::Sym)
+    isempty(e.args) && return e
+    k = e.kind
+    if k == ADD
+        c, c2 = Sym(e.num), iszero(e.num) ? ZERO : g(Sym(e.num))
+        ts = Sym[Sym(q) * a for (q, a) in zip(e.coefs, e.args)]
+        new = Sym[g(t) for t in ts]
+        (_eq(c, c2) && all(i -> new[i] === ts[i], eachindex(ts))) && return e
+        return c2 + _add_many(new)
+    elseif k == MUL
+        c = Sym(e.num)
+        c2 = isone(e.num) ? ONE : g(c)
+        fs = Sym[isone(p) ? b : b^p for (b, p) in zip(e.args, e.exps)]
+        new = Sym[g(t) for t in fs]
+        (_eq(c, c2) && all(i -> new[i] === fs[i], eachindex(fs))) && return e
+        return c2 * prod(new; init = ONE)
+    end
+    new = Sym[g(a) for a in e.args]
+    all(i -> new[i] === e.args[i], eachindex(new)) && return e
+    _rebuild_node(e, new)
+end
+
+# a replacement as a function of a subexpression: its replacement, or nothing
+_replacer(r::Rule) = e -> r(e)
+function _replacer(p::Pair)
+    old, new = p.first, p.second
+    if old isa Union{Pattern,Expr,QuoteNode}
+        r = rule(old => new)
+        return e -> r(e)
+    elseif old isa Sym || old isa Number
+        o = Sym(old)
+        return e -> _eq(e, o) ? Sym(new) : nothing
+    end
+    old isa Function || throw(ArgumentError("replace: $old => $new is not a replacement"))
+    new isa Function || throw(ArgumentError("replace: $new is not a function (for the predicate $old)"))
+    function (e)
+        t = old(e)
+        t isa Bool || throw(ArgumentError("replace: $old($e) is $t, not true or false; to replace calls of a function, use a pattern, such as :(sin(~x)) => :(cos(~x))"))
+        t ? Sym(new(e)) : nothing
+    end
+end
