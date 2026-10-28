@@ -969,6 +969,10 @@ were given `assume = …`. Blocks nest: an inner block adds its facts to the out
 ones, and so does an `assume` keyword inside a block. The facts are normalized once,
 when the block starts ([`Assumptions`](@ref)).
 
+Arithmetic and construction do not read the facts (an expression is the same inside
+and outside a block, as nodes are shared): `(a^4)^(3/4)` stays as it is with `a > 0`
+assumed, and `simplify` or `refine` in the block gives `a^3`.
+
 ```julia
 assuming(x ≫ 0) do
     solve(x^2 ~ 4, x)       # [2]
