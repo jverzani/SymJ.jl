@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=c275ce83">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=23418e1a">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -463,6 +463,16 @@ SymJ.decompose(p, x), solve(p ~ 0, x)[1:2]</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( \left[ x^{3} - 2, \; x^{2} + x \right], \; \left[ \frac{ - \sqrt{4 \cdot 2^{\frac{1}{3}} + 1}}{2} - \frac{1}{2}, \; \frac{\sqrt{4 \cdot 2^{\frac{1}{3}} + 1}}{2} - \frac{1}{2} \right] \right)\]
+</div>
+</div>
+<p><code class="md-code-inline">SymJ.minimal_polynomial</code> gives the irreducible polynomial with integer coefficients that an algebraic number is a root of:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.minimal_polynomial(sqrt(Sym(2)) + sqrt(Sym(3)), x), SymJ.minimal_polynomial(cos(Sym(pi) / 7), x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( x^{4} - 10 \cdot x^{2} + 1, \; 8 \cdot x^{3} - 4 \cdot x^{2} - 4 \cdot x + 1 \right)\]
 </div>
 </div>
 <h3 id="Resultants" class="md-heading">Resultants<a href="#Resultants" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
@@ -2063,6 +2073,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=c275ce83"></script>
+  <script src="../assets/materialdocs.js?v=23418e1a"></script>
 </body>
 </html>
