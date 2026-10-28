@@ -60,7 +60,8 @@ has(ex::Sym, x::Sym) = _eq(ex, x) || any(a -> has(a, x), ex.args) || any(a -> ha
     subs(ex, x => v, ...)
     subs(ex, d::AbstractDict)
 
-Replace subexpressions of `ex` (whole nodes only) and re-simplify. Expressions are
+Replace subexpressions of `ex` (whole nodes only) and re-simplify; the parts no
+substitution reaches are kept as they are, not rebuilt. Expressions are
 callable, so `ex(x => 1, y => 2)` is the same as `subs(ex, x => 1, y => 2)`; see
 [`Sym`](@ref) calling for the single-value forms.
 """
@@ -68,31 +69,65 @@ subs(ex::Sym, ps::Pair...) = _subs(ex, Dict{Sym,Sym}(Sym(p.first) => Sym(p.secon
 subs(ex::Sym, d::AbstractDict) = _subs(ex, Dict{Sym,Sym}(Sym(k) => Sym(v) for (k, v) in d))
 subs(ex::Number, args...) = Sym(ex)
 
+# A node none of whose parts change is returned as it is (no rebuilding, so a
+# substitution that misses most of a large expression allocates little).
 function _subs(ex::Sym, d::Dict{Sym,Sym})
     v = get(d, ex, nothing)
     v === nothing || return v
     k = ex.kind
     if k == ADD
+        new = _subs_args(ex.args, d)
+        new === nothing && return ex
         return _add_many(Iterators.flatten(((Sym(ex.num),),
-            (_scale(_subs(ex.args[i], d), ex.coefs[i]) for i in eachindex(ex.args)))))
+            (_scale(new[i], ex.coefs[i]) for i in eachindex(ex.args)))))
     elseif k == MUL
-        r = Sym(ex.num)
         powkeys = any(key -> key.kind == POW, keys(d))   # the dictionary is small
-        for i in eachindex(ex.args)
-            # a factor b^e is stored as a pair, not a node: match it whole first (only
-            # building the node when a power is being substituted)
-            v = powkeys && !_isone(ex.exps[i]) ? get(d, _mkpow(ex.args[i], ex.exps[i]), nothing) : nothing
-            r = mul(r, v === nothing ? pow(_subs(ex.args[i], d), _subs(ex.exps[i], d)) : v)
+        # a factor b^e is stored as a pair, not a node: match it whole first (only
+        # building the node when a power is being substituted)
+        if powkeys && any(i -> !_isone(ex.exps[i]) && haskey(d, _mkpow(ex.args[i], ex.exps[i])), eachindex(ex.args))
+            r = Sym(ex.num)
+            for i in eachindex(ex.args)
+                v = !_isone(ex.exps[i]) ? get(d, _mkpow(ex.args[i], ex.exps[i]), nothing) : nothing
+                r = mul(r, v === nothing ? pow(_subs(ex.args[i], d), _subs(ex.exps[i], d)) : v)
+            end
+            return r
+        end
+        bs, es = _subs_args(ex.args, d), _subs_args(ex.exps, d)
+        bs === nothing && es === nothing && return ex
+        bs === nothing && (bs = ex.args)
+        es === nothing && (es = ex.exps)
+        r = Sym(ex.num)
+        for i in eachindex(bs)
+            r = mul(r, pow(bs[i], es[i]))
         end
         return r
     elseif k == POW
-        return pow(_subs(ex.args[1], d), _subs(ex.args[2], d))
+        b, e = _subs(ex.args[1], d), _subs(ex.args[2], d)
+        b === ex.args[1] && e === ex.args[2] && return ex
+        return pow(b, e)
     elseif k == FN
         ex.name === :Derivative && return _subs_derivative(ex, d)
         _isdefint(ex) && return _subs_defint(ex, d)
-        return apply_function(ex.name, Sym[_subs(a, d) for a in ex.args])
+        new = _subs_args(ex.args, d)
+        new === nothing && return ex
+        return apply_function(ex.name, new)
     end
     ex
+end
+# the parts substituted, or nothing when none changes (allocating only from the first
+# change on)
+function _subs_args(args::Vector{Sym}, d::Dict{Sym,Sym})
+    for i in eachindex(args)
+        a = _subs(args[i], d)
+        a === args[i] && continue
+        new = args[1:(i - 1)]
+        push!(new, a)
+        for j in (i + 1):length(args)
+            push!(new, _subs(args[j], d))
+        end
+        return new
+    end
+    nothing
 end
 
 # a derivative's variable is bound: Derivative(f, v) with v => a symbol renames it, with

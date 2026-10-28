@@ -532,6 +532,12 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
     end
 
     @testset "subs and calling" begin
+        # what a substitution does not reach is kept as it is (not rebuilt)
+        let big = sum(sin(k * x + y) * exp(z / k) for k in 1:20) + log(x + 2)
+            @test subs(big, sin(z) => 1) === big
+            @test subs(big, x => 0) == sum(sin(y) * exp(z / k) for k in 1:20) + log(Sym(2))
+            @test subs(x^2 * sin(y), x^2 => z) == z * sin(y)                    # a power factor matched whole
+        end
         ex = x^2 + 2x + 1
         @test subs(ex, x => 1) == 4
         @test ex(x => y) == y^2 + 2y + 1
