@@ -16,6 +16,9 @@ jobs:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
+    # a prerelease failure shows on its job but does not fail the workflow (prereleases
+    # have compiler bugs, e.g. JuliaLang/julia#64250 in 1.14.0-alpha2)
+    continue-on-error: ${{ matrix.version == 'pre' }}
     permissions: # needed to allow julia-actions/cache to proactively delete old caches that it has created
       actions: write
       contents: read
