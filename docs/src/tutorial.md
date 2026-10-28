@@ -297,6 +297,15 @@ The greatest common divisor of polynomials:
 gcd(expand((x - 1)^2 * (x + y)), expand((x - 1) * (x + y)^2))
 ```
 
+`SymJ.decompose` writes a polynomial as a composition of polynomials that do not
+decompose further, `p = g₁(g₂(⋯))`. `solve` uses it: an irreducible polynomial of degree
+above 4 whose components have degree at most 4 has its roots found through them, exactly:
+
+```@example tut
+p = expand((x^2 + x)^3 - 2)
+SymJ.decompose(p, x), solve(p ~ 0, x)[1:2]
+```
+
 ### Resultants
 
 The resultant of two polynomials in `x` is zero exactly when they have a common root.

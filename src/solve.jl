@@ -447,9 +447,23 @@ function _solve_irreducible(c::Vector{Sym}, f)
     end
     d == 3 && return _cardano(c...)
     d == 4 && return _ferrari(c...)
+    r = _solve_decomposed(c)
+    r === nothing || return r
     all(ci -> !_hassymbol(ci), c) || throw(ArgumentError(
         "solve: an irreducible factor of degree $d with symbolic coefficients"))
     _numeric_roots(c)
+end
+
+# f = g₁ ∘ ⋯ ∘ gₖ with every gᵢ of degree at most 4: the roots of g₁, then for each value
+# v the roots of g₂ = v, and so on; nothing when f has no such decomposition
+function _solve_decomposed(c::Vector{Sym})
+    chain = _decompose(c)
+    (length(chain) > 1 && all(g -> length(g) <= 5, chain)) || return nothing
+    vals = _solve_irreducible(chain[1], nothing)
+    for g in chain[2:end]
+        vals = reduce(vcat, (_solve_irreducible([g[1] - v; g[2:end]], nothing) for v in vals))
+    end
+    vals
 end
 
 function _quadratic(c0, c1, c2)
@@ -474,7 +488,8 @@ function _cardano(d, c, b, a)                                # a x³ + b x² + c
         p = (3a * c - b^2) / (3a^2)
         q = (2b^3 - 9a * b * c + 27a^2 * d) / (27a^3)
         disc = -(4p^3 + 27q^2)
-        if N(disc) > 0
+        v = N(disc)
+        if v isa Real && v > 0
             θ = acos(3q / (2p) * sqrt(-3 / p)) / 3
             return [2sqrt(-p / 3) * cos(θ - 2PI * k / 3) - b / (3a) for k in 0:2]
         end

@@ -785,6 +785,24 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test operation(x ≦ 1) === Le && maketerm(Relation, Le, [x, 1], nothing) == (x ≦ 1)
     end
 
+    @testset "decompose" begin
+        @syms a
+        D = SymJ.decompose
+        @test D(x^4 + 2x^3 - x - 1, x) == [x^2 - x - 1, x^2 + x]
+        @test D(expand((x^2 + x)^3 - 2), x) == [x^3 - 2, x^2 + x]
+        @test D(expand((x^3 - 3x)^3 - 3(x^3 - 3x) - 1), x) == [x^3 - 3x - 1, x^3 - 3x]
+        p = expand(2((x^2 + 1)^2 + 3)^2 - 5)
+        gs = D(p, x)
+        @test length(gs) == 3
+        @test expand(subs(gs[1], x => subs(gs[2], x => gs[3]))) == p
+        @test D(expand((x^2 + a * x)^2 + a), x) == [x^2 + a, x^2 + a * x]   # symbolic coefficients
+        @test D(x^5 + x + 1, x) == [x^5 + x + 1]                             # prime degree
+        @test D(x^6 + x + 1, x) == [x^6 + x + 1]                             # indecomposable
+        @test D(x^2 + 1, x) == [x^2 + 1]
+        @test D(Sym(3), x) == [3]
+        @test_throws ArgumentError D(sin(x), x)
+    end
+
     @testset "solve" begin
         # unknowns that are function calls or derivatives (implicit differentiation)
         let (a, b, c, d) = symbols("a b c d"), u = SymFunction(:u), v = SymFunction(:v)
@@ -977,6 +995,16 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test_throws ArgumentError solve(a * x ≫ 1, x)               # parameters: not yet
         @test_throws ArgumentError solve(sin(x) ≫ 0, x)
         @test_throws ArgumentError solve(x^5 + a * x + 1 ~ 0, x)  # degree 5, symbolic
+
+        # decomposable polynomials of degree above 4: exact, through the components
+        for p in ((x^2 + x)^3 - 2, (x^3 + x)^2 - 3, (x^2 + 1)^4 + (x^2 + 1) + 1, (x^3 - 3x)^3 - 3(x^3 - 3x) - 1, x^6 - 5x^3 + 1)
+            p = expand(p)
+            rs = solve(p ~ 0, x)
+            @test length(rs) == length(SymJ._xcoeffs_sym(p, x)) - 1
+            @test all(r -> abs(N(subs(p, x => r))) < 1e-8, rs)
+            @test !any(r -> SymJ.isnumber(r) && SymJ.isfloat(r.num), rs)
+        end
+        @test (-1 + sqrt(1 + 4 * Sym(2)^(1 // 3))) / 2 in solve(expand((x^2 + x)^3 - 2) ~ 0, x)
 
         # products: solved factor by factor
         @test solve(diff((a / x)^x, x) ~ 0, x) == [a / SymJ.E]          # (a/x)^x is never 0
