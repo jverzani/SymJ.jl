@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=a6967d5f">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=1f07947c">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -315,6 +315,14 @@ subs(ex, x =&gt; y - 1)</code></pre>
 u(3), u(3.0), u(1 // 3), u(big(2.5))</code></pre>
 </div>
 <pre class="md-output md-output-text"><code class="nohighlight ansi">(4, 4.0, 4//9, 2.25)</code></pre>
+</div>
+<p>Called with no arguments, a constant expression gives its value as a Julia number, exact where it can be (<code class="md-code-inline">(Sym(1)/2)()</code> is <code class="md-code-inline">1//2</code>); <code class="md-code-inline">SymJ.unwrap_const</code> is the same as a function, for <code class="md-code-inline">map</code>, and leaves expressions with variables alone. <code class="md-code-inline">float</code> gives the value as a float:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">map(SymJ.unwrap_const, [Sym(3) / 4, sqrt(Sym(2)), u]), float(Sym(pi) / 4)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">(Any[3//4, 1.4142135623730951, x^2 - 2*x + 1], 0.7853981633974483)</code></pre>
 </div>
 <p>Because the arithmetic is generic, automatic differentiation and other number types work through it. An expression can also be broadcast over a collection:</p>
 <div class="md-multi-output">
@@ -2021,6 +2029,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=a6967d5f"></script>
+  <script src="../assets/materialdocs.js?v=1f07947c"></script>
 </body>
 </html>
