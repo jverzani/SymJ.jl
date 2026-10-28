@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=1f07947c">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=43a625d7">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -935,6 +935,19 @@ end</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( \left[ 2 \right], \; \left[ 3 \right] \right)\]
+</div>
+</div>
+<p>The facts are read by the operations that take <code class="md-code-inline">assume</code> (<code class="md-code-inline">refine</code>, <code class="md-code-inline">simplify</code>, <code class="md-code-inline">solve</code>, <code class="md-code-inline">limit</code>, …), not by arithmetic: an expression is built the same way inside a block as outside it, so it never depends on the facts in force. <code class="md-code-inline">(a^4)^(3/4)</code> is not <code class="md-code-inline">a^3</code> for every <code class="md-code-inline">a</code> (it is <code class="md-code-inline">1</code> at <code class="md-code-inline">a = -1</code> and at <code class="md-code-inline">a = im</code>), so <code class="md-code-inline">16(a^4)^(3/4)/(9a^2)</code> keeps <code class="md-code-inline">(a^4)^(3/4)</code> even with <code class="md-code-inline">a &gt; 0</code> assumed; <code class="md-code-inline">simplify</code> or <code class="md-code-inline">refine</code> in the block applies the facts:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@assuming a &gt; 0 begin
+    e = 16(a^4)^(3//4) / (9a^2)
+    e, simplify(e)
+end</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \frac{16 \cdot \left( a^{4} \right)^{\frac{3}{4}}}{9 \cdot a^{2}}, \; \frac{16 \cdot a}{9} \right)\]
 </div>
 </div>
 <p>When the answer depends on something the facts leave open, the result lists the cases:</p>
@@ -2029,6 +2042,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=1f07947c"></script>
+  <script src="../assets/materialdocs.js?v=43a625d7"></script>
 </body>
 </html>
