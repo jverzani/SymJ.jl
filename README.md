@@ -34,3 +34,6 @@ f(x, log(Sym(2), x))             # f(x, log(2, x))
 cancel((x^2 - 1)/(x^2 + 2x + 1))  # (x - 1)/(x + 1)
 solve(x^2 - 2 ~ 0, x)            # [-sqrt(2), sqrt(2)]
 ```
+
+In a notebook that renders LaTeX (Jupyter, Pluto), `using Latexify` as well shows the
+results as typeset mathematics.
