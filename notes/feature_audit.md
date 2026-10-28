@@ -190,9 +190,8 @@ transforms). Of the rest, in rough order of value for calculus-level use:
    are done, and `SymJ.horner`, `SymJ.cse`, `SymJ.rewrite(ex, target)`,
    `SymJ.nsimplify` (constant recognition).
 8. **Assumptions, the remaining pieces**: integer congruences, `assume` for systems of
-   equations, and assumptions in `integrate`. A possible convenience, not planned yet: a
-   keyword (or variant) for `@assuming` that `refine`s the block's value, since
-   construction does not read the facts (`(a^4)^(3/4)` stays inside `@assuming a > 0`).
+   equations, and assumptions in `integrate`. (`@assuming refine = true` refines the
+   block's value, since construction does not read the facts.)
 
 Done since the first audit: trigonometric and logarithmic expansion, gamma and combinatorial simplification, LaTeX output (a Latexify extension), resultants and Gröbner
 bases (polynomial systems are solved), real and imaginary parts and `conj`, and
