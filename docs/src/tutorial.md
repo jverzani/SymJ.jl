@@ -25,6 +25,12 @@ on the expressions of several symbolic systems, SymJ's among them.
     SymJ and GruntzLimit support Julia 1.10 and later. RischIntegrate needs Julia 1.12 or
     later, so the section on integrals needs that version.
 
+!!! note "Typeset output in notebooks"
+    With [Latexify](https://github.com/korsbo/Latexify.jl) loaded (`using Latexify`),
+    SymJ's results also display as LaTeX, as on this page. Notebooks that render LaTeX,
+    such as Jupyter (through IJulia) and Pluto, then show them as typeset mathematics;
+    `latexify(ex)` gives the LaTeX itself.
+
 ```@example tut
 using SymJ
 using RischIntegrate
