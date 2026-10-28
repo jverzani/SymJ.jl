@@ -32,7 +32,8 @@ solve([x*y ~ 1, x + y ~ 3], [x, y])
 """
 function solve(eqs::AbstractVector{<:Relation}, vars::Union{AbstractVector,Tuple})
     vars = Sym[Sym(v) for v in vars]
-    all(_isnamed, vars) || throw(ArgumentError("solve: the unknowns must be symbols or parameters"))
+    all(_isnamed, vars) ||
+        return _solve_for_calls((es, vs, _) -> solve(es, vs), collect(Relation, eqs), vars)
     all(e -> e.op === :eq, eqs) || return _solve_ineq_system(eqs, vars)
     sols = if _islinear(eqs, vars)
         sol = _solve_linear(eqs, vars)

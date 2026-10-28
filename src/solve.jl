@@ -21,12 +21,15 @@ degree 4 and for equations that factor into such pieces; irreducible factors of 
 degree with numeric coefficients give numeric (floating point) roots. Numeric
 solutions are sorted, real ones first. An equation with no solution gives an empty
 vector. For a system, `solve([eqs...], [vars...])`, giving a vector of `Dict`s;
-mixing the forms (`solve(eq, [x])`, `solve([eq], x)`) is an error.
+mixing the forms (`solve(eq, [x])`, `solve([eq], x)`) is an error. An unknown may also
+be a function call or a derivative (`u(x)`, `diff(u(x), x)`), as in implicit
+differentiation; other derivatives of it are held as they are.
 
 ```julia
 solve(x^2 - 2 ~ 0, x)          # [-sqrt(2), sqrt(2)]
 solve(x^2 ~ -1, x)             # [-im, im]
 solve(a*x + b ~ 0, x)          # [-b/a]
+solve(diff(x^2 + u(x)^2 - 1, x) ~ 0, diff(u(x), x))   # [-x/u(x)]
 ```
 
 With assumptions (`assume = (x ≫ 0,)`, an [`Assumptions`](@ref), or inside
@@ -42,8 +45,74 @@ solve(x^2 ~ a, x; assume = (x ∈ ℝ, a ∈ ℝ))         # a < 0 => [], a == 0
 solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a > 0 => [√a], !(a > 0) => []
 ```
 """
-solve(eq::Relation, x::Sym; assume = nothing) = (A = _assumptions(assume);
-    A === nothing ? _solve_eq(eq, x) : _solve_assumed(eq, x, A))
+function solve(eq::Relation, x::Sym; assume = nothing)
+    _isnamed(x) || return _solve_for_calls((es, vs, B) -> solve(only(es), only(vs); assume = B), [eq], [x];
+                                           assume = _assumptions(assume))
+    A = _assumptions(assume)
+    A === nothing ? _solve_eq(eq, x) : _solve_assumed(eq, x, A)
+end
+
+## unknowns that are function calls: u(x), Derivative(u(x), x)
+#
+# Each such unknown is replaced by a fresh symbol (in the assumptions too), the equations
+# solved for those, and the answer written back. Derivatives, integrals and sums that contain an unknown
+# without being one are first replaced by symbols of their own, so that solving for u(x)
+# leaves Derivative(u(x), x) as it is (rather than making it the derivative of a symbol).
+
+const _SOLVE_HELD = (:Derivative, :Integral, :Sum)
+
+function _solve_for_calls(f, eqs::Vector{<:Relation}, vars::Vector{Sym}; assume = nothing)
+    for v in vars
+        (_isnamed(v) || v.kind == FN) ||
+            throw(ArgumentError("solve: $v is not a symbol or a function call (such as u(x) or a derivative)"))
+    end
+    n = Ref(0)
+    fresh() = Sym(Symbol("_solve_u", n[] += 1))
+    calls = [v for v in vars if !_isnamed(v)]
+    # the operators holding an unknown, as symbols, outermost first
+    held = Sym[]
+    for eq in eqs, side in (eq.lhs, eq.rhs)
+        _held_nodes!(held, side, calls)
+    end
+    hold = Pair{Sym,Sym}[h => fresh() for h in held]
+    back = Dict{Sym,Sym}(t => h for (h, t) in hold)
+    put = Pair{Sym,Sym}[]
+    newvars = Sym[]
+    for v in vars
+        if _isnamed(v)
+            push!(newvars, v)
+        else
+            t = fresh()
+            push!(put, v => t)
+            push!(newvars, t)
+            back[t] = v
+        end
+    end
+    # held operators first (so u(x) inside them stays), then the unknowns, larger first
+    sort!(put; by = p -> -_nodes(p.first))
+    sub(e) = subs(subs(e, hold...), put...)
+    neweqs = [Relation(eq.op, sub(eq.lhs), sub(eq.rhs)) for eq in eqs]
+    # facts about the unknowns (u(x) > 0) as facts about their symbols
+    B = assume === nothing ? nothing :
+        Assumptions((g isa Membership ? Membership(sub(g.x), g.set, g.negated) : _subsfact(g, sub) for g in assume.facts)...)
+    _solve_back(f(neweqs, newvars, B), back)
+end
+
+function _held_nodes!(out, e::Sym, calls)
+    if e.kind == FN && e.name in _SOLVE_HELD && !any(c -> _eq(c, e), calls) && any(c -> has(e, c), calls)
+        any(h -> _eq(h, e), out) || push!(out, e)
+        return out
+    end
+    foreach(a -> _held_nodes!(out, a, calls), e.args)
+    foreach(a -> _held_nodes!(out, a, calls), e.exps)
+    out
+end
+
+_solve_back(r::Sym, back) = subs(r, back)
+_solve_back(r::AbstractVector, back) = [_solve_back(x, back) for x in r]
+_solve_back(r::AbstractDict, back) = Dict(_solve_back(k, back) => _solve_back(v, back) for (k, v) in r)
+_solve_back(r::Relation, back) = Relation(r.op, _solve_back(r.lhs, back), _solve_back(r.rhs, back))
+_solve_back(r, back) = r isa Cases ? _map_cases(v -> _solve_back(v, back), r) : r   # (Cases: defined later)
 
 # the solutions, without assumptions (what internal callers use)
 function _solve_eq(eq::Relation, x::Sym)
