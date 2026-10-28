@@ -32,11 +32,11 @@ with assumptions, `refine` and `simplify`, complex parts and LaTeX output are do
 | Compiled numeric functions | `lambdify` | — | ✅ `lambdify` (as fast as hand-written code) |
 | Generic term interface | — | — | ✅ TermInterface |
 | Pattern matching and rewrite rules | `Wild`, `match`, `replace` | rules | ✅ `SymJ.pattern`/`SymJ.@pattern` with `match`, `eachmatch`, `occursin`: associative-commutative, slots `~x`, `~!x`, `~~x`, `~~~x`, head slots, predicates; `SymJ.@rule`, `SymJ.rule`, `SymJ.rewrite`, `replace` (stages 1–4 of `notes/pattern_matching.md`: rule sets indexed by head; trig rules among `simplify`'s candidates) |
-| Collect by powers, coefficients | `collect`, `coeff` | `collect`, `coeff` | ◐ through `Poly` (`coefficients`, `exponent_vectors`) |
+| Collect by powers, coefficients | `collect`, `coeff` | `collect`, `coeff` | ✅ `SymJ.gather` (one variable or several, any powers, function calls), `SymJ.coeff`; `Poly` for polynomials |
 | Horner form | `horner` | `horner` | ❌ |
 | Common subexpressions | `cse` | — | ◐ `lambdify` shares them; no user-level `cse` |
 | Rewriting between forms (exp ↔ trig, …) | `ex.rewrite(...)` | `exp2pow`, `pow2exp`, `halftan`, `sincos`, `tan2sincos` | ◐ inside `simplify` (exponentials ↔ trig and hyperbolic, whichever is smaller); no user-level `rewrite` |
-| Floats to exact numbers | `nsimplify` | — | ❌ |
+| Floats to exact numbers | `nsimplify` | — | ◐ `rationalize(ex)`: the floats in an expression as rationals; no recognition of constants (`√2`, `π`) |
 
 ## Simplification ★
 
@@ -186,8 +186,10 @@ transforms). Of the rest, in rough order of value for calculus-level use:
    (`SymJ.root_intervals`, `SymJ.real_roots`); for other equations Roots.jl and
    NonlinearSolve.jl work on SymJ expressions directly (callable, or through
    `lambdify`), so no solver of its own is planned.
-7. **Utilities**: `collect`, `coeff`, Horner form, a user-level `cse`, `nsimplify`, and a
-   user-level `rewrite` (exp ↔ trig, half-angle; `simplify` already rewrites inside).
+7. **Utilities**: `SymJ.gather` (SymPy's `collect`), `SymJ.coeff` and `rationalize(ex)`
+   are done. Open: Horner form, a user-level `cse`, constant recognition (`nsimplify`),
+   and a user-level `rewrite` (exp ↔ trig, half-angle; `simplify` already rewrites
+   inside).
 8. **Assumptions, the remaining pieces**: integer congruences, `assume` for systems of
    equations, and assumptions in `integrate`.
 

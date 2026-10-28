@@ -514,6 +514,139 @@ function Base.Float64(ex::Sym)
     v
 end
 
+## terms and coefficients
+
+# a term c x₁^p₁ ⋯ x_m^p_m with c free of the xs: (p, c), or nothing when the term
+# involves an x otherwise (sin(x), (x + 1)^(1/2)); the powers may be any expressions free
+# of the xs
+function _monomial(t::Sym, xs::Vector{Sym})
+    ps = Sym[ZERO for _ in xs]
+    any(x -> has(t, x), xs) || return ps, t
+    if t.kind == MUL
+        c = Sym(t.num)
+        for (b, p) in zip(t.args, t.exps)
+            i = findfirst(x -> _eq(b, x), xs)
+            if i !== nothing && !any(x -> has(p, x), xs)
+                ps[i] += p
+            elseif any(x -> has(b, x) || has(p, x), xs)
+                return nothing
+            else
+                c *= b^p
+            end
+        end
+        return ps, c
+    end
+    b, p = t.kind == POW ? (t.args[1], t.args[2]) : (t, ONE)
+    i = findfirst(x -> _eq(b, x), xs)
+    (i === nothing || any(x -> has(p, x), xs)) && return nothing
+    ps[i] = p
+    ps, ONE
+end
+_terms(e::Sym) = e.kind == ADD ? [Sym(c) * a for (c, a) in zip(e.coefs, e.args)] : [e]
+
+# x^n given as the variable: (x, n)
+function _coeff_var(x::Sym, n)
+    x.kind == POW && (_isnamed(x.args[1]) || x.args[1].kind == FN) && return x.args[1], x.args[2] * n
+    x, Sym(n)
+end
+
+"""
+    SymJ.coeff(ex, x, n = 1)
+    SymJ.coeff(ex, x^n)
+
+The coefficient of `x^n` in `ex`, after expanding: the sum of the factors that multiply
+`x^n` exactly in its terms, so `coeff(a*x^2 + b*x + c, x)` is `b` and `n = 0` gives the
+terms free of `x`. Terms with `x` in some other way (`sin(x)`) are not counted. `x` may be
+a symbol or a function call (`y(t)`), and `n` any power, `-1` or `1/2` too. Not exported.
+
+```julia
+@syms a b c x y
+SymJ.coeff(a*x^2 + b*x + c, x, 2)           # a
+SymJ.coeff((x + y)^3, x^2)                  # 3y
+SymJ.coeff(a*x + sin(x) + b, x, 0)          # b
+```
+"""
+function coeff(ex, x::Sym, n = 1)
+    v, p = _coeff_var(x, n)
+    e = expand(Sym(ex))
+    out = ZERO
+    for t in _terms(e)
+        m = _monomial(t, [v])
+        m === nothing && continue
+        _eq(expand(m[1][1] - p), ZERO) && (out += m[2])
+    end
+    e.kind == ADD && !iszero(e.num) && iszero(p) && (out += Sym(e.num))
+    out
+end
+
+"""
+    SymJ.gather(ex, x)
+    SymJ.gather(ex, [x, y, ...])
+
+`ex` expanded and its terms gathered by powers of `x` (by monomials in `x, y, ...` for
+several): `a*x^2 + b*x^2 + a*x - b*x + c` as `(a + b)*x^2 + (a - b)*x + c`. Terms with `x`
+in some other way (`sin(x)`) are left as they are. (SymPy's `collect`; Julia's `collect`
+is another function.) Not exported.
+
+```julia
+@syms a b c x y
+SymJ.gather(a*x^2 + b*x^2 + a*x - b*x + c, x)    # (a + b)*x^2 + (a - b)*x + c
+SymJ.gather(x*y + a*x*y + x + b*y, [x, y])       # (a + 1)*x*y + x + b*y
+```
+"""
+gather(ex, x::Sym) = gather(ex, [x])
+function gather(ex, xs::AbstractVector)
+    vs = Sym[Sym(x) for x in xs]
+    all(v -> _isnamed(v) || v.kind == FN, vs) ||
+        throw(ArgumentError("gather: $xs are not symbols or function calls"))
+    e = expand(Sym(ex))
+    groups = Dict{Vector{Sym},Sym}()
+    order = Vector{Sym}[]
+    rest = e.kind == ADD ? Sym(e.num) : ZERO
+    for t in _terms(e)
+        m = _monomial(t, vs)
+        if m === nothing
+            rest += t
+            continue
+        end
+        ps, c = m
+        haskey(groups, ps) || push!(order, ps)
+        groups[ps] = get(groups, ps, ZERO) + c
+    end
+    out = rest
+    for ps in order
+        out += groups[ps] * prod((v^p for (v, p) in zip(vs, ps)); init = ONE)
+    end
+    out
+end
+
+## floats as rationals
+
+"""
+    rationalize(ex::Sym; tol = nothing)
+    rationalize(T, ex::Sym; tol = nothing)
+
+`ex` with each floating-point number in it replaced by a nearby rational
+(`rationalize(T, f; tol)` from Julia, each float's own `eps` when `tol` is not given):
+`rationalize(0.5x + 1.25)` is `x/2 + 5/4`. Exact numbers are left alone. The result has
+only rationals, not recognized constants such as `√2` or `π`.
+"""
+Base.rationalize(ex::Sym; tol = nothing) = rationalize(Int, ex; tol)
+Base.rationalize(::Type{T}, ex::Sym; tol = nothing) where {T<:Integer} = _rationalize(ex, T, tol)
+
+function _rationalize(e::Sym, T, tol)
+    r(x::SymNumber) = isfloat(x) ? (f = Float64(x); isfinite(f) ?
+        SymNumber(tol === nothing ? rationalize(T, f) : rationalize(T, f; tol)) : x) : x
+    R(a::Sym) = _rationalize(a, T, tol)
+    k = e.kind
+    k == NUMBER && return Sym(r(e.num))
+    isempty(e.args) && return e
+    k == ADD && return Sym(r(e.num)) + _add_many(Sym(r(c)) * R(a) for (c, a) in zip(e.coefs, e.args))
+    k == MUL && return Sym(r(e.num)) * prod((R(b)^R(p) for (b, p) in zip(e.args, e.exps)); init = ONE)
+    k == POW && return R(e.args[1])^R(e.args[2])
+    _rebuild_node(e, Sym[R(a) for a in e.args])
+end
+
 ## convenience constructors
 
 """
