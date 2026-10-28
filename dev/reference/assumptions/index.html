@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Assumptions — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=686796e6">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=7ab36f1f">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Assumptions — SymJ.jl">
   <meta property="og:title" content="Assumptions — SymJ.jl">
@@ -74,7 +74,7 @@
 <div class="md-docstring" id="SymJ.Assumptions">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.Assumptions</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/ba26e05092af0058de288f02eaebdaef4c8d50c3/src/assumptions.jl#L173-L194" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/309792064dca4a8055bfcf484f4a703377d78b19/src/assumptions.jl#L173-L194" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -100,7 +100,7 @@
 <div class="md-docstring" id="SymJ.Membership">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.Membership</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/ba26e05092af0058de288f02eaebdaef4c8d50c3/src/assumptions.jl#L43-L47" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/309792064dca4a8055bfcf484f4a703377d78b19/src/assumptions.jl#L43-L47" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -113,7 +113,7 @@
 <div class="md-docstring" id="SymJ.NumberSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.NumberSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/ba26e05092af0058de288f02eaebdaef4c8d50c3/src/assumptions.jl#L19-L25" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/309792064dca4a8055bfcf484f4a703377d78b19/src/assumptions.jl#L19-L25" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -126,20 +126,23 @@
 <div class="md-docstring" id="SymJ.assuming-Tuple{Any, Vararg{Any}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.assuming</code> — <span class="md-docstring-sig">Tuple{Any, Vararg{Any}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/ba26e05092af0058de288f02eaebdaef4c8d50c3/src/assumptions.jl#L963-L981" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/309792064dca4a8055bfcf484f4a703377d78b19/src/assumptions.jl#L963-L987" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">assuming(f, facts...)
-assuming(facts...) do … end</code></pre>
+<pre><code class="language-julia">assuming(f, facts...; refine = false)
+assuming(facts...; refine = false) do … end</code></pre>
 </div>
 <p>Run <code class="md-code-inline">f</code> with the facts assumed by the operations that take assumptions, as if each were given <code class="md-code-inline">assume = …</code>. Blocks nest: an inner block adds its facts to the outer ones, and so does an <code class="md-code-inline">assume</code> keyword inside a block. The facts are normalized once, when the block starts (<a href="../../reference/assumptions/#SymJ.Assumptions"><code class="md-code-inline">Assumptions</code></a>).</p>
-<p>Arithmetic and construction do not read the facts (an expression is the same inside and outside a block, as nodes are shared): <code class="md-code-inline">(a^4)^(3/4)</code> stays as it is with <code class="md-code-inline">a &gt; 0</code> assumed, and <code class="md-code-inline">simplify</code> or <code class="md-code-inline">refine</code> in the block gives <code class="md-code-inline">a^3</code>.</p>
+<p>Arithmetic and construction do not read the facts (an expression is the same inside and outside a block, as nodes are shared): <code class="md-code-inline">(a^4)^(3/4)</code> stays as it is with <code class="md-code-inline">a &gt; 0</code> assumed, and <code class="md-code-inline">simplify</code> or <code class="md-code-inline">refine</code> in the block gives <code class="md-code-inline">a^3</code>. With <code class="md-code-inline">refine = true</code>, the block&#39;s value is refined with the facts (<a href="../../reference/simplification/#SymJ.refine"><code class="md-code-inline">refine</code></a>): an expression or relation, or each entry of a vector, tuple or <code class="md-code-inline">Dict</code> of them; other values are returned as they are.</p>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">assuming(x ≫ 0) do
     solve(x^2 ~ 4, x)       # [2]
+end
+assuming(a ≫ 0; refine = true) do
+    (a^4)^(3//4)            # a^3
 end</code></pre>
 </div>
 </div>
@@ -147,7 +150,7 @@ end</code></pre>
 <div class="md-docstring" id="SymJ.@assume-Tuple">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.@assume</code> — <span class="md-docstring-sig">Tuple</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/ba26e05092af0058de288f02eaebdaef4c8d50c3/src/assumptions.jl#L919-L932" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/309792064dca4a8055bfcf484f4a703377d78b19/src/assumptions.jl#L919-L932" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -166,19 +169,23 @@ assuming(@assume(x &gt;= 1)) do … end</code></pre>
 <div class="md-docstring" id="SymJ.@assuming-Tuple">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.@assuming</code> — <span class="md-docstring-sig">Tuple</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/ba26e05092af0058de288f02eaebdaef4c8d50c3/src/assumptions.jl#L988-L1001" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/309792064dca4a8055bfcf484f4a703377d78b19/src/assumptions.jl#L1003-L1021" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">@assuming facts... begin … end
+@assuming refine = true facts... begin … end
 @assuming(facts..., begin … end)</code></pre>
 </div>
-<p>Run the block with the facts assumed, the facts written as in <a href="../../reference/assumptions/#SymJ.@assume-Tuple"><code class="md-code-inline">@assume</code></a>; <code class="md-code-inline">assuming(@assume(facts...)) do … end</code> in one step. The block&#39;s value is returned; as with <code class="md-code-inline">do</code>, the block is a function body, so variables assigned in it are local to it.</p>
+<p>Run the block with the facts assumed, the facts written as in <a href="../../reference/assumptions/#SymJ.@assume-Tuple"><code class="md-code-inline">@assume</code></a>; <code class="md-code-inline">assuming(@assume(facts...)) do … end</code> in one step. The block&#39;s value is returned; as with <code class="md-code-inline">do</code>, the block is a function body, so variables assigned in it are local to it. With <code class="md-code-inline">refine = true</code> the value is refined with the facts, as for <a href="../../reference/assumptions/#SymJ.assuming-Tuple{Any, Vararg{Any}}"><code class="md-code-inline">assuming</code></a>.</p>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">@assuming x &gt; 0 begin
     solve(x^2 ~ 4, x)       # [2]
+end
+@assuming refine = true a &gt; 0 begin
+    16(a^4)^(3//4) / (9a^2) # 16a/9
 end</code></pre>
 </div>
 </div>
@@ -186,7 +193,7 @@ end</code></pre>
 <div class="md-docstring" id="SymJ.Cases">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.Cases</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/ba26e05092af0058de288f02eaebdaef4c8d50c3/src/cases.jl#L14-L29" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/309792064dca4a8055bfcf484f4a703377d78b19/src/cases.jl#L14-L29" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -220,6 +227,6 @@ cs(a =&gt; 4)     # [2]</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=686796e6"></script>
+  <script src="../../assets/materialdocs.js?v=7ab36f1f"></script>
 </body>
 </html>
