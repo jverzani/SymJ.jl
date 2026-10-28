@@ -1058,6 +1058,11 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test length(c3) == 3
         @test (@syms p2 q2[1:2]) == (Sym(:p2), [Sym(Symbol("q2₁")), Sym(Symbol("q2₂"))])
         @test_throws ArgumentError @eval @syms bad[1.0:2.0]
+        # free_symbols in the natural order of the names
+        @syms zs[1:12] ws[-2:2] x2 x10
+        @test free_symbols(sum(zs)) == zs
+        @test free_symbols(sum(ws)) == ws
+        @test free_symbols(x10 + x2 + x) == [x, x2, x10]
     end
 
     @testset "printing" begin

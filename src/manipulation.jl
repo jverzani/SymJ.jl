@@ -3,12 +3,59 @@
 """
     free_symbols(ex)
 
-The variables appearing in `ex`, sorted by name.
+The variables appearing in `ex`, sorted by name, numbers in names by value: `x2` before
+`x10`, and `@syms xs[1:10]` in the order of the indices.
 """
 function free_symbols(ex::Sym)
     s = Set{Sym}()
     _free!(s, ex)
-    sort!(collect(s); by = x -> x.name)
+    _sort_by_name!(collect(s))
+end
+
+# symbols in the natural order of their names: runs of digits (subscripts too, negative
+# after ₋) compare as numbers, so x2 < x10 and xs₋₁ < xs₀ < xs₁ < xs₁₀
+_sort_by_name!(v::AbstractVector) = sort!(v; lt = (a, b) -> _natural_lt(string(a), string(b)))
+
+_digitval(c::Char) = '0' <= c <= '9' ? c - '0' : '₀' <= c <= '₉' ? c - '₀' : -1
+
+# the name split into runs of text (Strings) and of digits (BigInts, negative after ₋)
+function _name_tokens(s::AbstractString)
+    toks = Any[]
+    cs = collect(s)
+    i = 1
+    while i <= length(cs)
+        neg = cs[i] == '₋' && i < length(cs) && _digitval(cs[i + 1]) >= 0
+        if neg || _digitval(cs[i]) >= 0
+            j = neg ? i + 1 : i
+            v = big(0)
+            while j <= length(cs) && _digitval(cs[j]) >= 0
+                v = 10v + _digitval(cs[j])
+                j += 1
+            end
+            push!(toks, neg ? -v : v)
+            i = j
+        else
+            j = i
+            while j <= length(cs) && _digitval(cs[j]) < 0 && !(cs[j] == '₋' && j < length(cs) && _digitval(cs[j + 1]) >= 0)
+                j += 1
+            end
+            push!(toks, String(cs[i:(j - 1)]))
+            i = j
+        end
+    end
+    toks
+end
+
+function _natural_lt(a::AbstractString, b::AbstractString)
+    ta, tb = _name_tokens(a), _name_tokens(b)
+    for (x, y) in zip(ta, tb)
+        x == y && continue
+        x isa BigInt && y isa BigInt && return x < y
+        x isa BigInt && return true                  # a number before text
+        y isa BigInt && return false
+        return x < y
+    end
+    length(ta) == length(tb) ? a < b : length(ta) < length(tb)
 end
 free_symbols(::Number) = Sym[]
 
@@ -19,7 +66,7 @@ free_symbols(::Number) = Sym[]
 function free_parameters(ex::Sym)
     s = Set{Sym}()
     _free!(s, ex, PARAMETER)
-    sort!(collect(s); by = x -> x.name)
+    _sort_by_name!(collect(s))
 end
 free_parameters(::Number) = Sym[]
 
