@@ -450,7 +450,7 @@ function _gsetup(F, vars::Vector{Sym}, who::String)
         _poly_atoms!(atoms, ex) || throw(ArgumentError("$who: floating point coefficients are not supported; use exact numbers"))
     end
     if isempty(vars)
-        vars = sort!([a for a in atoms if _isnamed(a)]; by = string)
+        vars = _sort_by_name!([a for a in atoms if _isnamed(a)])
         isempty(vars) && return exs, vars, Sym[]
     end
     all(_isnamed, vars) || throw(ArgumentError("$who: the variables must be symbols"))

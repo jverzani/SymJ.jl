@@ -453,7 +453,7 @@ function piecewise_fold(e, x::Sym; assume = nothing)
     ps = Set{Sym}()
     _pw_condsyms!(ps, g)
     delete!(ps, x)
-    B = isempty(ps) ? A : _with_fact(A, FactAnd(Any[p ∈ ℝ for p in sort!(collect(ps); by = string)]))
+    B = isempty(ps) ? A : _with_fact(A, FactAnd(Any[p ∈ ℝ for p in _sort_by_name!(collect(ps))]))
     _by_cases(C -> _piecewise_fold(g, x, C), B)
 end
 
@@ -505,7 +505,7 @@ function piecewise_fold(e; assume = nothing)
     g = piecewise(Sym(e))
     vs = Set{Sym}()
     _pw_condsyms!(vs, g)
-    length(vs) == 1 || throw(ArgumentError("piecewise_fold: give the variable; the conditions have $(isempty(vs) ? "no symbol" : join(sort!(collect(vs); by = string), ", "))"))
+    length(vs) == 1 || throw(ArgumentError("piecewise_fold: give the variable; the conditions have $(isempty(vs) ? "no symbol" : join(_sort_by_name!(collect(vs)), ", "))"))
     piecewise_fold(g, only(vs); assume)
 end
 
