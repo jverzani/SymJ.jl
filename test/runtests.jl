@@ -532,6 +532,12 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
     end
 
     @testset "subs and calling" begin
+        # what a substitution does not reach is kept as it is (not rebuilt)
+        let big = sum(sin(k * x + y) * exp(z / k) for k in 1:20) + log(x + 2)
+            @test subs(big, sin(z) => 1) === big
+            @test subs(big, x => 0) == sum(sin(y) * exp(z / k) for k in 1:20) + log(Sym(2))
+            @test subs(x^2 * sin(y), x^2 => z) == z * sin(y)                    # a power factor matched whole
+        end
         ex = x^2 + 2x + 1
         @test subs(ex, x => 1) == 4
         @test ex(x => y) == y^2 + 2y + 1
@@ -2301,6 +2307,29 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         # a bound slot whose value is 1 takes no factors in a product
         @test match(SymJ.pattern(:(h(~c, ~c * a))), h(1, a)) == Dict(:c => 1)
         @test match(SymJ.pattern(:(~!c - ~!c * a)), 1 - a) == Dict(:c => 1)
+    end
+
+    @testset "replace" begin
+        @syms t a u()
+        isnum = SymJ.isnumber
+        @test replace(sin(x) + sin(y)^2, :(sin(~u)) => :(cos(~u))) == cos(x) + cos(y)^2
+        @test replace(exp(x) + exp(2y), :(exp(~u)) => :(1 + ~u)) == x + 2y + 2
+        @test replace(exp(x) * sin(x), :(exp(~u)) => :((~u)^2)) == x^2 * sin(x)    # a factor of a product
+        @test replace(sin(sin(x)), :(sin(~u)) => :(2 * ~u)) == 4x                    # from the leaves up
+        @test replace(u(x) + u(2x), :(u(~s)) => :((~s)^2)) == 5x^2
+        @test replace(sin(x) + cos(y), :(sin(~u)) => :(cos(~u)), :(cos(~u)) => :(sin(~u))) == cos(x) + sin(y)
+        @test replace(sin(x), SymJ.pattern(:(sin(~u))) => d -> d[:u]^2) == x^2
+        # predicates: numeric coefficients and constants are parts too
+        @test replace(x^2 + 3x + 5, (e -> isnum(e) && e > 2) => (e -> e - 1)) == x^2 + 2x + 4
+        @test replace(x - y, isnum => (e -> 5e)) == x - 5y
+        @test replace(e -> isnum(e) ? 2e : e, x^2 + 3x + 1) == x^4 + 6x + 2
+        @test replace(x + y, x => a) == a + y && replace(x + 2, 2 => a) == a + x
+        r = SymJ.@rule log(~x * ~y) => log(~x) + log(~y)
+        @test replace(log(a * x) + sin(x), r, :(sin(~u)) => :(cos(~u))) == log(a) + log(x) + cos(x)
+        let e0 = x^2 * sin(y) + 3
+            @test replace(e0, a => x) === e0                                         # unchanged: the same node
+        end
+        @test_throws ArgumentError replace(sin(x), sin => cos)                       # use a pattern
     end
 
     @testset "simplify with rules" begin

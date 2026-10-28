@@ -31,7 +31,7 @@ with assumptions, `refine` and `simplify`, complex parts and LaTeX output are do
 | Substitution | `subs` | `subst` | ✅ `subs`, calling with pairs or keywords |
 | Compiled numeric functions | `lambdify` | — | ✅ `lambdify` (as fast as hand-written code) |
 | Generic term interface | — | — | ✅ TermInterface |
-| Pattern matching and rewrite rules | `Wild`, `match`, `replace` | rules | ✅ `SymJ.pattern`/`SymJ.@pattern` with `match`, `eachmatch`, `occursin`: associative-commutative, slots `~x`, `~!x`, `~~x`, `~~~x`, head slots, predicates; `SymJ.@rule`, `SymJ.rule`, `SymJ.rewrite`, `replace` (stages 1–4 of `notes/pattern_matching.md`: rule sets indexed by head; trig rules among `simplify`'s candidates) |
+| Pattern matching and rewrite rules | `Wild`, `match`, `replace` | rules | ✅ `SymJ.pattern`/`SymJ.@pattern` with `match`, `eachmatch`, `occursin`: associative-commutative, slots `~x`, `~!x`, `~~x`, `~~~x`, head slots, predicates; `SymJ.@rule`, `SymJ.rule`, `SymJ.rewrite`, `replace` (rules, or `old => new` pairs: patterns, predicates, subexpressions; SymPy's `replace`) (stages 1–4 of `notes/pattern_matching.md`: rule sets indexed by head; trig rules among `simplify`'s candidates) |
 | Collect by powers, coefficients | `collect`, `coeff` | `collect`, `coeff` | ✅ `SymJ.gather` (one variable or several, any powers, function calls), `SymJ.coeff`; `Poly` for polynomials |
 | Horner form | `horner` | `horner` | ✅ `SymJ.horner`, in one variable or recursively in several |
 | Common subexpressions | `cse` | — | ✅ `SymJ.cse` (repeated nodes, as `lambdify` shares them; not parts of larger sums) |
