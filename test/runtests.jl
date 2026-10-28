@@ -785,6 +785,32 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test operation(x ≦ 1) === Le && maketerm(Relation, Le, [x, 1], nothing) == (x ≦ 1)
     end
 
+    @testset "minimal_polynomial" begin
+        MP = SymJ.minimal_polynomial
+        s2, s3 = sqrt(Sym(2)), sqrt(Sym(3))
+        @test MP(Sym(3) / 4, x) == 4x - 3
+        @test MP(s2, x) == x^2 - 2
+        @test MP(s2 + s3, x) == x^4 - 10x^2 + 1
+        @test MP((1 + sqrt(Sym(5))) / 2, x) == x^2 - x - 1
+        @test MP(IM, x) == x^2 + 1
+        @test MP(1 / (1 + s2), x) == x^2 + 2x - 1
+        @test MP(sqrt(2 + s3), x) == x^4 - 4x^2 + 1
+        @test MP(cos(PI / 7), x) == 8x^3 - 4x^2 - 4x + 1
+        @test MP(sin(PI / 5), x) == 16x^4 - 20x^2 + 5
+        @test MP(tan(PI / 12), x) == x^2 - 4x + 1
+        @test MP((-1)^(Sym(2) // 5), x) == x^4 + x^3 + x^2 + x + 1     # a root of unity
+        @test MP(Sym(-8)^(Sym(1) // 3), x) == x^2 - 2x + 4                # the principal cube root
+        @test MP(cbrt(Sym(-8)), x) == x + 2                               # the real one
+        for e in (Sym(2)^(1 // 3) + IM, sqrt(Sym(2)) + sqrt(Sym(3)) + sqrt(Sym(5)), Sym(2)^(1 // 4) + Sym(3)^(1 // 3))
+            p = MP(e, x)
+            @test abs(N(subs(p, x => e))) < 1e-8
+        end
+        @test_throws ArgumentError MP(PI, x)
+        @test_throws ArgumentError MP(log(Sym(2)), x)
+        @test_throws ArgumentError MP(Sym(0.5), x)
+        @test_throws ArgumentError MP(x + 1, x)
+    end
+
     @testset "decompose" begin
         @syms a
         D = SymJ.decompose

@@ -306,6 +306,13 @@ p = expand((x^2 + x)^3 - 2)
 SymJ.decompose(p, x), solve(p ~ 0, x)[1:2]
 ```
 
+`SymJ.minimal_polynomial` gives the irreducible polynomial with integer coefficients
+that an algebraic number is a root of:
+
+```@example tut
+SymJ.minimal_polynomial(sqrt(Sym(2)) + sqrt(Sym(3)), x), SymJ.minimal_polynomial(cos(Sym(pi) / 7), x)
+```
+
 ### Resultants
 
 The resultant of two polynomials in `x` is zero exactly when they have a common root.

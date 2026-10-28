@@ -64,7 +64,7 @@ with assumptions, `refine` and `simplify`, complex parts and LaTeX output are do
 | Real root isolation and counting | `real_roots`, `count_roots`, `sturm` | `realroot`, `sturm` | ◐ numeric roots only |
 | Interpolation | `interpolate` | `lagrange` | ❌ |
 | Orthogonal and cyclotomic polynomials | `legendre`, `chebyshevt`, `hermite`, `cyclotomic_poly` | `legendre`, `tchebyshev1`, `hermite`, `cyclotomic` | ❌ |
-| Minimal polynomial; composition | `minimal_polynomial`, `compose`, `decompose` | — | ◐ `SymJ.decompose` (complete functional decomposition, characteristic 0; `solve` uses it for degree > 4); composition is `subs`; no `minimal_polynomial` |
+| Minimal polynomial; composition | `minimal_polynomial`, `compose`, `decompose` | — | ✅ `SymJ.minimal_polynomial` (radicals, `im`, trig of rational multiples of π; by resultants), `SymJ.decompose` (complete functional decomposition, characteristic 0; `solve` uses it for degree > 4); composition is `subs` |
 
 ## Equations
 

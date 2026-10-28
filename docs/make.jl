@@ -21,7 +21,7 @@ const REFERENCE = [
               "manipulation.jl", "identify.jl", "lambdify.jl"],
      first = ["SymJ", "@syms", "symbols", "Sym", "SymFunction", "subs", "N"]),
     (title = "Polynomials", file = "polynomials",
-     files = ["poly.jl", "polydiv.jl", "polygcd.jl", "squarefree.jl", "factor.jl", "decompose.jl", "resultant.jl", "groebner.jl",
+     files = ["poly.jl", "polydiv.jl", "polygcd.jl", "squarefree.jl", "factor.jl", "decompose.jl", "resultant.jl", "minpoly.jl", "groebner.jl",
               "realroots.jl"]),
     (title = "Rational functions", file = "rational",
      files = ["rational.jl", "apart.jl"]),
