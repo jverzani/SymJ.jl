@@ -130,6 +130,66 @@ import PolyLog as PL
         @test ∫(x^2 * D(x - 2, 1), x) == -4H(x - 2)                                       # δ′: -g′(a)
     end
 
+    @testset "RischIntegrate: definite integrals" begin
+        ∫ = RischIntegrate.integrate
+        Inf_ = Sym(Inf)
+        # exact with the RischIntegrate Julia 1.12 gets; the older one gives approximate constants
+        same(v, w) = VERSION >= v"1.12" ? v == w : N(v) ≈ N(w)
+        @test ∫(x^2, (x, 0, 3)) == 9
+        @test ∫(sin(x), (x, 0, PI)) == 2
+        @test ∫(1 / (1 + x^2), (x, 0, Inf)) == PI / 2                   # a limit, not atan(Inf)
+        @test ∫(1 / (1 + x^2), (x, -Inf, Inf)) == PI
+        @test ∫(exp(-x), (x, 0, Inf)) == 1
+        @test ∫(x * exp(-x), (x, 0, Inf)) == 1
+        @test same(∫(exp(-x^2), (x, -Inf, Inf)), sqrt(PI))             # erf at ±∞
+        @test same(∫(1 / (2 + cos(x)), (x, 0, 2PI)), 2sqrt(Sym(3)) * PI / 3)
+        @test ∫(log(x), (x, 0, 1)) == -1                                 # a limit at 0
+        @test ∫(1 / sqrt(x), (x, 0, 1)) == 2
+        @test ∫(1 / x^2, (x, 1, Inf)) == 1
+        @test same(∫(1 / (1 + x^4), (x, 0, Inf)), sqrt(Sym(2)) * PI / 4)
+        @test ∫(1 / x, (x, -2, -1)) == log(Sym(1 // 2))
+        # divergent: ±∞, or an error
+        @test ∫(1 / x^2, (x, -1, 1)) == Inf_                             # was -2
+        @test ∫(1 / x^2, (x, 1, -1)) == -Inf_
+        @test ∫(1 / x, (x, 1, Inf)) == Inf_
+        @test_throws ArgumentError ∫(1 / x, (x, -1, 1))
+        @test_throws ArgumentError ∫(1 / x^3, (x, -1, 1))
+        @test_throws ArgumentError ∫(sin(x), (x, 0, Inf))
+        @test_throws ArgumentError ∫(tan(x), (x, 0, PI))
+        # parameters: by cases, or decided by the assumptions
+        cs = ∫(exp(-a * x), (x, 0, Inf))
+        @test cs isa SymJ.Cases
+        @test cs(a => 2) == Sym(1 // 2)
+        @test cs(a => -1) == Inf_
+        @test cs(a => 0) == Inf_
+        @test ∫(exp(-a * x), (x, 0, Inf); assume = @assume(a > 0)) == 1 / a
+        @test (@assuming a > 0 begin ∫(exp(-a * x), (x, 0, Inf)) end) == 1 / a
+        cs = ∫(x^n, (x, 0, 1))
+        @test cs(n => 2) == Sym(1 // 3)
+        @test cs(n => -1) == Inf_
+        @test cs(n => -2) == Inf_
+        if VERSION >= v"1.12"                                            # (the older RischIntegrate cannot)
+            cs = ∫(1 / (x^2 + a), (x, 0, Inf))
+            @test cs(a => 4) == PI / 4
+            @test cs(a => 0) == Inf_
+            @test_throws ArgumentError cs(a => -1)                       # a pole at 1
+        end
+        @test N(∫(1 / (x - a), (x, 0, 1))(a => 2)) ≈ -log(2)
+    end
+
+    @testset "RischIntegrate: assumptions decide the form" begin
+        E = Base.get_extension(SymJ, :SymJRischIntegrateExt)
+        if E._has_oracle()                                               # RischIntegrate with a sign oracle
+            ∫ = RischIntegrate.integrate
+            @test ∫(1 / (x^2 + a), x) == atan(x / sqrt(a)) / sqrt(a)         # generic
+            F = ∫(1 / (x^2 + a), x; assume = @assume(a < 0))
+            @test !SymJ._hasfn(F, :atan)
+            @test SymJ._hasfn(F, :log)
+            @test isequal((@assuming a < 0 begin ∫(1 / (x^2 + a), x) end), F)
+            @test abs(N(subs(diff(F, x) - 1 / (x^2 + a), x => 0.3, a => -2))) < 1e-10
+        end
+    end
+
     @testset "RischIntegrate: differential equations" begin
         @syms y()
         C1, C2 = Sym(:C1), Sym(:C2)
