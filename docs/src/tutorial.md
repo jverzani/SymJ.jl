@@ -60,6 +60,14 @@ A symbolic function, with no rules of its own, is made with `@syms f()`:
 f(x^2)
 ```
 
+An indexed family of variables is an array of symbols named by their indices (the
+array itself is indexed from 1):
+
+```@example tut
+@syms xs[0:3] A[1:2, 1:2]
+xs, A
+```
+
 ## Symbolic numbers
 
 When a symbolic value meets a Julia integer or rational, the number becomes an exact
