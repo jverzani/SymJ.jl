@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=2260cf3f">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=a1bbe74a">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -1907,6 +1907,17 @@ SymJ.rewrite(3 + sin(2x)^2 + cos(2x)^2 + x, pyth)</code></pre>
 \[x + 4\]
 </div>
 </div>
+<p><code class="md-code-inline">replace</code> also takes <code class="md-code-inline">old =&gt; new</code> pairs, applied in one pass from the leaves up: a quoted pattern and template, a predicate and a function of the subexpression, or a subexpression and its value:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">replace(sin(a) + sin(b)^2, :(sin(~u)) =&gt; :(cos(~u))),
+replace(x^2 + 3x + 5, (e -&gt; SymJ.isnumber(e) &amp;&amp; e &gt; 2) =&gt; (e -&gt; e - 1))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \cos\left( a \right) + \cos^{2}\left( b \right), \; x^{2} + 2 \cdot x + 4 \right)\]
+</div>
+</div>
 <p>A predicate on a slot, or a right side that gives <code class="md-code-inline">nothing</code>, limits where a rule applies:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -1974,6 +1985,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=2260cf3f"></script>
+  <script src="../assets/materialdocs.js?v=a1bbe74a"></script>
 </body>
 </html>

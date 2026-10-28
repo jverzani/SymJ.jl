@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pattern matching — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=343d5443">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=591c41b6">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Pattern matching — SymJ.jl">
   <meta property="og:title" content="Pattern matching — SymJ.jl">
@@ -74,7 +74,7 @@
 <div class="md-docstring" id="SymJ.pattern">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.pattern</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/59c14e609110792b4f0e769681a64dabc6d650fc/src/patterns.jl#L222-L251" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/7025d6d1df30f1e1a0350a0948348d8ec54cf986/src/patterns.jl#L222-L251" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -130,7 +130,7 @@ occursin(SymJ.pattern(:(sin(~x)^2)), 1 + sin(t)^2)   # true</code></pre>
 <div class="md-docstring" id="SymJ.@pattern">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.@pattern</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/59c14e609110792b4f0e769681a64dabc6d650fc/src/patterns.jl#L655-L668" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/7025d6d1df30f1e1a0350a0948348d8ec54cf986/src/patterns.jl#L655-L668" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -150,7 +150,7 @@ q = SymJ.@pattern ~x + $c</code></pre>
 <div class="md-docstring" id="SymJ.rule">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.rule</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/59c14e609110792b4f0e769681a64dabc6d650fc/src/patterns.jl#L740-L753" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/7025d6d1df30f1e1a0350a0948348d8ec54cf986/src/patterns.jl#L740-L753" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -168,7 +168,7 @@ SymJ.rule(:((~x)^(~n)) =&gt; d -&gt; d[:n] * d[:x]^(d[:n] - 1))</code></pre>
 <div class="md-docstring" id="SymJ.@rule">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.@rule</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/59c14e609110792b4f0e769681a64dabc6d650fc/src/patterns.jl#L715-L731" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/7025d6d1df30f1e1a0350a0948348d8ec54cf986/src/patterns.jl#L715-L731" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -189,7 +189,7 @@ SymJ.@rule (~f)(~x + 2π) =&gt; (~f in (sin, cos) ? (~f)(~x) : nothing)</code></
 <div class="md-docstring" id="SymJ.rewrite">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.rewrite</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/59c14e609110792b4f0e769681a64dabc6d650fc/src/patterns.jl#L830-L844" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/7025d6d1df30f1e1a0350a0948348d8ec54cf986/src/patterns.jl#L830-L844" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -207,7 +207,7 @@ SymJ.rewrite(log(a * b * c), r)          # log(a) + log(b) + log(c)</code></pre>
 <div class="md-docstring" id="SymJ.Pattern">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.Pattern</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/59c14e609110792b4f0e769681a64dabc6d650fc/src/patterns.jl#L210-L215" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/7025d6d1df30f1e1a0350a0948348d8ec54cf986/src/patterns.jl#L210-L215" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -220,7 +220,7 @@ SymJ.rewrite(log(a * b * c), r)          # log(a) + log(b) + log(c)</code></pre>
 <div class="md-docstring" id="SymJ.Rule">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.Rule</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/59c14e609110792b4f0e769681a64dabc6d650fc/src/patterns.jl#L673-L679" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/7025d6d1df30f1e1a0350a0948348d8ec54cf986/src/patterns.jl#L673-L679" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -233,7 +233,7 @@ SymJ.rewrite(log(a * b * c), r)          # log(a) + log(b) + log(c)</code></pre>
 <div class="md-docstring" id="Base.eachmatch-Tuple{SymJ.Pattern, Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>Base.eachmatch</code> — <span class="md-docstring-sig">Tuple{SymJ.Pattern, Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/59c14e609110792b4f0e769681a64dabc6d650fc/src/patterns.jl#L611-L616" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/7025d6d1df30f1e1a0350a0948348d8ec54cf986/src/patterns.jl#L611-L616" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -246,7 +246,7 @@ SymJ.rewrite(log(a * b * c), r)          # log(a) + log(b) + log(c)</code></pre>
 <div class="md-docstring" id="Base.match-Tuple{SymJ.Pattern, Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>Base.match</code> — <span class="md-docstring-sig">Tuple{SymJ.Pattern, Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/59c14e609110792b4f0e769681a64dabc6d650fc/src/patterns.jl#L599-L604" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/7025d6d1df30f1e1a0350a0948348d8ec54cf986/src/patterns.jl#L599-L604" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -259,7 +259,7 @@ SymJ.rewrite(log(a * b * c), r)          # log(a) + log(b) + log(c)</code></pre>
 <div class="md-docstring" id="Base.occursin-Tuple{SymJ.Pattern, Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>Base.occursin</code> — <span class="md-docstring-sig">Tuple{SymJ.Pattern, Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/59c14e609110792b4f0e769681a64dabc6d650fc/src/patterns.jl#L623-L628" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/7025d6d1df30f1e1a0350a0948348d8ec54cf986/src/patterns.jl#L623-L628" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -269,17 +269,36 @@ SymJ.rewrite(log(a * b * c), r)          # log(a) + log(b) + log(c)</code></pre>
 <p>Whether the pattern <code class="md-code-inline">p</code> matches <code class="md-code-inline">ex</code> or a part of it: a term of a sum, a factor of a product, an argument. See <a href="../../reference/patterns/#SymJ.pattern"><code class="md-code-inline">SymJ.pattern</code></a>.</p>
 </div>
 </div>
-<div class="md-docstring" id="Base.replace-Tuple{Sym, SymJ.Rule, Vararg{SymJ.Rule}}">
+<div class="md-docstring" id="Base.replace-Tuple{Sym, SymJ.Rule}">
 <div class="md-docstring-header">
-<h4 class="md-docstring-binding"><code>Base.replace</code> — <span class="md-docstring-sig">Tuple{Sym, SymJ.Rule, Vararg{SymJ.Rule}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/59c14e609110792b4f0e769681a64dabc6d650fc/src/patterns.jl#L864-L869" title="View source">source</a>
+<h4 class="md-docstring-binding"><code>Base.replace</code> — <span class="md-docstring-sig">Tuple{Sym, SymJ.Rule}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/7025d6d1df30f1e1a0350a0948348d8ec54cf986/src/patterns.jl#L864-L892" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">replace(ex::Sym, rules::SymJ.Rule...)</code></pre>
+<pre><code class="language-julia">replace(ex::Sym, rules::SymJ.Rule...)
+replace(ex::Sym, old =&gt; new, ...)
+replace(f, ex::Sym)</code></pre>
 </div>
-<p><code class="md-code-inline">ex</code> with each rule applied once wherever it matches, in one pass from the leaves up: <a href="../../reference/patterns/#SymJ.rewrite"><code class="md-code-inline">SymJ.rewrite</code></a> with <code class="md-code-inline">fixpoint = false</code>.</p>
+<p><code class="md-code-inline">ex</code> with its subexpressions replaced, in one pass from the leaves up (SymPy&#39;s <code class="md-code-inline">replace</code>): each part (a term of a sum, a factor of a product, a numeric coefficient, a power&#39;s base and exponent, a function&#39;s argument) is done first, then the expression made of the results is tried. At each subexpression the first replacement that applies is used, and a result is not searched again. <code class="md-code-inline">old =&gt; new</code> is one of:</p>
+<ul class="md-list-tight">
+<li><p>a pattern (a <a href="../../reference/patterns/#SymJ.Pattern"><code class="md-code-inline">SymJ.Pattern</code></a> or a quoted one, <code class="md-code-inline">:(sin(~x))</code>) and a template or a function of the bindings, as for <a href="../../reference/patterns/#SymJ.rule"><code class="md-code-inline">SymJ.rule</code></a>;</p>
+</li>
+<li><p>a predicate and a function, <code class="md-code-inline">(e -&gt; SymJ.isnumber(e) &amp;&amp; e &gt; 2) =&gt; (e -&gt; e - 1)</code>: each subexpression for which <code class="md-code-inline">old(e)</code> is <code class="md-code-inline">true</code> replaced by <code class="md-code-inline">new(e)</code>;</p>
+</li>
+<li><p>an expression and a value: that subexpression (as <code class="md-code-inline">subs</code> does).</p>
+</li>
+</ul>
+<p><code class="md-code-inline">replace(f, ex)</code> (as Julia&#39;s <code class="md-code-inline">replace(f, A)</code>) replaces each subexpression <code class="md-code-inline">e</code> by <code class="md-code-inline">f(e)</code> (return <code class="md-code-inline">e</code> to keep it). With rules only, the one pass of <a href="../../reference/patterns/#SymJ.rewrite"><code class="md-code-inline">SymJ.rewrite</code></a> with <code class="md-code-inline">fixpoint = false</code>.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms x y
+replace(sin(x) + sin(y)^2, :(sin(~u)) =&gt; :(cos(~u)))              # cos(x) + cos(y)^2
+replace(exp(x) + exp(2y), :(exp(~u)) =&gt; :(1 + ~u))                 # x + 2y + 2
+replace(x^2 + 3x + 5, (e -&gt; SymJ.isnumber(e) &amp;&amp; e &gt; 2) =&gt; (e -&gt; e - 1))   # x^2 + 2x + 4
+replace(e -&gt; SymJ.isnumber(e) ? 2e : e, x^2 + 3x + 1)              # x^4 + 6x + 2</code></pre>
+</div>
 </div>
 </div>
       </article>
@@ -299,6 +318,6 @@ SymJ.rewrite(log(a * b * c), r)          # log(a) + log(b) + log(c)</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=343d5443"></script>
+  <script src="../../assets/materialdocs.js?v=591c41b6"></script>
 </body>
 </html>
