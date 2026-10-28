@@ -1684,6 +1684,18 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test R(sqrt(exp(x)), x ∈ ℝ) == exp(x / 2) && R(x^2 + a, a ~ 3) == x^2 + 3
         @test R(x ≫ 0, x ≫ 1) === true && R(x ≫ 2, x ≫ 1) == (x ≫ 2) && R(x^2 ≧ 0, x ∈ ℝ) === true
         @test (@assuming x > 0 begin refine(sqrt(x^2)) end) == x
+        # refine = true: the block's value refined with the facts
+        @test (@assuming x > 0 begin sqrt(x^2) end) == sqrt(x^2)
+        @test (@assuming refine = true x > 0 begin sqrt(x^2) end) == x
+        @test (@assuming refine = false x > 0 begin sqrt(x^2) end) == sqrt(x^2)
+        @test (@assuming refine = true x > 0 begin Sym[sqrt(x^2), x^2] end) == [x, x^2]
+        @test (@assuming refine = true x > 0 begin (sqrt(x^2), 3) end) == (x, 3)
+        @test (@assuming refine = true x > 0 begin sqrt(x^2) ≫ 0 end) === true
+        @test assuming(x ≫ 0; refine = true) do
+            Dict(:a => sqrt(x^2))
+        end == Dict(:a => x)
+        @test (@assuming refine = true x > 0 begin "text" end) == "text"
+        @test_throws ArgumentError macroexpand(@__MODULE__, :(@assuming foo = 1 x > 0 begin x end))
         S(e, as...) = simplify(e; assume = Assumptions(as...))
         @test S((x^2 - 1) / (x - 1)) == x + 1 && S((x + 1)^2 - x^2) == 2x + 1
         @test S(sqrt(Sym(2)) * sqrt(Sym(3))) == sqrt(Sym(6)) && S(Sym(2)^(1 // 3) * Sym(4)^(1 // 3)) == 2

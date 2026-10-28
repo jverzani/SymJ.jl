@@ -652,12 +652,18 @@ The facts are read by the operations that take `assume` (`refine`, `simplify`, `
 outside it, so it never depends on the facts in force. `(a^4)^(3/4)` is not `a^3` for
 every `a` (it is `1` at `a = -1` and at `a = im`), so `16(a^4)^(3/4)/(9a^2)` keeps
 `(a^4)^(3/4)` even with `a > 0` assumed; `simplify` or `refine` in the block applies
-the facts:
+the facts, and `refine = true` refines the block's value with them:
 
 ```@example tut
 @assuming a > 0 begin
     e = 16(a^4)^(3//4) / (9a^2)
     e, simplify(e)
+end
+```
+
+```@example tut
+@assuming refine = true a > 0 begin
+    16(a^4)^(3//4) / (9a^2)
 end
 ```
 

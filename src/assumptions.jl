@@ -961,8 +961,8 @@ end
 const _ASSUMING = ScopedValue{Union{Nothing,Assumptions}}(nothing)
 
 """
-    assuming(f, facts...)
-    assuming(facts...) do … end
+    assuming(f, facts...; refine = false)
+    assuming(facts...; refine = false) do … end
 
 Run `f` with the facts assumed by the operations that take assumptions, as if each
 were given `assume = …`. Blocks nest: an inner block adds its facts to the outer
@@ -971,39 +971,68 @@ when the block starts ([`Assumptions`](@ref)).
 
 Arithmetic and construction do not read the facts (an expression is the same inside
 and outside a block, as nodes are shared): `(a^4)^(3/4)` stays as it is with `a > 0`
-assumed, and `simplify` or `refine` in the block gives `a^3`.
+assumed, and `simplify` or `refine` in the block gives `a^3`. With `refine = true`, the
+block's value is refined with the facts ([`refine`](@ref)): an expression or relation,
+or each entry of a vector, tuple or `Dict` of them; other values are returned as they
+are.
 
 ```julia
 assuming(x ≫ 0) do
     solve(x^2 ~ 4, x)       # [2]
 end
+assuming(a ≫ 0; refine = true) do
+    (a^4)^(3//4)            # a^3
+end
 ```
 """
-function assuming(f, facts...)
+function assuming(f, facts...; refine::Bool = false)
     cur = _ASSUMING[]
     A = cur === nothing ? Assumptions(facts...) : Assumptions(cur, facts...)
-    with(f, _ASSUMING => A)
+    v = with(f, _ASSUMING => A)
+    refine ? _refine_value(v, A) : v
 end
+
+# a block's value refined with its facts
+_refine_value(v::Sym, A::Assumptions) = _refine(v, A)
+_refine_value(v::Relation, A::Assumptions) = refine(v; assume = A)
+_refine_value(v::AbstractArray, A::Assumptions) = map(u -> _refine_value(u, A), v)
+_refine_value(v::Tuple, A::Assumptions) = map(u -> _refine_value(u, A), v)
+_refine_value(v::AbstractDict, A::Assumptions) = Dict(k => _refine_value(u, A) for (k, u) in v)
+_refine_value(v, A::Assumptions) = v
 
 """
     @assuming facts... begin … end
+    @assuming refine = true facts... begin … end
     @assuming(facts..., begin … end)
 
 Run the block with the facts assumed, the facts written as in [`@assume`](@ref);
 `assuming(@assume(facts...)) do … end` in one step. The block's value is returned; as
 with `do`, the block is a function body, so variables assigned in it are local to it.
+With `refine = true` the value is refined with the facts, as for [`assuming`](@ref).
 
 ```julia
 @assuming x > 0 begin
     solve(x^2 ~ 4, x)       # [2]
+end
+@assuming refine = true a > 0 begin
+    16(a^4)^(3//4) / (9a^2) # 16a/9
 end
 ```
 """
 macro assuming(args...)
     (length(args) >= 1 && args[end] isa Expr && args[end].head === :block) ||
         throw(ArgumentError("@assuming facts... begin … end: the last argument must be a begin … end block"))
-    facts, body = args[1:end-1], args[end]
-    esc(Expr(:call, GlobalRef(SymJ, :assuming), Expr(:->, Expr(:tuple), body),
+    kws, facts = Expr[], Any[]
+    for a in args[1:end-1]
+        if a isa Expr && a.head === :(=)
+            a.args[1] === :refine ||
+                throw(ArgumentError("@assuming: the keyword is refine = true (or false), not $(a.args[1])"))
+            push!(kws, Expr(:kw, :refine, a.args[2]))
+        else
+            push!(facts, a)
+        end
+    end
+    esc(Expr(:call, GlobalRef(SymJ, :assuming), Expr(:parameters, kws...), Expr(:->, Expr(:tuple), args[end]),
              Expr(:call, GlobalRef(SymJ, :Assumptions), map(_assume_fact, facts)...)))
 end
 
