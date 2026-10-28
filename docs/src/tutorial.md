@@ -904,6 +904,15 @@ A symbolic function gives an unevaluated derivative:
 diff(f(x^2), x)
 ```
 
+For implicit differentiation, write `y` as a function `u(x)`, differentiate, and solve
+for the derivative:
+
+```@example tut
+@syms u()
+F = x^2 + u(x)^2 - 1
+solve(diff(F, x) ~ 0, diff(u(x), x))
+```
+
 ### Critical points
 
 The critical points of a function are the zeros of its derivative, and the second

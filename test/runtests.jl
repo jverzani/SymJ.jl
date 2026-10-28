@@ -730,6 +730,19 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
     end
 
     @testset "solve" begin
+        # unknowns that are function calls or derivatives (implicit differentiation)
+        let (a, b, c, d) = symbols("a b c d"), u = SymFunction(:u), v = SymFunction(:v)
+            ex2 = diff(x * u(x) - (a * x^3 + b * x^2 + c * x + d), x)
+            du = diff(u(x), x)
+            @test solve(ex2 ~ 0, du) == [(3a * x^2 + 2b * x + c - u(x)) / x]
+            @test solve(diff(x^2 + u(x)^2 - 1, x) ~ 0, du) == [-x / u(x)]
+            @test solve(x * u(x) + sin(x) ~ 1, u(x)) == [(1 - sin(x)) / x]
+            @test solve(du + u(x) ~ x, u(x)) == [x - du]                 # the derivative is held
+            @test solve([u(x) + v(x) ~ 3, u(x) - v(x) ~ 1], [u(x), v(x)]) == [Dict(u(x) => 2, v(x) => 1)]
+            @test solve(u(x)^2 ~ 4, u(x); assume = @assume(u(x) ≫ 0)) == [2]
+            @test (@assuming u(x) ≫ 0 begin solve(u(x)^2 ~ 4, u(x)) end) == [2]
+            @test_throws ArgumentError solve(x ~ 1, x + 1)
+        end
         # several logarithms of x: combined (rational coefficients), candidates checked
         @test solve(log(x) + log(x - 1) ~ log(Sym(6)), x) == [3]       # not -2 (complex logs)
         @test solve(2log(x) - log(x + 2) ~ 0, x) == [2]
