@@ -2329,6 +2329,39 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test match(SymJ.pattern(:(~!c - ~!c * a)), 1 - a) == Dict(:c => 1)
     end
 
+    @testset "rewrite to a target" begin
+        @syms a b n k
+        R = SymJ.rewrite
+        same(e, r, v = 0.37) = abs(N(subs(e - r, x => v, y => 0.81))) < 1e-12
+        for f in (sin, cos, tan, cot, sec, csc, sinh, cosh, tanh, coth, sech, csch)
+            @test same(f(x), R(f(x), exp))
+            @test same(f(x), R(f(x), f in (sinh, cosh, tanh, coth, sech, csch) ? tanh : tan))
+            @test !SymJ._hasfn(R(f(x), exp), nameof(f))
+        end
+        for (f, v) in ((asin, 0.37), (acos, 0.37), (atan, 0.37), (acot, 0.37), (asec, 1.7), (acsc, 1.7),
+                       (asinh, 0.37), (acosh, 1.7), (atanh, 0.37), (acoth, 1.7), (asech, 0.6), (acsch, 0.37))
+            @test same(f(x), R(f(x), log), v)
+        end
+        @test R(sin(x), exp) == (exp(im * x) - exp(-im * x)) / (2im)
+        @test R(exp(im * x), cos) == cos(x) + im * sin(x)
+        @test R(exp(2 + 3im * x + y), sin) == exp(y + 2) * (cos(3x) + im * sin(3x))
+        @test R(exp(x), cos) == exp(x)                          # no imaginary part
+        @test R(exp(x), cosh) == cosh(x) + sinh(x)
+        @test R(tan(x)^2 + sec(x), sin) == sin(x)^2 / cos(x)^2 + 1 / cos(x)
+        @test R(tan(x)^2 + sec(x), cos) == R(tan(x)^2 + sec(x), sin)
+        @test R(tanh(x), cosh) == sinh(x) / cosh(x)
+        @test R(sin(x), tan) == 2tan(x / 2) / (1 + tan(x / 2)^2)
+        @test R(asinh(x), log) == log(x + sqrt(x^2 + 1))
+        @test R(sin(x) + cos(x), sin => exp) == cos(x) + (exp(im * x) - exp(-im * x)) / (2im)
+        @test R(sin(x) + cosh(x) + cos(y), (sin, cosh) => exp) == R(sin(x) + cosh(x), exp) + cos(y)
+        @test R(binomial(n, k), factorial) == factorial(n) / (factorial(k) * factorial(n - k))
+        @test SymJ.simplify(R(sin(x)^2 + cos(x)^2, exp)) == 1
+        @test R(x^2 + y, exp) == x^2 + y                         # nothing to rewrite
+        @test_throws ArgumentError R(sin(x), y)
+        @test_throws ArgumentError R(sin(x), sqrt)
+        @test_throws ArgumentError R(sin(x), x => exp)
+    end
+
     @testset "replace" begin
         @syms t a u()
         isnum = SymJ.isnumber
