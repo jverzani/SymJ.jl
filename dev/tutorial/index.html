@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=c2c847df">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=dd72ad87">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -1754,6 +1754,35 @@ F(3) - F(0)</code></pre>
 \[\frac{5}{2}\]
 </div>
 </div>
+<p><code class="md-code-inline">integrate(f, (x, a, b))</code> splits the interval at the points where <code class="md-code-inline">f</code> is singular and takes one-sided limits there and at infinite limits, so improper integrals come out right; one that diverges is <code class="md-code-inline">±∞</code>, or an error when it has no value:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">integrate(1 / (1 + x^2), (x, 0, Inf)), integrate(exp(-x^2), (x, -Inf, Inf)), integrate(log(x), (x, 0, 1)), integrate(1 / x^2, (x, -1, 1))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \frac{\pi}{2}, \; \sqrt{\pi}, \; -1, \; \infty \right)\]
+</div>
+</div>
+<p>With a parameter the answer may depend on its sign; the cases are listed unless the assumptions decide them:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">integrate(exp(-a * x), (x, 0, Inf))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\begin{cases} \infty &amp; a \leq 0 \\ \frac{1}{a} &amp; a &gt; 0 \end{cases}\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">integrate(exp(-a * x), (x, 0, Inf); assume = @assume(a &gt; 0))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\frac{1}{a}\]
+</div>
+</div>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -2090,6 +2119,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=c2c847df"></script>
+  <script src="../assets/materialdocs.js?v=dd72ad87"></script>
 </body>
 </html>
