@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Solving equations — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=6dda0ba6">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=c05bccc2">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Solving equations — SymJ.jl">
   <meta property="og:title" content="Solving equations — SymJ.jl">
@@ -75,7 +75,7 @@
 <div class="md-docstring" id="CommonSolve.solve-Tuple{AbstractVector{&lt;:Relation}, Union{Tuple, AbstractVector}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>CommonSolve.solve</code> — <span class="md-docstring-sig">Tuple{AbstractVector{&lt;:Relation}, Union{Tuple, AbstractVector}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/b3413e9b8fd7de3503ea57e62d401017248bd4bd/src/linsolve.jl#L6-L32" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/59c14e609110792b4f0e769681a64dabc6d650fc/src/linsolve.jl#L6-L32" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -102,19 +102,20 @@ solve([x*y ~ 1, x + y ~ 3], [x, y])</code></pre>
 <div class="md-docstring" id="CommonSolve.solve-Tuple{Relation, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>CommonSolve.solve</code> — <span class="md-docstring-sig">Tuple{Relation, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/b3413e9b8fd7de3503ea57e62d401017248bd4bd/src/solve.jl#L14-L44" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/59c14e609110792b4f0e769681a64dabc6d650fc/src/solve.jl#L14-L47" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve(eq::Relation, x; assume = nothing)</code></pre>
 </div>
-<p>The solutions of the equation <code class="md-code-inline">eq</code> (written with <code class="md-code-inline">~</code>, e.g. <code class="md-code-inline">x^2 ~ 4</code>) for <code class="md-code-inline">x</code>, as a vector of distinct expressions. The equation must be polynomial or rational in <code class="md-code-inline">x</code>; its coefficients may involve other symbols. Solutions are exact through degree 4 and for equations that factor into such pieces; irreducible factors of higher degree with numeric coefficients give numeric (floating point) roots. Numeric solutions are sorted, real ones first. An equation with no solution gives an empty vector. For a system, <code class="md-code-inline">solve([eqs...], [vars...])</code>, giving a vector of <code class="md-code-inline">Dict</code>s; mixing the forms (<code class="md-code-inline">solve(eq, [x])</code>, <code class="md-code-inline">solve([eq], x)</code>) is an error.</p>
+<p>The solutions of the equation <code class="md-code-inline">eq</code> (written with <code class="md-code-inline">~</code>, e.g. <code class="md-code-inline">x^2 ~ 4</code>) for <code class="md-code-inline">x</code>, as a vector of distinct expressions. The equation must be polynomial or rational in <code class="md-code-inline">x</code>; its coefficients may involve other symbols. Solutions are exact through degree 4 and for equations that factor into such pieces; irreducible factors of higher degree with numeric coefficients give numeric (floating point) roots. Numeric solutions are sorted, real ones first. An equation with no solution gives an empty vector. For a system, <code class="md-code-inline">solve([eqs...], [vars...])</code>, giving a vector of <code class="md-code-inline">Dict</code>s; mixing the forms (<code class="md-code-inline">solve(eq, [x])</code>, <code class="md-code-inline">solve([eq], x)</code>) is an error. An unknown may also be a function call or a derivative (<code class="md-code-inline">u(x)</code>, <code class="md-code-inline">diff(u(x), x)</code>), as in implicit differentiation; other derivatives of it are held as they are.</p>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve(x^2 - 2 ~ 0, x)          # [-sqrt(2), sqrt(2)]
 solve(x^2 ~ -1, x)             # [-im, im]
-solve(a*x + b ~ 0, x)          # [-b/a]</code></pre>
+solve(a*x + b ~ 0, x)          # [-b/a]
+solve(diff(x^2 + u(x)^2 - 1, x) ~ 0, diff(u(x), x))   # [-x/u(x)]</code></pre>
 </div>
 <p>With assumptions (<code class="md-code-inline">assume = (x ≫ 0,)</code>, an <a href="../../reference/assumptions/#SymJ.Assumptions"><code class="md-code-inline">Assumptions</code></a>, or inside <a href="../../reference/assumptions/#SymJ.assuming-Tuple{Any, Vararg{Any}}"><code class="md-code-inline">assuming</code></a>), only the solutions they allow for <code class="md-code-inline">x</code> are kept: those in its number set (<code class="md-code-inline">x ∈ ℝ</code>), its range (<code class="md-code-inline">x ≫ 0</code>), and consistent with its relations to other symbols. Facts about the other symbols are used to decide that. When the answer depends on something the assumptions leave open, the result is a <code class="md-code-inline">Cases</code> value: a list of <code class="md-code-inline">conditions =&gt; solutions</code>, which can be called with values (<code class="md-code-inline">cs(a =&gt; 4)</code>).</p>
 <div class="md-code-block">
@@ -128,7 +129,7 @@ solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !
 <div class="md-docstring" id="SymJ.SymInterval">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymInterval</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/b3413e9b8fd7de3503ea57e62d401017248bd4bd/src/intervals.jl#L10-L15" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/59c14e609110792b4f0e769681a64dabc6d650fc/src/intervals.jl#L10-L15" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -141,7 +142,7 @@ solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !
 <div class="md-docstring" id="SymJ.SymSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/b3413e9b8fd7de3503ea57e62d401017248bd4bd/src/intervals.jl#L23-L30" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/59c14e609110792b4f0e769681a64dabc6d650fc/src/intervals.jl#L23-L30" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -154,7 +155,7 @@ solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !
 <div class="md-docstring" id="SymJ.CylindricalSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.CylindricalSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/b3413e9b8fd7de3503ea57e62d401017248bd4bd/src/ineqsystems.jl#L13-L25" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/59c14e609110792b4f0e769681a64dabc6d650fc/src/ineqsystems.jl#L13-L25" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -182,6 +183,6 @@ solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=6dda0ba6"></script>
+  <script src="../../assets/materialdocs.js?v=c05bccc2"></script>
 </body>
 </html>

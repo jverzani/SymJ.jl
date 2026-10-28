@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=79bebb7b">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=2260cf3f">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -1464,6 +1464,18 @@ a + b - 2 \cdot x &amp; \text{if } x \leq a\\
 \[\mathrm{Derivative}\left( f\left( x^{2} \right), x \right)\]
 </div>
 </div>
+<p>For implicit differentiation, write <code class="md-code-inline">y</code> as a function <code class="md-code-inline">u(x)</code>, differentiate, and solve for the derivative:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms u()
+F = x^2 + u(x)^2 - 1
+solve(diff(F, x) ~ 0, diff(u(x), x))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left[ \frac{ - x}{u\left( x \right)} \right]\]
+</div>
+</div>
 <h3 id="Critical-points" class="md-heading">Critical points<a href="#Critical-points" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <p>The critical points of a function are the zeros of its derivative, and the second derivative classifies them:</p>
 <div class="md-multi-output">
@@ -1962,6 +1974,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=79bebb7b"></script>
+  <script src="../assets/materialdocs.js?v=2260cf3f"></script>
 </body>
 </html>
