@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=92f23272">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=88ca6b77">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -716,6 +716,16 @@ SymJ.simplify_gamma(factorial(n + 2) / factorial(n)), SymJ.simplify_gamma(binomi
 </div>
 <div class="md-math md-math-display">
 \[\left( \cos\left( x \right) \cdot \sin\left( y \right) + \cos\left( y \right) \cdot \sin\left( x \right), \; -3 \cdot \cos\left( x \right) + 4 \cdot \cos^{3}\left( x \right), \; \frac{-2 \cdot \tan\left( x \right)}{\tan^{2}\left( x \right) - 1} \right)\]
+</div>
+</div>
+<p><code class="md-code-inline">SymJ.rewrite(ex, target)</code> writes the functions of an expression through another one: trigonometric and hyperbolic functions through <code class="md-code-inline">exp</code>, inverse ones through <code class="md-code-inline">log</code>, <code class="md-code-inline">tan</code> and <code class="md-code-inline">sec</code> through <code class="md-code-inline">sin</code> and <code class="md-code-inline">cos</code>, exponentials with imaginary parts through <code class="md-code-inline">cos</code> and <code class="md-code-inline">sin</code>, factorials through <code class="md-code-inline">gamma</code> and back. <code class="md-code-inline">fs =&gt; target</code> rewrites only the functions <code class="md-code-inline">fs</code>:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.rewrite(sin(x), exp), SymJ.rewrite(exp(im * x), cos), SymJ.rewrite(asinh(x), log), SymJ.rewrite(tan(x) + cos(x), tan =&gt; sin)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \frac{ - i \cdot \left( \frac{-1}{e^{i \cdot x}} + e^{i \cdot x} \right)}{2}, \; \cos\left( x \right) + i \cdot \sin\left( x \right), \; \log\left( \sqrt{x^{2} + 1} + x \right), \; \cos\left( x \right) + \frac{\sin\left( x \right)}{\cos\left( x \right)} \right)\]
 </div>
 </div>
 <p><code class="md-code-inline">SymJ.expand_log</code> splits logarithms of products and powers where the assumptions allow it; <code class="md-code-inline">force = true</code> takes every base as positive:</p>
@@ -2001,6 +2011,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=92f23272"></script>
+  <script src="../assets/materialdocs.js?v=88ca6b77"></script>
 </body>
 </html>

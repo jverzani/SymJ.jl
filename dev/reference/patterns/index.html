@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pattern matching — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=92ac9931">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=b97edf06">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Pattern matching — SymJ.jl">
   <meta property="og:title" content="Pattern matching — SymJ.jl">
@@ -74,7 +74,7 @@
 <div class="md-docstring" id="SymJ.pattern">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.pattern</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/e9e148217fcefb3d249068f59b06cb6d8251e00f/src/patterns.jl#L222-L251" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a18f9390883924f8f1d59d22fb1ddc00a224db9/src/patterns.jl#L222-L251" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -130,7 +130,7 @@ occursin(SymJ.pattern(:(sin(~x)^2)), 1 + sin(t)^2)   # true</code></pre>
 <div class="md-docstring" id="SymJ.@pattern">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.@pattern</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/e9e148217fcefb3d249068f59b06cb6d8251e00f/src/patterns.jl#L655-L668" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a18f9390883924f8f1d59d22fb1ddc00a224db9/src/patterns.jl#L655-L668" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -150,7 +150,7 @@ q = SymJ.@pattern ~x + $c</code></pre>
 <div class="md-docstring" id="SymJ.rule">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.rule</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/e9e148217fcefb3d249068f59b06cb6d8251e00f/src/patterns.jl#L740-L753" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a18f9390883924f8f1d59d22fb1ddc00a224db9/src/patterns.jl#L740-L753" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -168,14 +168,14 @@ SymJ.rule(:((~x)^(~n)) =&gt; d -&gt; d[:n] * d[:x]^(d[:n] - 1))</code></pre>
 <div class="md-docstring" id="SymJ.@rule">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.@rule</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/e9e148217fcefb3d249068f59b06cb6d8251e00f/src/patterns.jl#L715-L731" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a18f9390883924f8f1d59d22fb1ddc00a224db9/src/patterns.jl#L715-L731" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">SymJ.@rule lhs =&gt; rhs</code></pre>
 </div>
-<p>A rewrite rule: when the pattern <code class="md-code-inline">lhs</code> (as for <a href="../../reference/patterns/#SymJ.@pattern"><code class="md-code-inline">SymJ.@pattern</code></a>) matches, the result is <code class="md-code-inline">rhs</code>, Julia code run where the macro is called with <code class="md-code-inline">~x</code> the value bound to the slot <code class="md-code-inline">~x</code>. A right side that gives <code class="md-code-inline">nothing</code> rejects the match, and the search goes on to the next. Use with <a href="../../reference/patterns/#SymJ.rewrite"><code class="md-code-inline">SymJ.rewrite</code></a> or <code class="md-code-inline">replace</code>, or call the rule on an expression. Not exported.</p>
+<p>A rewrite rule: when the pattern <code class="md-code-inline">lhs</code> (as for <a href="../../reference/patterns/#SymJ.@pattern"><code class="md-code-inline">SymJ.@pattern</code></a>) matches, the result is <code class="md-code-inline">rhs</code>, Julia code run where the macro is called with <code class="md-code-inline">~x</code> the value bound to the slot <code class="md-code-inline">~x</code>. A right side that gives <code class="md-code-inline">nothing</code> rejects the match, and the search goes on to the next. Use with <a href="../../reference/patterns/#SymJ.rewrite-Tuple{Any, Vararg{Any}}"><code class="md-code-inline">SymJ.rewrite</code></a> or <code class="md-code-inline">replace</code>, or call the rule on an expression. Not exported.</p>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">r = SymJ.@rule sin(~x)^2 + cos(~x)^2 + ~~r =&gt; 1 + ~r
@@ -186,28 +186,10 @@ SymJ.@rule (~f)(~x + 2π) =&gt; (~f in (sin, cos) ? (~f)(~x) : nothing)</code></
 </div>
 </div>
 </div>
-<div class="md-docstring" id="SymJ.rewrite">
-<div class="md-docstring-header">
-<h4 class="md-docstring-binding"><code>SymJ.rewrite</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/e9e148217fcefb3d249068f59b06cb6d8251e00f/src/patterns.jl#L830-L844" title="View source">source</a>
-</div>
-<div class="md-docstring-content">
-<div class="md-code-block">
-<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">SymJ.rewrite(ex, rules...; order = :post, fixpoint = true, maxsteps = 100)</code></pre>
-</div>
-<p><code class="md-code-inline">ex</code> with the rules applied wherever they match: to every part (the terms of a sum, the factors of a product, the arguments of a function), from the leaves up (<code class="md-code-inline">order = :post</code>) or from the top down (<code class="md-code-inline">:pre</code>). At each part the first rule that gives a result is used. With <code class="md-code-inline">fixpoint = true</code> the walk is repeated until nothing changes, at most <code class="md-code-inline">maxsteps</code> times, with a warning when that limit is reached. <code class="md-code-inline">rules</code> are <a href="../../reference/patterns/#SymJ.Rule"><code class="md-code-inline">SymJ.Rule</code></a>s, or vectors of them. Not exported.</p>
-<div class="md-code-block">
-<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">r = SymJ.@rule log(~x * ~y) =&gt; log(~x) + log(~y)
-SymJ.rewrite(log(a * b * c), r)          # log(a) + log(b) + log(c)</code></pre>
-</div>
-</div>
-</div>
 <div class="md-docstring" id="SymJ.Pattern">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.Pattern</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/e9e148217fcefb3d249068f59b06cb6d8251e00f/src/patterns.jl#L210-L215" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a18f9390883924f8f1d59d22fb1ddc00a224db9/src/patterns.jl#L210-L215" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -220,7 +202,7 @@ SymJ.rewrite(log(a * b * c), r)          # log(a) + log(b) + log(c)</code></pre>
 <div class="md-docstring" id="SymJ.Rule">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.Rule</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/e9e148217fcefb3d249068f59b06cb6d8251e00f/src/patterns.jl#L673-L679" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a18f9390883924f8f1d59d22fb1ddc00a224db9/src/patterns.jl#L673-L679" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -233,7 +215,7 @@ SymJ.rewrite(log(a * b * c), r)          # log(a) + log(b) + log(c)</code></pre>
 <div class="md-docstring" id="Base.eachmatch-Tuple{SymJ.Pattern, Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>Base.eachmatch</code> — <span class="md-docstring-sig">Tuple{SymJ.Pattern, Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/e9e148217fcefb3d249068f59b06cb6d8251e00f/src/patterns.jl#L611-L616" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a18f9390883924f8f1d59d22fb1ddc00a224db9/src/patterns.jl#L611-L616" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -246,7 +228,7 @@ SymJ.rewrite(log(a * b * c), r)          # log(a) + log(b) + log(c)</code></pre>
 <div class="md-docstring" id="Base.match-Tuple{SymJ.Pattern, Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>Base.match</code> — <span class="md-docstring-sig">Tuple{SymJ.Pattern, Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/e9e148217fcefb3d249068f59b06cb6d8251e00f/src/patterns.jl#L599-L604" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a18f9390883924f8f1d59d22fb1ddc00a224db9/src/patterns.jl#L599-L604" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -259,7 +241,7 @@ SymJ.rewrite(log(a * b * c), r)          # log(a) + log(b) + log(c)</code></pre>
 <div class="md-docstring" id="Base.occursin-Tuple{SymJ.Pattern, Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>Base.occursin</code> — <span class="md-docstring-sig">Tuple{SymJ.Pattern, Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/e9e148217fcefb3d249068f59b06cb6d8251e00f/src/patterns.jl#L623-L628" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a18f9390883924f8f1d59d22fb1ddc00a224db9/src/patterns.jl#L623-L628" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -272,7 +254,7 @@ SymJ.rewrite(log(a * b * c), r)          # log(a) + log(b) + log(c)</code></pre>
 <div class="md-docstring" id="Base.replace-Tuple{Sym, SymJ.Rule}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>Base.replace</code> — <span class="md-docstring-sig">Tuple{Sym, SymJ.Rule}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/e9e148217fcefb3d249068f59b06cb6d8251e00f/src/patterns.jl#L864-L892" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a18f9390883924f8f1d59d22fb1ddc00a224db9/src/patterns.jl#L864-L892" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -290,7 +272,7 @@ replace(f, ex::Sym)</code></pre>
 <li><p>an expression and a value: that subexpression (as <code class="md-code-inline">subs</code> does).</p>
 </li>
 </ul>
-<p><code class="md-code-inline">replace(f, ex)</code> (as Julia&#39;s <code class="md-code-inline">replace(f, A)</code>) replaces each subexpression <code class="md-code-inline">e</code> by <code class="md-code-inline">f(e)</code> (return <code class="md-code-inline">e</code> to keep it). With rules only, the one pass of <a href="../../reference/patterns/#SymJ.rewrite"><code class="md-code-inline">SymJ.rewrite</code></a> with <code class="md-code-inline">fixpoint = false</code>.</p>
+<p><code class="md-code-inline">replace(f, ex)</code> (as Julia&#39;s <code class="md-code-inline">replace(f, A)</code>) replaces each subexpression <code class="md-code-inline">e</code> by <code class="md-code-inline">f(e)</code> (return <code class="md-code-inline">e</code> to keep it). With rules only, the one pass of <a href="../../reference/patterns/#SymJ.rewrite-Tuple{Any, Vararg{Any}}"><code class="md-code-inline">SymJ.rewrite</code></a> with <code class="md-code-inline">fixpoint = false</code>.</p>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">@syms x y
@@ -298,6 +280,24 @@ replace(sin(x) + sin(y)^2, :(sin(~u)) =&gt; :(cos(~u)))              # cos(x) + 
 replace(exp(x) + exp(2y), :(exp(~u)) =&gt; :(1 + ~u))                 # x + 2y + 2
 replace(x^2 + 3x + 5, (e -&gt; SymJ.isnumber(e) &amp;&amp; e &gt; 2) =&gt; (e -&gt; e - 1))   # x^2 + 2x + 4
 replace(e -&gt; SymJ.isnumber(e) ? 2e : e, x^2 + 3x + 1)              # x^4 + 6x + 2</code></pre>
+</div>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.rewrite-Tuple{Any, Vararg{Any}}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.rewrite</code> — <span class="md-docstring-sig">Tuple{Any, Vararg{Any}}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a18f9390883924f8f1d59d22fb1ddc00a224db9/src/patterns.jl#L830-L844" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.rewrite(ex, rules...; order = :post, fixpoint = true, maxsteps = 100)</code></pre>
+</div>
+<p><code class="md-code-inline">ex</code> with the rules applied wherever they match: to every part (the terms of a sum, the factors of a product, the arguments of a function), from the leaves up (<code class="md-code-inline">order = :post</code>) or from the top down (<code class="md-code-inline">:pre</code>). At each part the first rule that gives a result is used. With <code class="md-code-inline">fixpoint = true</code> the walk is repeated until nothing changes, at most <code class="md-code-inline">maxsteps</code> times, with a warning when that limit is reached. <code class="md-code-inline">rules</code> are <a href="../../reference/patterns/#SymJ.Rule"><code class="md-code-inline">SymJ.Rule</code></a>s, or vectors of them. Not exported.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">r = SymJ.@rule log(~x * ~y) =&gt; log(~x) + log(~y)
+SymJ.rewrite(log(a * b * c), r)          # log(a) + log(b) + log(c)</code></pre>
 </div>
 </div>
 </div>
@@ -318,6 +318,6 @@ replace(e -&gt; SymJ.isnumber(e) ? 2e : e, x^2 + 3x + 1)              # x^4 + 6x
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=92ac9931"></script>
+  <script src="../../assets/materialdocs.js?v=b97edf06"></script>
 </body>
 </html>
