@@ -948,6 +948,26 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test arity(f(x, y)) == 2
     end
 
+    @testset "@syms forms" begin
+        @syms xs[1:10]
+        @test xs isa Vector{Sym} && length(xs) == 10 && string(xs[10]) == "xs₁₀"
+        @syms a0[0:3]
+        @test string.(a0) == ["a0₀", "a0₁", "a0₂", "a0₃"] && a0[1] == Sym(Symbol("a0₀"))   # indices in the names only
+        @syms M[1:2, 1:3]
+        @test size(M) == (2, 3) && string(M[2, 3]) == "M₂_₃"
+        @syms w[-1:1]
+        @test string(w[1]) == "w₋₁"
+        @syms p1, q1, h1()
+        @test p1 == Sym(:p1) && q1 == Sym(:q1) && h1 isa SymFunction
+        @syms fs[1:3]()
+        @test fs[2] isa SymFunction && string(fs[2](x)) == "fs₂(x)"
+        m = 3
+        @syms c3[1:m]                                           # a range from a variable
+        @test length(c3) == 3
+        @test (@syms p2 q2[1:2]) == (Sym(:p2), [Sym(Symbol("q2₁")), Sym(Symbol("q2₂"))])
+        @test_throws ArgumentError @eval @syms bad[1.0:2.0]
+    end
+
     @testset "printing" begin
         @test string(x^2 + 2x + 1) == "x^2 + 2*x + 1"
         @test string(x - y) == "x - y"

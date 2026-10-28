@@ -727,10 +727,18 @@ end
 
 """
     @syms x y f()
+    @syms xs[1:10] A[0:2, 0:2] fs[1:3]()
 
 Create symbols (and, with `f()`, a [`SymFunction`](@ref)) and bind them to the names.
+`xs[r₁, r₂, …]`, with ranges (evaluated where the macro is called, so `xs[1:n]` works),
+binds an array of symbols named by their indices: `@syms xs[0:3]` gives the vector
+`[xs₀, xs₁, xs₂, xs₃]` (indexed from 1 as usual; the offset is in the names), and
+`A[1:2, 1:2]` a matrix of `A₁_₁, A₁_₂, …`. `fs[1:3]()` gives functions. The names may
+also be separated by commas, `@syms x, y`.
 """
 macro syms(xs...)
+    # commas: a single tuple of declarations
+    length(xs) == 1 && xs[1] isa Expr && xs[1].head === :tuple && (xs = Tuple(xs[1].args))
     ex = Expr(:block)
     names = Symbol[]
     for x in xs
@@ -741,12 +749,36 @@ macro syms(xs...)
             f = x.args[1]
             push!(ex.args, :($(esc(f)) = SymFunction($(QuoteNode(f)))))
             push!(names, f)
+        elseif x isa Expr && x.head === :ref && x.args[1] isa Symbol && length(x.args) >= 2
+            push!(ex.args, _syms_array(x, false))
+            push!(names, x.args[1])
+        elseif x isa Expr && x.head === :call && length(x.args) == 1 && x.args[1] isa Expr &&
+               x.args[1].head === :ref && x.args[1].args[1] isa Symbol && length(x.args[1].args) >= 2
+            push!(ex.args, _syms_array(x.args[1], true))
+            push!(names, x.args[1].args[1])
         else
-            throw(ArgumentError("@syms: unsupported argument $x"))
+            throw(ArgumentError("@syms: unsupported argument $x (use x, f(), xs[1:n] or fs[1:n]())"))
         end
     end
     push!(ex.args, Expr(:tuple, map(esc, names)...))
     ex
+end
+
+# xs[r...] (fs[r...]()): the array built at run time from the ranges
+_syms_array(x::Expr, fn::Bool) =
+    :($(esc(x.args[1])) = $(_symarray)($(QuoteNode(x.args[1])), ($(map(esc, x.args[2:end])...),), $fn))
+
+const _SUBSCRIPTS = Dict{Char,Char}('-' => '₋', '0' => '₀', '1' => '₁', '2' => '₂', '3' => '₃', '4' => '₄',
+                                    '5' => '₅', '6' => '₆', '7' => '₇', '8' => '₈', '9' => '₉')
+_subscript(i::Integer) = join(_SUBSCRIPTS[c] for c in string(i))
+
+function _symarray(base::Symbol, ranges::Tuple, fn::Bool)
+    all(r -> r isa AbstractRange{<:Integer}, ranges) ||
+        throw(ArgumentError("@syms: $base[...] takes integer ranges, such as $base[1:5]"))
+    map(Iterators.product(ranges...)) do ind
+        name = Symbol(base, join(map(_subscript, ind), "_"))
+        fn ? SymFunction(name) : Sym(name)
+    end
 end
 
 # (internal, not exported: parameters are hidden until the name question is settled)
