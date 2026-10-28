@@ -613,6 +613,20 @@ solve(x^2 ~ 2, x; assume = (x ∈ ℚ,))
 end
 ```
 
+The facts are read by the operations that take `assume` (`refine`, `simplify`, `solve`,
+`limit`, …), not by arithmetic: an expression is built the same way inside a block as
+outside it, so it never depends on the facts in force. `(a^4)^(3/4)` is not `a^3` for
+every `a` (it is `1` at `a = -1` and at `a = im`), so `16(a^4)^(3/4)/(9a^2)` keeps
+`(a^4)^(3/4)` even with `a > 0` assumed; `simplify` or `refine` in the block applies
+the facts:
+
+```@example tut
+@assuming a > 0 begin
+    e = 16(a^4)^(3//4) / (9a^2)
+    e, simplify(e)
+end
+```
+
 When the answer depends on something the facts leave open, the result lists the cases:
 
 ```@example tut
