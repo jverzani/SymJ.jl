@@ -956,6 +956,20 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test_throws ArgumentError solve(a * x ≫ 1, x)               # parameters: not yet
         @test_throws ArgumentError solve(sin(x) ≫ 0, x)
         @test_throws ArgumentError solve(x^5 + a * x + 1 ~ 0, x)  # degree 5, symbolic
+
+        # products: solved factor by factor
+        @test solve(diff((a / x)^x, x) ~ 0, x) == [a / SymJ.E]          # (a/x)^x is never 0
+        @test solve(diff(x^x, x) ~ 0, x) == [1 / SymJ.E]
+        @test solve(x * exp(x) ~ 0, x) == [0]
+        @test solve((x - 1)^2 * exp(2x) ~ 0, x) == [1]
+        @test solve(2^x * (x + 1) ~ 0, x) == [-1]
+        @test solve(exp(x) * (exp(x) - 3) ~ 0, x) == [log(Sym(3))]
+        @test solve(x^2 * cos(x) ~ 0, x) == [-PI / 2, 0, PI / 2]
+        @test solve((x - 1) * log(x + 2) ~ 0, x) == [-1, 1]
+        @test solve(diff(x * exp(-x), x) ~ 0, x) == [1]                 # a common factor
+        @test solve(x * log(x) ~ 0, x) == [1]                           # log(0) is not defined
+        @test solve(sin(x) * log(x) ~ 0, x) == [1, PI]
+        @test solve(sqrt(x) * (x - 1) ~ 0, x) == [0, 1]
     end
 
     @testset "TermInterface" begin

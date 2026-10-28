@@ -519,6 +519,15 @@ Several logarithms of the unknown are combined; roots where a logarithm would be
 solve(log(x) + log(x - 1) ~ log(Sym(6)), x)
 ```
 
+A product is zero where one of its factors is, so a product (or a sum with a common
+factor) is solved factor by factor. A factor that is never zero, such as `(a/x)^x`,
+gives no roots, and a root where another factor is undefined is dropped (`x*log(x)` has
+none at `0`). This finds critical points:
+
+```@example tut
+solve(diff((a / x)^x, x) ~ 0, x), solve(diff(x^2 * exp(-x), x) ~ 0, x), solve(x * log(x) ~ 0, x)
+```
+
 Some equations need the Lambert W function:
 
 ```@example tut
