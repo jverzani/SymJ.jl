@@ -389,6 +389,35 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test expand(sin((x + 1)^2)) == sin(x^2 + 2x + 1)
     end
 
+    @testset "nsimplify" begin
+        NS = SymJ.nsimplify
+        @test NS(0.75) == Sym(3 // 4)
+        @test NS(1 / 3) == Sym(1 // 3)
+        @test NS(0.1234) == Sym(617 // 5000)
+        @test NS(2.0) == 2
+        @test NS(sqrt(2)) == sqrt(Sym(2))
+        @test NS(-sqrt(7) / 3) == -sqrt(Sym(7)) / 3
+        @test NS((1 + sqrt(5)) / 2) == (1 + sqrt(Sym(5))) / 2
+        @test NS(cbrt(2)) == Sym(2)^(1 // 3)
+        @test NS(sqrt(2) + sqrt(3)) == sqrt(Sym(2)) + sqrt(Sym(3))         # degree 4, denested
+        @test NS(0.5x + 1.4142135623730951) == x / 2 + sqrt(Sym(2))
+        @test NS(2pi / 3; constants = [PI]) == 2PI / 3
+        @test NS(1 + 2pi; constants = [PI]) == 1 + 2PI
+        @test NS(pi / 4 + log(2) / 3; constants = [PI, log(Sym(2))]) == PI / 4 + log(Sym(2)) / 3
+        @test NS(3 + 2.718281828459045im; constants = [E]) == 3 + E * im
+        @test NS(1.414214; tol = 1e-6) == sqrt(Sym(2))
+        @test NS(1.414214) == Sym(1.414214)                                  # too few digits for the default tol
+        for v in (log(2), float(pi), exp(1), 0.7853981633974483, 2.288989899226962)
+            r = NS(v)                                                        # left alone
+            @test SymJ.isnumber(r)
+            @test SymJ.isfloat(r.num)
+        end
+        @test NS(float(pi); constants = [PI]) == PI
+        @test NS(x + y) == x + y
+        @test_throws ArgumentError NS(0.5; constants = [x])
+        @test_throws ArgumentError NS(0.5; tol = 2)
+    end
+
     @testset "gather, coeff, rationalize" begin
         @syms a b c t w()
         G, C = SymJ.gather, SymJ.coeff

@@ -710,15 +710,19 @@ only rationals, not recognized constants such as `√2` or `π`.
 Base.rationalize(ex::Sym; tol = nothing) = rationalize(Int, ex; tol)
 Base.rationalize(::Type{T}, ex::Sym; tol = nothing) where {T<:Integer} = _rationalize(ex, T, tol)
 
-function _rationalize(e::Sym, T, tol)
-    r(x::SymNumber) = isfloat(x) ? (f = Float64(x); isfinite(f) ?
-        SymNumber(tol === nothing ? rationalize(T, f) : rationalize(T, f; tol)) : x) : x
-    R(a::Sym) = _rationalize(a, T, tol)
+_rationalize(e::Sym, T, tol) = _mapfloats(e) do f
+    SymNumber(tol === nothing ? rationalize(T, f) : rationalize(T, f; tol))
+end
+
+# e with each finite float f (coefficients and exponents too) replaced by r(f)
+function _mapfloats(r, e::Sym)
+    n(x::SymNumber) = isfloat(x) && isfinite(Float64(x)) ? Sym(r(Float64(x))) : Sym(x)
+    R(a::Sym) = _mapfloats(r, a)
     k = e.kind
-    k == NUMBER && return Sym(r(e.num))
+    k == NUMBER && return n(e.num)
     isempty(e.args) && return e
-    k == ADD && return Sym(r(e.num)) + _add_many(Sym(r(c)) * R(a) for (c, a) in zip(e.coefs, e.args))
-    k == MUL && return Sym(r(e.num)) * prod((R(b)^R(p) for (b, p) in zip(e.args, e.exps)); init = ONE)
+    k == ADD && return n(e.num) + _add_many(n(c) * R(a) for (c, a) in zip(e.coefs, e.args))
+    k == MUL && return n(e.num) * prod((R(b)^R(p) for (b, p) in zip(e.args, e.exps)); init = ONE)
     k == POW && return R(e.args[1])^R(e.args[2])
     _rebuild_node(e, Sym[R(a) for a in e.args])
 end
