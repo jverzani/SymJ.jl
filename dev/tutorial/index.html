@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=a1bbe74a">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=92f23272">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -140,6 +140,22 @@ f(x^2)</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[f\left( x^{2} \right)\]
+</div>
+</div>
+<p>An indexed family of variables is an array of symbols named by their indices (the array itself is indexed from 1):</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms xs[0:3] A[1:2, 1:2]
+xs, A</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \left[ xs_0, \; xs_1, \; xs_2, \; xs_3 \right], \; \left[
+\begin{array}{cc}
+A_1__{1} &amp; A_1__{2} \\
+A_2__{1} &amp; A_2__{2} \\
+\end{array}
+\right] \right)\]
 </div>
 </div>
 <h2 id="Symbolic-numbers" class="md-heading">Symbolic numbers<a href="#Symbolic-numbers" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
@@ -1985,6 +2001,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=a1bbe74a"></script>
+  <script src="../assets/materialdocs.js?v=92f23272"></script>
 </body>
 </html>
