@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=88ca6b77">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=a6967d5f">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -253,6 +253,16 @@ SymJ.gather(a * x^2 + b * x^2 + a * x - b * x + c, x), SymJ.coeff((x + y)^3, x^2
 </div>
 <div class="md-math md-math-display">
 \[\frac{x}{2} + \frac{5}{4}\]
+</div>
+</div>
+<p><code class="md-code-inline">SymJ.nsimplify</code> recognizes floats as exact numbers: rationals, algebraic numbers of low degree in radicals, and rational combinations of given constants:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.nsimplify(0.5x + 1.4142135623730951), SymJ.nsimplify(1.618033988749895), SymJ.nsimplify(2.0943951023931953; constants = [pi])</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \frac{x}{2} + \sqrt{2}, \; \frac{\sqrt{5}}{2} + \frac{1}{2}, \; \frac{2 \cdot \pi}{3} \right)\]
 </div>
 </div>
 <p>An expression is a tree: an operation applied to arguments. SymJ implements TermInterface, so <code class="md-code-inline">operation</code> and <code class="md-code-inline">arguments</code> take it apart:</p>
@@ -2011,6 +2021,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=88ca6b77"></script>
+  <script src="../assets/materialdocs.js?v=a6967d5f"></script>
 </body>
 </html>
