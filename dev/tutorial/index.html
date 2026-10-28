@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=43a625d7">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=b0ff406a">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -794,6 +794,16 @@ SymJ.simplify_gamma(factorial(n + 2) / factorial(n)), SymJ.simplify_gamma(binomi
 </div>
 <div class="md-math md-math-display">
 \[\left[ 3 \right]\]
+</div>
+</div>
+<p>A product is zero where one of its factors is, so a product (or a sum with a common factor) is solved factor by factor. A factor that is never zero, such as <code class="md-code-inline">(a/x)^x</code>, gives no roots, and a root where another factor is undefined is dropped (<code class="md-code-inline">x*log(x)</code> has none at <code class="md-code-inline">0</code>). This finds critical points:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve(diff((a / x)^x, x) ~ 0, x), solve(diff(x^2 * exp(-x), x) ~ 0, x), solve(x * log(x) ~ 0, x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \left[ \frac{a}{e} \right], \; \left[ 0, \; 2 \right], \; \left[ 1 \right] \right)\]
 </div>
 </div>
 <p>Some equations need the Lambert W function:</p>
@@ -2042,6 +2052,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=43a625d7"></script>
+  <script src="../assets/materialdocs.js?v=b0ff406a"></script>
 </body>
 </html>
