@@ -179,6 +179,15 @@ u = x^2 - 2x + 1
 u(3), u(3.0), u(1 // 3), u(big(2.5))
 ```
 
+Called with no arguments, a constant expression gives its value as a Julia number, exact
+where it can be (`(Sym(1)/2)()` is `1//2`); `SymJ.unwrap_const` is the same as a
+function, for `map`, and leaves expressions with variables alone. `float` gives the
+value as a float:
+
+```@example tut
+map(SymJ.unwrap_const, [Sym(3) / 4, sqrt(Sym(2)), u]), float(Sym(pi) / 4)
+```
+
 Because the arithmetic is generic, automatic differentiation and other number types work
 through it. An expression can also be broadcast over a collection:
 

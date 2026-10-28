@@ -531,6 +531,27 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test expand((g[1] + 1)^20) == SymJ._expand_generic((g[1] + 1)^20)  # unaffected (1 generator)
     end
 
+    @testset "unwrap_const, float" begin
+        @test SymJ.unwrap_const(Sym(2)) === 2
+        @test SymJ.unwrap_const(Sym(1) / 2) === 1 // 2
+        @test SymJ.unwrap_const(PI) === π
+        @test SymJ.unwrap_const(sqrt(Sym(2))) === sqrt(2)
+        @test SymJ.unwrap_const(Sym(2.5)) === 2.5
+        e = x + 1
+        @test SymJ.unwrap_const(e) === e
+        @test SymJ.unwrap_const(3) === 3
+        @test SymJ.unwrap_const("a") == "a"
+        @test map(SymJ.unwrap_const, [Sym(2), x + 1]) == Any[2, x + 1]
+        @test float(Sym(1) / 4) === 0.25
+        @test float(PI) === Float64(π)
+        @test float(sqrt(Sym(2)) + 1) ≈ sqrt(2) + 1
+        @test float(2 + 3IM) === 2.0 + 3.0im
+        @test float(e) === e
+        @test float(Sym) === Sym
+        @test float.([Sym(1) / 2, PI]) == [0.5, Float64(π)]
+        @test isequal(float.([x, Sym(1) / 2]), Any[x, 0.5])
+    end
+
     @testset "subs and calling" begin
         # what a substitution does not reach is kept as it is (not rebuilt)
         let big = sum(sin(k * x + y) * exp(z / k) for k in 1:20) + log(x + 2)

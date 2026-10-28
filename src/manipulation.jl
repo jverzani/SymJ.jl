@@ -214,6 +214,32 @@ function _constant_value(ex::Sym)
     evaluate(ex, 0)      # the argument is unused, and an Int keeps exact values exact
 end
 
+"""
+    SymJ.unwrap_const(x)
+
+The value of a constant expression as a Julia number, and anything else as it is: `ex()`
+as a function, for `map` and other generic code (as `unwrap_const` in SymbolicUtils,
+SymEngine and Giac). Exact values stay exact: `SymJ.unwrap_const(Sym(1)/2) === 1//2`,
+`SymJ.unwrap_const(PI) === π`, `SymJ.unwrap_const(sqrt(Sym(2))) === sqrt(2)`; an expression
+with a free symbol and a non-`Sym` argument are returned unchanged. Not exported.
+
+```julia
+map(SymJ.unwrap_const, [Sym(2), x + 1, Sym(3)/4])   # Any[2, x + 1, 3//4]
+```
+"""
+unwrap_const(x) = x
+unwrap_const(ex::Sym) = _constant_value(ex)
+
+"""
+    float(ex::Sym)
+
+The value of a constant expression as a `Float64` (a `ComplexF64` when it is not real),
+as [`N`](@ref); an expression with a free symbol is returned unchanged, so generic code
+calling `float` works on it. For an array, broadcast: `float.(A)`. `float(Sym)` is `Sym`.
+"""
+Base.float(ex::Sym) = _hassymbol(ex) ? ex : N(ex)
+Base.float(::Type{Sym}) = Sym
+
 # does ex contain a symbol? (free_symbols without the allocation)
 # does ex contain a variable or parameter (_hassymbol), or a parameter? Plain loops: these
 # run before every numeric call of an expression.
