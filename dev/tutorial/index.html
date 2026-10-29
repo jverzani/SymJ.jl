@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=3384065f">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=bf913612">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -1773,6 +1773,17 @@ F(3) - F(0)</code></pre>
 \[\left( \frac{\pi}{2}, \; \sqrt{\pi}, \; -1, \; \infty \right)\]
 </div>
 </div>
+<p><code class="md-code-inline">principal_value = true</code> asks for the Cauchy principal value instead: a singular point inside is approached from both sides at once, lim<em>{ε→0⁺} (∫ₐ^{s-ε} + ∫</em>{s+ε}^b) f, and an integral over (-∞, ∞) is the limit of ∫ from -R to R. An integral that converges keeps its value; a singular end point is not crossed, so ∫₀¹ 1/x is still <code class="md-code-inline">∞</code>:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">pv(f, ab) = integrate(f, ab; principal_value = true)
+pv(1 / x, (x, -1, 2)), pv(1 / x^3, (x, -1, 2)), pv(tan(x), (x, 0, π)), pv(x / (1 + x^2), (x, -Inf, Inf))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \log\left( 2 \right), \; \frac{3}{8}, \; 0, \; 0 \right)\]
+</div>
+</div>
 <p>With a parameter the answer may depend on its sign; the cases are listed unless the assumptions decide them:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -2128,6 +2139,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=3384065f"></script>
+  <script src="../assets/materialdocs.js?v=bf913612"></script>
 </body>
 </html>
