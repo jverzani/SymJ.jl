@@ -61,7 +61,7 @@ function _show(io::IO, x::Sym, p::Int)
         f, v, a, b = (sprint(_show, t, 0) for t in x.args)
         print(io, "Integral(", f, ", (", v, ", ", a, ", ", b, "))")
     else
-        print(io, x.name, "(")
+        print(io, x.name === :atan2 ? :atan : x.name, "(")
         join(io, (sprint(_show, a, 0) for a in x.args), ", ")
         print(io, ")")
     end

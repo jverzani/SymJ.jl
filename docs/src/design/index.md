@@ -188,6 +188,10 @@ register_function!(:sin; julia = sin,                 # numeric evaluation, Term
     - `cbrt` (the real cube root), `sinc`/`cosc`;
     - `sign floor ceil trunc round`, `mod rem`, `max min` (n-ary, flattened,
       canonically ordered), `factorial`, and `binomial` (a polynomial for a literal `k`).
+    - `atan(y, x)` (internally `atan2`, so that rules for `atan`'s one argument never
+      meet it): exact for constants of known sign, placed in its quadrant by `refine`.
+    - Rounding takes Base's rounding modes, `digits` and `sigdigits` (an exact result),
+      and integer types (`floor(Int, x)`).
     - Exact values come from the function they are defined through, accepted only when
       that function disappears: `sec(π/3) = 1/cos(π/3) = 2` and `sec(acos(x)) = 1/x`,
       while poles such as `sec(π/2)` stay unevaluated.
@@ -200,6 +204,10 @@ register_function!(:sin; julia = sin,                 # numeric evaluation, Term
     `numerator`/`denominator` (via `numer_denom`).
   - *Complex parts:* `real`, `imag`, `conj`, `angle`, `reim`, and `adjoint` and
     `transpose` for arrays (see Complex numbers below).
+  - *Predicates and conversions:* `isreal`, `isfinite`, `isinf`, `isnan` are `true`
+    only when known (from the expression or an enclosing `@assuming` block);
+    `Int`, `Integer`, `Rational`, `BigFloat` and the other number types convert
+    values that fit them, else an `InexactError`.
   - *Not yet:* the bit and integer-representation functions.
 - **Package extensions.** These load automatically when the package is loaded with
   SymJ: **SpecialFunctions**, **HypergeometricFunctions** (`_₁F₁`, `_₂F₁`, `_₃F₂`,

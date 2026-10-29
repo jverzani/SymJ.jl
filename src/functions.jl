@@ -408,9 +408,11 @@ _symbolic_signatures(n::Int) =
 
 for f in (:sin, :cos, :tan, :asin, :acos, :atan, :sinh, :cosh, :tanh, :asinh, :acosh, :atanh, :abs, :log,
           :sec, :csc, :cot, :asec, :acsc, :acot, :sech, :csch, :coth, :asech, :acsch, :acoth,
-          :cbrt, :sign, :floor, :ceil, :trunc, :round)
+          :cbrt, :sign)
     @eval Base.$f(x::Sym) = apply_function($(QuoteNode(f)), Sym[x])
 end
+# (floor, ceil, trunc and round, which take a rounding mode and digits, are in
+# mathfunctions.jl)
 
 # functions with an existing symbolic form
 Base.log2(x::Sym) = log(Sym(2), x)
