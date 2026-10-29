@@ -7,9 +7,16 @@
 # that does not exist. Decisions on parameters (is the singular point inside? the sign of
 # a in a limit) go through _decide, so the answer is a Cases when the assumptions leave
 # them open.
+#
+# With principal_value = true, a singular point s inside is crossed symmetrically, the
+# Cauchy principal value lim_{ε→0⁺} (∫ₐ^{s-ε} + ∫_{s+ε}^b) f: its two one-sided values
+# F(s⁻) - F(s⁺) become the one limit of F(s - ε) - F(s + ε); over (-∞, ∞), F(∞) - F(-∞)
+# becomes the limit of F(R) - F(-R). The single limit is taken only when the one-sided
+# values are not both finite, so an integral that converges keeps its value. A singular
+# end is not crossed and is treated as before.
 
 # ∫ f dx over (x, lo, hi); antider(f, x, A) is an antiderivative under the assumptions A
-function _definite_integral(f, xab::Tuple, assume, antider)
+function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Bool = false)
     length(xab) == 3 || throw(ArgumentError("integrate: give the limits as (x, a, b)"))
     x, lo, hi = Sym(xab[1]), _endpoint(xab[2]), _endpoint(xab[3])
     _isnamed(x) || throw(ArgumentError("integrate: $x is not a symbol"))
@@ -25,7 +32,7 @@ function _definite_integral(f, xab::Tuple, assume, antider)
     _by_cases(A0) do A
         sub = collect(A.subst)
         g, l, h = isempty(sub) ? (Sym(f), lo, hi) : (subs(Sym(f), sub...), subs(lo, sub...), subs(hi, sub...))
-        _definite(g, x, l, h, antider, A)
+        _definite(g, x, l, h, antider, A, principal_value)
     end
 end
 
@@ -33,17 +40,17 @@ _endpoint(v) = v isa Real && isinf(v) ? Sym(Float64(v)) : Sym(v)
 _isinfpt(p::Sym) = p.kind == NUMBER && isfloat(p.num) && isinf(Float64(p.num))
 _infsign(p::Sym) = Float64(p.num) > 0 ? 1 : -1
 
-function _definite(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A::Assumptions)
+function _definite(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A::Assumptions, pv::Bool = false)
     _eq(lo, hi) && return ZERO
     has(f, x) || return _ordered_length(f, lo, hi, A)
     S = _singular_points(f, x, lo, hi)
     if isempty(S) && !_isinfpt(lo) && !_isinfpt(hi)
         F = _antiderivative(antider, f, x, A)
-        return _sum_values([(1, _endvalue(F, x, hi, :-, A)), (-1, _endvalue(F, x, lo, :+, A))])
+        return _sum_values([(1, _endvalue(F, x, hi, :-, A)), (-1, _endvalue(F, x, lo, :+, A))], A)
     end
     # in increasing order: ∫ₐᵇ = -∫ᵇₐ
     if _less(hi, lo, A)
-        v = _definite(f, x, hi, lo, antider, A)
+        v = _definite(f, x, hi, lo, antider, A, pv)
         return v isa Sym ? -v : v
     end
     inside = Sym[]
@@ -58,14 +65,45 @@ function _definite(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A::Assumptions)
     end
     union!(sing, inside)
     F = _antiderivative(antider, f, x, A)
-    pts = [lo; inside; hi]
     terms = Tuple{Int,Sym}[]
-    for i in 1:(length(pts) - 1)
-        push!(terms, (1, _endvalue(F, x, pts[i + 1], :-, A, pts[i + 1] in sing)))
-        push!(terms, (-1, _endvalue(F, x, pts[i], :+, A, pts[i] in sing)))
+    for s in inside                                  # F(s⁻) - F(s⁺)
+        l, r = () -> _endvalue(F, x, s, :-, A, true), () -> _endvalue(F, x, s, :+, A, true)
+        append!(terms, pv ? _pv_terms(l, r, () -> _pv_limit(F, x, s, A)) : [(1, l()), (-1, r())])
     end
-    _sum_values(terms)
+    h, l = () -> _endvalue(F, x, hi, :-, A, hi in sing), () -> _endvalue(F, x, lo, :+, A, lo in sing)
+    append!(terms, pv && _isinfpt(lo) && _isinfpt(hi) ? _pv_terms(h, l, () -> _pv_limit(F, x, nothing, A)) :
+                   [(1, h()), (-1, l())])
+    _sum_values(terms, A)
 end
+
+# the terms for a principal value: the one-sided values left() - right() when both are
+# finite, else the single symmetric limit both()
+function _pv_terms(left, right, both)
+    lr = try
+        (left(), right())
+    catch err
+        err isa ArgumentError || rethrow()
+        nothing
+    end
+    lr !== nothing && !any(_isinfpt, lr) && return [(1, lr[1]), (-1, lr[2])]
+    [(1, both())]
+end
+
+# lim_{ε→0⁺} F(s - ε) - F(s + ε), or for s = nothing lim_{R→∞} F(R) - F(-R)
+function _pv_limit(F::Sym, x::Sym, s, A)
+    t = _PV_VAR
+    D, p, dir = s === nothing ? (subs(F, x => t) - subs(F, x => -t), Sym(Inf), :-) :
+                                (subs(F, x => s - t) - subs(F, x => s + t), ZERO, :+)
+    D = simplify(D; assume = A)       # the limit code may not see a hidden zero
+    try
+        _onesided(D, t, p, dir, A)
+    catch err
+        err isa ArgumentError || rethrow()
+        throw(ArgumentError("integrate: the principal value does not exist " *
+                            (s === nothing ? "at ±∞" : "at $x = $s")))
+    end
+end
+const _PV_VAR = Sym(:_definite_pv)
 
 # ∫ c dx for c free of x
 function _ordered_length(c::Sym, lo::Sym, hi::Sym, A)
@@ -195,7 +233,7 @@ end
 const _MARK_IPI = Sym(:_definite_ipi)
 
 # Σ cᵢ vᵢ, the vᵢ finite or ±∞
-function _sum_values(terms)
+function _sum_values(terms, A::Assumptions)
     fin, infs = ZERO, Int[]
     for (c, v) in terms
         if _isinfpt(v)
@@ -208,17 +246,19 @@ function _sum_values(terms)
         all(==(infs[1]), infs) || throw(ArgumentError("integrate: the integral does not converge (∞ - ∞)"))
         return Sym(infs[1] * Inf)
     end
-    fin = _neglog_consts(fin)
+    fin = _neglog_consts(fin, A)
     _hassymbol(fin) && return fin
     s = simplify(fin)
     _nodes(s) <= _nodes(fin) ? s : fin
 end
 
-# log(c) for a negative number c written log(-c) + iπ (the principal value), so the
-# imaginary parts of the two ends cancel
-_neglog_consts(v::Sym) = _replace_walk(v) do t
-    (t.kind == FN && t.name === :log && length(t.args) == 1 && t.args[1].kind == NUMBER &&
-     t.args[1].num < N0) ? log(-t.args[1]) + IM * PI : nothing
+# log(u) for u negative (a number, or known from the assumptions) written log(-u) + iπ
+# (the principal value), so the imaginary parts of the two ends cancel
+_neglog_consts(v::Sym, A::Assumptions) = _replace_walk(v) do t
+    (t.kind == FN && t.name === :log && length(t.args) == 1) || return nothing
+    u = t.args[1]
+    neg = u.kind == NUMBER ? u.num < N0 : _hassymbol(u) && _signs(u, A) == _NEG
+    neg ? log(expand(-u)) + IM * PI : nothing
 end
 
 ## singular points of the integrand
