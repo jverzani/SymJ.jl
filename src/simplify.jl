@@ -91,6 +91,7 @@ function _refine_rule(e::Sym, A::Assumptions)
         r = haskey(_COND_RELS, e.name) ? _refine_cond(e, A) : _refine_step(e, A)
         r === nothing || return r
     end
+    k == FN && e.name === :atan2 && return _refine_atan2(e.args[1], e.args[2], A)
     if k == POW
         b, q = e.args
         if b.kind == NUMBER && b.num == NM1 && !(q.kind == NUMBER)
@@ -167,6 +168,22 @@ function _refine_rule(e::Sym, A::Assumptions)
             end
             return nothing
         end
+    end
+    nothing
+end
+
+# atan(y, x) as atan(y/x) moved to the quadrant the signs of x and y give
+function _refine_atan2(y::Sym, x::Sym, A::Assumptions)
+    my, mx = _signs(y, A), _signs(x, A)
+    (my === nothing || mx === nothing) && return nothing          # both must be real
+    mx == _POS && return _atan2_value(y, x, 0, 1)
+    if mx == _NEG
+        my & _NEG == 0 && return _atan2_value(y, x, 1, -1)
+        my == _NEG && return _atan2_value(y, x, -1, -1)
+    elseif mx == _ZER
+        my == _POS && return _atan2_value(y, x, 1, 0)
+        my == _NEG && return _atan2_value(y, x, -1, 0)
+        my == _ZER && return ZERO
     end
     nothing
 end

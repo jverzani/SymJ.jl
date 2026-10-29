@@ -201,6 +201,19 @@ value as a float:
 map(SymJ.unwrap_const, [Sym(3) / 4, sqrt(Sym(2)), u]), float(Sym(pi) / 4)
 ```
 
+Julia's number types convert a value that fits them, and throw an `InexactError` for
+one that does not: `Int(Sym(3))`, `Rational(Sym(7)/2)`, `BigFloat(Sym(pi))` at the
+current precision. Rounding works as for numbers, with a rounding mode, `digits` or
+`sigdigits` (exactly: a rational), or to an integer type:
+
+```@example tut
+round(Sym(pi); digits = 2), floor(Int, Sym(7) / 2), round(Sym(5) / 2, RoundNearestTiesAway)
+```
+
+`isreal`, `isfinite`, `isinf` and `isnan` answer `true` only when it is known: `isreal(x)`
+is `false` for a symbol, which is complex unless an enclosing `@assuming` block says
+otherwise (as `isinteger(x)` is `false`). A real expression is finite.
+
 Because the arithmetic is generic, automatic differentiation and other number types work
 through it. An expression can also be broadcast over a collection:
 

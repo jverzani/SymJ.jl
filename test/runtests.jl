@@ -193,6 +193,89 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         end
     end
 
+    @testset "atan(y, x), predicates, rounding and conversions" begin
+        @syms x y
+        # atan(y, x): exact for constants of known sign, in (-π, π]
+        @test atan(Sym(1), Sym(-1)) == 3PI / 4
+        @test atan(Sym(-1), -1) == -3PI / 4
+        @test atan(Sym(0), -2) == PI
+        @test atan(Sym(0), Sym(0)) == 0
+        @test atan(-3, Sym(0)) == -PI / 2
+        @test atan(sqrt(Sym(3)), 1) == PI / 3
+        @test atand(1, Sym(-1)) == 135
+        @test string(atan(y, x)) == "atan(y, x)"
+        @test kind(atan(y, x)) == FN
+        @test N(atan(1.0, Sym(-1))) ≈ atan(1.0, -1.0)
+        for (a, b) in ((1.0, -1.0), (-0.5, -2.0), (2.0, 0.3), (-1.0, 0.0))
+            @test atan(y, x)(y => a, x => b) == atan(Sym(a), Sym(b))
+            @test lambdify(atan(y, x), [y, x])(a, b) ≈ atan(a, b)
+        end
+        @test diff(atan(y, x), x) == -y / (x^2 + y^2)
+        @test diff(atan(y, x), y) == x / (x^2 + y^2)
+        # placed in its quadrant under assumptions
+        @test refine(atan(y, x); assume = @assume(x > 0, y in Reals)) == atan(y / x)
+        @test refine(atan(y, x); assume = @assume(x < 0, y >= 0)) == atan(y / x) + PI
+        @test refine(atan(y, x); assume = @assume(x < 0, y < 0)) == atan(y / x) - PI
+        @test refine(atan(y, x); assume = @assume(x ~ 0, y > 0)) == PI / 2
+        @test refine(atan(y, x); assume = @assume(x < 0)) == atan(y, x)        # y may be complex
+
+        # predicates: true when known
+        @test !isreal(x)
+        @test isreal(PI + 1)
+        @test !isreal(IM)
+        @test (@assuming x in Reals begin isreal(x^2 + 1) end)
+        @test !isfinite(x)
+        @test isfinite(sqrt(Sym(2)))
+        @test !isfinite(Sym(Inf))
+        @test (@assuming x > 0 begin isfinite(x) end)
+        @test !isfinite(x + Sym(Inf))
+        @test isinf(Sym(-Inf))
+        @test !isinf(x)
+        @test !isinf(PI)
+        @test !isnan(x)
+        @test !isnan(Sym(1))
+        @test modf(Sym(7) / 2) == (Sym(1) / 2, 3)
+
+        # rounding: modes, digits, and to an integer type
+        h = Sym(7) / 2
+        @test floor(Int, h) === 3
+        @test ceil(Int, h) === 4
+        @test trunc(Int, -h) === -3
+        @test round(Int, h) === 4
+        @test round(Int, Sym(5) / 2) === 2                        # ties to even, as Base
+        @test round(Sym(5) / 2, RoundNearestTiesAway) == 3
+        @test round(Sym(-5) / 2, RoundNearestTiesAway) == -3
+        @test round(Sym(5) / 2, RoundNearestTiesUp) == 3
+        @test round(h, RoundDown) == 3
+        @test round(PI; digits = 2) == Sym(157) / 50
+        @test round(PI; sigdigits = 3) == Sym(157) / 50
+        @test round(Sym(1234); sigdigits = 2) == 1200
+        @test floor(PI; digits = 3) == Sym(3141) / 1000
+        @test floor(x; digits = 1) == floor(10x) / 10
+        @test kind(round(x)) == FN
+        @test_throws ArgumentError round(x; sigdigits = 2)
+
+        # conversions
+        @test Int(Sym(3)) === 3
+        @test Integer(Sym(3)) === 3
+        @test Integer(Sym(2)^70) == big(2)^70
+        @test Int(Sym(3.0)) === 3
+        @test_throws InexactError Int(h)
+        @test_throws InexactError Int(x)
+        @test_throws InexactError Int(sqrt(Sym(2)))
+        @test Rational(h) === 7 // 2
+        @test Rational{BigInt}(h) == big(7) // 2
+        @test Float32(h) === 3.5f0
+        @test BigFloat(PI) == big(π)
+        @test_throws InexactError BigFloat(IM)
+
+        # hypot of one and of three or more arguments
+        @test hypot(x) == abs(x)
+        @test hypot(Sym(2), 3, 6) == 7
+        @test hypot(1, 2, x) == sqrt(x^2 + 5)
+        @test hypot(x, y, 1, 1) == sqrt(x^2 + y^2 + 2)
+    end
+
     @testset "inverse trig values" begin
         @test asin(Sym(1 // 2)) == PI / 6 && asin(-sqrt(Sym(2)) / 2) == -PI / 4 && asin(sqrt(Sym(3)) / 2) == PI / 3
         @test acos(Sym(-1 // 2)) == 2PI / 3 && acos(sqrt(Sym(2)) / 2) == PI / 4 && acos(Sym(-1)) == PI
