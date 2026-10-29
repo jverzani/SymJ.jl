@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Design notes — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=d1fa9bf0">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=f60c1d39">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Design notes — SymJ.jl">
   <meta property="og:title" content="Design notes — SymJ.jl">
@@ -267,6 +267,10 @@ end</code></pre>
 </li>
 <li><p><code class="md-code-inline">sign floor ceil trunc round</code>, <code class="md-code-inline">mod rem</code>, <code class="md-code-inline">max min</code> (n-ary, flattened, canonically ordered), <code class="md-code-inline">factorial</code>, and <code class="md-code-inline">binomial</code> (a polynomial for a literal <code class="md-code-inline">k</code>).</p>
 </li>
+<li><p><code class="md-code-inline">atan(y, x)</code> (internally <code class="md-code-inline">atan2</code>, so that rules for <code class="md-code-inline">atan</code>&#39;s one argument never meet it): exact for constants of known sign, placed in its quadrant by <code class="md-code-inline">refine</code>.</p>
+</li>
+<li><p>Rounding takes Base&#39;s rounding modes, <code class="md-code-inline">digits</code> and <code class="md-code-inline">sigdigits</code> (an exact result), and integer types (<code class="md-code-inline">floor(Int, x)</code>).</p>
+</li>
 <li><p>Exact values come from the function they are defined through, accepted only when that function disappears: <code class="md-code-inline">sec(π/3) = 1/cos(π/3) = 2</code> and <code class="md-code-inline">sec(acos(x)) = 1/x</code>, while poles such as <code class="md-code-inline">sec(π/2)</code> stay unevaluated.</p>
 </li>
 <li><p>Piecewise constant functions evaluate constant arguments numerically only away from their jumps. Their derivatives are left unevaluated.</p>
@@ -276,6 +280,8 @@ end</code></pre>
 <li><p><em>Rewrites into existing forms:</em> the degree variants (<code class="md-code-inline">sind</code>, <code class="md-code-inline">asind</code>, …), <code class="md-code-inline">sinpi</code>, <code class="md-code-inline">cospi</code>, <code class="md-code-inline">tanpi</code>, <code class="md-code-inline">log2</code>, <code class="md-code-inline">log10</code>, <code class="md-code-inline">log1p</code>, <code class="md-code-inline">exp2</code>, <code class="md-code-inline">exp10</code>, <code class="md-code-inline">expm1</code>, <code class="md-code-inline">hypot</code>, <code class="md-code-inline">abs2</code>, <code class="md-code-inline">fourthroot</code>, <code class="md-code-inline">cis</code>, <code class="md-code-inline">cispi</code>, <code class="md-code-inline">deg2rad</code>, <code class="md-code-inline">rad2deg</code>, <code class="md-code-inline">div</code>/<code class="md-code-inline">fld</code>/<code class="md-code-inline">cld</code>, <code class="md-code-inline">mod2pi</code>, <code class="md-code-inline">clamp</code>, <code class="md-code-inline">minmax</code>, <code class="md-code-inline">muladd</code>/<code class="md-code-inline">fma</code> (so <code class="md-code-inline">evalpoly</code> works), <code class="md-code-inline">\</code>, and <code class="md-code-inline">numerator</code>/<code class="md-code-inline">denominator</code> (via <code class="md-code-inline">numer_denom</code>).</p>
 </li>
 <li><p><em>Complex parts:</em> <code class="md-code-inline">real</code>, <code class="md-code-inline">imag</code>, <code class="md-code-inline">conj</code>, <code class="md-code-inline">angle</code>, <code class="md-code-inline">reim</code>, and <code class="md-code-inline">adjoint</code> and <code class="md-code-inline">transpose</code> for arrays (see Complex numbers below).</p>
+</li>
+<li><p><em>Predicates and conversions:</em> <code class="md-code-inline">isreal</code>, <code class="md-code-inline">isfinite</code>, <code class="md-code-inline">isinf</code>, <code class="md-code-inline">isnan</code> are <code class="md-code-inline">true</code> only when known (from the expression or an enclosing <code class="md-code-inline">@assuming</code> block); <code class="md-code-inline">Int</code>, <code class="md-code-inline">Integer</code>, <code class="md-code-inline">Rational</code>, <code class="md-code-inline">BigFloat</code> and the other number types convert values that fit them, else an <code class="md-code-inline">InexactError</code>.</p>
 </li>
 <li><p><em>Not yet:</em> the bit and integer-representation functions.</p>
 </li>
@@ -625,6 +631,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=d1fa9bf0"></script>
+  <script src="../../assets/materialdocs.js?v=f60c1d39"></script>
 </body>
 </html>
