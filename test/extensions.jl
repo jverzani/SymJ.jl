@@ -177,6 +177,32 @@ import PolyLog as PL
         @test N(∫(1 / (x - a), (x, 0, 1))(a => 2)) ≈ -log(2)
     end
 
+    @testset "RischIntegrate: principal values" begin
+        ∫(f, t...; kw...) = RischIntegrate.integrate(f, t...; principal_value = true, kw...)
+        same(v, w) = VERSION >= v"1.12" ? v == w : N(v) ≈ N(w)
+        @test ∫(1 / x, (x, -1, 1)) == 0
+        @test same(∫(1 / x, (x, -1, 2)), log(Sym(2)))
+        @test same(∫(1 / (x - 1), (x, 0, 3)), log(Sym(2)))
+        @test same(∫(1 / x^3, (x, -1, 2)), Sym(3) / 8)
+        @test same(∫(1 / (x^2 - 1), (x, 0, 2)), -log(Sym(3)) / 2)
+        @test ∫(x, (x, -Inf, Inf)) == 0                                  # symmetric at ±∞
+        @test ∫(x / (1 + x^2), (x, -Inf, Inf)) == 0
+        @test ∫(sin(x), (x, -Inf, Inf)) == 0
+        @test ∫(tan(x), (x, 0, PI)) == 0
+        @test ∫(1 / (1 + x^2), (x, -Inf, Inf)) == PI                     # convergent: unchanged
+        @test ∫(1 / x^2, (x, -1, 1)) == Sym(Inf)                          # still divergent
+        @test ∫(1 / x, (x, 0, 1)) == Sym(Inf)                             # a singular end is not crossed
+        @test_throws ArgumentError RischIntegrate.integrate(1 / x, (x, -1, 1))   # only when asked
+        # parameters: the cases, with logs of negative arguments made real
+        v = ∫(1 / (x - a), (x, 0, 2); assume = @assume(a > 0, a < 2))
+        @test isreal(subs(v, a => Sym(1) / 2))
+        @test N(subs(v, a => 0.5)) ≈ log(1.5 / 0.5)
+        cs = ∫(1 / (x - a), (x, 0, 2))
+        @test cs isa SymJ.Cases
+        @test N(cs(a => 3)) ≈ log(1 / 3)
+        @test cs(a => 0) == Sym(Inf)
+    end
+
     @testset "RischIntegrate: assumptions decide the form" begin
         E = Base.get_extension(SymJ, :SymJRischIntegrateExt)
         if E._has_oracle()                                               # RischIntegrate with a sign oracle

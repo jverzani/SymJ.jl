@@ -177,8 +177,9 @@ transforms). Of the rest, in rough order of value for calculus-level use:
    Breakpoints with several parameters are ordered by the assumptions, and split into
    cases (a `Cases`) when the assumptions do not order them.
 4. **Definite integrals**: done (singular points, limits, divergence, cases on
-   parameters). Open: principal values, and limits of special functions the limit code
-   does not know beyond `erf`, `erfc`, `erfi`, `sinint`, `cosint` at ±∞.
+   parameters, and Cauchy principal values with `principal_value = true`). Open: limits
+   of special functions the limit code does not know beyond `erf`, `erfc`, `erfi`,
+   `sinint`, `cosint` at ±∞.
 5. **Laplace transforms**: done for the elementary transforms and `heaviside`/`dirac`
    shifts (and used by `dsolve`). Open: a table of special-function transforms, and
    Fourier, Mellin and Z transforms.
