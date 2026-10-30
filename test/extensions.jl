@@ -228,5 +228,12 @@ import PolyLog as PL
         r = D(y'(x) + y(x) ~ x * y(x)^3, y(x))                                                 # Bernoulli
         @test iszero(simplify(diff(r.rhs, x) + r.rhs - x * r.rhs^3))
         @test D(y'(x) ~ exp(x + y(x)), y(x)) == (-exp(-y(x)) - exp(x) ~ C1)                     # separable, implicit
+        # one constant, in tan or exp: the equation's solve; a constant in several
+        # exponents, e^(k C), absorbed
+        @test D(y'(x) ~ (1 + x^2) * (1 + y(x)^2), y(x), y(0) => 1) == (y(x) ~ tan(x^3 / 3 + x + PI / 4))
+        @test D(y'(x) ~ y(x) * (1 - y(x) / 100), y(x), y(0) => 20) == (y(x) ~ 100exp(x) / (exp(x) + 4))
+        @syms a
+        @test D(y'(x) ~ a * y(x) * (1 - y(x)), y(x)) == (y(x) ~ C1 * exp(a * x) / (C1 * exp(a * x) - 1))
+        @test D(y'(x) ~ a * y(x) * (1 - y(x)), y(x), y(0) => Sym(1) / 2) == (y(x) ~ exp(a * x) / (exp(a * x) + 1))
     end
 end
