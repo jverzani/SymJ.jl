@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=7bd8ef0a">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=98e56cb5">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -1856,6 +1856,17 @@ integrate(x^n * y^m, (y, 0, x), (x, 0, 1); assume = @assume(n &gt; 0, m &gt; 0))
 \[\frac{1}{\left( m + 1 \right) \cdot \left( m + n + 2 \right)}\]
 </div>
 </div>
+<p>The variable of integration is real, as are the parameters of a definite integral, so the <code class="md-code-inline">conj</code> that <code class="md-code-inline">dot</code> puts on symbols drops out. A line integral, the work of ⟨-y, x⟩ around the unit circle:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">r = [cos(t), sin(t)]
+integrate(dot([-r[2], r[1]], diff.(r, t)), (t, 0, 2Sym(π)))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[2 \cdot \pi\]
+</div>
+</div>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -2192,6 +2203,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=7bd8ef0a"></script>
+  <script src="../assets/materialdocs.js?v=98e56cb5"></script>
 </body>
 </html>
