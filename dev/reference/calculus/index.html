@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Calculus — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=21d0e212">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=a4a5ae54">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Calculus — SymJ.jl">
   <meta property="og:title" content="Calculus — SymJ.jl">
@@ -74,7 +74,7 @@
 <div class="md-docstring" id="SymJ.limit-Tuple{Any, Pair}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.limit</code> — <span class="md-docstring-sig">Tuple{Any, Pair}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1595d28ebd3e6f8135b0363a86252557545aca7f/src/limit.jl#L17-L40" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/efe453aca13d40c5d46a0109e6db032e3e65ad42/src/limit.jl#L17-L44" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -83,6 +83,7 @@
 </div>
 <p>The limit of <code class="md-code-inline">f</code> as <code class="md-code-inline">x</code> tends to <code class="md-code-inline">x0</code>: a number, an expression, or <code class="md-code-inline">±Inf</code>. The limit is two-sided unless <code class="md-code-inline">dir</code> is <code class="md-code-inline">:+</code> (from above) or <code class="md-code-inline">:-</code> (from below). Computed by Gruntz&#39;s algorithm (<a href="https://github.com/jverzani/GruntzLimit.jl">GruntzLimit</a>), which handles exponentials and logarithms that cancel in ways numerical evaluation cannot follow.</p>
 <p>The other symbols are real numbers, and the answer is the generic one: a constant that may vanish is taken to be nonzero. Facts about them can be given with <code class="md-code-inline">assume</code> (or in an <a href="../../reference/assumptions/#SymJ.assuming-Tuple{Any, Vararg{Any}}"><code class="md-code-inline">assuming</code></a> block, see <a href="../../reference/assumptions/#SymJ.Assumptions"><code class="md-code-inline">Assumptions</code></a>). When the limit depends on the sign of something the facts leave open, the answer is a <code class="md-code-inline">Cases</code> value, one limit for each case, which can be called with values (<code class="md-code-inline">cs(a =&gt; 2)</code>). The limit is a <code class="md-code-inline">Sym</code>, <code class="md-code-inline">Sym(Inf)</code> or <code class="md-code-inline">Sym(-Inf)</code> for an infinite one. A limit that does not exist (<code class="md-code-inline">sin(x)</code> at <code class="md-code-inline">Inf</code>) throws a <code class="md-code-inline">GruntzError</code>.</p>
+<p><code class="md-code-inline">f</code> may itself be a <code class="md-code-inline">Cases</code> value (as a definite integral with a variable end gives): the cases whose conditions on <code class="md-code-inline">x</code> hold near <code class="md-code-inline">x0</code> are kept, each with its limit (∫₁ᴹ as <code class="md-code-inline">M → ∞</code> takes the case <code class="md-code-inline">M &gt; 1</code>).</p>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">limit(sin(x) / x, x =&gt; 0)                    # 1
@@ -93,10 +94,23 @@ limit(x^a, x =&gt; Inf; assume = @assume(a &gt; 1))   # Inf</code></pre>
 </div>
 </div>
 </div>
+<div class="md-docstring" id="SymJ.subs-Tuple{SymJ.Cases, Vararg{Pair}}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.subs</code> — <span class="md-docstring-sig">Tuple{SymJ.Cases, Vararg{Pair}}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/efe453aca13d40c5d46a0109e6db032e3e65ad42/src/limit.jl#L223-L229" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">subs(cs::Cases, x =&gt; v, ...)</code></pre>
+</div>
+<p>Substitution into each case: its answer and its conditions. A condition that becomes decided (a statement about numbers) is dropped when it holds, and its case when it does not; the answer of the one case left with no conditions is returned as it is.</p>
+</div>
+</div>
 <div class="md-docstring" id="Base.diff">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>Base.diff</code> — <span class="md-docstring-sig">Union{Tuple{Sym, Sym}, Tuple{Sym, Sym, Integer}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1595d28ebd3e6f8135b0363a86252557545aca7f/src/calculus.jl#L1-L17" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/efe453aca13d40c5d46a0109e6db032e3e65ad42/src/calculus.jl#L1-L17" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -117,7 +131,7 @@ diff(sin(x * y), x, y)       # -x*y*sin(x*y) + cos(x*y)</code></pre>
 <div class="md-docstring" id="SymJ.SymSeries">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymSeries</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1595d28ebd3e6f8135b0363a86252557545aca7f/src/series.jl#L231-L239" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/efe453aca13d40c5d46a0109e6db032e3e65ad42/src/series.jl#L231-L239" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -130,7 +144,7 @@ diff(sin(x * y), x, y)       # -x*y*sin(x*y) + cos(x*y)</code></pre>
 <div class="md-docstring" id="Base.diff-Tuple{SymJ.SymSeries, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>Base.diff</code> — <span class="md-docstring-sig">Tuple{SymJ.SymSeries, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1595d28ebd3e6f8135b0363a86252557545aca7f/src/series.jl#L362-L366" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/efe453aca13d40c5d46a0109e6db032e3e65ad42/src/series.jl#L362-L366" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -143,7 +157,7 @@ diff(sin(x * y), x, y)       # -x*y*sin(x*y) + cos(x*y)</code></pre>
 <div class="md-docstring" id="SymJ.series">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.series</code> — <span class="md-docstring-sig">Union{Tuple{Any, Sym}, Tuple{Any, Sym, Any}, Tuple{Any, Sym, Any, Real}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1595d28ebd3e6f8135b0363a86252557545aca7f/src/series.jl#L247-L268" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/efe453aca13d40c5d46a0109e6db032e3e65ad42/src/series.jl#L247-L268" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -167,7 +181,7 @@ series(x^x, x, 0, 2)           # 1 + log(x)*x + O(x^2)</code></pre>
 <div class="md-docstring" id="SymJ.inverse_laplace_transform-Tuple{Any, Sym, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.inverse_laplace_transform</code> — <span class="md-docstring-sig">Tuple{Any, Sym, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1595d28ebd3e6f8135b0363a86252557545aca7f/src/laplace.jl#L130-L144" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/efe453aca13d40c5d46a0109e6db032e3e65ad42/src/laplace.jl#L130-L144" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -186,7 +200,7 @@ SymJ.inverse_laplace_transform(exp(-2s) / s^2, s, t)         # (t - 2)*heaviside
 <div class="md-docstring" id="SymJ.laplace_transform-Tuple{Any, Sym, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.laplace_transform</code> — <span class="md-docstring-sig">Tuple{Any, Sym, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1595d28ebd3e6f8135b0363a86252557545aca7f/src/laplace.jl#L14-L28" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/efe453aca13d40c5d46a0109e6db032e3e65ad42/src/laplace.jl#L14-L28" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -220,6 +234,6 @@ SymJ.laplace_transform(SymJ.heaviside(t - 1), t, s)   # exp(-s)/s</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=21d0e212"></script>
+  <script src="../../assets/materialdocs.js?v=a4a5ae54"></script>
 </body>
 </html>
