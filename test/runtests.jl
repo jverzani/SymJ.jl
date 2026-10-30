@@ -996,7 +996,14 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test_throws ArgumentError solve(x ~ x, x)
         # through one function of x: substitute, solve, invert; extraneous roots dropped
         @test solve(sin(x) ~ 1 // 2, x) == [PI / 6, 5PI / 6]
-        @test solve(cos(x) ~ 0, x) == [-PI / 2, PI / 2] && solve(tan(x) ~ 1, x) == [PI / 4]
+        @test solve(cos(x) ~ 0, x) == [PI / 2, 3PI / 2]
+        @test solve(tan(x) ~ 1, x) == [PI / 4]
+        # one period, each solution once: acos(r) and 2π - acos(r); π - asin(r) with asin(r)
+        @test solve(cos(x) ~ 1, x) == [0]
+        @test solve(cos(x) ~ -1, x) == [PI]
+        @test solve(cos(x) ~ -1 // 2, x) == [2PI / 3, 4PI / 3]
+        @test solve(sin(x) ~ -1, x) == [-PI / 2]
+        @test solve(diff(sin(x) - x, x) ~ 0, x) == [0]
         @test solve(sin(2x) ~ 1, x) == [PI / 4]
         @test solve(sin(x)^2 ~ 1 // 4, x) == [-PI / 6, PI / 6, 5PI / 6, 7PI / 6]
         @test solve(exp(x) ~ 2, x) == [log(Sym(2))] && solve(log(x) ~ 2, x) == [exp(Sym(2))]
@@ -1151,7 +1158,7 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test solve((x - 1)^2 * exp(2x) ~ 0, x) == [1]
         @test solve(2^x * (x + 1) ~ 0, x) == [-1]
         @test solve(exp(x) * (exp(x) - 3) ~ 0, x) == [log(Sym(3))]
-        @test solve(x^2 * cos(x) ~ 0, x) == [-PI / 2, 0, PI / 2]
+        @test solve(x^2 * cos(x) ~ 0, x) == [0, PI / 2, 3PI / 2]
         @test solve((x - 1) * log(x + 2) ~ 0, x) == [-1, 1]
         @test solve(diff(x * exp(-x), x) ~ 0, x) == [1]                 # a common factor
         @test solve(x * log(x) ~ 0, x) == [1]                           # log(0) is not defined
