@@ -231,6 +231,8 @@ end
 function _endvalue(F::Sym, x::Sym, p::Sym, dir::Symbol, A, singular::Bool = false)
     if !singular && !_isinfpt(p)
         v = try subs(F, x => p) catch err; err isa DivideError || rethrow(); nothing end
+        # (a piecewise F at a parametric end, as ∫|x| at a/b, its case decided if A can)
+        v !== nothing && _hasfn(v, :piecewise) && (v = refine(v; assume = A))
         v !== nothing && _finite_value(v) && return v
     end
     _onesided(F, x, p, dir, A)

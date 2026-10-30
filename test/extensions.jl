@@ -213,6 +213,10 @@ import PolyLog as PL
         # an integrand that fails is simplified and tried again
         @test ∫(cos(x)^2 / (cos(x)^2 + sin(x)^2), (x, 0, 2PI)) == PI
         @test ∫((cos(a)^2 * x + sin(a)^2 * x) * x - cos(a)^2 * x^2 - sin(a)^2 * x^2, (x, 0, 1)) == 0
+        # a radical's nonnegative factors come out, the variable's as |x| (the cone's lateral area)
+        @test ∫(sqrt(x^2 * (b^2 + 1)), x) == SymJ.piecewise(x ≪ 0 => -x^2 * sqrt(b^2 + 1) / 2, true => x^2 * sqrt(b^2 + 1) / 2)
+        @test ∫(sqrt(x^2 * (b^2 + 1)), (x, 0, a / b), (c, 0, 2PI); assume = @assume(a > 0, b > 0)) == PI * a^2 * sqrt(b^2 + 1) / b^2
+        @test ∫(sqrt(4x^2), (x, -1, 2)) == 5
     end
 
     @testset "RischIntegrate: principal values" begin
