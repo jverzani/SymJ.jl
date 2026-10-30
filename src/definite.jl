@@ -29,12 +29,86 @@ function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Boo
     end
     delete!(ps, x)
     isempty(ps) || (A0 = _with_fact(A0, FactAnd(Any[p ∈ ℝ for p in _sort_by_name!(collect(ps))])))
-    _by_cases(A0) do A
+    v = _by_cases(A0) do A
         sub = collect(A.subst)
         g, l, h = isempty(sub) ? (Sym(f), lo, hi) : (subs(Sym(f), sub...), subs(lo, sub...), subs(hi, sub...))
         _definite(g, x, l, h, antider, A, principal_value)
     end
+    _tidy_constant(v)
 end
+
+# a value without symbols simplified, where that makes it smaller (radicals from the
+# ends, as 12√2/(160 - 112√2) - …, to 1 - √2/2)
+function _tidy_constant(v)
+    (v isa Sym && !_hassymbol(v) && v.kind != NUMBER) || return v
+    s = try simplify(v) catch; return v end
+    _nodes(s) < _nodes(v) ? s : v
+end
+
+# an iterated integral whose inner integral has cases: over (x, a, b), x is between a and
+# b, so a case that needs x outside, or at one point (x = 0), drops out. A case whose
+# conditions on x hold throughout is integrated with its other conditions (on parameters)
+# assumed; the answer is a Cases when such conditions are left. Conditions on x that hold
+# on part of the interval only are an error.
+function _definite_integral(cs::Cases, xab::Tuple, assume, antider; principal_value::Bool = false)
+    length(xab) == 3 || throw(ArgumentError("integrate: give the limits as (x, a, b)"))
+    x, lo, hi = Sym(xab[1]), _endpoint(xab[2]), _endpoint(xab[3])
+    A0 = _assumptions(assume)
+    A0 === nothing && (A0 = Assumptions())
+    Ax = A0
+    up = try _less(lo, hi, A0) catch err; err isa _NeedDecision || rethrow(); nothing end
+    if up !== nothing
+        a, b = up ? (lo, hi) : (hi, lo)
+        _isinfpt(a) || (Ax = something(_with_fact(Ax, Relation(:gt, x, a)), Ax))
+        _isinfpt(b) || (Ax = something(_with_fact(Ax, Relation(:lt, x, b)), Ax))
+    end
+    # cases on x ⋈ c, c strictly inside: the interval split at c, the pieces added
+    if up !== nothing
+        a, b = up ? (lo, hi) : (hi, lo)
+        cuts = Sym[]
+        for (conds, _) in cs, c in conds
+            p = _fact_point(c, x)
+            (p === nothing || any(q -> _eq(q, p), cuts)) && continue
+            inside = try _less(a, p, A0) && _less(p, b, A0) catch err; err isa _NeedDecision || rethrow(); false end
+            inside && _insert_sorted!(cuts, p, A0)
+        end
+        if !isempty(cuts)
+            pts = [a; cuts; b]
+            parts = [_definite_integral(cs, (x, pts[i], pts[i + 1]), A0, antider; principal_value) for i in 1:(length(pts) - 1)]
+            all(v -> v isa Sym, parts) || throw(ArgumentError("integrate: the inner integral's cases split the interval of $x"))
+            v = sum(parts)
+            return up ? v : -v
+        end
+    end
+    out = Pair{Vector{Any},Any}[]
+    for (conds, v) in cs
+        onx = [c for c in conds if _fact_has(c, x)]
+        rest = Any[c for c in conds if !_fact_has(c, x)]
+        any(c -> c isa Relation && c.op === :eq, onx) && continue
+        hold = [_fact_holds(c, Ax) for c in onx]
+        any(h -> h === false, hold) && continue
+        all(h -> h === true, hold) || throw(ArgumentError(
+            "integrate: the inner integral's cases ($(_condsstring(onx))) split the interval of $x"))
+        B = isempty(rest) ? A0 : _with_fact(A0, rest)
+        B === nothing && continue
+        v isa Exception && throw(v)
+        push!(out, rest => _definite_integral(v, xab, B, antider; principal_value))
+    end
+    isempty(out) && throw(ArgumentError("integrate: no case of the inner integral holds for $x between $lo and $hi"))
+    length(out) == 1 && isempty(out[1].first) && return out[1].second
+    T = typejoin(map(c -> typeof(c.second), out)...)
+    Cases{T}(out)
+end
+# c for a condition x ⋈ c (or c ⋈ x), c free of x; else nothing
+function _fact_point(c, x::Sym)
+    c isa _NotFact && return _fact_point(c.f, x)
+    c isa Relation || return nothing
+    _eq(c.lhs, x) && !has(c.rhs, x) && return c.rhs
+    _eq(c.rhs, x) && !has(c.lhs, x) && return c.lhs
+    nothing
+end
+_fact_has(c, x::Sym) = c isa _NotFact ? _fact_has(c.f, x) : c isa Membership ? has(c.x, x) : has(c.lhs, x) || has(c.rhs, x)
+_fact_holds(c, A) = c isa _NotFact ? (h = _fact_holds(c.f, A); h === nothing ? nothing : !h) : _holds(c, A)
 
 _endpoint(v) = v isa Real && isinf(v) ? Sym(Float64(v)) : Sym(v)
 _isinfpt(p::Sym) = p.kind == NUMBER && isfloat(p.num) && isinf(Float64(p.num))
@@ -165,8 +239,14 @@ function _onesided(F::Sym, x::Sym, p::Sym, dir::Symbol, A)
     if L === nothing
         Gc = _neglogs(F, x, p, dir)          # log(u) with u < 0 near p: log(-u) + iπ
         if Gc !== nothing
-            L = _limit_or(Gc[1], x, x0, dir, A)
-            L === nothing || _isinfpt(L) || (L = L + Gc[2])
+            vs = [k => _limit_or(g, x, x0, dir, A) for (k, g) in Gc]
+            if all(v -> v.second isa Sym, vs)
+                if all(v -> !_isinfpt(v.second), vs)
+                    L = _tidy_constant(sum(k * v for (k, v) in vs; init = ZERO))
+                elseif length(vs) == 1 && isone(vs[1].first)
+                    L = vs[1].second
+                end
+            end
         end
     end
     L === nothing && throw(ArgumentError("integrate: the integral does not converge: the antiderivative $F has no limit at $x = $p"))
@@ -188,9 +268,9 @@ function _limit_or(F, x, x0, dir, A)
     nothing
 end
 
-# F as G + c near p on the side dir, G with log(u) written log(-u) where u, real, is
-# negative there, and c the iπ those add; nothing when there is no such log or the side
-# cannot be tested numerically
+# F near p on the side dir with log(u), u real and negative there, written log(-u) + iπ:
+# its terms grouped as k => g, k a constant (1, iπ, (iπ)², e^(iπa)) and g real near p, so
+# F = Σ k g; nothing when there is no such log or the side cannot be tested numerically
 function _neglogs(F::Sym, x::Sym, p::Sym, dir::Symbol)
     q = _isinfpt(p) ? (_infsign(p) > 0 ? 1e8 : -1e8) :
         (_hassymbol(p) ? nothing : (v = N(p); v isa Real ? v + (dir === :+ ? 1e-8 : -1e-8) * max(1, abs(v)) : nothing))
@@ -205,10 +285,44 @@ function _neglogs(F::Sym, x::Sym, p::Sym, dir::Symbol)
         log(-u) + _MARK_IPI
     end
     changed[] || return nothing
-    c = expand(diff(G, _MARK_IPI))           # G is linear in the mark
-    (expand(subs(G, _MARK_IPI => ZERO)), c * IM * PI)
+    # G's terms grouped by a constant factor: a term linear in the mark, t₀ + c·mark, is
+    # t₀ (factor 1) and c (factor iπ); one with the mark in an exponent, t ∝ e^(a·mark), is
+    # t at mark = 0 with factor e^(iπa)
+    G = expand(G)
+    groups = Dict{Sym,Sym}()
+    put!(k, t) = (groups[k] = get(groups, k, ZERO) + t)
+    terms = G.kind == ADD ? [Sym(c) * t for (c, t) in zip(G.coefs, G.args)] : [G]
+    G.kind == ADD && put!(ONE, Sym(G.num))
+    for t in terms
+        has(t, _MARK_IPI) || (put!(ONE, t); continue)
+        cs = _mark_poly(t)
+        if cs !== nothing
+            for (j, c) in enumerate(cs)
+                put!((IM * PI)^(j - 1), c)
+            end
+        else
+            t0, c = subs(t, _MARK_IPI => ZERO), diff(t, _MARK_IPI)
+            a = cancel(c / t)
+            (has(a, x) || has(a, _MARK_IPI)) && return nothing
+            put!(exp(a * IM * PI), t0)
+        end
+    end
+    [k => g for (k, g) in groups if !iszero(g)]
 end
 const _MARK_IPI = Sym(:_definite_ipi)
+
+# t as a polynomial in the mark (log(u)^2 gives its square): the coefficients c₀, c₁, …,
+# or nothing
+function _mark_poly(t::Sym)
+    cs, d, f = Sym[], t, 1
+    for j in 0:4
+        push!(cs, subs(d, _MARK_IPI => ZERO) / f)
+        d = diff(d, _MARK_IPI)
+        f *= j + 1
+        iszero(d) && return iszero(expand(t - sum(c * _MARK_IPI^(i - 1) for (i, c) in enumerate(cs)))) ? cs : nothing
+    end
+    nothing
+end
 
 # Σ cᵢ vᵢ, the vᵢ finite or ±∞
 function _sum_values(terms, A::Assumptions)

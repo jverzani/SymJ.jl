@@ -436,6 +436,8 @@ end
 Base.:+(a::Sym, b::Sym) = add(a, b)
 Base.:*(a::Sym, b::Sym) = mul(a, b)
 Base.:-(a::Sym) = _scale(a, NM1)
+Base.:+(a::Sym) = a                  # a one-term sum or product, as for numbers
+Base.:*(a::Sym) = a
 Base.:-(a::Sym, b::Sym) = add(a, _scale(b, NM1))
 Base.:/(a::Sym, b::Sym) = mul(a, pow(b, MINUS_ONE))
 Base.://(a::Sym, b::Sym) = a / b

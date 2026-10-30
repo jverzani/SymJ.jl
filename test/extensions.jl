@@ -177,6 +177,23 @@ import PolyLog as PL
             @test_throws ArgumentError cs(a => -1)                       # a pole at 1
         end
         @test N(∫(1 / (x - a), (x, 0, 1))(a => 2)) ≈ -log(2)
+        # iterated: an inner integral by cases on the outer variable keeps the cases its
+        # interval allows, or is split where they change
+        @syms y m
+        pos = @assume(n > 0, m > 0)
+        @test ∫(x^n * y^m, (y, 0, x), (x, 0, 1); assume = pos) == 1 / ((m + 1) * (m + n + 2))
+        @test ∫(∫(x^n * y^m, (y, 0, x); assume = pos), (x, 0, 1); assume = pos) == 1 / ((m + 1) * (m + n + 2))
+        cs = SymJ.Cases{Sym}([Any[x ≪ 0] => -x, Any[x ~ 0] => Sym(0), Any[x ≫ 0] => x])
+        @test ∫(cs, (x, -1, 2)) == Sym(5 // 2)
+        @test ∫(cs, (x, 2, -1)) == Sym(-5 // 2)
+        @test ∫(cs, (x, 1, 2)) == Sym(3 // 2)
+        @test same(∫(sqrt(1 - x^2), (x, y, sqrt(1 - y^2)), (y, 0, sqrt(Sym(2)) / 2)), 1 - sqrt(Sym(2)) / 2)   # constants simplified
+        # log(u), u < 0 at an end, as log(-u) + iπ, in a power or squared too
+        IM = SymJ.IM
+        @test ∫(log(x), (x, -1, 0)) == IM * PI - 1
+        @test ∫(x * log(x), (x, -1, 0)) == Sym(1 // 4) - IM * PI / 2
+        @test ∫(log(x)^2, (x, -1, 0)) == 2 - PI^2 - 2IM * PI
+        @test ∫(x^m, (x, -1, 0); assume = @assume(m > 0)) == exp(IM * m * PI) / (m + 1)
     end
 
     @testset "RischIntegrate: principal values" begin

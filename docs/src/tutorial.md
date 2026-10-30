@@ -1176,6 +1176,15 @@ integrate(exp(-a * x), (x, 0, Inf))
 integrate(exp(-a * x), (x, 0, Inf); assume = @assume(a > 0))
 ```
 
+An iterated integral lists its intervals innermost first. The inner integral may have
+cases on the outer variable (here on the sign of `x`, for `y^m`); the outer interval keeps
+the ones it allows, or is split where they change:
+
+```@example tut
+@syms n m
+integrate(x^n * y^m, (y, 0, x), (x, 0, 1); assume = @assume(n > 0, m > 0))
+```
+
 ```@example tut
 G = integrate(sin(x), x)
 G(x => Sym(π)) - G(x => 0)
