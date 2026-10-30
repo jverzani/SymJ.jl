@@ -163,3 +163,15 @@ Base.reim(x::Sym) = (real(x), imag(x))
 # for arrays of expressions: A' and transpose(A)
 Base.adjoint(x::Sym) = conj(x)
 Base.transpose(x::Sym) = x
+
+# the symbols vs taken to be real: conj(v), real(v), imag(v) are v, v, 0 (an integral's
+# variable; dot(u, v) of symbol vectors conjugates its first argument)
+function _realsyms(ex::Sym, vs)
+    _has_fn(ex, (:conj, :real, :imag)) || return ex
+    ps = Pair{Sym,Sym}[]
+    for v in vs
+        push!(ps, conj(v) => v, real(v) => v, imag(v) => ZERO)
+    end
+    subs(ex, ps...)
+end
+_realsyms(ex, vs) = ex

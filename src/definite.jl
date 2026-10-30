@@ -22,17 +22,26 @@ function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Boo
     _isnamed(x) || throw(ArgumentError("integrate: $x is not a symbol"))
     A0 = _assumptions(assume)
     A0 === nothing && (A0 = Assumptions())
-    # the other symbols are real, as for limit
+    # the other symbols are real, as for limit, and x too: conj(x) is x
     ps = Set{Sym}()
     for e in (Sym(f), lo, hi)
         _hassymbol(e) && union!(ps, free_symbols(e))
     end
     delete!(ps, x)
+    f, lo, hi = (_realsyms(e, [x; collect(ps)]) for e in (Sym(f), lo, hi))
     isempty(ps) || (A0 = _with_fact(A0, FactAnd(Any[p ∈ ℝ for p in _sort_by_name!(collect(ps))])))
     v = _by_cases(A0) do A
         sub = collect(A.subst)
         g, l, h = isempty(sub) ? (Sym(f), lo, hi) : (subs(Sym(f), sub...), subs(lo, sub...), subs(hi, sub...))
-        _definite(g, x, l, h, antider, A, principal_value)
+        # failing that, once more with f simplified (cos² + sin² in a denominator, a 0)
+        try
+            _definite(g, x, l, h, antider, A, principal_value)
+        catch err
+            err isa InterruptException && rethrow()
+            s = try simplify(g) catch; rethrow(err) end
+            _eq(s, g) && rethrow()
+            _definite(s, x, l, h, antider, A, principal_value)
+        end
     end
     _tidy_constant(v)
 end

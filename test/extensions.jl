@@ -203,6 +203,16 @@ import PolyLog as PL
             @test horn isa SymJ.Cases
             @test limit(horn, M => Inf) == Inf_
         end
+        # the variable is real: conj(x) is x, as from dot (a line integral, Green's theorem)
+        r, ⋅ = [cos(x), sin(x)], SymJ.LinearAlgebra.dot
+        @test ∫([-r[2], r[1]] ⋅ diff.(r, x), (x, 0, 2PI)) == 2PI
+        @test ∫((r / (r ⋅ r)^(Sym(3) / 2)) ⋅ diff.(r, x), (x, 0, 2PI)) == 0
+        @test ∫([x - x^2, x^2 - x^4, x^2 - x^6] ⋅ diff.([x, x^2, x^3], x), (x, 0, 1)) == Sym(3 // 5)
+        @test ∫(conj(a) * x, (x, 0, 1)) == a / 2                                          # parameters real, too
+        @test ∫(conj(x) * x + real(x) + imag(x), x) == x^3 / 3 + x^2 / 2
+        # an integrand that fails is simplified and tried again
+        @test ∫(cos(x)^2 / (cos(x)^2 + sin(x)^2), (x, 0, 2PI)) == PI
+        @test ∫((cos(a)^2 * x + sin(a)^2 * x) * x - cos(a)^2 * x^2 - sin(a)^2 * x^2, (x, 0, 1)) == 0
     end
 
     @testset "RischIntegrate: principal values" begin

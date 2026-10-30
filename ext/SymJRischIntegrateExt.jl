@@ -9,7 +9,7 @@ using PrecompileTools: @setup_workload, @compile_workload
 
 # piecewise functions, heaviside and dirac: interval by interval (see SymJ's piecewise.jl);
 # abs, sign, max and min, which the integrator does not take, as piecewise functions
-# (for real x). The assumptions (assume = …, or an @assuming block) decide the signs of
+# (for real x; conj(x), real(x) and imag(x) are x, x and 0). The assumptions (assume = …, or an @assuming block) decide the signs of
 # parameter expressions the answer's form depends on, through the integrator's sign
 # oracle, when the installed RischIntegrate has one; signs they leave open take its
 # default.
@@ -19,6 +19,7 @@ function RischIntegrate.integrate(ex::Sym, x::Sym; assume = nothing, kw...)
         kw = (; sign = SymJ._sign_oracle(A), kw...)
     end
     integ = f -> RischIntegrate.risch_integrate(f, x; kw...)
+    ex = SymJ._realsyms(ex, (x,))
     SymJ._haspieces(ex, x) && return SymJ._integrate_pieces(ex, x, integ)
     try
         integ(ex)
