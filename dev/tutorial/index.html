@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=bf913612">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=ebc2de55">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -1293,6 +1293,17 @@ a &amp; b \\
 \right] \right)\]
 </div>
 </div>
+<p><code class="md-code-inline">dot</code> and <code class="md-code-inline">norm</code> work entry by entry. Symbols are complex, so <code class="md-code-inline">dot</code> conjugates its first argument; for real symbols, <code class="md-code-inline">refine</code> under the assumptions removes the conjugates:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">u = [x, y, 1]
+dot(u, [1, 2, 3]), norm(u), refine(dot(u, u); assume = @assume(x in Reals, y in Reals))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \mathrm{conj}\left( x \right) + 2 \cdot \mathrm{conj}\left( y \right) + 3, \; \sqrt{\left( \left|x\right| \right)^{2} + \left( \left|y\right| \right)^{2} + 1}, \; x^{2} + y^{2} + 1 \right)\]
+</div>
+</div>
 <p>QR factorization by exact Gram–Schmidt, and functions of matrices through the Jordan form (<code class="md-code-inline">SymJ.jordan_form</code>), such as the exponential that solves <code class="md-code-inline">x&#39; = A x</code>:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -2139,6 +2150,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=bf913612"></script>
+  <script src="../assets/materialdocs.js?v=ebc2de55"></script>
 </body>
 </html>
