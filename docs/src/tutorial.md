@@ -1185,6 +1185,15 @@ the ones it allows, or is split where they change:
 integrate(x^n * y^m, (y, 0, x), (x, 0, 1); assume = @assume(n > 0, m > 0))
 ```
 
+The variable of integration is real, as are the parameters of a definite integral, so the
+`conj` that `dot` puts on symbols drops out. A line integral, the work of ⟨-y, x⟩ around
+the unit circle:
+
+```@example tut
+r = [cos(t), sin(t)]
+integrate(dot([-r[2], r[1]], diff.(r, t)), (t, 0, 2Sym(π)))
+```
+
 ```@example tut
 G = integrate(sin(x), x)
 G(x => Sym(π)) - G(x => 0)
