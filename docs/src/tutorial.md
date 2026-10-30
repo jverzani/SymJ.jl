@@ -176,6 +176,14 @@ subs(ex, x => y - 1)
 subs(ex, a => 1, b => -2, c => 1)
 ```
 
+A power, sum or product is also found where it occurs algebraically, not only as written:
+`exp(-x)` in `exp(x)` (as `1/w`), `x*log(x)` in `x^2*log(x)^2`, `a + b` in `2a + 2b + c`:
+
+```@example tut
+@syms w
+subs(exp(x - exp(-x)), exp(-x) => w), subs(x^2 * log(x)^2, x * log(x) => w), subs(2a + 2b + c, a + b => w)
+```
+
 Calling an expression with pairs does the same:
 
 ```@example tut

@@ -440,6 +440,35 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test subs(3x^2 * y, x^2 => z) == 3y * z
     end
 
+    @testset "subs of compound targets" begin
+        @syms a b w
+        # powers: an integer multiple of the exponent, and exponents with terms
+        @test subs(x^4, x^2 => w) == w^2
+        @test subs(1 / x^2, x^2 => w) == 1 / w
+        @test subs(x^3, x^2 => w) == x^3                       # 3/2 is not an integer
+        @test subs(y * x^(3 // 2), sqrt(x) => w) == w^3 * y
+        @test subs(exp(x), exp(-x) => w) == 1 / w
+        @test subs(exp(2x), exp(x) => w) == w^2
+        @test subs(exp(x + 1), exp(x) => w) == E * w
+        @test subs(exp(2a * x), exp(a * x) => w) == w^2
+        @test subs(exp(x / 2), exp(x) => w) == exp(x / 2)
+        @test subs(exp(x - exp(-x)) - exp(x), exp(-x) => w) == exp(-w) / w - 1 / w
+        # sums: every term of the target, the same number of times
+        @test subs(a + b + x, a + b => w) == w + x
+        @test subs(2a + 2b, a + b => w) == 2w
+        @test subs(3 + 2log(x), 1 + log(x) => w) == 2w + 1
+        @test subs(2a + b, a + b => w) == 2a + b
+        @test subs(sin(a + b + x), a + b => w) == sin(w + x)
+        # products: an integer power of the target
+        @test subs(a * b * x, a * b => w) == w * x
+        @test subs(a * b^2 * x, a * b => w) == b * w * x
+        @test subs(y / (a * b), a * b => w) == y / w
+        @test subs(x^2 * log(x)^2, x * log(x) => w) == w^2
+        ex = (1 + log(x)) * sqrt(1 + (x * log(x))^2)
+        @test subs(ex, x * log(x) => w, 1 + log(x) => z) == z * sqrt(1 + w^2)
+        @test (exp(2x) + 1)(exp(x) => w) == w^2 + 1                 # calling
+    end
+
     @testset "diff" begin
         @test diff(x^3, x) == 3x^2
         # mixed derivatives: in each variable in turn
