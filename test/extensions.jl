@@ -187,7 +187,9 @@ import PolyLog as PL
         @test ∫(cs, (x, -1, 2)) == Sym(5 // 2)
         @test ∫(cs, (x, 2, -1)) == Sym(-5 // 2)
         @test ∫(cs, (x, 1, 2)) == Sym(3 // 2)
-        @test same(∫(sqrt(1 - x^2), (x, y, sqrt(1 - y^2)), (y, 0, sqrt(Sym(2)) / 2)), 1 - sqrt(Sym(2)) / 2)   # constants simplified
+        if VERSION >= v"1.12"                                            # (the older RischIntegrate cannot)
+            @test same(∫(sqrt(1 - x^2), (x, y, sqrt(1 - y^2)), (y, 0, sqrt(Sym(2)) / 2)), 1 - sqrt(Sym(2)) / 2)   # constants simplified
+        end
         # log(u), u < 0 at an end, as log(-u) + iπ, in a power or squared too
         IM = SymJ.IM
         @test ∫(log(x), (x, -1, 0)) == IM * PI - 1
