@@ -22,15 +22,22 @@
 # substitution: symbolically, else numerically at a few points.
 
 """
-    SymJ.dsolve(eq, y(x), ics...)
+    SymJ.dsolve(eq, y(x), ics...; assume = nothing)
 
 Solve the ordinary differential equation `eq` (an equation, written with `~`) for the
 function `y(x)`. Derivatives are written `diff(y(x), x)` or `y'(x)`. The result is an
 equation: `y(x) ~ S` with constants `C1, C2, …` (one for each order), or an implicit
-solution `φ(x, y(x)) ~ C1` when `y` cannot be solved for.
+solution `φ(x, y(x)) ~ C1` when `y` cannot be solved for. An implicit solution quadratic
+in `y` gives a vector, one equation for each branch: `y'(x) ~ (1 - x)/y(x)` gives
+`y(x) ~ ±sqrt(C1 + 2x - x^2)`.
 
 Initial conditions are pairs, one for each order: `y(0) => 1, y'(0) => 0`. They fix the
 constants.
+
+With assumptions (`assume = (k ≫ 0, m ≫ 0)`, an [`Assumptions`](@ref), or inside
+[`assuming`](@ref)), a characteristic root they show to be complex gives cosines and
+sines: `y'' = -(k/m) y` is `C1 cos(√(km) x/m) + C2 sin(√(km) x/m)` with `k, m > 0`, and
+`C1 exp(-√(-km) x/m) + C2 exp(√(-km) x/m)` without.
 
 An autonomous equation `y'' = f(y, y')` whose `y'` has several branches (`y' =
 ±sqrt(…)`, as for `y'' = -sin(y)`) gives a vector of solutions, one for each branch;
@@ -87,7 +94,8 @@ SymJ.dsolve([u'(t) ~ v(t), v'(t) ~ -u(t)], [u(t), v(t)], u(0) => 1, v(0) => 0)
 ```
 """
 function dsolve(eq::Relation, yx::Sym, ics::Pair...; series::Union{Nothing,Integer} = nothing, x0 = nothing,
-                method::Symbol = :auto)
+                method::Symbol = :auto, assume = nothing)
+    assume === nothing || return with(() -> dsolve(eq, yx, ics...; series, x0, method), _ASSUMING => _assumptions(assume))
     method in (:auto, :laplace) || throw(ArgumentError("dsolve: method is :auto or :laplace, not $method"))
     P = _ode_parse(eq, yx)
     Cs = _ode_constants(P.n, eq)
@@ -119,14 +127,14 @@ function dsolve(eq::Relation, yx::Sym, ics::Pair...; series::Union{Nothing,Integ
     if sol[1] === :several                       # one solution for each branch
         rs = Relation[]
         for (k, S_) in sol[2]
-            k === :explicit && (S_ = _ode_absorb(S_, Cs))
+            k === :explicit && (S_ = _ode_absorb(S_, Cs, P.x))
             _ode_verified(P, k, S_, Cs) || throw(ArgumentError("dsolve: the solution found does not satisfy $(eq)"))
             push!(rs, k === :explicit ? (yx ~ S_) : (subs(S_, P.ys[1] => yx) ~ Cs[P.n]))
         end
         return rs
     end
     kind, S = sol
-    kind === :explicit && (S = _ode_absorb(S, Cs))
+    kind === :explicit && (S = _ode_absorb(S, Cs, P.x))
     _ode_verified(P, kind, S, Cs) || throw(ArgumentError("dsolve: the solution found does not satisfy $(eq)"))
     c = Cs[P.n]                                  # an implicit solution is φ = c
     if !isempty(ics)
@@ -144,7 +152,22 @@ function dsolve(eq::Relation, yx::Sym, ics::Pair...; series::Union{Nothing,Integ
         end
         kind, S, c = r
     end
+    if kind === :implicit && isempty(ics) && P.n == 1
+        bs = _ode_quadratic_branches(P, S, c, Cs)
+        bs === nothing || return [yx ~ b for b in bs]
+    end
     kind === :explicit ? (yx ~ S) : (subs(S, P.ys[1] => yx) ~ c)
+end
+
+# an implicit solution φ = C quadratic in y: its two branches y = …, each a solution
+function _ode_quadratic_branches(P, S::Sym, c::Sym, Cs)
+    Y0 = P.ys[1]
+    d2 = diff(S, Y0, 2)
+    (iszero(d2) || has(d2, Y0)) && return nothing
+    ys = try solve(S ~ c, Y0) catch; return nothing end
+    (ys isa AbstractVector && length(ys) == 2) || return nothing
+    bs = [_ode_absorb(_ode_tidy(y), Cs, P.x) for y in ys]
+    all(b -> _ode_verified(P, :explicit, b, Cs), bs) ? bs : nothing
 end
 dsolve(eq, yx::Sym, ics::Pair...) = throw(ArgumentError("dsolve: give an equation, `lhs ~ rhs`"))
 
@@ -252,9 +275,17 @@ end
 
 # exp(a + c log(u)) = u^c exp(a), and the solution simplified where smaller
 function _ode_tidy(e::Sym)
-    e = _explog(e)
+    e = _ode_signs(_explog(e))
     s = try simplify(e) catch; e end
     _nodes(s) <= _nodes(e) ? s : e
+end
+# a product's sums with every coefficient negative, to an odd power, negated with it:
+# -u/(-v - 1) is u/(v + 1)
+function _ode_signs(e::Sym)
+    e.kind == MUL || return e
+    neg(b, p) = b.kind == ADD && b.num <= 0 && all(<(0), b.coefs) && p.kind == NUMBER && _isint(p.num) && isodd(_toint(p.num))
+    count(i -> neg(e.args[i], e.exps[i]), eachindex(e.args)) > 0 || return e
+    Sym(e.num) * prod((neg(b, p) ? (-b)^p * (-1) : b^p for (b, p) in zip(e.args, e.exps)); init = ONE)
 end
 function _explog(e::Sym)
     isempty(e.args) && return e
@@ -281,9 +312,11 @@ function _explog_exp(p::Sym)
 end
 
 # a solution with its constants absorbed, where C appears once: k*C (k a number) is C,
-# and e^C (in an exponent) is C
-function _ode_absorb(S::Sym, Cs)
+# and e^C (in an exponent) is C. Given x, C in several exponents, each k*C + (free of C)
+# with one k free of x, is C as well: e^(kC) is C
+function _ode_absorb(S::Sym, Cs, x = nothing)
     for C in Cs
+        x === nothing || _ode_count(S, C) == 1 || (S = _ode_absorb_exp(S, C, x))
         _ode_count(S, C) == 1 || continue
         k = _ode_ccoef(S, C)
         k === nothing || isone(k) || (S = subs(S, C => C / Sym(k)))
@@ -293,6 +326,42 @@ function _ode_absorb(S::Sym, Cs)
         end
     end
     S
+end
+function _ode_absorb_exp(S::Sym, C::Sym, x::Sym)
+    ks = Sym[]
+    (_ode_expcoefs!(ks, S, C) && !isempty(ks)) || return S
+    k = ks[1]
+    (has(k, x) || iszero(k) || !all(kk -> iszero(_ode_tidy(kk - k)), ks)) && return S
+    T = _ode_tidy(_explog(_ode_expandexp(subs(S, C => log(C) / k))))
+    _ode_haslog(T, C) ? S : T
+end
+# the exponents of e expanded, so e^((log(C)/k + x) k) is C e^(k x)
+function _ode_expandexp(e::Sym)
+    isempty(e.args) && return e
+    e.kind == POW && _eq(e.args[1], E) && return exp(expand(e.args[2]))
+    e.kind == MUL && return Sym(e.num) * prod((_eq(b, E) ? exp(expand(p)) : _ode_expandexp(b)^p for (b, p) in zip(e.args, e.exps)); init = ONE)
+    _rebuild_node(e, Sym[_ode_expandexp(a) for a in e.args])
+end
+# the coefficients k of C in the exponents of e that have it, each linear in C; false
+# where C is elsewhere
+function _ode_expcoefs!(ks, e::Sym, C::Sym)
+    _eq(e, C) && return false
+    function expo!(p)
+        has(p, C) || return true
+        k = diff(p, C)
+        has(k, C) && return false
+        push!(ks, k)
+        true
+    end
+    if e.kind == POW && _eq(e.args[1], E)
+        return expo!(e.args[2])
+    elseif e.kind == MUL
+        for (b, p) in zip(e.args, e.exps)
+            _eq(b, E) ? (expo!(p) || return false) : (_ode_expcoefs!(ks, b, C) && _ode_expcoefs!(ks, p, C) || return false)
+        end
+        return true
+    end
+    all(a -> _ode_expcoefs!(ks, a, C), e.args) && all(a -> _ode_expcoefs!(ks, a, C), e.exps)
 end
 _ode_count(e::Sym, C::Sym) = _eq(e, C) ? 1 : sum(a -> _ode_count(a, C), e.args; init = 0) + sum(a -> _ode_count(a, C), e.exps; init = 0)
 function _ode_ccoef(e::Sym, C::Sym)
@@ -420,15 +489,20 @@ end
 
 function _ode_basis(a::Vector{Sym}, x::Sym)
     roots = _ode_roots(a)
+    A = _ASSUMING[]
     basis = Sym[]
     done = Set{Sym}()
+    pairs = Tuple{Sym,Sym}[]
     for (ρ, m) in roots
         ρ in done && continue
-        re, im_ = _ode_reim(ρ)
+        re, im_ = _ode_reim(ρ, A)
         if im_ !== nothing && !iszero(im_)
             # a conjugate pair, once
-            push!(done, ρ, conj(ρ))
             β = _ode_tidy(abs(im_))
+            A === nothing || (β = refine(β; assume = A))
+            any(p -> _eq(p[1], re) && _eq(p[2], β), pairs) && continue
+            push!(done, ρ, conj(ρ))
+            push!(pairs, (re, β))
             for j in 0:(m - 1)
                 push!(basis, x^j * exp(re * x) * cos(β * x), x^j * exp(re * x) * sin(β * x))
             end
@@ -441,10 +515,28 @@ function _ode_basis(a::Vector{Sym}, x::Sym)
     basis
 end
 
-# the real and imaginary parts of a root, when it has numbers only (decidable)
-function _ode_reim(ρ::Sym)
-    isempty(free_symbols(ρ)) || return ρ, nothing
-    _ode_tidy(real(ρ)), _ode_tidy(imag(ρ))
+# the real and imaginary parts of a root, when it has numbers only (decidable), or when
+# the assumptions decide them: sqrt(u) with u < 0 is i sqrt(-u), and the parts are then
+# real
+function _ode_reim(ρ::Sym, A = nothing)
+    isempty(free_symbols(ρ)) && return _ode_tidy(real(ρ)), _ode_tidy(imag(ρ))
+    A === nothing && return ρ, nothing
+    r = expand(_ode_isqrt(ρ, A))
+    re = subs(r, IM => ZERO)
+    im_ = expand((r - re) / IM)
+    has(im_, IM) && return ρ, nothing
+    _isreal(re, A) === true && _isreal(im_, A) === true || return ρ, nothing
+    _ode_tidy(re), _ode_tidy(im_)
+end
+function _ode_isqrt(e::Sym, A)
+    isempty(e.args) && return e
+    if e.kind == POW && _eq(e.args[2], Sym(1 // 2)) && _signs(e.args[1], A) === _NEG
+        return IM * sqrt(-e.args[1])
+    elseif e.kind == MUL
+        return Sym(e.num) * prod((_eq(p, Sym(1 // 2)) && _signs(b, A) === _NEG ? IM * sqrt(-b) : _ode_isqrt(b, A)^p
+                                  for (b, p) in zip(e.args, e.exps)); init = ONE)
+    end
+    _rebuild_node(e, Sym[_ode_isqrt(a, A) for a in e.args])
 end
 
 # the multiplicity of ρ as a characteristic root
@@ -837,7 +929,10 @@ function _ode_ics(P::_ODE, kind::Symbol, S::Sym, Cs, conds)
     if kind === :explicit
         eqs = [_ode_tidy(subs(diff(S, x, o), x => a)) ~ v for (o, a, v) in conds]
         used = [C for C in Cs if has(S, C)]
-        sols = solve(eqs, used)
+        # one constant: the equation's solve, which takes C in exp, tan, …; a system's
+        # needs it polynomial
+        sols = length(eqs) == 1 && length(used) == 1 ? [[used[1] => c] for c in solve(eqs[1], used[1])] :
+               solve(eqs, used)
         isempty(sols) && throw(ArgumentError("dsolve: no solution satisfies the initial conditions"))
         T = [_ode_tidy(subs(S, sol...)) for sol in sols]
         length(unique(T)) == 1 || throw(ArgumentError("dsolve: several solutions satisfy the initial conditions: $(join(T, ", "))"))

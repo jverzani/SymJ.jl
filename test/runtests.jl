@@ -2245,6 +2245,21 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test D(y'(x) ~ y(x), y(x), y(0) => 3) == (y(x) ~ 3exp(x)) && D(y'(x) ~ x * y(x)^2, y(x), y(0) => 1) == (y(x) ~ -2 / (x^2 - 2))
         @test D(y'(x) ~ -x / y(x), y(x), y(0) => 2) == (y(x) ~ sqrt(4 - x^2))                 # the branch through (0, 2)
         @test D(y''(x) - y(x) ~ 1, y(x), y(0) => 0, y'(0) => 0) == (y(x) ~ cosh(x) - 1)
+        # one constant, in exp: the equation's solve (in tan: test/extensions.jl)
+        @test cancel(D(y'(x) ~ y(x) * (1 - y(x) / 100), y(x), y(0) => 20).rhs) == 100exp(x) / (exp(x) + 4)
+        @syms a
+        @test D(y'(x) ~ a * y(x) * (1 - y(x)), y(x)) == (y(x) ~ 1 / (C1 / exp(a * x) + 1))
+        @test cancel(D(y'(x) ~ a * y(x) * (1 - y(x)), y(x), y(0) => Sym(1) / 2).rhs) == exp(a * x) / (exp(a * x) + 1)
+        # an implicit solution quadratic in y: its two branches
+        @test D(y'(x) ~ (1 - x) / y(x), y(x)) == [y(x) ~ -sqrt(-x^2 + C1 + 2x), y(x) ~ sqrt(-x^2 + C1 + 2x)]
+        @test D(y'(x) ~ x / y(x)^2, y(x)) == (-x^2 / 2 + y(x)^3 / 3 ~ C1)
+        # assumptions: complex characteristic roots give cosines and sines
+        @syms k m
+        @test D(y''(x) ~ -(k / m) * y(x), y(x)) == (y(x) ~ C1 / exp(sqrt(-k * m) * x / m) + C2 * exp(sqrt(-k * m) * x / m))
+        @test D(y''(x) ~ -(k / m) * y(x), y(x); assume = (k ≫ 0, m ≫ 0)) == (y(x) ~ C1 * cos(sqrt(k * m) * x / m) + C2 * sin(sqrt(k * m) * x / m))
+        @test assuming(() -> D(y''(x) ~ -(k / m) * y(x), y(x)), k ≫ 0, m ≫ 0) == (y(x) ~ C1 * cos(sqrt(k * m) * x / m) + C2 * sin(sqrt(k * m) * x / m))
+        @test D(y''(x) + 2a * y'(x) + (a^2 + k^2) * y(x) ~ 0, y(x); assume = (a ∈ ℝ, k ≫ 0)) == (y(x) ~ (C1 * cos(k * x) + C2 * sin(k * x)) / exp(a * x))
+        @test D(y''(x) ~ k * y(x), y(x); assume = (k ≫ 0,)) == (y(x) ~ C1 / exp(sqrt(k) * x) + C2 * exp(sqrt(k) * x))
         # autonomous, y'' = f(y, y'): p = y' as a function of y
         @test D(y(x) * y''(x) ~ y'(x)^2, y(x)).rhs == exp(C1 * (C2 + x))
         r = D(y(x) * y''(x) + y'(x)^2 ~ 0, y(x))                      # implicit, of second order
