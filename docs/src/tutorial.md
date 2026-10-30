@@ -182,6 +182,18 @@ Calling an expression with pairs does the same:
 ex(x => 2)
 ```
 
+Calling an equation (written with `~`, as in the section on solving equations below)
+substitutes into both sides; `lhs` and `rhs` give the sides:
+
+```@example tut
+eq = y ~ ex
+eq(x => z + 1)
+```
+
+```@example tut
+lhs(eq), rhs(eq)
+```
+
 ## Numerical evaluation
 
 Calling an expression with a number evaluates it with Julia's arithmetic on that number,
