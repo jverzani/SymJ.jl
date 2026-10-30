@@ -25,6 +25,11 @@ mixing the forms (`solve(eq, [x])`, `solve([eq], x)`) is an error. An unknown ma
 be a function call or a derivative (`u(x)`, `diff(u(x), x)`), as in implicit
 differentiation; other derivatives of it are held as they are.
 
+An equation through a periodic function gives the solutions in one period, each once:
+`sin(u) = r` gives `u = asin(r)` and `π - asin(r)`, `cos(u) = r` gives `acos(r)` and
+`2π - acos(r)` (so `cos(x) ~ 0` gives `[π/2, 3π/2]` and `cos(x) ~ 1` gives `[0]`), and
+`tan(u) = r` gives `atan(r)`.
+
 ```julia
 solve(x^2 - 2 ~ 0, x)          # [-sqrt(2), sqrt(2)]
 solve(x^2 ~ -1, x)             # [-im, im]
@@ -374,8 +379,8 @@ function _invert(g::Sym, r::Sym, x::Sym)
     if k == FN && length(g.args) == 1
         t = g.args[1]
         name = g.name
-        name === :sin && return [(t, asin(r)), (t, PI - asin(r))]
-        name === :cos && return [(t, acos(r)), (t, -acos(r))]
+        name === :sin && return [(t, a) for a in _one_period(asin(r), PI - asin(r))]
+        name === :cos && return [(t, a) for a in _one_period(acos(r), 2PI - acos(r))]
         name === :tan && return [(t, atan(r))]
         name === :log && return [(t, exp(r))]
         name === :asin && return [(t, sin(r))]
@@ -394,6 +399,14 @@ function _invert(g::Sym, r::Sym, x::Sym)
         end
     end
     throw(ArgumentError("solve: cannot invert $g for $x"))
+end
+
+# the two angles of sin or cos, the second dropped when it is the first plus a multiple of
+# 2π (cos(x) = 1: 0, not 0 and 2π)
+function _one_period(a::Sym, b::Sym)
+    _hassymbol(a) && return [a, b]
+    q = try N((b - a) / (2PI)) catch; return [a, b] end
+    q isa Real && isapprox(q, round(q); atol = 1e-12) ? [a] : [a, b]
 end
 
 # does r satisfy eq? (exactly, or numerically for constants; kept when undecidable)
