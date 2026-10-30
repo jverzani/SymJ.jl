@@ -39,9 +39,7 @@ _isalgebraic_atom(a::Sym) = a.kind == POW && a.args[2].kind == NUMBER && isexact
 # the entries over a field: (matrix, back) with back converting an entry to a Sym
 function _field_matrix(A::AbstractMatrix)
     S = Sym[Sym(a) for a in A]
-    if all(e -> e.kind == NUMBER && isexact(e.num), S)
-        return map(e -> e.num, S), Sym
-    end
+    all(e -> e.kind == NUMBER, S) && return map(e -> e.num, S), Sym      # floating point too
     atoms = Set{Sym}()
     for e in S
         n, d = numer_denom(e)

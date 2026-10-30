@@ -100,6 +100,10 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test log(x, 1) == 0
         @test kind(sin(Sym(2))) == FN          # exact argument stays symbolic
         @test sin(Sym(2.0)) == Sym(sin(2.0))   # float argument evaluates
+        @test exp(Sym(0.5)) == Sym(exp(0.5))   # a constant to a float power too
+        @test PI^1.5 == Sym(Float64(π)^1.5)
+        @test kind(exp(x)^1.0) == POW            # (with a symbol, not)
+        @test kind((-PI)^0.5) == POW
         # floats evaluate before symbolic rules: Julia's principal value on a branch cut
         @test N(asin(Sym(-17.0))) ≈ asin(complex(-17.0))
         @test N(acosh(Sym(0.5))) ≈ acosh(complex(0.5))
@@ -2006,6 +2010,8 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         # det: Bareiss for polynomials, elimination over rational functions otherwise
         @test LA.det([a b; c d]) == a * d - b * c && LA.det([x 1; 1 x]) == x^2 - 1 && LA.det(Sym[1 2; 3 4]) == -2
         @test LA.det(Sym[1 2; 2 4]) == 0 && LA.det(Matrix{Sym}(undef, 0, 0)) == 1
+        @test N(LA.det(Sym[1.5 2; 2 3])) ≈ 0.5                             # floating point entries
+        @test N.(LA.inv(Sym[1.5 2; 2 3])) ≈ [6 -4; -4 3]
         @test LA.det([1/x 1; 1 x]) == 0 && LA.det([sqrt(Sym(2)) 1; 1 sqrt(Sym(2))]) == 1
         G = [Sym(Symbol("g", i, j)) for i in 1:5, j in 1:5]
         @test length(LA.det(G).args) == 120                                # all 5! terms
