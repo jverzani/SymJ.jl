@@ -11,7 +11,7 @@ SymJ = {path = ".."}
 
 [compat]
 Documenter = "1.19.0"
-GruntzLimit = "1.2"
+GruntzLimit = "1.2.1"
 Latexify = "0.16"
 MaterialDocs = "0.2.1"
 RischIntegrate = "1.2"
