@@ -162,10 +162,6 @@ end
 function _onesided(F::Sym, x::Sym, p::Sym, dir::Symbol, A)
     x0 = _isinfpt(p) ? Float64(p.num) : p
     L = _limit_or(F, x, x0, dir, A)
-    if L === nothing && _isinfpt(p)
-        G = _special_at_inf(F, x, x0, A)     # erf(u) → ±1 where u → ±∞, …
-        G === nothing || (L = _limit_or(G, x, x0, dir, A))
-    end
     if L === nothing
         Gc = _neglogs(F, x, p, dir)          # log(u) with u < 0 near p: log(-u) + iπ
         if Gc !== nothing
@@ -190,24 +186,6 @@ function _limit_or(F, x, x0, dir, A)
         return v isa Exception ? nothing : v
     end
     nothing
-end
-
-# the values at ±∞ of special functions the limit code does not know: f(u) with u → ±∞
-const _AT_INF = Dict{Symbol,Tuple{Any,Any}}(       # name => (value at +∞, value at -∞)
-    :erf => (ONE, -ONE), :erfc => (ZERO, Sym(2)), :sinint => (PI / 2, -PI / 2),
-    :cosint => (ZERO, nothing), :erfi => (Sym(Inf), Sym(-Inf)))
-function _special_at_inf(F::Sym, x::Sym, x0, A)
-    changed = Ref(false)
-    G = _replace_walk(F) do t
-        (t.kind == FN && length(t.args) == 1 && haskey(_AT_INF, t.name)) || return nothing
-        Lu = _limit_or(t.args[1], x, x0, x0 > 0 ? :- : :+, A)
-        (Lu !== nothing && _isinfpt(Lu)) || return nothing
-        v = _AT_INF[t.name][_infsign(Lu) > 0 ? 1 : 2]
-        v === nothing && return nothing
-        changed[] = true
-        v
-    end
-    changed[] ? G : nothing
 end
 
 # F as G + c near p on the side dir, G with log(u) written log(-u) where u, real, is

@@ -142,6 +142,8 @@ import PolyLog as PL
         @test ∫(exp(-x), (x, 0, Inf)) == 1
         @test ∫(x * exp(-x), (x, 0, Inf)) == 1
         @test same(∫(exp(-x^2), (x, -Inf, Inf)), sqrt(PI))             # erf at ±∞
+        @test ∫(sin(x) / x, (x, 1, Inf)) == PI / 2 - SF.sinint(Sym(1))   # sinint at ∞
+        @test ∫(cos(x) / x, (x, 1, Inf)) == -SF.cosint(Sym(1))            # cosint at ∞
         @test same(∫(1 / (2 + cos(x)), (x, 0, 2PI)), 2sqrt(Sym(3)) * PI / 3)
         @test ∫(log(x), (x, 0, 1)) == -1                                 # a limit at 0
         @test ∫(1 / sqrt(x), (x, 0, 1)) == 2

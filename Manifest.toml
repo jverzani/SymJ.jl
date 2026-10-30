@@ -2,7 +2,7 @@
 
 julia_version = "1.13.0"
 manifest_format = "2.1"
-project_hash = "b3036bd6cc1c0a11a33c3af4629631e7a71e6380"
+project_hash = "8c0c53d2fde4b3b58f8fe25654c950c840e17923"
 
 [[deps.Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
@@ -31,6 +31,12 @@ deps = ["Printf"]
 uuid = "ade2ca70-3891-5945-98fb-dc099432e06a"
 version = "1.11.0"
 
+[[deps.DocStringExtensions]]
+git-tree-sha1 = "38ef52f18cbdfa783ec6c25acc23fb1e8525ec16"
+registries = "General"
+uuid = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
+version = "0.10.2"
+
 [[deps.ExprTools]]
 git-tree-sha1 = "d2e49e7efd29719d6f28b891b0e0e159daa9d2b4"
 registries = "General"
@@ -38,11 +44,11 @@ uuid = "e2ba6199-217a-4e67-a87a-7c52f15ade04"
 version = "0.1.11"
 
 [[deps.GruntzLimit]]
-deps = ["ScopedValues", "TermInterface"]
-git-tree-sha1 = "e53d791dbb6a86b32ce1d3cb1760fd11c004c7af"
+deps = ["ScopedValues", "SpecialFunctions", "TermInterface"]
+git-tree-sha1 = "c9b3ce0277405ad3c9282e39185b4f61b006066e"
 registries = "General"
 uuid = "549ac5eb-4437-4bd1-88f1-51d4e2fa49c9"
-version = "1.0.3"
+version = "1.2.0"
 
 [[deps.HashArrayMappedTries]]
 git-tree-sha1 = "2eaa69a7cab70a52b9687c8bf950a5a93ec895ae"
@@ -55,6 +61,13 @@ git-tree-sha1 = "d22e8bdb3f03c300a103ff23c0dd5a654c6701de"
 registries = "General"
 uuid = "92d709cd-6900-40b7-9082-c6be49f344b6"
 version = "0.2.7"
+
+[[deps.JLLWrappers]]
+deps = ["Artifacts", "Preferences"]
+git-tree-sha1 = "7204148362dafe5fe6a273f855b8ccbe4df8173e"
+registries = "General"
+uuid = "692b3bcd-3c85-4b1f-b108-f13ce0eb3210"
+version = "1.8.0"
 
 [[deps.LambertW]]
 deps = ["IrrationalConstants"]
@@ -72,6 +85,23 @@ deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 version = "1.13.0"
 
+[[deps.LogExpFunctions]]
+deps = ["DocStringExtensions", "IrrationalConstants", "LinearAlgebra"]
+git-tree-sha1 = "28d620bcdb37a3fb02de9f521928ee453690f414"
+registries = "General"
+uuid = "2ab3a3ac-af41-5b50-aa03-7779005ae688"
+version = "1.0.3"
+
+    [deps.LogExpFunctions.extensions]
+    LogExpFunctionsChainRulesCoreExt = "ChainRulesCore"
+    LogExpFunctionsChangesOfVariablesExt = "ChangesOfVariables"
+    LogExpFunctionsInverseFunctionsExt = "InverseFunctions"
+
+    [deps.LogExpFunctions.weakdeps]
+    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+    ChangesOfVariables = "9e997f8a-9a97-42d5-a9f1-ce6bfc15e2c0"
+    InverseFunctions = "3587e190-3f89-42d0-90ee-14403ec27112"
+
 [[deps.Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 version = "1.11.0"
@@ -80,6 +110,18 @@ version = "1.11.0"
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
 version = "0.3.30+0"
+
+[[deps.OpenLibm_jll]]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
+uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
+version = "0.8.7+0"
+
+[[deps.OpenSpecFun_jll]]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "1346c9208249809840c91b26703912dff463d335"
+registries = "General"
+uuid = "efe28fd5-8261-553b-a9e1-b2916fc3738e"
+version = "0.5.6+0"
 
 [[deps.PrecompileTools]]
 deps = ["Preferences"]
@@ -121,6 +163,19 @@ version = "1.3.0"
 [[deps.Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 version = "1.11.0"
+
+[[deps.SpecialFunctions]]
+deps = ["IrrationalConstants", "LogExpFunctions", "OpenLibm_jll", "OpenSpecFun_jll"]
+git-tree-sha1 = "88ef0d98204515bc53dd4aaea5f7788882d1b66c"
+registries = "General"
+uuid = "276daf66-3868-5448-9aa4-cd146d93841b"
+version = "2.9.1"
+
+    [deps.SpecialFunctions.extensions]
+    SpecialFunctionsChainRulesCoreExt = "ChainRulesCore"
+
+    [deps.SpecialFunctions.weakdeps]
+    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 
 [[deps.SymJ]]
 deps = ["CommonEq", "CommonSolve", "GruntzLimit", "LambertW", "LinearAlgebra", "PrecompileTools", "RuntimeGeneratedFunctions", "ScopedValues", "TermInterface"]
