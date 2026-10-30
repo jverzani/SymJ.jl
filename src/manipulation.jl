@@ -107,14 +107,37 @@ has(ex::Sym, x::Sym) = _eq(ex, x) || any(a -> has(a, x), ex.args) || any(a -> ha
     subs(ex, x => v, ...)
     subs(ex, d::AbstractDict)
 
-Replace subexpressions of `ex` (whole nodes only) and re-simplify; the parts no
-substitution reaches are kept as they are, not rebuilt. Expressions are
-callable, so `ex(x => 1, y => 2)` is the same as `subs(ex, x => 1, y => 2)`; see
-[`Sym`](@ref) calling for the single-value forms.
+Replace subexpressions of `ex` and re-simplify; the parts no substitution reaches are
+kept as they are, not rebuilt. Expressions are callable, so `ex(x => 1, y => 2)` is the
+same as `subs(ex, x => 1, y => 2)`; see [`Sym`](@ref) calling for the single-value forms.
+
+A symbol or a function call is replaced where it occurs. A power, sum or product is
+also matched algebraically, by identities that hold for every value:
+
+- a power `b^P`: `b^q` with `q/P` an integer `n` is `w^n`, and an exponent with terms is
+  split, `b^(nP + r) = w^n b^r`;
+- a sum: where every one of its terms occurs the same number `m` of times, `m*w` plus
+  the rest;
+- a product: an integer power of it inside a product.
+
+```julia
+subs(x^4, x^2 => w)                       # w^2
+subs(x^3, x^2 => w)                       # x^3 (3/2 is not an integer)
+subs(exp(x + 1), exp(-x) => w)            # ℯ/w
+subs(2a + 2b + x, a + b => w)             # 2w + x
+subs(x^2 * log(x)^2, x * log(x) => w)     # w^2
+```
 """
-subs(ex::Sym, ps::Pair...) = _subs(ex, Dict{Sym,Sym}(Sym(p.first) => Sym(p.second) for p in ps))
-subs(ex::Sym, d::AbstractDict) = _subs(ex, Dict{Sym,Sym}(Sym(k) => Sym(v) for (k, v) in d))
+subs(ex::Sym, ps::Pair...) = _subs_top(ex, Dict{Sym,Sym}(Sym(p.first) => Sym(p.second) for p in ps))
+subs(ex::Sym, d::AbstractDict) = _subs_top(ex, Dict{Sym,Sym}(Sym(k) => Sym(v) for (k, v) in d))
 subs(ex::Number, args...) = Sym(ex)
+
+# whole nodes, unless a target is a power, a sum or a product, also matched algebraically
+function _subs_top(ex::Sym, d::Dict{Sym,Sym})
+    ck = [k => v for (k, v) in d if _subs_compound(k)]
+    isempty(ck) ? _subs(ex, d) : _subs_alg(ex, d, ck)
+end
+_subs_compound(k::Sym) = k.kind == POW || k.kind == ADD || (k.kind == MUL && !(length(k.args) == 1 && _isone(k.exps[1])))
 
 # A node none of whose parts change is returned as it is (no rebuilding, so a
 # substitution that misses most of a large expression allocates little).
@@ -175,6 +198,127 @@ function _subs_args(args::Vector{Sym}, d::Dict{Sym,Sym})
         return new
     end
     nothing
+end
+
+## algebraic substitution of compound targets
+#
+# Each rule is an identity: (b^P)^n = b^(nP) for an integer n, so b^q with q/P an integer
+# n is w^n; b^(nP + r) = (b^P)^n b^r, for an exponent with terms (e^(x + 1) with e^x => w
+# is e*w, e^x with e^(-x) => w is 1/w); a sum K inside a sum, every term of K there m times
+# (m a number), is m*w plus the rest (2a + 2b + x with a + b => w is 2w + x); a product K
+# inside a product as K^n, n an integer, is w^n times the rest (x^2 log(x)^2 with
+# x log(x) => w is w^2). The parts are substituted first, then the node.
+
+function _subs_alg(ex::Sym, d::Dict{Sym,Sym}, ck)
+    v = get(d, ex, nothing)
+    v === nothing || return v
+    k = ex.kind
+    r = if k == ADD
+        _add_many(Iterators.flatten(((Sym(ex.num),),
+            (_scale(_subs_alg(a, d, ck), c) for (a, c) in zip(ex.args, ex.coefs)))))
+    elseif k == MUL
+        prod((pow(_subs_alg(b, d, ck), _subs_alg(e, d, ck)) for (b, e) in zip(ex.args, ex.exps)); init = Sym(ex.num))
+    elseif k == POW
+        pow(_subs_alg(ex.args[1], d, ck), _subs_alg(ex.args[2], d, ck))
+    elseif k == FN
+        ex.name === :Derivative || _isdefint(ex) ? _subs(ex, d) : apply_function(ex.name, Sym[_subs_alg(a, d, ck) for a in ex.args])
+    else
+        ex
+    end
+    for (K, w) in ck
+        r = _subs_node(r, K, w)
+    end
+    r
+end
+
+# the node r with the target K => w matched algebraically, or r
+function _subs_node(r::Sym, K::Sym, w::Sym)
+    _eq(r, K) && return w
+    if K.kind == POW
+        r.kind == POW && return something(_subs_pow(r.args[1], r.args[2], K, w), r)
+        if r.kind == MUL
+            out, hit = Sym(r.num), false
+            for (b, e) in zip(r.args, r.exps)
+                t = _subs_pow(b, e, K, w)
+                hit |= t !== nothing
+                out = mul(out, t === nothing ? pow(b, e) : t)
+            end
+            return hit ? out : r
+        end
+    elseif K.kind == ADD && r.kind == ADD
+        return something(_subs_sum(r, K, w), r)
+    elseif K.kind == MUL && r.kind == MUL
+        return something(_subs_prod(r, K, w), r)
+    end
+    r
+end
+
+# b^q with the target B^P => w: w^n b^(q - nP), or nothing
+function _subs_pow(b::Sym, q::Sym, K::Sym, w::Sym)
+    B, P = K.args[1], K.args[2]
+    _eq(b, B) || return nothing
+    n = q / P
+    if n.kind == NUMBER
+        isinteger(n) && !iszero(n) || return nothing
+        return pow(w, n)
+    end
+    # an exponent with terms: n from the first term of P, the rest without P's terms
+    q, P = expand(q), expand(P)
+    tP, tq = _subs_terms(P), _subs_terms(q)
+    isempty(tP) && return nothing
+    c = get(tq, first(tP).first, nothing)
+    c === nothing && return nothing
+    n = c / first(tP).second
+    (isinteger(n) && !iszero(n)) || return nothing
+    rest = expand(q - n * P)
+    any(t -> haskey(_subs_terms(rest), t), keys(tP)) && return nothing
+    mul(pow(w, n), pow(b, rest))
+end
+
+# a sum's terms (constant left out) as term => numeric coefficient, in order
+function _subs_terms(e::Sym)
+    out = Dict{Sym,Sym}()
+    e.kind == ADD && return Dict{Sym,Sym}(a => Sym(c) for (a, c) in zip(e.args, e.coefs))
+    e.kind == NUMBER && return out
+    e.kind == MUL && !isone(e.num) && return Dict{Sym,Sym}(e / Sym(e.num) => Sym(e.num))
+    Dict{Sym,Sym}(e => ONE)
+end
+
+# the target sum K, every term of it m times in r: m*w + (r - m*K), or nothing
+function _subs_sum(r::Sym, K::Sym, w::Sym)
+    tr = Dict{Sym,Sym}(a => Sym(c) for (a, c) in zip(r.args, r.coefs))
+    m = nothing
+    for (a, c) in zip(K.args, K.coefs)
+        cr = get(tr, a, nothing)
+        cr === nothing && return nothing
+        mi = cr / Sym(c)
+        m === nothing ? (m = mi) : (_eq(m, mi) || return nothing)
+    end
+    m === nothing && return nothing
+    add(mul(m, w), r - m * K)
+end
+
+# the target product K inside r as K^n (n an integer of one sign): w^n * r / K^n, or nothing
+function _subs_prod(r::Sym, K::Sym, w::Sym)
+    fr = Dict{Sym,Sym}(zip(r.args, r.exps))
+    n = nothing
+    for (b, e) in zip(K.args, K.exps)
+        er = get(fr, b, nothing)
+        er === nothing && return nothing
+        q = er / e
+        (q.kind == NUMBER && isexact(q.num)) || return nothing
+        pos = q.num > N0
+        ni = pos ? floor(q) : -floor(-q)          # toward 0
+        iszero(ni) && return nothing
+        if n === nothing
+            n = ni
+        else
+            (n.num > N0) == pos || return nothing
+            n = pos ? min(n, ni) : max(n, ni)
+        end
+    end
+    n === nothing && return nothing
+    mul(pow(w, n), r / K^n)
 end
 
 # a derivative's variable is bound: Derivative(f, v) with v => a symbol renames it, with
