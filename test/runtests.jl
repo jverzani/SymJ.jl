@@ -1943,6 +1943,23 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test inv([x 1; 1 x]) == [x -1; -1 x] / (x^2 - 1) && inv(Sym[2;;]) == Sym[1//2;;]
         @test_throws LA.SingularException inv(Sym[1 2; 2 4])
         @test_throws LA.SingularException inv([1/x 1; 1 x])
+        # dot and norm, entrywise (symbols are complex)
+        @test LA.dot(x, a) == conj(x) * a
+        @test LA.dot([x, a], [1, 2]) == conj(x) + 2conj(a)
+        @test LA.dot([1, 2], [x, a]) == x + 2a
+        @test LA.dot([x, a, Sym(1)], [Sym(2), Sym(3), b])(x => 2, a => 3, b => 5) == 18
+        @test LA.norm(Sym[3, 4]) == 5
+        @test LA.norm([x, a]) == sqrt(abs(x)^2 + abs(a)^2)
+        @test LA.norm([x, a], 1) == abs(x) + abs(a)
+        @test LA.norm(Sym[3, -4], Inf) == 4
+        @test LA.norm(Sym[1, 1], 3) == Sym(2)^(1 // 3)
+        @test LA.norm(x) == abs(x)
+        @test LA.normalize(Sym[3, 4]) == Sym[3 // 5, 4 // 5]
+        @test refine(LA.dot([x, a], [x, a]); assume = @assume(x in Reals, a in Reals)) == x^2 + a^2
+        @test refine(LA.norm([x, a]); assume = @assume(x in Reals, a in Reals)) == sqrt(x^2 + a^2)
+        # nine facts, as many as Assumptions has fields
+        vs = [Sym(Symbol(:v, i)) for i in 1:9]
+        @test assuming(() -> refine(sqrt(vs[9]^2)), (v ∈ ℝ for v in vs)...) == abs(vs[9])
         G3 = G[1:3, 1:3]
         @test all(iszero, map(simplify, inv(G3) * G3 - LA.I))
         @test map(simplify, inv([sin(x) cos(x); -cos(x) sin(x)])) == [sin(x) -cos(x); cos(x) sin(x)]

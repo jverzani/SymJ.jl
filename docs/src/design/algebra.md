@@ -587,8 +587,13 @@ Two canonical-form additions came with it:
   **`inv`** is the adjugate (Bareiss cofactors over the determinant) for polynomial
   entries up to 6×6, Gauss–Jordan over `RatFun` otherwise. **`lu`** returns a
   `LinearAlgebra.LU`, so `F.L`, `F.U`, `F.p`, `det(F)` and `F \ b` work as usual.
+- **`dot` and `norm`** are entrywise, as for numbers: symbols are complex, so
+  `dot(u, v) = Σ conj(uᵢ) vᵢ` and `norm(v) = sqrt(Σ |vᵢ|²)` (also `p = 1, Inf`, any
+  `p > 0`, and `normalize`); `refine` under real assumptions drops the `conj` and `abs`.
+  (LinearAlgebra's generic methods recurse into an entry, which iterates as itself.)
 - **Names.** Methods extend LinearAlgebra's functions (`det`, `inv`, `lu`, `qr`, `rank`,
-  `nullspace`, `eigvals`, `eigvecs`, `eigen`) and Base's (`exp`, `sin`, `cos`, `^`);
+  `nullspace`, `eigvals`, `eigvecs`, `eigen`, `dot`, `norm`, `normalize`) and Base's
+  (`exp`, `sin`, `cos`, `^`);
   functions LinearAlgebra does not have stay unexported: `SymJ.rref`,
   `SymJ.jordan_form`, `SymJ.charpoly`.
 - **`SymJ.rref`, `rank`, `nullspace`** come from the same elimination; symbolic pivots are

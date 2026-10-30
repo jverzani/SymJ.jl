@@ -857,6 +857,14 @@ SymJ.rref(Sym[1 2 3; 4 5 6; 7 8 9]), nullspace(Sym[1 2 3; 4 5 6; 7 8 9])
 eigvals(Sym[1 2; 3 4]), eigvecs([a b; b a])
 ```
 
+`dot` and `norm` work entry by entry. Symbols are complex, so `dot` conjugates its first
+argument; for real symbols, `refine` under the assumptions removes the conjugates:
+
+```@example tut
+u = [x, y, 1]
+dot(u, [1, 2, 3]), norm(u), refine(dot(u, u); assume = @assume(x in Reals, y in Reals))
+```
+
 QR factorization by exact Gram–Schmidt, and functions of matrices through the Jordan
 form (`SymJ.jordan_form`), such as the exponential that solves `x' = A x`:
 

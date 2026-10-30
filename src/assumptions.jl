@@ -170,6 +170,8 @@ struct _ACon
     strict::Bool
 end
 
+struct _Fields end      # (see the inner constructor of Assumptions)
+
 """
     Assumptions(facts...)
 
@@ -202,6 +204,9 @@ struct Assumptions
     nonzero::Vector{Sym}                    # expressions in several symbols known ≠ 0
     lin::Vector{_ACon}                      # relations among several symbols
     cache::Dict{Sym,Union{Nothing,UInt8}}   # sign masks found
+    # (the fields are set behind a marker: with Julia's default constructor, a call with
+    # nine facts, one for each field, would not reach Assumptions(facts...))
+    Assumptions(::_Fields, fields...) = new(fields...)
 end
 
 # with Julia's operators, as the facts are written in @assume
@@ -218,7 +223,7 @@ end
 
 # the normalized facts, or nothing when they are contradictory
 function _build(flat::Vector{Any})
-    A = Assumptions(flat, Dict{Sym,Sym}(), Dict{Sym,Int8}(), Dict{Sym,Int8}(), Dict{Sym,SymSet}(),
+    A = Assumptions(_Fields(), flat, Dict{Sym,Sym}(), Dict{Sym,Int8}(), Dict{Sym,Int8}(), Dict{Sym,SymSet}(),
                     Dict{Sym,Vector{Sym}}(), Sym[], _ACon[], Dict{Sym,Union{Nothing,UInt8}}())
     # membership facts first: equalities then avoid solving for those symbols
     mems = [f for f in flat if f isa Membership]
