@@ -194,12 +194,24 @@ end
 # the radicals of e, under A, with their real factors to even powers brought out (_refine_powprod)
 function _split_radicals(e::Sym, A::Assumptions)
     isempty(e.args) && return e
-    n = e.kind == MUL ? Sym(e.num) * prod((_split_radicals(b, A)^p for (b, p) in zip(e.args, e.exps)); init = ONE) :
-        _rebuild_node(e, Sym[_split_radicals(a, A) for a in e.args])
-    (n.kind == POW && n.args[1].kind == MUL && n.args[2].kind == NUMBER && isexact(n.args[2].num) &&
-     !isone(_denominator(n.args[2].num))) || return n
-    r = _refine_powprod(n.args[1], n.args[2], A)
-    r === nothing ? n : r
+    e.kind == MUL &&
+        return Sym(e.num) * prod((_split_pow(_split_radicals(b, A), p, A) for (b, p) in zip(e.args, e.exps)); init = ONE)
+    n = _rebuild_node(e, Sym[_split_radicals(a, A) for a in e.args])
+    n.kind == POW ? _split_pow(n.args[1], n.args[2], A) : n
+end
+
+# b^q, q a fraction, with b's real factors to even powers out: √(x²) = |x|, √(4x²c) = 2|x|√c
+function _split_pow(b::Sym, q::Sym, A::Assumptions)
+    (q.kind == NUMBER && isexact(q.num) && !isone(_denominator(q.num))) || return b^q
+    if b.kind == POW
+        c, p = b.args
+        p.kind == NUMBER && isexact(p.num) && isone(_denominator(p.num)) && iseven(_numerator(p.num)) &&
+            _isreal(c, A) === true && return abs(c)^expand(p * q)
+    elseif b.kind == MUL
+        r = _refine_powprod(b, q, A)
+        r === nothing || return r
+    end
+    b^q
 end
 
 # atan(y, x) as atan(y/x) moved to the quadrant the signs of x and y give
