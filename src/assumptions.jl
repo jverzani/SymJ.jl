@@ -170,6 +170,8 @@ struct _ACon
     strict::Bool
 end
 
+struct _Fields end      # (see the inner constructor of Assumptions)
+
 """
     Assumptions(facts...)
 
@@ -192,7 +194,6 @@ adds facts to `A`.
 A = Assumptions(x ≫ 0, n ∈ ℤ, a ≦ b)
 ```
 """
-struct _Fields end
 struct Assumptions
     facts::Vector{Any}                      # as given, flattened
     subst::Dict{Sym,Sym}                    # symbol => value, from equalities
