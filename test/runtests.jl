@@ -435,6 +435,11 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test_throws ArgumentError series(sin(x), x + 1)
     end
 
+    @testset "one-argument + and *" begin
+        @test +(x) == x                      # as for numbers (RischIntegrate builds *(a))
+        @test *(x) == x
+    end
+
     @testset "subs inside products" begin
         @test subs(x * exp(x), exp(x) => y) == x * y
         @test subs(3x^2 * y, x^2 => z) == 3y * z

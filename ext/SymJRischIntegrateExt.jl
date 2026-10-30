@@ -40,12 +40,13 @@ end
 # definite integrals: split at the integrand's singular points, one-sided limits at them
 # and at ±∞, by cases on parameters; principal_value = true takes Cauchy principal values
 # at the singular points inside and at ±∞ (see SymJ's definite.jl)
-function RischIntegrate.integrate(ex::Sym, xab::Tuple, more::Tuple...; assume = nothing,
+# (an inner integral by cases, as the integrand of an outer one: the cases the outer
+# interval allows)
+function RischIntegrate.integrate(ex::Union{Sym,SymJ.Cases}, xab::Tuple, more::Tuple...; assume = nothing,
                                   principal_value::Bool = false, kw...)
     antider = (f, x, A) -> RischIntegrate.integrate(f, x; assume = A, kw...)
     v = SymJ._definite_integral(ex, xab, assume, antider; principal_value)
     for t in more
-        v isa Sym || throw(ArgumentError("integrate: an iterated integral whose inner integral has cases"))
         v = SymJ._definite_integral(v, t, assume, antider; principal_value)
     end
     v
