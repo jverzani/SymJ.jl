@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=13a571c2">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=fd190877">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -300,6 +300,17 @@ subs(ex, x =&gt; y - 1)</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[x^{2} - 2 \cdot x + 1\]
+</div>
+</div>
+<p>A power, sum or product is also found where it occurs algebraically, not only as written: <code class="md-code-inline">exp(-x)</code> in <code class="md-code-inline">exp(x)</code> (as <code class="md-code-inline">1/w</code>), <code class="md-code-inline">x*log(x)</code> in <code class="md-code-inline">x^2*log(x)^2</code>, <code class="md-code-inline">a + b</code> in <code class="md-code-inline">2a + 2b + c</code>:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms w
+subs(exp(x - exp(-x)), exp(-x) =&gt; w), subs(x^2 * log(x)^2, x * log(x) =&gt; w), subs(2a + 2b + c, a + b =&gt; w)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \frac{1}{w \cdot e^{w}}, \; w^{2}, \; c + 2 \cdot w \right)\]
 </div>
 </div>
 <p>Calling an expression with pairs does the same:</p>
@@ -2170,6 +2181,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=13a571c2"></script>
+  <script src="../assets/materialdocs.js?v=fd190877"></script>
 </body>
 </html>
