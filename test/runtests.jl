@@ -1793,6 +1793,32 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test limit(f, x => a) == 16a / 9                       # the classic L'Hôpital example
     end
 
+    @testset "limit and subs of Cases" begin
+        @syms a b
+        # limit: the cases that hold near the point, each with its limit
+        cs = SymJ.Cases{Sym}([Any[x ≪ 0] => -x, Any[x ~ 0] => Sym(0), Any[x ≫ 0] => x^2])
+        @test limit(cs, x => 0) == 0
+        @test limit(cs, x => 1) == 1
+        @test limit(cs, x => -Inf) == Sym(Inf)
+        jump = SymJ.Cases{Sym}([Any[x ≪ 1] => Sym(1), Any[x ≫ 1] => Sym(2)])
+        @test limit(jump, x => 1; dir = :-) == 1
+        @test limit(jump, x => 1; dir = :+) == 2
+        @test_throws GruntzError limit(jump, x => 1)
+        @test limit(SymJ.Cases{Sym}([Any[x^2 ≫ 1] => Sym(5), Any[x^2 ≪ 1] => Sym(6)]), x => 1; dir = :+) == 5
+        @test limit(jump, x => b; dir = :+, assume = @assume(b > 2)) == 2
+        pc = SymJ.Cases{Sym}([Any[a ≪ 0] => x * a, Any[a ≫ 0] => x / a])       # cases on another symbol kept
+        lc = limit(pc, x => 2)
+        @test lc isa SymJ.Cases
+        @test lc(a => 4) == Sym(1 // 2)
+        # subs: into answers and conditions; decided conditions drop their case or themselves
+        cb = SymJ.Cases{Sym}([Any[a ≦ 0] => Sym(Inf), Any[a ≫ 0] => 1 / a])
+        @test subs(cb, a => 2) == Sym(1 // 2)
+        @test subs(cb, a => -1) == Sym(Inf)
+        @test subs(cb, a => b^2 + 1) == 1 / (b^2 + 1)                          # b real: b² + 1 > 0
+        @test subs(jump, x => 2) == 2
+        @test subs(jump, a => 3) isa SymJ.Cases
+    end
+
     @testset "refine and simplify" begin
         @syms a n
         R(e, as...) = refine(e; assume = Assumptions(as...))

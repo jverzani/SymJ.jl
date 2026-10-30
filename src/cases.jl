@@ -19,7 +19,9 @@ vector of `conditions => answer` pairs, the conditions a vector of facts that al
 in that case. Not exported.
 
 Calling it with values for the symbols in the conditions, `cs(a => 2)`, gives the
-answer for those values; indexing with them, `cs[a => 2]`, gives their case.
+answer for those values; indexing with them, `cs[a => 2]`, gives their case. `subs`
+substitutes into each case, keeping those whose conditions still can hold, and `limit`
+takes the cases that hold near the point.
 
 ```julia
 cs = solve(x^2 ~ a, x; assume = (x ≫ 0,))
