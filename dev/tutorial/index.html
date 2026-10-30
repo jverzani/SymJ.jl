@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=9c3c036a">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=13a571c2">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -310,6 +310,26 @@ subs(ex, x =&gt; y - 1)</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[4 \cdot a + 2 \cdot b + c\]
+</div>
+</div>
+<p>Calling an equation (written with <code class="md-code-inline">~</code>, as in the section on solving equations below) substitutes into both sides; <code class="md-code-inline">lhs</code> and <code class="md-code-inline">rhs</code> give the sides:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">eq = y ~ ex
+eq(x =&gt; z + 1)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[y = a \cdot \left( z + 1 \right)^{2} + b \cdot \left( z + 1 \right) + c\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">lhs(eq), rhs(eq)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( y, \; a \cdot x^{2} + b \cdot x + c \right)\]
 </div>
 </div>
 <h2 id="Numerical-evaluation" class="md-heading">Numerical evaluation<a href="#Numerical-evaluation" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
@@ -2150,6 +2170,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=9c3c036a"></script>
+  <script src="../assets/materialdocs.js?v=13a571c2"></script>
 </body>
 </html>
