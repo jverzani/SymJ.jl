@@ -390,6 +390,26 @@ function LinearAlgebra.nullspace(A::AbstractMatrix{Sym})
     N
 end
 
+## dot and norm, entrywise as for numbers. (The generic methods iterate an entry, and an
+## expression iterates as itself.) Symbols are complex: dot(u, v) = Σ conj(uᵢ) vᵢ and
+## norm(v) = sqrt(Σ |vᵢ|²); for real symbols refine, under assumptions, removes the conj
+## and the abs.
+
+LinearAlgebra.dot(a::Sym, b::Sym) = conj(a) * b
+LinearAlgebra.dot(a::Sym, b::Number) = conj(a) * b
+LinearAlgebra.dot(a::Number, b::Sym) = conj(a) * b
+LinearAlgebra.norm(a::Sym, p::Real = 2) = abs(a)
+function LinearAlgebra.norm(v::AbstractArray{Sym}, p::Real = 2)
+    isempty(v) && return ZERO
+    p == 2 && return sqrt(_add_many(abs2(a) for a in v))
+    p == 1 && return _add_many(abs(a) for a in v)
+    p == Inf && return reduce(max, abs.(v))
+    p == -Inf && return reduce(min, abs.(v))
+    p > 0 || throw(ArgumentError("norm: p = $p is not supported for expressions"))
+    _add_many(abs(a)^p for a in v)^(1 / Sym(p))
+end
+LinearAlgebra.normalize(v::AbstractArray{Sym}, p::Real = 2) = v ./ LinearAlgebra.norm(v, p)
+
 ## eigenvalues and eigenvectors
 
 """
