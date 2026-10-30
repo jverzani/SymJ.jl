@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=63e4f1cd">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=104af1c2">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -1845,6 +1845,17 @@ pv(1 / x, (x, -1, 2)), pv(1 / x^3, (x, -1, 2)), pv(tan(x), (x, 0, π)), pv(x / (
 \[\frac{1}{a}\]
 </div>
 </div>
+<p>An iterated integral lists its intervals innermost first. The inner integral may have cases on the outer variable (here on the sign of <code class="md-code-inline">x</code>, for <code class="md-code-inline">y^m</code>); the outer interval keeps the ones it allows, or is split where they change:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms n m
+integrate(x^n * y^m, (y, 0, x), (x, 0, 1); assume = @assume(n &gt; 0, m &gt; 0))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\frac{1}{\left( m + 1 \right) \cdot \left( m + n + 2 \right)}\]
+</div>
+</div>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -2181,6 +2192,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=63e4f1cd"></script>
+  <script src="../assets/materialdocs.js?v=104af1c2"></script>
 </body>
 </html>
