@@ -113,6 +113,8 @@ function _refine_rule(e::Sym, A::Assumptions)
            isone(_denominator(q.num)) && iseven(_numerator(q.num)) && _isreal(b.args[1], A) === true
             return b.args[1]^q
         end
+        b.kind == MUL && q.kind == NUMBER && isexact(q.num) && !isone(_denominator(q.num)) &&
+            return _refine_powprod(b, q, A)
         return nothing
     elseif k == FN && length(e.args) == 1
         u = e.args[1]
@@ -170,6 +172,34 @@ function _refine_rule(e::Sym, A::Assumptions)
         end
     end
     nothing
+end
+
+# (∏ uᵢ)^q, q a fraction: (uv)^q = u^q v^q for u ≥ 0, so a real factor to an even power
+# comes out as |c| (√(R²(b² + 1)) = |R|√(b² + 1)), and a positive number with it; other
+# factors stay, so √(xy) is not split
+function _refine_powprod(b::Sym, q::Sym, A::Assumptions)
+    out, rest = ONE, Sym[]
+    for (c, p) in zip(b.args, b.exps)
+        if p.kind == NUMBER && isexact(p.num) && isone(_denominator(p.num)) && iseven(_numerator(p.num)) &&
+           _isreal(c, A) === true
+            out *= abs(c)^expand(p * q)
+        else
+            push!(rest, c^p)
+        end
+    end
+    length(rest) == length(b.args) && return nothing
+    sign(b.num) > 0 ? out * Sym(b.num)^q * prod(rest; init = ONE)^q : out * (Sym(b.num) * prod(rest; init = ONE))^q
+end
+
+# the radicals of e, under A, with their real factors to even powers brought out (_refine_powprod)
+function _split_radicals(e::Sym, A::Assumptions)
+    isempty(e.args) && return e
+    n = e.kind == MUL ? Sym(e.num) * prod((_split_radicals(b, A)^p for (b, p) in zip(e.args, e.exps)); init = ONE) :
+        _rebuild_node(e, Sym[_split_radicals(a, A) for a in e.args])
+    (n.kind == POW && n.args[1].kind == MUL && n.args[2].kind == NUMBER && isexact(n.args[2].num) &&
+     !isone(_denominator(n.args[2].num))) || return n
+    r = _refine_powprod(n.args[1], n.args[2], A)
+    r === nothing ? n : r
 end
 
 # atan(y, x) as atan(y/x) moved to the quadrant the signs of x and y give

@@ -9,10 +9,11 @@ using PrecompileTools: @setup_workload, @compile_workload
 
 # piecewise functions, heaviside and dirac: interval by interval (see SymJ's piecewise.jl);
 # abs, sign, max and min, which the integrator does not take, as piecewise functions
-# (for real x; conj(x), real(x) and imag(x) are x, x and 0). The assumptions (assume = …, or an @assuming block) decide the signs of
-# parameter expressions the answer's form depends on, through the integrator's sign
-# oracle, when the installed RischIntegrate has one; signs they leave open take its
-# default.
+# (for real x; conj(x), real(x) and imag(x) are x, x and 0, and a radical's real
+# factors to even powers come out, √(x²(b² + 1)) = |x|√(b² + 1)). The assumptions
+# (assume = …, or an @assuming block) decide the signs of parameter expressions the
+# answer's form depends on, through the integrator's sign oracle, when the installed
+# RischIntegrate has one; signs they leave open take its default.
 function RischIntegrate.integrate(ex::Sym, x::Sym; assume = nothing, kw...)
     A = SymJ._assumptions(assume)
     if A !== nothing && _has_oracle() && !haskey(kw, :sign)
@@ -20,6 +21,8 @@ function RischIntegrate.integrate(ex::Sym, x::Sym; assume = nothing, kw...)
     end
     integ = f -> RischIntegrate.risch_integrate(f, x; kw...)
     ex = SymJ._realsyms(ex, (x,))
+    Ax = SymJ._with_fact(something(A, SymJ.Assumptions()), x ∈ SymJ.ℝ)
+    Ax === nothing || (ex = SymJ._split_radicals(ex, Ax))
     SymJ._haspieces(ex, x) && return SymJ._integrate_pieces(ex, x, integ)
     try
         integ(ex)

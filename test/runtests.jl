@@ -1834,6 +1834,12 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test R(sqrt(exp(x)), x ∈ ℝ) == exp(x / 2) && R(x^2 + a, a ~ 3) == x^2 + 3
         @test R(x ≫ 0, x ≫ 1) === true && R(x ≫ 2, x ≫ 1) == (x ≫ 2) && R(x^2 ≧ 0, x ∈ ℝ) === true
         @test (@assuming x > 0 begin refine(sqrt(x^2)) end) == x
+        # a radical's real factors to even powers come out: (uv)^q = u^q v^q for u ≥ 0
+        @test R(sqrt(x^2 * (a^2 + 1)), x ≫ 0) == x * sqrt(a^2 + 1)
+        @test R(sqrt(x^2 * (a^2 + 1)), x ∈ ℝ) == abs(x) * sqrt(a^2 + 1)
+        @test R(sqrt(4x^2 * a), x ∈ ℝ) == 2abs(x) * sqrt(a)
+        @test R(sqrt(-x^2 * a), x ∈ ℝ) == abs(x) * sqrt(-a)
+        @test R(sqrt(x * a), x ≫ 0, a ≫ 0) == sqrt(x * a)                  # not split
         # refine = true: the block's value refined with the facts
         @test (@assuming x > 0 begin sqrt(x^2) end) == sqrt(x^2)
         @test (@assuming refine = true x > 0 begin sqrt(x^2) end) == x
