@@ -239,6 +239,12 @@ import PolyLog as PL
         @test ∫(1 / (sin(x) + 1), (x, 4, 5)) == Sym(Inf)                  # 3π/2
         @test ∫(1 / (1 - cos(x)), (x, 5, 7)) == Sym(Inf)                  # 2π
         @test N(∫(1 / (sin(x) + 1), (x, 5, 7))) ≈ 6.450851174313285
+        # a periodic condition changes in every period: split at all of its points inside
+        @test ∫(abs(sin(2x)), (x, 0, 2PI)) == 4
+        @test ∫(abs(sin(3x)), (x, 0, 3PI)) == 6
+        @test ∫(abs(cos(3x)), (x, 0, PI)) == 2
+        @test ∫(abs(sin(2x)), (x, 2PI, 0)) == -4
+        @test ∫(sign(sin(x)), (x, 0, 3PI)) == PI
         if VERSION >= v"1.12"          # an antiderivative known only numerically (₂F₁, root sums): a float
             @test N(∫(x / sqrt(1 - x^3), (x, 0, 1 // 2))) ≈ 0.12832329160032097
             @test N(∫(1 / (x^5 - x + 1), (x, 0, 1))) ≈ 1.5919853723336097

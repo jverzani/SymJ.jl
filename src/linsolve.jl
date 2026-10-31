@@ -59,7 +59,7 @@ function _defined_in(eqs, s::Dict{Sym,Sym}, vars::Vector{Sym})
         zs = Sym[]
         foreach(v -> _zero_sets!(zs, e, v), vars)
         for b in unique(zs)
-            v = try subs(b, ps...) catch err; err isa DivideError && return false; rethrow() end
+            v = try subs(b, ps...) catch err; _isdivzero(err) && return false; rethrow() end
             (iszero(v) || (!_hassymbol(v) && _iszero_value(v))) && return false
         end
     end

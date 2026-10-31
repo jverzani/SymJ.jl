@@ -162,7 +162,7 @@ function _psapply(name::Symbol, args::Vector{Sym}, N::Rational{Int})
         ck = try
             subs(d, y => a0)
         catch err
-            err isa DivideError || rethrow()
+            _isdivzero(err) || rethrow()
             throw(ArgumentError("series: $(apply_function(name, args)) is singular at the point"))
         end
         _finite_coef(ck) || throw(ArgumentError("series: $(apply_function(name, args)) is singular at the point"))

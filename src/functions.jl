@@ -328,7 +328,8 @@ function _invrecip_rule(name::Symbol, g::Symbol, parity::Symbol, atzero)
         iszero(a) && return atzero
         r = apply_function(g, Sym[inv(a)])
         _hasfn(r, g) || return r
-        parity === :odd ? _odd(name, a) : nothing
+        # :odd_nonzero: odd for a nonzero number only (a symbol may be 0)
+        parity === :odd || (parity === :odd_nonzero && a.kind == NUMBER) ? _odd(name, a) : nothing
     end)
 end
 
@@ -346,17 +347,19 @@ register_function!(:coth; julia = coth, eval = _ratio_rule(:coth, :cosh, :sinh, 
     diff = (args, i) -> 1 - coth(args[1])^2)
 
 # as in Base: asec(x) = acos(1/x), acot(x) = atan(1/x), asech(x) = acosh(1/x), ...
+# acot and acoth are odd except at 0 (acot(0) = π/2), so a minus sign is taken out only
+# of a nonzero number: acot(-x) stays, as x may be 0
 register_function!(:asec; julia = asec, eval = _invrecip_rule(:asec, :acos, :none, nothing),
     diff = (args, i) -> inv(args[1]^2 * sqrt(1 - inv(args[1]^2))))
 register_function!(:acsc; julia = acsc, eval = _invrecip_rule(:acsc, :asin, :odd, nothing),
     diff = (args, i) -> -inv(args[1]^2 * sqrt(1 - inv(args[1]^2))))
-register_function!(:acot; julia = acot, eval = _invrecip_rule(:acot, :atan, :odd, PI / 2),
+register_function!(:acot; julia = acot, eval = _invrecip_rule(:acot, :atan, :odd_nonzero, PI / 2),
     diff = (args, i) -> -inv(1 + args[1]^2))
 register_function!(:asech; julia = asech, eval = _invrecip_rule(:asech, :acosh, :none, nothing),
     diff = (args, i) -> -inv(args[1]^2 * sqrt(inv(args[1]) - 1) * sqrt(inv(args[1]) + 1)))
 register_function!(:acsch; julia = acsch, eval = _invrecip_rule(:acsch, :asinh, :odd, nothing),
     diff = (args, i) -> -inv(args[1]^2 * sqrt(1 + inv(args[1]^2))))
-register_function!(:acoth; julia = acoth, eval = _invrecip_rule(:acoth, :atanh, :odd, nothing),
+register_function!(:acoth; julia = acoth, eval = _invrecip_rule(:acoth, :atanh, :odd_nonzero, nothing),
     diff = (args, i) -> inv(1 - args[1]^2))
 
 ## real cube root: differs from x^(1/3) (the principal root) for negative x

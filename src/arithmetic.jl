@@ -414,12 +414,12 @@ function _numpow(b::SymNumber, e::SymNumber)
         return Sym(bf^ef)
     end
     if _isint(e)
-        iszero(b) && sign(e) < 0 && throw(DivideError())
+        iszero(b) && sign(e) < 0 && throw(DivisionByZero("division by zero"))
         return Sym(b^_toint(e))
     end
     if iszero(b)
         sign(e) > 0 && return ZERO
-        throw(DivideError())
+        throw(DivisionByZero("0 to the negative power $e"))
     end
     _isN1(b) && return ONE
     sign(b) < 0 && return mul(_minus_one_pow(e), _numpow(-b, e))
