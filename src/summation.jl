@@ -150,7 +150,8 @@ function _known_sum(f::Sym, k::Sym, a::Sym, b, assume)
     end
     if b !== nothing && a.kind == NUMBER && _isint(a.num) && 0 <= _toint(a.num) <= 10
         bt = _binomial_theorem(f, k, b)               # from 0, less the first terms
-        bt === nothing || return expand(bt - _add_many(subs(f, k => Sym(j)) for j in 0:(_toint(a.num) - 1)))
+        bt === nothing || return iszero(a) ? bt :
+            expand(bt - _add_many(subs(f, k => Sym(j)) for j in 0:(_toint(a.num) - 1)))
     end
     b === nothing && return _hypergeometric_series(f, k, a)
     nothing
@@ -173,8 +174,44 @@ function _poly_geometric(f::Sym, k::Sym)
         p === nothing || has(p, k) || return (p, r)
     end
     p = cancel(f / r^k)
-    (has(r, k) || !_ispolyin(p, [k]) || !_ispolyin(numer_denom(p)[2], [k]) || has(numer_denom(p)[2], k)) && return nothing
+    if (has(r, k) || !_ispolyin(p, [k]) || !_ispolyin(numer_denom(p)[2], [k]) || has(numer_denom(p)[2], k))
+        # f / r^k may not cancel ((-1)^(n-k) k / (-1)^k is (-1)^n k for integer k): p from
+        # its values p(j) = f(j)/r^j at integers, checked at three more
+        p = _interpolated_poly(f, r, k, dn + 2)
+        p === nothing && return nothing
+    end
     (p, r)
+end
+
+# b^(e + c) as b^e b^c for a nonzero number b and an integer c, so that the values agree
+# ((-1)^(n - 4) is (-1)^n)
+_int_offset_powers(v::Sym) = _replace_walk(v) do t
+    (t.kind == POW && t.args[1].kind == NUMBER && !iszero(t.args[1]) && t.args[2].kind == ADD) || return nothing
+    c = t.args[2].num
+    (isexact(c) && _isint(c) && !iszero(c)) || return nothing
+    pow(t.args[1], t.args[2] - Sym(c)) * pow(t.args[1], Sym(c))
+end
+
+# the polynomial p of degree at most m with p(j) = f(j)/r^j at j = 0, …, m, when f(j) =
+# p(j) r^j also holds at j = m+1, m+2, m+3; nothing otherwise
+function _interpolated_poly(f::Sym, r::Sym, k::Sym, m::Int)
+    vals = Sym[]
+    for j in 0:(m + 3)
+        v = try cancel(_int_offset_powers(subs(f, k => Sym(j)) / r^j)) catch; return nothing end
+        push!(vals, v)
+    end
+    p = ZERO
+    for j in 0:m                                             # Lagrange's form
+        iszero(vals[j + 1]) && continue
+        L = ONE
+        for i in 0:m
+            i == j || (L *= (k - i) / Sym(j - i))
+        end
+        p += vals[j + 1] * L
+    end
+    p = expand(p)
+    all(j -> iszero(cancel(subs(p, k => Sym(j)) - vals[j + 1])), (m + 1):(m + 3)) || return nothing
+    p
 end
 
 # f = c * r^k with c, r free of k: (c, r), or nothing
@@ -213,17 +250,41 @@ function _divergent(p::Sym, r::Sym)
     throw(ArgumentError("summation: the series diverges"))
 end
 
-# Σ_{k=0}^{n} binomial(n, k) x^k = (1 + x)^n (x free of k, possibly 1)
+# Σ_{k=0}^{n} binomial(n, k) p(k) x^k = p(θ)(1 + t)^n at t = x, θ = t d/dt (x free of k,
+# possibly 1; p a polynomial): (1 + x)^n for p = 1, n x (1 + x)^(n-1) for p = k. Exact
+# for every n ≥ 0 (Σ binomial(n, k) (-1)^(n-k) is 0^n, 1 at n = 0)
 function _binomial_theorem(f::Sym, k::Sym, n::Sym)
     fs = f.kind == MUL ? [(b^p) for (b, p) in zip(f.args, f.exps)] : [f]
     i = findfirst(u -> u.kind == FN && u.name === :binomial && _eq(u.args[1], n) && _eq(u.args[2], k), fs)
     i === nothing && return nothing
     rest = cancel(f / fs[i])
-    g = rest == ONE ? (ONE, ONE) : _geometric(rest, k)
+    g = has(rest, k) ? _poly_geometric(rest, k) : (rest, ONE)
     g === nothing && return nothing
-    c, x = g
-    expand(c) == c && !has(c, k) || return nothing
-    c * (1 + x)^n
+    p, x = g
+    d = _xdeg(p, k)
+    if d > 0 && _iszero_value(1 + x)
+        # x = -1: the terms n(n-1)⋯(n-j+1) 0^(n-j) vanish except at n = j, and
+        # n 0^(n-1) is not defined at n = 0; the sum is its values at n = 0, …, d
+        ps = Pair[]
+        for j in 0:d
+            v = _add_many(subs(f, n => Sym(j), k => Sym(i)) for i in 0:j)
+            iszero(v) || push!(ps, (n ~ j) => v)
+        end
+        isempty(ps) && return ZERO
+        return piecewise(ps..., true => 0)
+    end
+    # p in the falling-factorial basis, p(k) = Σ a_j k(k-1)⋯(k-j+1) with a_j = Δ^j p(0)/j!,
+    # and Σ binomial(n, k) k(k-1)⋯(k-j+1) x^k = n(n-1)⋯(n-j+1) x^j (1 + x)^(n-j): the sum is
+    # (1 + x)^(n-d) times a polynomial in n and x, presented factored
+    P = ZERO
+    for j in 0:d
+        a = _add_many(Sym((-1)^(j - i) * binomial(j, i)) * subs(p, k => Sym(i)) for i in 0:j) / factorial(big(j))
+        iszero(a) && continue
+        P += a * prod((n - i for i in 0:(j - 1)); init = ONE) * x^j * (1 + x)^(d - j)
+    end
+    P = expand(P)
+    Pf = try factor(P) catch; P end
+    (1 + x)^(n - d) * Pf
 end
 
 # Σ_{k=a}^{∞} f(k) for a hypergeometric term whose ratio f(k+1)/f(k) is
