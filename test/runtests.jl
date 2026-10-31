@@ -1175,6 +1175,15 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test solve(x * log(x) ~ 0, x) == [1]                           # log(0) is not defined
         @test solve(sin(x) * log(x) ~ 0, x) == [1, PI, 2PI]
         @test solve(sqrt(x) * (x - 1) ~ 0, x) == [0, 1]
+        # several radicals: squared away one at a time, extraneous roots dropped
+        @test solve(sqrt(x) + sqrt(x + 5) ~ 5, x) == [4]
+        @test solve(sqrt(x + 1) - sqrt(x - 1) ~ 1, x) == [5 // 4]
+        @test solve(sqrt(x) - sqrt(x + 1) ~ 2, x) == Sym[]
+        @test solve(sqrt(x^2 + 1) ~ sqrt(2x^2 - 3), x) == [-2, 2]
+        let (y,) = symbols("y")             # implicit differentiation: where dy/dx = 0
+            @test solve(3sqrt(x^2 + y^2) - x * sqrt(x^2 + y^2) - x * sqrt((3 - x)^2 + (3 - y)^2) ~ 0, x) ==
+                  [y, 3y / (2y - 3)]
+        end
     end
 
     @testset "TermInterface" begin
