@@ -1843,6 +1843,9 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test length(cs) == 4 && cs(a => 0, b => 5) == [-3, 3] && cs(a => 5, b => 0) == Sym[]
         @test occursin("a - 3 < b < a + 3", sprint(show, MIME"text/plain"(), cs))
         @test_throws ArgumentError solve(x^2 ~ 4, x; assume = (x ≫ 1, x ≪ 0))   # contradictory
+        # a predicate on a symbol is false (not known), and the message says so
+        @test !isodd(x)
+        @test occursin("isodd(n)", (try Assumptions(isodd(x)) catch e; sprint(showerror, e) end))
     end
 
     @testset "limit" begin

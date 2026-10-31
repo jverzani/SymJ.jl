@@ -217,7 +217,15 @@ Assumptions(A::Assumptions, facts...) = Assumptions(A.facts..., facts...)
 function Assumptions(facts...)
     flat = _flatten!(Any[], facts)
     A = _build(flat)
-    A === nothing && throw(ArgumentError("the assumptions are contradictory: " * join(string.(flat), ", ")))
+    if A === nothing
+        # a fact that was the Bool false: often a Julia predicate on a symbol (isodd(n),
+        # isinteger(n)), which is false because it is not known
+        any(f -> f isa Relation && f.op === :eq && _eq(f.lhs, ONE) && _eq(f.rhs, ZERO), flat) &&
+            throw(ArgumentError("the assumptions are contradictory: one of them is the Bool `false`. " *
+                "A predicate on a symbol, such as isodd(n) or isinteger(n), is false because it is not known; " *
+                "write facts as relations or memberships (n ≫ 0, n ∈ ℤ)"))
+        throw(ArgumentError("the assumptions are contradictory: " * join(string.(flat), ", ")))
+    end
     A
 end
 
