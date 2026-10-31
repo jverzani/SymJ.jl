@@ -12,7 +12,7 @@
 import CommonSolve: solve
 
 """
-    solve(eq::Relation, x; assume = nothing)
+    solve(eq::Relation, x; assume = nothing, drop_empty = false)
 
 The solutions of the equation `eq` (written with `~`, e.g. `x^2 ~ 4`) for `x`, as a
 vector of distinct expressions. The equation must be polynomial or rational in `x`;
@@ -49,12 +49,32 @@ solve(x^2 ~ 4, x; assume = (x ≫ 0,))                # [2]
 solve(x^2 ~ a, x; assume = (x ∈ ℝ, a ∈ ℝ))         # a < 0 => [], a == 0 => [0], a > 0 => [-√a, √a]
 solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a > 0 => [√a], !(a > 0) => []
 ```
+
+`drop_empty = true` drops the cases with no solutions, and when one case is left gives
+its solutions alone: the conditions under which they hold are then not shown.
+
+```julia
+solve(x^2 ~ a, x; assume = (x ≫ 0,), drop_empty = true)   # [√a] (for a > 0)
+```
 """
-function solve(eq::Relation, x::Sym; assume = nothing)
-    _isnamed(x) || return _solve_for_calls((es, vs, B) -> solve(only(es), only(vs); assume = B), [eq], [x];
-                                           assume = _assumptions(assume))
-    A = _assumptions(assume)
-    A === nothing ? _solve_eq(eq, x) : _solve_assumed(eq, x, A)
+function solve(eq::Relation, x::Sym; assume = nothing, drop_empty::Bool = false)
+    r = if !_isnamed(x)
+        _solve_for_calls((es, vs, B) -> solve(only(es), only(vs); assume = B), [eq], [x];
+                         assume = _assumptions(assume))
+    else
+        A = _assumptions(assume)
+        A === nothing ? _solve_eq(eq, x) : _solve_assumed(eq, x, A)
+    end
+    drop_empty ? _drop_empty(r) : r
+end
+
+# the cases that have solutions; their solutions alone when one case is left
+function _drop_empty(r)
+    r isa Cases || return r
+    cs = [c for c in r.cases if !(c.second isa AbstractVector && isempty(c.second))]
+    isempty(cs) && return Sym[]
+    length(cs) == 1 && return cs[1].second
+    typeof(r)(cs)
 end
 
 ## unknowns that are function calls: u(x), Derivative(u(x), x)

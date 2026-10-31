@@ -1757,6 +1757,17 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test length(cs) == 2 && cs[1] == (Any[a ≫ 0] => [sqrt(a)])
         @test cs(a => 4) == [2] && cs(a => -1) == Sym[] && cs[a => 4] == cs[1]
         @test length(solve(a * x ~ 1, x; assume = (x ≫ 0,))) == 2
+        # drop_empty: the cases with no solutions dropped, one left given as its solutions
+        @test solve(x^2 ~ a, x; assume = (x ≫ 0,), drop_empty = true) == [sqrt(a)]
+        @test solve(x^2 ~ 4, x; assume = (x ≫ 0,), drop_empty = true) == [2]
+        @test solve(x^2 ~ -4, x; assume = (x ∈ ℝ,), drop_empty = true) == Sym[]
+        cs = solve(x^2 ~ a, x; assume = (x ∈ ℝ, a ∈ ℝ), drop_empty = true)
+        @test cs isa SymJ.Cases
+        @test length(cs) == 2
+        let (x0, v0, α, t) = symbols("x0 v0 α t")                   # the projectile's t(x)
+            @test solve(x ~ x0 + v0 * cos(α) * t, t; assume = (x0 ∈ ℝ, v0 ∈ ℝ, α ∈ ℝ, t ≫ 0), drop_empty = true) ==
+                  [(x - x0) / (v0 * cos(α))]
+        end
         cs = solve(x^2 ~ 9, x; assume = (x ≫ a,))
         @test [c.second for c in cs] == [[-3, 3], [3], [3], Sym[]]
         @test cs(a => -5) == [-3, 3] && cs(a => 0) == [3] && cs(a => 4) == Sym[]
