@@ -234,6 +234,11 @@ import PolyLog as PL
         @test ∫(1 / (1 + x^2), (x, -Inf, Inf)) == PI                     # convergent: unchanged
         @test ∫(1 / x^2, (x, -1, 1)) == Sym(Inf)                          # still divergent
         @test ∫(1 / x, (x, 0, 1)) == Sym(Inf)                             # a singular end is not crossed
+        # sin and cos inside an expression: their zeros in every period, not just [0, 2π]
+        @test ∫(1 / (sin(x) + 1), (x, -2, 0)) == Sym(Inf)                 # -π/2
+        @test ∫(1 / (sin(x) + 1), (x, 4, 5)) == Sym(Inf)                  # 3π/2
+        @test ∫(1 / (1 - cos(x)), (x, 5, 7)) == Sym(Inf)                  # 2π
+        @test N(∫(1 / (sin(x) + 1), (x, 5, 7))) ≈ 6.450851174313285
         @test_throws ArgumentError RischIntegrate.integrate(1 / x, (x, -1, 1))   # only when asked
         # parameters: the cases, with logs of negative arguments made real
         v = ∫(1 / (x - a), (x, 0, 2); assume = @assume(a > 0, a < 2))
