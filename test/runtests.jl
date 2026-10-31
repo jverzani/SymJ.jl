@@ -1056,6 +1056,8 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         holds(eqs, d) = all(eq -> cancel(subs(lhs(eq) - rhs(eq), d)) == 0 ||
                                   abs(N(subs(lhs(eq) - rhs(eq), d))) < 1e-12, eqs)
         @test solve([x + y ~ 3, x - y ~ 1], [x, y]) == [Dict(x => 2, y => 1)]
+        @test solve([(x^2 - 1) / (x - 1) ~ 2, y ~ x], [x, y]) == Dict{Sym,Sym}[]   # x = 1 is not in the domain
+        @test solve([(x^2 - 1) / (x - 1) ~ 3, x + y ~ 3], [x, y]) == [Dict(x => 2, y => 1)]
         sys3 = [2x + 3y - z ~ 1, x - y + 2z ~ 4, 3x + y + z ~ 6]
         @test solve(sys3, [x, y, z]) == [Dict(x => Sym(11 // 5), y => Sym(-1), z => Sym(2 // 5))]
         @test solve([x + y + z ~ 1, x - z ~ 0], [x, y, z]) == [Dict(x => z, y => 1 - 2z, z => z)]
@@ -1118,6 +1120,9 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
 
         # systems of inequalities: one unknown (sets), several (cylindrical, linear)
         @test string(solve([x ≫ 1, x ≪ 3], [x])) == "(1, 3)"
+        @test string(solve((x^2 - 1) / (x - 1) ≫ 0, x)) == "(-1, 1) ∪ (1, ∞)"   # 1 is not in the domain
+        @test string(solve((x^3 - x) / (x^2 - x) ≧ 0, x)) == "[-1, 0) ∪ (0, 1) ∪ (1, ∞)"
+        @test string(solve((y + 1)^2 - y * (y + 2) ≫ 0, x)) == "(-∞, ∞)"   # constant once cancelled
         @test string(solve([x^2 ≪ 4, x ≧ 0], [x])) == "[0, 2)"
         @test string(solve([x^2 ~ 4, x ≫ 0], [x])) == "{2}"
         @test string(solve([x ≶ 2, x^2 ≦ 9], [x])) == "[-3, 2) ∪ (2, 3]"
@@ -1188,6 +1193,13 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test solve(x * log(x) ~ 0, x) == [1]                           # log(0) is not defined
         @test solve(sin(x) * log(x) ~ 0, x) == [1, PI, 2PI]
         @test solve(sqrt(x) * (x - 1) ~ 0, x) == [0, 1]
+        # removable singularities: cancel removes x - 1, but x = 1 is not in the domain
+        @test solve((x^2 - 1) / (x - 1) ~ 2, x) == Sym[]
+        @test solve((x^2 - 1) / (x - 1) ~ 3, x) == [2]
+        @test solve(tan(x) * cos(x) ~ 0, x) == [0]                      # π/2: tan is not defined
+        let (a,) = symbols("a")
+            @test solve((x^2 - a^2) / (x - a) ~ 2a, x) == Sym[]
+        end
         # several radicals: squared away one at a time, extraneous roots dropped
         @test solve(sqrt(x) + sqrt(x + 5) ~ 5, x) == [4]
         @test solve(sqrt(x + 1) - sqrt(x - 1) ~ 1, x) == [5 // 4]

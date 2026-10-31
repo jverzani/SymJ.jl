@@ -133,7 +133,8 @@ Base.show(io::IO, ::MIME"text/plain", S::SymSet) = show(io, S)
 _real_roots(rs) = filter(r -> (v = try _evalc(r) catch; return false end; abs(imag(v)) <= 1e-10 * max(1, abs(v))), rs)
 
 function _solve_inequality(r::Relation, x::Sym)
-    n, d = numer_denom(cancel(r.lhs - r.rhs))
+    e = r.lhs - r.rhs
+    n, d = numer_denom(cancel(e))
     for e in (n, d), s in free_symbols(e) ∪ free_parameters(e)
         _eq(s, x) || throw(ArgumentError("solve: inequalities with other symbols or parameters are not supported yet"))
     end
@@ -144,11 +145,17 @@ function _solve_inequality(r::Relation, x::Sym)
         throw(ArgumentError("solve: only polynomial and rational inequalities are supported yet"))
     zs = has(n, x) ? _real_roots(_solve_eq(n ~ 0, x)) : Sym[]
     ps = has(d, x) ? _real_roots(_solve_eq(d ~ 0, x)) : Sym[]
+    # the zeros of the denominators cancel removed (x = 1 in (x^2 - 1)/(x - 1)) are
+    # excluded too
+    for b in unique(_zero_sets!(Sym[], e, x)), h in _real_roots(_solve_eq(b ~ 0, x))
+        any(p -> p == h, ps) || push!(ps, h)
+    end
     pole(v) = any(p -> p == v, ps)
+    rc = Relation(r.op, n / d, ZERO)            # what is evaluated: free of what cancel removed
     _set_from(vcat(zs, ps), (v, atpoint) -> begin
         atpoint && pole(v) && return false
         w = v isa Sym ? v : Sym(v)
-        val = r(x => w)
+        val = rc(x => w)
         val isa Bool ? val : false
     end) |> S -> SymSet(S.intervals, x)
 end

@@ -45,7 +45,25 @@ function solve(eqs::AbstractVector{<:Relation}, vars::Union{AbstractVector,Tuple
     for s in sols, v in vars
         haskey(s, v) || (s[v] = v)
     end
-    sols
+    filter!(s -> _defined_in(eqs, s, vars), sols)
+end
+
+# is every equation defined at the solution s? cancel can remove a factor of a
+# denominator, so (x^2 - 1)/(x - 1) = 2 with y = x has no solution, not x = y = 1.
+# (Only decided where the expressions that must not vanish become constants: with
+# x free, x ≠ 1 is not recorded.)
+function _defined_in(eqs, s::Dict{Sym,Sym}, vars::Vector{Sym})
+    ps = [v => s[v] for v in vars]
+    for eq in eqs
+        e = eq.lhs - eq.rhs
+        zs = Sym[]
+        foreach(v -> _zero_sets!(zs, e, v), vars)
+        for b in unique(zs)
+            v = try subs(b, ps...) catch err; err isa DivideError && return false; rethrow() end
+            (iszero(v) || (!_hassymbol(v) && _iszero_value(v))) && return false
+        end
+    end
+    true
 end
 
 # every equation of degree at most 1 in the unknowns, with no unknown in a denominator
