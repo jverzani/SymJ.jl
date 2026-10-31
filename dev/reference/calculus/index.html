@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Calculus — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=70a3a1b4">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=900e2e05">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Calculus — SymJ.jl">
   <meta property="og:title" content="Calculus — SymJ.jl">
@@ -74,7 +74,7 @@
 <div class="md-docstring" id="SymJ.limit-Tuple{Any, Pair}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.limit</code> — <span class="md-docstring-sig">Tuple{Any, Pair}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/c366b6ee8439210ed3de80d0152c5892de9c9026/src/limit.jl#L17-L44" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/f52dfcd8fd6ff7c5a9fd96dc0cb0064aaf7f3df4/src/limit.jl#L17-L44" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -97,7 +97,7 @@ limit(x^a, x =&gt; Inf; assume = @assume(a &gt; 1))   # Inf</code></pre>
 <div class="md-docstring" id="SymJ.subs-Tuple{SymJ.Cases, Vararg{Pair}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.subs</code> — <span class="md-docstring-sig">Tuple{SymJ.Cases, Vararg{Pair}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/c366b6ee8439210ed3de80d0152c5892de9c9026/src/limit.jl#L223-L229" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/f52dfcd8fd6ff7c5a9fd96dc0cb0064aaf7f3df4/src/limit.jl#L223-L229" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -110,7 +110,7 @@ limit(x^a, x =&gt; Inf; assume = @assume(a &gt; 1))   # Inf</code></pre>
 <div class="md-docstring" id="Base.diff">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>Base.diff</code> — <span class="md-docstring-sig">Union{Tuple{Sym, Sym}, Tuple{Sym, Sym, Integer}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/c366b6ee8439210ed3de80d0152c5892de9c9026/src/calculus.jl#L1-L17" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/f52dfcd8fd6ff7c5a9fd96dc0cb0064aaf7f3df4/src/calculus.jl#L1-L19" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -119,7 +119,7 @@ limit(x^a, x =&gt; Inf; assume = @assume(a &gt; 1))   # Inf</code></pre>
 diff(ex::Sym, x::Sym, y::Sym, zs::Sym...)</code></pre>
 </div>
 <p>Derivative of <code class="md-code-inline">ex</code> with respect to the symbol <code class="md-code-inline">x</code>, <code class="md-code-inline">n</code> times. With several symbols, the mixed derivative: <code class="md-code-inline">ex</code> differentiated with respect to <code class="md-code-inline">x</code>, then <code class="md-code-inline">y</code>, then each of <code class="md-code-inline">zs</code>, so <code class="md-code-inline">diff(ex, x, y)</code> is <code class="md-code-inline">∂²ex/∂y∂x</code> and <code class="md-code-inline">diff(ex, x, x, y)</code> is <code class="md-code-inline">∂³ex/∂y∂x²</code>.</p>
-<p>Functions without a registered derivative rule give an unevaluated <code class="md-code-inline">Derivative(f(...), x)</code>.</p>
+<p>Functions without a registered derivative rule give an unevaluated <code class="md-code-inline">Derivative(f(...), x)</code>. An unknown function of an expression follows the chain rule, its derivative at a point written as <code class="md-code-inline">H&#39;(g)</code> writes it: <code class="md-code-inline">diff(H(x^2), x)</code> is <code class="md-code-inline">2*H&#39;(x^2)*x</code>.</p>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">diff(x^3 * y^2, x, 2)        # 6*x*y^2
@@ -131,7 +131,7 @@ diff(sin(x * y), x, y)       # -x*y*sin(x*y) + cos(x*y)</code></pre>
 <div class="md-docstring" id="SymJ.SymSeries">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymSeries</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/c366b6ee8439210ed3de80d0152c5892de9c9026/src/series.jl#L231-L239" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/f52dfcd8fd6ff7c5a9fd96dc0cb0064aaf7f3df4/src/series.jl#L231-L239" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -144,7 +144,7 @@ diff(sin(x * y), x, y)       # -x*y*sin(x*y) + cos(x*y)</code></pre>
 <div class="md-docstring" id="Base.diff-Tuple{SymJ.SymSeries, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>Base.diff</code> — <span class="md-docstring-sig">Tuple{SymJ.SymSeries, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/c366b6ee8439210ed3de80d0152c5892de9c9026/src/series.jl#L362-L366" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/f52dfcd8fd6ff7c5a9fd96dc0cb0064aaf7f3df4/src/series.jl#L362-L366" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -157,7 +157,7 @@ diff(sin(x * y), x, y)       # -x*y*sin(x*y) + cos(x*y)</code></pre>
 <div class="md-docstring" id="SymJ.series">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.series</code> — <span class="md-docstring-sig">Union{Tuple{Any, Sym}, Tuple{Any, Sym, Any}, Tuple{Any, Sym, Any, Real}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/c366b6ee8439210ed3de80d0152c5892de9c9026/src/series.jl#L247-L268" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/f52dfcd8fd6ff7c5a9fd96dc0cb0064aaf7f3df4/src/series.jl#L247-L268" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -181,7 +181,7 @@ series(x^x, x, 0, 2)           # 1 + log(x)*x + O(x^2)</code></pre>
 <div class="md-docstring" id="SymJ.inverse_laplace_transform-Tuple{Any, Sym, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.inverse_laplace_transform</code> — <span class="md-docstring-sig">Tuple{Any, Sym, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/c366b6ee8439210ed3de80d0152c5892de9c9026/src/laplace.jl#L130-L144" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/f52dfcd8fd6ff7c5a9fd96dc0cb0064aaf7f3df4/src/laplace.jl#L130-L144" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -200,7 +200,7 @@ SymJ.inverse_laplace_transform(exp(-2s) / s^2, s, t)         # (t - 2)*heaviside
 <div class="md-docstring" id="SymJ.laplace_transform-Tuple{Any, Sym, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.laplace_transform</code> — <span class="md-docstring-sig">Tuple{Any, Sym, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/c366b6ee8439210ed3de80d0152c5892de9c9026/src/laplace.jl#L14-L28" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/f52dfcd8fd6ff7c5a9fd96dc0cb0064aaf7f3df4/src/laplace.jl#L14-L28" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -234,6 +234,6 @@ SymJ.laplace_transform(SymJ.heaviside(t - 1), t, s)   # exp(-s)/s</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=70a3a1b4"></script>
+  <script src="../../assets/materialdocs.js?v=900e2e05"></script>
 </body>
 </html>
