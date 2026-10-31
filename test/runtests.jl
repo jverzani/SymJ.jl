@@ -2387,6 +2387,10 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @syms y()
         D = SymJ.dsolve
         C1, C2, C3 = Sym(:C1), Sym(:C2), Sym(:C3)
+        # initial values at an equilibrium: the constant solution (SymPy #29827)
+        @test D(y'(x) ~ log(y(x)), y(x), y(1) => 1) == (y(x) ~ 1)
+        @test D(y''(x) ~ y(x) * (y(x) - 1), y(x), y(0) => 1, y'(0) => 0) == (y(x) ~ 1)
+        @test D(y'(x) ~ y(x), y(x), y(0) => 2) == (y(x) ~ 2exp(x))       # not an equilibrium
         # derivatives: bound variables, y' notation, evaluation after substitution
         @test y'(x) == diff(y(x), x) && y''(x) == diff(y(x), x, 2) && free_symbols(y'(0)) == Sym[]
         @test subs(diff(y(x), x), x => 0) == y'(0) && subs(y'(0), x => 5) == y'(0)
