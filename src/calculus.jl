@@ -137,7 +137,8 @@ end
 function _diff(ex::Sym, x::Sym)
     k = ex.kind
     _isnamed(ex) && return _eq(ex, x) ? ONE : ZERO
-    (k == NUMBER || k == CONSTANT) && return ZERO
+    k == NUMBER && return ex.num.tag == T_FLOAT && isnan(ex.num.f) ? ex : ZERO    # NaN stays NaN
+    k == CONSTANT && return ZERO
     if k == ADD
         return _add_many(_scale(_diff(ex.args[i], x), ex.coefs[i]) for i in eachindex(ex.args))
     elseif k == MUL

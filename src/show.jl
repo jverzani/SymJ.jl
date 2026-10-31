@@ -5,18 +5,19 @@ const P_ADD, P_MUL, P_POW, P_ATOM = 1, 2, 3, 4
 Base.show(io::IO, x::Sym) = _show(io, x, 0)
 Base.show(io::IO, ::MIME"text/plain", x::Sym) = show(io, x)
 
-_negexp(e::Sym) = (e.kind == NUMBER || e.kind == MUL) && sign(e.num) < 0
+# (_isneg, from patterns.jl: false for NaN, whose sign is not an integer)
+_negexp(e::Sym) = (e.kind == NUMBER || e.kind == MUL) && _isneg(e.num)
 _ishalf(e::Sym) = e.kind == NUMBER && e.num == SymNumber(1 // 2)
 
 # precedence of the printed form of x
 function _prec(x::Sym)
     k = x.kind
     if k == NUMBER
-        sign(x.num) < 0 && return P_ADD
+        _isneg(x.num) && return P_ADD
         return _isint(x.num) || isfloat(x.num) ? P_ATOM : P_MUL
     end
     k == ADD && return P_ADD
-    k == MUL && return sign(x.num) < 0 ? P_ADD : P_MUL
+    k == MUL && return _isneg(x.num) ? P_ADD : P_MUL
     if k == POW
         b, e = x.args
         _negexp(e) && return P_MUL
@@ -119,7 +120,7 @@ function _show_mul(io::IO, c::SymNumber, bases::Vector{Sym}, exps::Vector{Sym})
     for (b, e) in _display_sort_pairs(bases, exps)
         _negexp(e) ? push!(den, _factor_str(b, -e)) : push!(num, _factor_str(b, e))
     end
-    neg = sign(c) < 0
+    neg = _isneg(c)
     c = abs(c)
     if isfloat(c)
         isone(c) || pushfirst!(num, string(c.f))

@@ -174,7 +174,7 @@ function _in_domain(roots, e::Sym, x::Sym)
 end
 
 function _vanishes_at(b::Sym, x::Sym, r::Sym)
-    v = try subs(b, x => r) catch err; err isa DivideError && return true; rethrow() end
+    v = try subs(b, x => r) catch err; _isdivzero(err) && return true; rethrow() end
     iszero(v) || iszero(cancel(v)) || (!_hassymbol(v) && _iszero_value(v))
 end
 # one equation takes one unknown and a system a vector of unknowns: the form of the call
@@ -202,7 +202,7 @@ function _defined_at(f::Sym, x::Sym, r::Sym)
     v = try
         subs(f, x => r)
     catch err
-        err isa DivideError && return false
+        _isdivzero(err) && return false
         rethrow()
     end
     _hassymbol(v) && return true
@@ -463,7 +463,7 @@ function _satisfies(eq::Relation, x::Sym, r::Sym)
     d = try
         subs(eq.lhs - eq.rhs, x => r)
     catch err
-        err isa DivideError && return false
+        _isdivzero(err) && return false
         rethrow()
     end
     (iszero(d) || iszero(cancel(d))) && return true

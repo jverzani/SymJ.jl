@@ -166,6 +166,12 @@ function _poly_geometric(f::Sym, k::Sym)
     dn == dd || return nothing
     r = cancel(_coef(n, k, dn) / _coef(d, k, dd))
     (has(r, k) || iszero(r)) && return nothing
+    # a constant ratio: f = f(0) r^k for integer k ((-1)^k x^k is (-x)^k, x^(2k) is
+    # (x^2)^k, though f/r^k may not cancel to a constant)
+    if !has(ρ, k)
+        p = try subs(f, k => ZERO) catch; nothing end
+        p === nothing || has(p, k) || return (p, r)
+    end
     p = cancel(f / r^k)
     (has(r, k) || !_ispolyin(p, [k]) || !_ispolyin(numer_denom(p)[2], [k]) || has(numer_denom(p)[2], k)) && return nothing
     (p, r)

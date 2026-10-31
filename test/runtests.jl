@@ -123,9 +123,15 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test sec(acos(x)) == 1 / x
         @test kind(sec(x)) == FN && operation(sec(x)) === sec
         @test asec(Sym(1)) == 0 && acsc(Sym(1)) == PI / 2
-        @test acot(Sym(0)) == PI / 2 && acot(Sym(1)) == PI / 4 && acot(-x) == -acot(x)
+        @test acot(Sym(0)) == PI / 2 && acot(Sym(1)) == PI / 4
+        # odd only away from 0 (acot(0) = π/2): the sign comes out of a nonzero number only
+        @test acot(-Sym(3)) == -acot(Sym(3))
+        @test string(acot(-x)) == "acot(-x)"
+        @test subs(acot(-x), x => 0) == PI / 2
         @test sech(Sym(0)) == 1 && coth(-x) == -coth(x) && csch(-x) == -csch(x)
-        @test asech(Sym(1)) == 0 && acoth(-x) == -acoth(x)
+        @test asech(Sym(1)) == 0
+        @test acoth(-Sym(3)) == -acoth(Sym(3))
+        @test string(acoth(-x)) == "acoth(-x)"
         # real cube root
         @test cbrt(Sym(-8)) == -2 && cbrt(Sym(27)) == 3
         @test cbrt(Sym(2)) == Sym(2)^(1 // 3) && cbrt(Sym(-16)) == -2 * Sym(2)^(1 // 3)
@@ -480,6 +486,7 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
 
     @testset "diff" begin
         @test diff(x^3, x) == 3x^2
+        @test isnan(N(diff(Sym(NaN), x)))                                 # NaN, not 0
         # an unknown function of an expression: the chain rule, H′ at a point
         let H = SymFunction(:H), z = Sym(:z)
             @test diff(H(x^2 + y), x) == 2x * H'(x^2 + y)
@@ -1256,6 +1263,15 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
     end
 
     @testset "printing" begin
+        # NaN prints (its sign is not an integer)
+        @test string(Sym(NaN)) == "NaN"
+        @test string(Sym(Inf) - Sym(Inf)) == "NaN"
+        @test string(x + Sym(NaN)) == "x + NaN"
+        # division by zero: SymJ.DivisionByZero, with a message
+        @test_throws SymJ.DivisionByZero Sym(1) / Sym(0)
+        @test_throws SymJ.DivisionByZero subs(1 / x, x => 0)
+        @test_throws SymJ.DivisionByZero Sym(0)^(-1 // 2)
+        @test occursin("division by zero", sprint(showerror, SymJ.DivisionByZero("division by zero")))
         @test string(x^2 + 2x + 1) == "x^2 + 2*x + 1"
         @test string(x - y) == "x - y"
         @test string(-x / (2y)) == "-x/(2*y)"
@@ -2176,6 +2192,14 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
     @testset "summation" begin
         @syms k n r a
         Σ = SymJ.summation
+        # a constant ratio whose power does not cancel: (-1)^k x^k is (-x)^k, x^(2k) is (x^2)^k
+        let x = Sym(:x)
+            @test Σ((-1)^k * x^k, k, 1, Inf; assume = (x ≫ 0, x ≪ 1)) == -x / (x + 1)
+            @test Σ(x^(2k), k, 1, Inf; assume = (x ≫ 0, x ≪ 1)) == x^2 / (1 - x^2)
+            cs = Σ((-1)^k * x^k, k, 1, Inf)
+            @test cs isa SymJ.Cases
+            @test cs(x => 1 // 2) == -1 // 3
+        end
         # polynomials (Faulhaber), presented factored
         @test Σ(k, k, 1, n) == n * (n + 1) / 2 && Σ(k^2, k, 1, n) == n * (n + 1) * (2n + 1) / 6
         @test Σ(k^3, k, 1, n) == n^2 * (n + 1)^2 / 4 && Σ(2k + 1, k, 0, n) == (n + 1)^2 && Σ(Sym(1), k, 1, n) == n

@@ -126,6 +126,8 @@ _infsign(p::Sym) = Float64(p.num) > 0 ? 1 : -1
 function _definite(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A::Assumptions, pv::Bool = false)
     _eq(lo, hi) && return ZERO
     has(f, x) || return _ordered_length(f, lo, hi, A)
+    v = _definite_by_pieces(f, x, lo, hi, antider, A, pv)
+    v === nothing || return v
     S = _singular_points(f, x, lo, hi)
     if isempty(S) && !_isinfpt(lo) && !_isinfpt(hi)
         F = _antiderivative(antider, f, x, A; numeric = true)
@@ -249,7 +251,7 @@ end
 # F at p from the side dir: its value, or its one-sided limit where that is needed
 function _endvalue(F::Sym, x::Sym, p::Sym, dir::Symbol, A, singular::Bool = false)
     if !singular && !_isinfpt(p)
-        v = try subs(F, x => p) catch err; err isa DivideError || rethrow(); nothing end
+        v = try subs(F, x => p) catch err; _isdivzero(err) || rethrow(); nothing end
         # (a piecewise F at a parametric end, as ∫|x| at a/b, its case decided if A can)
         v !== nothing && _hasfn(v, :piecewise) && (v = refine(v; assume = A))
         v !== nothing && _finite_value(v) && return v
@@ -472,6 +474,69 @@ function _trig_args!(ks, e::Sym, x::Sym)
     end
     e.kind == SYMBOL && return false
     all(a -> _trig_args!(ks, a, x), e.args) && (e.kind != MUL || all(q -> _trig_args!(ks, q, x), e.exps))
+end
+
+# a piecewise integrand (abs, sign, max, min, heaviside, piecewise) over numeric limits:
+# the sum over the intervals between the points inside where a condition changes, each
+# with its pieces fixed. A periodic condition (sin(2x) ≥ 0) changes in every period, and
+# an antiderivative found by pieces knows only one period's points, so |sin(2x)| over
+# [0, 2π] would come out as 2, not 4. nothing when there is nothing to split.
+function _definite_by_pieces(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A, pv::Bool)
+    (_isinfpt(lo) || _isinfpt(hi) || _hassymbol(lo) || _hassymbol(hi)) && return nothing
+    g = piecewise(f)
+    _haspieces(g, x) || return nothing
+    a, b = N(lo), N(hi)
+    (a isa Real && b isa Real) || return nothing
+    a, b = minmax(a, b)
+    cuts = _piece_cuts(g, x, a, b)
+    (cuts === nothing || isempty(cuts)) && return nothing
+    pts = Sym[(N(lo) <= N(hi) ? lo : hi); cuts; (N(lo) <= N(hi) ? hi : lo)]
+    terms = Tuple{Int,Sym}[]
+    for i in 1:(length(pts) - 1)
+        p, q = pts[i], pts[i + 1]
+        u, w = Float64(N(p)), Float64(N(q))
+        m = Sym(SymNumber(rationalize(BigInt, (u + w) / 2; tol = (w - u) / 8)))
+        gi = _pieces_at(g, x, m)
+        gi === nothing && return nothing
+        v = _definite(gi, x, p, q, antider, A, pv)
+        v isa Sym || return nothing
+        push!(terms, (1, v))
+    end
+    v = _sum_values(terms, A)
+    N(lo) <= N(hi) ? v : -v
+end
+
+# the points strictly inside (a, b) where a condition of g in x changes, sorted, with a
+# periodic condition's points repeated over the interval; nothing when they can't be found
+function _piece_cuts(g::Sym, x::Sym, a::Real, b::Real)
+    out = Sym[]
+    ok = Ref(true)
+    function visit(n::Sym)
+        ok[] || return
+        if n.kind == FN && (haskey(_COND_RELS, n.name) || n.name === :heaviside) && has(n, x)
+            u = haskey(_COND_RELS, n.name) ? n.args[1] - n.args[2] : n.args[1]
+            rs = try solve(u ~ 0, x) catch; (ok[] = false; return) end
+            rs isa AbstractVector || (ok[] = false; return)
+            P = _trig_period(u, x)
+            p = P === nothing ? nothing : N(P)
+            for r in rs
+                _hassymbol(r) && (ok[] = false; return)
+                v = try N(r) catch; continue end
+                v isa Real || continue
+                ns = p === nothing ? (0:0) : ((floor(Int, (a - v) / p) - 1):(ceil(Int, (b - v) / p) + 1))
+                for k in ns
+                    c = p === nothing ? r : expand(r + k * P)
+                    w = v + (p === nothing ? 0 : k * p)
+                    (a < w < b) && !any(q -> isapprox(N(q), w; atol = 1e-12), out) && push!(out, c)
+                end
+            end
+        end
+        foreach(visit, n.args)
+        n.kind == MUL && foreach(visit, n.exps)
+    end
+    visit(g)
+    ok[] || return nothing
+    sort!(out; by = N)
 end
 
 # the sign oracle for an integrator: the sign of a parameter expression under A, as 1 or

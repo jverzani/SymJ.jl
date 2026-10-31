@@ -9,6 +9,21 @@ const T_BIG   = 0x01   # Rational{BigInt} that does not fit in T_SMALL
 const T_FLOAT = 0x02   # Float64 stored in `f`
 
 """
+    SymJ.DivisionByZero(msg)
+
+Thrown when exact arithmetic divides by zero: `Sym(1)/0`, `Sym(0)/0`, `0^(-1)`, or a
+substitution that makes a denominator zero (`subs(1/x, x => 0)`). Not exported.
+"""
+struct DivisionByZero <: Exception
+    msg::String
+end
+Base.showerror(io::IO, e::DivisionByZero) = print(io, "DivisionByZero: ", e.msg)
+
+# a division by zero, from SymJ's arithmetic or Julia's (what callers that probe for a
+# pole catch)
+_isdivzero(err) = err isa DivisionByZero || err isa DivideError
+
+"""
     SymNumber <: Real
 
 Numeric scalar used inside symbolic expressions. It is exact (an integer or rational of
@@ -153,7 +168,7 @@ Base.:-(a::SymNumber, b::SymNumber) = a + (-b)
 
 function Base.inv(a::SymNumber)
     if a.tag == T_SMALL
-        a.n == 0 && throw(DivideError())
+        a.n == 0 && throw(DivisionByZero("division by zero"))
         return a.n > 0 ? _small(a.d, a.n) : _small(-a.d, -a.n)
     end
     a.tag == T_FLOAT && return SymNumber(inv(a.f))
@@ -181,7 +196,7 @@ function Base.:^(a::SymNumber, k::Integer)
     a.tag == T_FLOAT && return SymNumber(a.f^k)
     k == 0 && return N1
     if k < 0
-        iszero(a) && throw(DivideError())
+        iszero(a) && throw(DivisionByZero("division by zero"))
         return inv(a)^(-big(k))
     end
     if a.tag == T_SMALL && k <= typemax(Int)
