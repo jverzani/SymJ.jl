@@ -556,8 +556,15 @@ function _cardano(d, c, b, a)                                # a x³ + b x² + c
             return [2sqrt(-p / 3) * cos(θ - 2PI * k / 3) - b / (3a) for k in 0:2]
         end
     end
-    Δ0 = b^2 - 3a * c
-    Δ1 = 2b^3 - 9a * b * c + 27a^2 * d
+    Δ0 = expand(b^2 - 3a * c)
+    Δ1 = expand(2b^3 - 9a * b * c + 27a^2 * d)
+    # a triple root (Δ0 = Δ1 = 0), and Δ0 = 0, where C = Δ1^(1/3): the general formula
+    # would divide 0 by 0 ((x - 2im*y)^3 has Δ0 = Δ1 = 0 only once expanded)
+    if iszero(Δ0)
+        iszero(Δ1) && return [-b / (3a)]
+        C = Δ1^(1 // 3)
+        return [-(b + _OMEGA^k * C) / (3a) for k in 0:2]
+    end
     s = sqrt(Δ1^2 - 4Δ0^3)
     C = ((Δ1 + s) / 2)^(1 // 3)
     _iszero_value(C) && (C = ((Δ1 - s) / 2)^(1 // 3))

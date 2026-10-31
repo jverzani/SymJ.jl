@@ -1011,6 +1011,10 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test solve(2x^2 ~ x + 1, x) == [Sym(-1 // 2), Sym(1)]
         @test solve(x^3 - 3x + 1 ~ 0, x) == [2cos(10PI / 9), 2cos(4PI / 9), 2cos(2PI / 9)]  # real form
         @test all(r -> imag(N(r)) == 0, solve(x^3 - 3x + 1 ~ 0, x))
+        # a triple root, and Δ0 = 0, without Cardano's 0/0 (coefficients in im and y)
+        @test solve((x - 2IM * y)^3 ~ 0, x) == [2IM * y]
+        @test solve((x - 2IM * y)^3 * (x + y) ~ 0, x) == [-y, 2IM * y]
+        @test solve(x^3 + 3x^2 + 3x + 1 - y ~ 0, x)[1] == -(-y)^(1 // 3) - 1
         @test all(r -> !SymJ._hassymbol(r) && N(r) isa Number, solve(x^5 - x - 1 ~ 0, x))  # numeric (a + b*im)
         # symbolic coefficients
         @test solve(a * x + b ~ 0, x) == [-b / a]
