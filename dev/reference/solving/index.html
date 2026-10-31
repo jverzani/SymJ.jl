@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Solving equations — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=4b993b0c">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=7fa0c0bd">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Solving equations — SymJ.jl">
   <meta property="og:title" content="Solving equations — SymJ.jl">
@@ -75,7 +75,7 @@
 <div class="md-docstring" id="CommonSolve.solve-Tuple{AbstractVector{&lt;:Relation}, Union{Tuple, AbstractVector}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>CommonSolve.solve</code> — <span class="md-docstring-sig">Tuple{AbstractVector{&lt;:Relation}, Union{Tuple, AbstractVector}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/4dadc69e4bbde7cfe1741a94855369fe87dec20c/src/linsolve.jl#L6-L32" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/8d67a99fc75247774aa58f0caf98fa6851b281f5/src/linsolve.jl#L6-L32" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -102,14 +102,14 @@ solve([x*y ~ 1, x + y ~ 3], [x, y])</code></pre>
 <div class="md-docstring" id="CommonSolve.solve-Tuple{Relation, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>CommonSolve.solve</code> — <span class="md-docstring-sig">Tuple{Relation, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/4dadc69e4bbde7cfe1741a94855369fe87dec20c/src/solve.jl#L14-L59" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/8d67a99fc75247774aa58f0caf98fa6851b281f5/src/solve.jl#L14-L60" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve(eq::Relation, x; assume = nothing, drop_empty = false)</code></pre>
 </div>
-<p>The solutions of the equation <code class="md-code-inline">eq</code> (written with <code class="md-code-inline">~</code>, e.g. <code class="md-code-inline">x^2 ~ 4</code>) for <code class="md-code-inline">x</code>, as a vector of distinct expressions. The equation must be polynomial or rational in <code class="md-code-inline">x</code>; its coefficients may involve other symbols. Solutions are exact through degree 4 and for equations that factor into such pieces; irreducible factors of higher degree with numeric coefficients give numeric (floating point) roots. Numeric solutions are sorted, real ones first. An equation with no solution gives an empty vector. For a system, <code class="md-code-inline">solve([eqs...], [vars...])</code>, giving a vector of <code class="md-code-inline">Dict</code>s; mixing the forms (<code class="md-code-inline">solve(eq, [x])</code>, <code class="md-code-inline">solve([eq], x)</code>) is an error. An unknown may also be a function call or a derivative (<code class="md-code-inline">u(x)</code>, <code class="md-code-inline">diff(u(x), x)</code>), as in implicit differentiation; other derivatives of it are held as they are.</p>
+<p>The solutions of the equation <code class="md-code-inline">eq</code> (written with <code class="md-code-inline">~</code>, e.g. <code class="md-code-inline">x^2 ~ 4</code>) for <code class="md-code-inline">x</code>, as a vector of distinct expressions. The equation must be polynomial or rational in <code class="md-code-inline">x</code>; its coefficients may involve other symbols. Solutions are exact through degree 4 and for equations that factor into such pieces; irreducible factors of higher degree with numeric coefficients give numeric (floating point) roots. Numeric solutions are sorted, real ones first. An equation with no solution gives an empty vector. A solution must be in the equation&#39;s domain: <code class="md-code-inline">(x^2 - 1)/(x - 1) ~ 2</code> has none, though cancelling gives <code class="md-code-inline">x + 1 = 2</code>. For a system, <code class="md-code-inline">solve([eqs...], [vars...])</code>, giving a vector of <code class="md-code-inline">Dict</code>s; mixing the forms (<code class="md-code-inline">solve(eq, [x])</code>, <code class="md-code-inline">solve([eq], x)</code>) is an error. An unknown may also be a function call or a derivative (<code class="md-code-inline">u(x)</code>, <code class="md-code-inline">diff(u(x), x)</code>), as in implicit differentiation; other derivatives of it are held as they are.</p>
 <p>An equation through <code class="md-code-inline">sin</code> or <code class="md-code-inline">cos</code> gives the solutions for its argument in <code class="md-code-inline">[0, 2π]</code>, each once: <code class="md-code-inline">cos(x) ~ 0</code> gives <code class="md-code-inline">[π/2, 3π/2]</code>, <code class="md-code-inline">sin(x) ~ -1//2</code> gives <code class="md-code-inline">[7π/6, 11π/6]</code>, and <code class="md-code-inline">cos(x) ~ 1</code> gives <code class="md-code-inline">[0, 2π]</code> (with the interval closed, 0 brings 2π). <code class="md-code-inline">tan(u) = r</code> gives <code class="md-code-inline">atan(r)</code>.</p>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -135,7 +135,7 @@ solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !
 <div class="md-docstring" id="SymJ.SymInterval">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymInterval</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/4dadc69e4bbde7cfe1741a94855369fe87dec20c/src/intervals.jl#L10-L15" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/8d67a99fc75247774aa58f0caf98fa6851b281f5/src/intervals.jl#L10-L15" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -148,7 +148,7 @@ solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !
 <div class="md-docstring" id="SymJ.SymSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/4dadc69e4bbde7cfe1741a94855369fe87dec20c/src/intervals.jl#L23-L30" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/8d67a99fc75247774aa58f0caf98fa6851b281f5/src/intervals.jl#L23-L30" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -161,7 +161,7 @@ solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !
 <div class="md-docstring" id="SymJ.CylindricalSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.CylindricalSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/4dadc69e4bbde7cfe1741a94855369fe87dec20c/src/ineqsystems.jl#L13-L25" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/8d67a99fc75247774aa58f0caf98fa6851b281f5/src/ineqsystems.jl#L13-L25" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -189,6 +189,6 @@ solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=4b993b0c"></script>
+  <script src="../../assets/materialdocs.js?v=7fa0c0bd"></script>
 </body>
 </html>

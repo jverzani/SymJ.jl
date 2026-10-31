@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Design notes: algebra — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=934f8bfb">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=e6085efe">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Design notes: algebra — SymJ.jl">
   <meta property="og:title" content="Design notes: algebra — SymJ.jl">
@@ -542,6 +542,8 @@ end</code></pre>
 <ul class="md-list-tight">
 <li><p><code class="md-code-inline">lhs − rhs</code> is brought to lowest terms with <code class="md-code-inline">cancel</code>, and the numerator&#39;s roots are the solutions. Numerator and denominator share no factor, so no root is a pole: <code class="md-code-inline">(x² − 1)/(x − 1) ~ 0</code> gives <code class="md-code-inline">[-1]</code>.</p>
 </li>
+<li><p>Cancelling can remove a factor of a denominator, so the roots are checked against the original equation&#39;s domain: where a denominator, a logarithm&#39;s argument, or the <code class="md-code-inline">cos</code> of a <code class="md-code-inline">tan</code> vanishes, there is no solution. <code class="md-code-inline">(x² − 1)/(x − 1) ~ 2</code> has none (not <code class="md-code-inline">[1]</code>), and inequalities and systems leave such points out too. A free variable&#39;s exclusion (x ≠ 1 with x free in a system&#39;s answer) is not recorded.</p>
+</li>
 <li><p>The numerator is factored; other symbols and parameters may appear in the coefficients.</p>
 </li>
 </ul>
@@ -779,6 +781,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=934f8bfb"></script>
+  <script src="../../assets/materialdocs.js?v=e6085efe"></script>
 </body>
 </html>
