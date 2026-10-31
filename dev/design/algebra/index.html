@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Design notes: algebra — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=1c2626a8">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=f7ea2db2">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Design notes: algebra — SymJ.jl">
   <meta property="og:title" content="Design notes: algebra — SymJ.jl">
@@ -564,7 +564,7 @@ end</code></pre>
 </li>
 <li><p><strong>Equations in one function of <code class="md-code-inline">x</code>.</strong> When <code class="md-code-inline">x</code> appears only through one function application <code class="md-code-inline">g</code> (<code class="md-code-inline">sin(2x)</code>, <code class="md-code-inline">exp(x)</code>, <code class="md-code-inline">sqrt(x + 1)</code>, <code class="md-code-inline">2^x</code>), <code class="md-code-inline">u</code> replaces <code class="md-code-inline">g</code>, the polynomial in <code class="md-code-inline">u</code> is solved, and <code class="md-code-inline">g(t) = r</code> is inverted into equations for its argument, solved recursively.</p>
 <ul class="md-list-tight">
-<li><p>Inversions: <code class="md-code-inline">sin(t) = r</code> gives <code class="md-code-inline">t = asin(r)</code> and <code class="md-code-inline">π − asin(r)</code> (principal solutions in one period); <code class="md-code-inline">cos</code> gives <code class="md-code-inline">±acos(r)</code>; <code class="md-code-inline">bᵗ = r</code> gives <code class="md-code-inline">log(r)/log(b)</code>; <code class="md-code-inline">t^(p/q) = r</code> gives <code class="md-code-inline">r^(q/p)</code>.</p>
+<li><p>Inversions: <code class="md-code-inline">sin(t) = r</code> gives <code class="md-code-inline">t = asin(r)</code> and <code class="md-code-inline">π − asin(r)</code>, <code class="md-code-inline">cos</code> gives <code class="md-code-inline">±acos(r)</code>, each moved into <code class="md-code-inline">[0, 2π]</code> (0 brings 2π: <code class="md-code-inline">cos(t) = 1</code> gives <code class="md-code-inline">0, 2π</code>); <code class="md-code-inline">bᵗ = r</code> gives <code class="md-code-inline">log(r)/log(b)</code>; <code class="md-code-inline">t^(p/q) = r</code> gives <code class="md-code-inline">r^(q/p)</code>.</p>
 </li>
 <li><p>Candidates are checked by substitution, which drops extraneous roots (<code class="md-code-inline">sqrt(x) ~ −1</code> has none).</p>
 </li>
@@ -777,6 +777,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=1c2626a8"></script>
+  <script src="../../assets/materialdocs.js?v=f7ea2db2"></script>
 </body>
 </html>
