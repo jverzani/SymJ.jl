@@ -2196,6 +2196,12 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
     @testset "summation" begin
         @syms k n r a
         Σ = SymJ.summation
+        # the index is bound: not substituted, and renamed when a value would be captured
+        let y = Sym(:y), s = Σ(1 / (k^2 + y), k, 1, n)
+            @test string(subs(s, y => k)) == "Sum(1/(k′^2 + k), k′, 1, n)"
+            @test subs(s, k => 5) == s
+            @test subs(subs(s, y => k), n => 2) == 1 / (k + 1) + 1 / (k + 4)
+        end
         # a constant ratio whose power does not cancel: (-1)^k x^k is (-x)^k, x^(2k) is (x^2)^k
         let x = Sym(:x)
             @test Σ((-1)^k * x^k, k, 1, Inf; assume = (x ≫ 0, x ≪ 1)) == -x / (x + 1)
