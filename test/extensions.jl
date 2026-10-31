@@ -239,6 +239,12 @@ import PolyLog as PL
         @test ∫(1 / (sin(x) + 1), (x, 4, 5)) == Sym(Inf)                  # 3π/2
         @test ∫(1 / (1 - cos(x)), (x, 5, 7)) == Sym(Inf)                  # 2π
         @test N(∫(1 / (sin(x) + 1), (x, 5, 7))) ≈ 6.450851174313285
+        if VERSION >= v"1.12"          # an antiderivative known only numerically (₂F₁, root sums): a float
+            @test N(∫(x / sqrt(1 - x^3), (x, 0, 1 // 2))) ≈ 0.12832329160032097
+            @test N(∫(1 / (x^5 - x + 1), (x, 0, 1))) ≈ 1.5919853723336097
+            @test N(∫(1 / (x^5 - x + 1), (x, 1, 0))) ≈ -1.5919853723336097
+            @test_throws ArgumentError ∫(x / sqrt(1 - x^3), (x, 0, 2))     # singular at 1
+        end
         @test_throws ArgumentError RischIntegrate.integrate(1 / x, (x, -1, 1))   # only when asked
         # parameters: the cases, with logs of negative arguments made real
         v = ∫(1 / (x - a), (x, 0, 2); assume = @assume(a > 0, a < 2))

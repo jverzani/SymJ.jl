@@ -128,7 +128,8 @@ function _definite(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A::Assumptions, pv
     has(f, x) || return _ordered_length(f, lo, hi, A)
     S = _singular_points(f, x, lo, hi)
     if isempty(S) && !_isinfpt(lo) && !_isinfpt(hi)
-        F = _antiderivative(antider, f, x, A)
+        F = _antiderivative(antider, f, x, A; numeric = true)
+        F isa Sym || return _numeric_difference(F, f, lo, hi)
         return _sum_values([(1, _endvalue(F, x, hi, :-, A)), (-1, _endvalue(F, x, lo, :+, A))], A)
     end
     # in increasing order: ∫ₐᵇ = -∫ᵇₐ
@@ -147,7 +148,14 @@ function _definite(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A::Assumptions, pv
         any(t -> _eq(t, s), inside) || _insert_sorted!(inside, s, A)
     end
     union!(sing, inside)
-    F = _antiderivative(antider, f, x, A)
+    F = _antiderivative(antider, f, x, A; numeric = true)
+    if !(F isa Sym)
+        (_isinfpt(lo) || _isinfpt(hi)) && throw(ArgumentError(
+            "integrate: the antiderivative of $f is known only numerically, which does not reach ±∞"))
+        isempty(sing) || throw(ArgumentError(
+            "integrate: the antiderivative of $f is known only numerically, and $f is singular on the interval"))
+        return _numeric_difference(F, f, lo, hi)
+    end
     terms = Tuple{Int,Sym}[]
     for s in inside                                  # F(s⁻) - F(s⁺)
         l, r = () -> _endvalue(F, x, s, :-, A, true), () -> _endvalue(F, x, s, :+, A, true)
@@ -220,11 +228,22 @@ function _insert_sorted!(v::Vector{Sym}, s::Sym, A)
     i === nothing ? push!(v, s) : insert!(v, i, s)
 end
 
-# simplified under the assumptions: limits must see that a/√(-a) + √(-a) is 0
-function _antiderivative(antider, f::Sym, x::Sym, A)
+# simplified under the assumptions: limits must see that a/√(-a) + √(-a) is 0. With
+# numeric = true, an antiderivative known only numerically (a callable, as RischIntegrate's
+# root sums and ₂F₁ terms) is returned as it is.
+function _antiderivative(antider, f::Sym, x::Sym, A; numeric::Bool = false)
     F = antider(f, x, A)
+    numeric && !(F isa Sym) && applicable(F, 0.0) && return F
     (F isa Sym && !_hasfn(F, :Integral)) || throw(ArgumentError("integrate: no antiderivative found for $f"))
     _hassymbol(F - x) ? simplify(F; assume = A) : F
+end
+
+# F(hi) - F(lo), a float, for an antiderivative F known only numerically and continuous on
+# [lo, hi] (no singular points there); the ends must be numbers
+function _numeric_difference(F, f::Sym, lo::Sym, hi::Sym)
+    (_hassymbol(lo) || _hassymbol(hi)) && throw(ArgumentError(
+        "integrate: the antiderivative of $f is known only numerically; the limits must be numbers"))
+    Sym(Float64(real(F(N(hi)) - F(N(lo)))))
 end
 
 # F at p from the side dir: its value, or its one-sided limit where that is needed
