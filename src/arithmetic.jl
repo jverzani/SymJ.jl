@@ -333,6 +333,7 @@ function pow(b::Sym, e::Sym)
         iszero(en) && return ONE
         _isN1(en) && return b
         bk == NUMBER && return _numpow(b.num, en)
+        isfloat(en) && (v = _floatpow(b, en)) !== nothing && return v
         if _isint(en)
             bk == MUL && return _mulpow_int(b, e)
             bk == POW && return pow(b.args[1], mul(b.args[2], e))
@@ -351,6 +352,17 @@ function pow(b::Sym, e::Sym)
         return e.args[1]                        # exp(log(z)) == z
     end
     _mkpow_node(b, e)
+end
+
+# a constant to a floating point power, evaluated as _numpow does a number's (exp(0.5),
+# π^1.5); nothing when b has symbols or is negative under a fractional power
+function _floatpow(b::Sym, e::SymNumber)::Union{Sym,Nothing}
+    (_hassymbol(b) || _hasparameter(b)) && return nothing
+    bv = try N(b) catch; return nothing end
+    bv isa Real || return nothing
+    ef = Float64(e)
+    bv < 0 && !isinteger(ef) && return nothing
+    Sym(Float64(bv)^ef)
 end
 
 # the positive rational content of a product's coefficient or of a sum's coefficients

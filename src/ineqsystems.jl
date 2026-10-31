@@ -122,8 +122,8 @@ function _fourier_motzkin(cons::Vector{_LinCon}, vars::Vector{Sym}, equalities)
         rest = [c for c in cs if iszero(c.a[j])]
         # bound: v_j > (or ≥) -(k + Σ_{i≠j} a_i v_i)/a_j for a_j > 0; the reverse for a_j < 0
         bound(c) = (-(Sym(c.k) + _dot(c.a, vars, j)) / Sym(c.a[j]), c.strict)
-        lowers = _dominant([bound(c) for c in pos], true)
-        uppers = _dominant([bound(c) for c in neg], false)
+        lowers = _dominant(Tuple{Sym,Bool}[bound(c) for c in pos], true)
+        uppers = _dominant(Tuple{Sym,Bool}[bound(c) for c in neg], false)
         push!(levels, (vars[j], lowers, uppers))
         for p in pos, n in neg
             sp, sn = inv(p.a[j]), inv(-n.a[j])
