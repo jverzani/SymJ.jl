@@ -20,7 +20,8 @@ its coefficients may involve other symbols. Solutions are exact through
 degree 4 and for equations that factor into such pieces; irreducible factors of higher
 degree with numeric coefficients give numeric (floating point) roots. Numeric
 solutions are sorted, real ones first. An equation with no solution gives an empty
-vector. For a system, `solve([eqs...], [vars...])`, giving a vector of `Dict`s;
+vector. A solution must be in the equation's domain: `(x^2 - 1)/(x - 1) ~ 2` has none,
+though cancelling gives `x + 1 = 2`. For a system, `solve([eqs...], [vars...])`, giving a vector of `Dict`s;
 mixing the forms (`solve(eq, [x])`, `solve([eq], x)`) is an error. An unknown may also
 be a function call or a derivative (`u(x)`, `diff(u(x), x)`), as in implicit
 differentiation; other derivatives of it are held as they are.
@@ -152,13 +153,29 @@ function _solve_eq(eq::Relation, x::Sym)
     atoms = Set{Sym}()
     exact = _poly_atoms!(atoms, n)
     bad = [a for a in atoms if !_eq(a, x) && has(a, x)]
-    if !isempty(bad)
+    roots = if !isempty(bad)
         fs = _product_factors(eq.lhs - eq.rhs, n, x)
-        roots = fs === nothing ? _solve_through(eq, n, x, bad) : _solve_product(eq, fs, x)
-        return _sort_roots!(unique(roots))
+        fs === nothing ? _solve_through(eq, n, x, bad) : _solve_product(eq, fs, x)
+    else
+        exact ? _solve_exact(n, x, atoms) : _solve_inexact(n, x)
     end
-    roots = exact ? _solve_exact(n, x, atoms) : _solve_inexact(n, x)
-    _sort_roots!(unique(roots))
+    _sort_roots!(unique(_in_domain(roots, eq.lhs - eq.rhs, x)))
+end
+
+# the roots at which e is defined: cancel can remove a factor of a denominator, so
+# (x^2 - 1)/(x - 1) = 2 has no solution, not x = 1. Checked through the expressions
+# that must not vanish (denominators; log's argument; cos for tan, …), as tan(π/2)
+# stays unevaluated with a large finite value.
+function _in_domain(roots, e::Sym, x::Sym)
+    isempty(roots) && return roots
+    zs = unique(_zero_sets!(Sym[], e, x))
+    isempty(zs) && return roots
+    filter(r -> _defined_at(e, x, r) && !any(b -> _vanishes_at(b, x, r), zs), roots)
+end
+
+function _vanishes_at(b::Sym, x::Sym, r::Sym)
+    v = try subs(b, x => r) catch err; err isa DivideError && return true; rethrow() end
+    iszero(v) || iszero(cancel(v)) || (!_hassymbol(v) && _iszero_value(v))
 end
 # one equation takes one unknown and a system a vector of unknowns: the form of the call
 # fixes the form of the result (values or Dicts)

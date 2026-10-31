@@ -397,6 +397,11 @@ interface works with SymJ equations.
   - `lhs − rhs` is brought to lowest terms with `cancel`, and the numerator's roots are
     the solutions. Numerator and denominator share no factor, so no root is a pole:
     `(x² − 1)/(x − 1) ~ 0` gives `[-1]`.
+  - Cancelling can remove a factor of a denominator, so the roots are checked against
+    the original equation's domain: where a denominator, a logarithm's argument, or the
+    `cos` of a `tan` vanishes, there is no solution. `(x² − 1)/(x − 1) ~ 2` has none
+    (not `[1]`), and inequalities and systems leave such points out too. A free
+    variable's exclusion (x ≠ 1 with x free in a system's answer) is not recorded.
   - The numerator is factored; other symbols and parameters may appear in the
     coefficients.
 - **Each irreducible factor in `x`:**
