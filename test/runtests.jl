@@ -1211,6 +1211,17 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         let (a,) = symbols("a")
             @test solve((x^2 - a^2) / (x - a) ~ 2a, x) == Sym[]
         end
+        # rational powers of x as powers of one root of x (t = x^(1/10): t³ + t² = 3); the
+        # root kept unexpanded, whose numeric check otherwise loses it to cancellation
+        let r = solve(x^(3 // 10) + x^(1 // 5) ~ 3, x)
+            @test length(r) == 1
+            @test N(r[1]) ≈ 4.997466445630026
+        end
+        # a high degree (u = x^(3/100): degree 181) has numeric roots, not NaN
+        let r = solve(x^(543 // 100) + x^(222 // 100) ~ 5033 // 100, x)
+            @test N(r[1]) ≈ 2.0204868226226256
+            @test all(v -> abs(N(v^(543 // 100) + v^(222 // 100)) - 50.33) < 1e-8, r)
+        end
         # several radicals: squared away one at a time, extraneous roots dropped
         @test solve(sqrt(x) + sqrt(x + 5) ~ 5, x) == [4]
         @test solve(sqrt(x + 1) - sqrt(x - 1) ~ 1, x) == [5 // 4]

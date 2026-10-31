@@ -277,7 +277,9 @@ function _solve_through(eq::Relation, n::Sym, x::Sym, bad::Vector{Sym})
     end
     out = Sym[]
     for r in _solve_eq(nu ~ 0, u), (arg, val) in _invert(g, r, x)
-        append!(out, _solve_eq(arg ~ val, x))
+        # x = val needs no solving: solving would expand val (a Cardano root to the 10th
+        # power), whose numeric value then loses the root to cancellation
+        _eq(arg, x) ? push!(out, _float_value(val)) : append!(out, _solve_eq(arg ~ val, x))
     end
     filter(r -> _satisfies(eq, x, r), out)
 end
@@ -458,6 +460,14 @@ function _one_period(a::Sym, b::Sym)
     sort!(out; by = N)
 end
 
+# a constant with floats in it as its numeric value ((1.02 + 0.07im)^(100/3) as a
+# complex float); others as they are
+function _float_value(v::Sym)
+    (_hassymbol(v) || _isexactex(v)) && return v
+    w = try _evalc(v) catch; return v end
+    abs(imag(w)) <= 1e-12 * max(1.0, abs(w)) ? Sym(real(w)) : Sym(real(w)) + Sym(imag(w)) * IM
+end
+
 # does r satisfy eq? (exactly, or numerically for constants; kept when undecidable)
 function _satisfies(eq::Relation, x::Sym, r::Sym)
     d = try
@@ -607,7 +617,10 @@ function _numeric_roots(c::Vector{Sym})
     n = length(a) - 1
     n == 0 && return Sym[]
     a ./= a[end]                                             # monic
-    R = 1 + maximum(abs, a[1:(end-1)])                       # Cauchy's root bound
+    # Fujiwara's root bound, 2 max |aₙ₋ₖ|^(1/k): Cauchy's, 1 + max |aₖ|, is far larger for a
+    # high degree, and its n-th power overflows (u^181 + u^74 - 50 gave NaN)
+    R = 2 * maximum(abs(a[n + 1 - k])^(1 / k) for k in 1:n)
+    R > 0 || (R = 1.0)
     z = [R * cis(2π * (k + 0.25) / n) for k in 0:(n - 1)]
     p(t) = evalpoly(t, a)
     dp(t) = evalpoly(t, [k * a[k+1] for k in 1:n])
