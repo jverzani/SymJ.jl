@@ -1155,6 +1155,11 @@ right; one that diverges is `±∞`, or an error when it has no value:
 integrate(1 / (1 + x^2), (x, 0, Inf)), integrate(exp(-x^2), (x, -Inf, Inf)), integrate(log(x), (x, 0, 1)), integrate(1 / x^2, (x, -1, 1))
 ```
 
+Some antiderivatives are known only numerically: RischIntegrate's `₂F₁` terms and sums
+over the roots of a polynomial, which it can evaluate but SymJ cannot hold. A definite
+integral through one, over numeric limits where `f` is not singular, is a float:
+`integrate(x / sqrt(1 - x^3), (x, 0, 1//2))` is `0.12832…`.
+
 `principal_value = true` asks for the Cauchy principal value instead: a singular point
 inside is approached from both sides at once, lim_{ε→0⁺} (∫ₐ^{s-ε} + ∫_{s+ε}^b) f, and an
 integral over (-∞, ∞) is the limit of ∫ from -R to R. An integral that converges keeps its
