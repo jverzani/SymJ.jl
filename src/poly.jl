@@ -618,9 +618,23 @@ _nonneg_int(e::Sym) = e.kind == NUMBER && _isint(e.num) && sign(e.num) >= 0
 function Poly(ex, gs::Sym...)
     ex = Sym(ex)
     g = collect(gs)
-    _has_numeric_coefs(ex, g) ? Poly{SymNumber}(ex, g) : Poly{Sym}(ex, g)
+    _checked_gens(_has_numeric_coefs(ex, g) ? Poly{SymNumber}(ex, g) : Poly{Sym}(ex, g))
 end
-Poly{C}(ex, gs::Sym...) where {C} = Poly{C}(Sym(ex), collect(gs))
+Poly{C}(ex, gs::Sym...) where {C} = _checked_gens(Poly{C}(Sym(ex), collect(gs)))
+
+# a generator that is an expression (1/x, sin(x)) must not have its symbols in a
+# coefficient: x + 1/x is not a polynomial in 1/x (coefficients [1, x])
+function _checked_gens(p::Poly)
+    for g in p.gens
+        g.kind == SYMBOL && continue
+        ss = free_symbols(g)
+        for c in coefficients(p)
+            c isa Sym && any(s -> has(c, s), ss) &&
+                throw(ArgumentError("not a polynomial in $g: the coefficient $c depends on it"))
+        end
+    end
+    p
+end
 
 function Poly{C}(ex::Sym, gs::Vector{Sym}) where {C}
     all(g -> g.kind != NUMBER, gs) || throw(ArgumentError("generators must not be numbers"))

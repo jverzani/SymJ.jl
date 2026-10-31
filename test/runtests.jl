@@ -606,6 +606,10 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
     end
 
     @testset "Poly" begin
+        # an expression as a generator: its symbols must not be in a coefficient (SymPy #29080)
+        @test_throws ArgumentError Poly(x + 1 / x, 1 / x)
+        @test_throws ArgumentError Poly(x^2 + sin(x), sin(x))
+        @test degree(Poly(sin(x)^2 + 2sin(x), sin(x)), sin(x)) == 2
         @syms a b
         p = Poly((x + y + 1)^3, x, y)
         @test p isa Poly{SymNumber}
