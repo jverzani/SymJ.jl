@@ -356,7 +356,7 @@ end
 
 # a constant to a floating point power, evaluated as _numpow does a number's (exp(0.5),
 # π^1.5); nothing when b has symbols or is negative under a fractional power
-function _floatpow(b::Sym, e::SymNumber)
+function _floatpow(b::Sym, e::SymNumber)::Union{Sym,Nothing}
     (_hassymbol(b) || _hasparameter(b)) && return nothing
     bv = try N(b) catch; return nothing end
     bv isa Real || return nothing
