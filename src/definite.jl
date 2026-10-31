@@ -421,7 +421,38 @@ function _zeros_in(z::Sym, x::Sym, lo::Sym, hi::Sym)
         throw(ArgumentError("integrate: cannot locate the singular points of the integrand (the zeros of $z)"))
     end
     rs isa AbstractVector || throw(ArgumentError("integrate: cannot locate the singular points of the integrand (the zeros of $z)"))
-    Sym[r for r in rs]
+    P = _trig_period(z, x)
+    P === nothing && return Sym[r for r in rs]
+    # periodic: solve gives one period's zeros; repeat the real ones across [lo, hi]
+    vs = [(r, v) for r in rs for v in (try N(r) catch; nothing end,) if v isa Real]
+    isempty(vs) && return Sym[r for r in rs]
+    (_isinfpt(lo) || _isinfpt(hi)) &&
+        throw(ArgumentError("integrate: the integrand is singular at infinitely many points (the zeros of $z)"))
+    (_hassymbol(lo) || _hassymbol(hi)) &&
+        throw(ArgumentError("integrate: cannot locate the singular points of the integrand (at the zeros of $z) for symbolic limits"))
+    a, b = minmax(N(lo), N(hi))
+    p = N(P)
+    Sym[expand(r + n * P) for (r, v) in vs for n in (floor(Int, (a - v) / p) - 1):(ceil(Int, (b - v) / p) + 1)]
+end
+
+# 2π/k when x enters z only through sin and cos of arguments k x + c (one k), else nothing
+function _trig_period(z::Sym, x::Sym)
+    ks = Sym[]
+    _trig_args!(ks, z, x) || return nothing
+    (isempty(ks) || any(k -> k != ks[1], ks)) && return nothing
+    2PI / (ks[1].num < N0 ? -ks[1] : ks[1])
+end
+
+function _trig_args!(ks, e::Sym, x::Sym)
+    has(e, x) || return true
+    if e.kind == FN && e.name in (:sin, :cos) && length(e.args) == 1
+        k = expand(diff(e.args[1], x))
+        (k.kind == NUMBER && !iszero(k)) || return false
+        push!(ks, k)
+        return true
+    end
+    e.kind == SYMBOL && return false
+    all(a -> _trig_args!(ks, a, x), e.args) && (e.kind != MUL || all(q -> _trig_args!(ks, q, x), e.exps))
 end
 
 # the sign oracle for an integrator: the sign of a parameter expression under A, as 1 or

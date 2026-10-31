@@ -413,8 +413,8 @@ interface works with SymJ equations.
   application `g` (`sin(2x)`, `exp(x)`, `sqrt(x + 1)`, `2^x`), `u` replaces `g`, the
   polynomial in `u` is solved, and `g(t) = r` is inverted into equations for its
   argument, solved recursively.
-  - Inversions: `sin(t) = r` gives `t = asin(r)` and `π − asin(r)` (principal solutions
-    in one period); `cos` gives `±acos(r)`; `bᵗ = r` gives `log(r)/log(b)`;
+  - Inversions: `sin(t) = r` gives `t = asin(r)` and `π − asin(r)`, `cos` gives
+    `±acos(r)`, each moved into `[0, 2π]` (0 brings 2π: `cos(t) = 1` gives `0, 2π`); `bᵗ = r` gives `log(r)/log(b)`;
     `t^(p/q) = r` gives `r^(q/p)`.
   - Candidates are checked by substitution, which drops extraneous roots
     (`sqrt(x) ~ −1` has none).

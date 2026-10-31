@@ -25,10 +25,10 @@ mixing the forms (`solve(eq, [x])`, `solve([eq], x)`) is an error. An unknown ma
 be a function call or a derivative (`u(x)`, `diff(u(x), x)`), as in implicit
 differentiation; other derivatives of it are held as they are.
 
-An equation through a periodic function gives the solutions in one period, each once:
-`sin(u) = r` gives `u = asin(r)` and `π - asin(r)`, `cos(u) = r` gives `acos(r)` and
-`2π - acos(r)` (so `cos(x) ~ 0` gives `[π/2, 3π/2]` and `cos(x) ~ 1` gives `[0]`), and
-`tan(u) = r` gives `atan(r)`.
+An equation through `sin` or `cos` gives the solutions for its argument in `[0, 2π]`,
+each once: `cos(x) ~ 0` gives `[π/2, 3π/2]`, `sin(x) ~ -1//2` gives `[7π/6, 11π/6]`, and
+`cos(x) ~ 1` gives `[0, 2π]` (with the interval closed, 0 brings 2π). `tan(u) = r` gives
+`atan(r)`.
 
 ```julia
 solve(x^2 - 2 ~ 0, x)          # [-sqrt(2), sqrt(2)]
@@ -207,7 +207,7 @@ _factor_pairs(t::Sym) = t.kind == MUL ? Tuple{Sym,Sym}[(b, p) for (b, p) in zip(
 # u stands for g(x); the polynomial in u is solved, then g(x) = r is inverted into an
 # equation for g's argument and solved recursively. Inverting a power or a periodic
 # function can introduce extraneous roots (sqrt(x) = -1), so candidates are checked
-# by substitution. Trig equations give the principal solutions in one period.
+# by substitution. sin and cos give the solutions for their argument in [0, 2π].
 
 function _solve_through(eq::Relation, n::Sym, x::Sym, bad::Vector{Sym})
     common = _common_power(bad)                     # exp(2x), exp(x): powers of one exp
@@ -401,12 +401,18 @@ function _invert(g::Sym, r::Sym, x::Sym)
     throw(ArgumentError("solve: cannot invert $g for $x"))
 end
 
-# the two angles of sin or cos, the second dropped when it is the first plus a multiple of
-# 2π (cos(x) = 1: 0, not 0 and 2π)
+# the angles of sin or cos in [0, 2π], each once (and 0 with 2π: cos(x) = 1 gives both)
 function _one_period(a::Sym, b::Sym)
-    _hassymbol(a) && return [a, b]
-    q = try N((b - a) / (2PI)) catch; return [a, b] end
-    q isa Real && isapprox(q, round(q); atol = 1e-12) ? [a] : [a, b]
+    (_hassymbol(a) || _hassymbol(b)) && return [a, b]
+    out = Sym[]
+    for c in (a, b)
+        v = try N(c) catch; return [a, b] end
+        v isa Real || return [a, b]
+        c = c - 2PI * floor(Int, v / (2Float64(π)) + 1e-12)   # into [0, 2π)
+        any(o -> isapprox(N(o), N(c); atol = 1e-12), out) || push!(out, c)
+    end
+    any(iszero, out) && push!(out, 2PI)
+    sort!(out; by = N)
 end
 
 # does r satisfy eq? (exactly, or numerically for constants; kept when undecidable)
