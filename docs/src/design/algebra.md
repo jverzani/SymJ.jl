@@ -420,6 +420,10 @@ interface works with SymJ equations.
     (`sqrt(x) ~ −1` has none).
   - Several powers of one base count as one function: `exp(2x)` and `exp(x)` are
     powers of `u = exp(x)`, and `4^x` and `2^x` are powers of `2^x`.
+  - **Several square roots.** `A + B·√t = 0` (`A`, `B` free of `√t`) is squared to
+    `A² = B²·t`, one radical at a time (up to four), until a polynomial is left; squaring
+    adds roots, which the check in the original equation drops:
+    `√x + √(x + 5) ~ 5` gives `[4]`, and `√x − √(x + 1) ~ 2` has none.
   - **Several logarithms.** When `x` appears only inside logarithms and the equation is
     linear in them with rational coefficients, `Σ cᵢ log(fᵢ) + R = 0` (constant logs
     such as `log(6)` included, `R` free of logs) is exponentiated to

@@ -215,6 +215,12 @@ function _solve_through(eq::Relation, n::Sym, x::Sym, bad::Vector{Sym})
         if length(bad) > 1
             r = _solve_logs(eq, n, x)
             r === nothing || return r
+            # several radicals: one squared away at a time (the rest in the recursion)
+            if all(_issqrt, bad) && length(bad) <= 4
+                R = first(bad)
+                u = Sym(Symbol("_u", objectid(R)))
+                return _solve_radical(eq, subs(n, R => u), u, R, x)
+            end
             throw(ArgumentError(
                 "solve: $eq involves $x through several functions ($(join(bad, ", "))); not supported yet"))
         end
