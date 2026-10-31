@@ -7,7 +7,9 @@ mixed derivative: `ex` differentiated with respect to `x`, then `y`, then each o
 so `diff(ex, x, y)` is `∂²ex/∂y∂x` and `diff(ex, x, x, y)` is `∂³ex/∂y∂x²`.
 
 Functions without a registered derivative rule give an unevaluated
-`Derivative(f(...), x)`.
+`Derivative(f(...), x)`. An unknown function of an expression follows the chain rule,
+its derivative at a point written as `H'(g)` writes it: `diff(H(x^2), x)` is
+`2*H'(x^2)*x`.
 
 ```julia
 diff(x^3 * y^2, x, 2)        # 6*x*y^2
@@ -161,13 +163,24 @@ function _diff(ex::Sym, x::Sym)
         # Integral(f, s, a, b) = ∫ₐᵇ f ds: f(b) b' - f(a) a'
         f, v, lo, hi = ex.args
         return add(mul(subs(f, v => hi), _diff(hi, x)), mul(MINUS_ONE, mul(subs(f, v => lo), _diff(lo, x))))
-    elseif _isderivat(ex) && _eq(ex.args[2], x)  # a constant, unless the point has x
-        has(ex.args[3], x) || return ZERO
-        return _mkfn_node(:Derivative, Sym[ex, x])
+    elseif _isderivat(ex) && (_eq(ex.args[2], x) || !has(ex.args[1], x))
+        # F′(a) for F = F(t): F″(a) a′ (a constant unless the point has x)
+        F, t, a = ex.args
+        da = _diff(a, x)
+        iszero(da) && return ZERO
+        return mul(apply_function(:Derivative, Sym[_mkfn_node(:Derivative, Sym[F, t]), t, a]), da)
     elseif ex.name === :piecewise                 # piece by piece
         return apply_function(:piecewise, Sym[isodd(i) ? a : _diff(a, x) for (i, a) in enumerate(ex.args)])
     else
         rule = get(FUNCTION_RULES, ex.name, nothing)
+        if rule === nothing && length(ex.args) == 1 && ex.args[1].kind != SYMBOL
+            # an unknown function of an expression, by the chain rule: H(g)′ = H′(g) g′,
+            # with H′(g) the derivative at a point, as H'(g) writes it
+            a = ex.args[1]
+            da = _diff(a, x)
+            iszero(da) && return ZERO
+            return mul(SymDerivative(SymFunction(ex.name), 1)(a), da)
+        end
         terms = Sym[]
         for i in eachindex(ex.args)
             da = _diff(ex.args[i], x)

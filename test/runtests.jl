@@ -480,6 +480,19 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
 
     @testset "diff" begin
         @test diff(x^3, x) == 3x^2
+        # an unknown function of an expression: the chain rule, H′ at a point
+        let H = SymFunction(:H), z = Sym(:z)
+            @test diff(H(x^2 + y), x) == 2x * H'(x^2 + y)
+            @test diff(H(sin(x)), x, 2) == H''(sin(x)) * cos(x)^2 - H'(sin(x)) * sin(x)
+            @test diff(H(2x), y) == 0
+            @test string(diff(H(x), x)) == "Derivative(H(x), x)"            # of a symbol: as it was
+            @test subs(diff(H(x^2), x), H(x) => sin(x)) == 2x * cos(x^2)
+            R = sqrt(x^2 + y^2 + z^2)                                         # curl of H(r) r̂ is 0
+            M, N, P = H(R) * [x, y, z] / R
+            @test diff(P, y) - diff(N, z) == 0
+            @test diff(M, z) - diff(P, x) == 0
+            @test diff(N, x) - diff(M, y) == 0
+        end
         # mixed derivatives: in each variable in turn
         @test diff(x^3 * y^2, x, y) == 6x^2 * y == diff(diff(x^3 * y^2, x), y)
         @test diff(x^3 * y^2, y, x) == diff(x^3 * y^2, x, y)
