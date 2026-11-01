@@ -39,7 +39,38 @@ function _solve_nonlinear(eqs::Vector{<:Relation}, vars::Vector{Sym})
     if inexact
         sols = [Dict{Sym,Sym}(k => (_hassymbol(v) ? v : Sym(N(v))) for (k, v) in s) for s in sols]
     end
-    _uniquesols(sols)
+    _uniquesols([_polish(s, nums, vars) for s in sols])
+end
+
+# a floating point solution refined by Newton's method on the system, in extended
+# precision: back-substitution loses the relative accuracy of small components
+# (H = 2.6e-13 for 9.5e-14). The original is kept when the iteration does not converge.
+function _polish(s::Dict{Sym,Sym}, nums::Vector{Sym}, vars::Vector{Sym})
+    (isempty(nums) || any(v -> !haskey(s, v) || _hassymbol(s[v]), vars)) && return s
+    all(v -> _isexactex(s[v]), vars) && return s
+    z0 = try ComplexF64[_evalc(s[v]) for v in vars] catch; return s end
+    names = Tuple(v.name for v in vars)
+    J = [diff(n, v) for n in nums, v in vars]
+    ev(e, z) = _ev(e, _Named(NamedTuple{names}(Tuple(z))), BigFloat, Ref{Union{Nothing,Sym}}(nothing))
+    z = setprecision(BigFloat, 256) do
+        z = Complex{BigFloat}.(z0)
+        tol = big(2.0)^-200
+        for _ in 1:30
+            f = Complex{BigFloat}[ev(n, z) for n in nums]
+            Jz = Complex{BigFloat}[ev(d, z) for d in J]
+            δ = try (Jz' * Jz) \ (Jz' * f) catch; return nothing end
+            all(isfinite, δ) || return nothing
+            z -= δ
+            maximum(abs, δ) <= tol * max(1, maximum(abs, z)) && return z
+        end
+        nothing
+    end
+    z === nothing && return s
+    # the values Float64 rounding found: not a different solution
+    all(isapprox.(ComplexF64.(z), z0; rtol = 1e-6, atol = 1e-6 * max(1, maximum(abs, z0)))) || return s
+    Dict{Sym,Sym}(k => (i = findfirst(v -> _eq(v, k), vars); i === nothing ? w :
+        (w0 = z0[i]; c = ComplexF64(z[i]); iszero(imag(w0)) ? Sym(real(c)) : Sym(real(c)) + Sym(imag(c)) * IM))
+        for (k, w) in s)
 end
 
 function _solve_groebner(nums::Vector{Sym}, vars::Vector{Sym})

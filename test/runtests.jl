@@ -1098,6 +1098,18 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
                       [Dict(x => (3 + sqrt(Sym(5))) / 2, y => (3 - sqrt(Sym(5))) / 2),
                        Dict(x => (3 - sqrt(Sym(5))) / 2, y => (3 + sqrt(Sym(5))) / 2)])
         @test length(solve([x^2 ~ 1, y^2 ~ 1], [x, y])) == 4                     # not in shape position
+        # float solutions refined by Newton's method: small components keep their relative
+        # accuracy (SymPy #29140)
+        let
+            @syms H c1 c2 c3 NaOH Na OH
+            K1, K2, Kw = Sym(10)^(-189 // 20), Sym(10)^(-64 // 5), Sym(10)^(-14)
+            eqs = [K1 * c1 ~ H * c2, K2 * c2 ~ H * c3, OH * Na ~ NaOH, H * OH ~ Kw,
+                   Na + H ~ OH + c2 + 2c3, c1 + c2 + c3 ~ 9 // 2000, NaOH + Na ~ 1 // 8]
+            sols = solve(eqs, [H, c1, c2, c3, NaOH, Na, OH])
+            phys = only(filter(s -> all(v -> N(s[v]) > 0, (H, c1, c2, c3, NaOH, Na, OH)), sols))
+            @test isapprox(N(phys[H]), 9.458052236307555e-14; rtol = 1e-10)
+            @test isapprox(N(phys[H] * phys[OH]), 1e-14; rtol = 1e-10)
+        end
         @test sameset(solve([x^2 + y^2 ~ 4, (x - 1)^2 + y^2 ~ 4], [x, y]),
                       [Dict(x => 1 // 2, y => sqrt(Sym(15)) / 2), Dict(x => 1 // 2, y => -sqrt(Sym(15)) / 2)])
         @test isempty(solve([x^2 + y^2 ~ 1, x^2 + y^2 ~ 4], [x, y]))
