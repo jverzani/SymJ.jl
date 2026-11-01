@@ -273,15 +273,29 @@ end
 _gzerodim(G, ctx) = all(i -> any(g -> (m = g.m[1]; _gexp(ctx, m, i) > 0 &&
     m == typeof(m)(_gexp(ctx, m, i)) << _gshift(ctx.n, ctx.b, i)), G), 1:ctx.n)
 
+# the field FGLM works in: rationals, or rational functions in the parameters (RatFun:
+# canonical, so the zero tests of the elimination are exact); back to the ring of the
+# basis by clearing denominators
 _q(c::SymNumber) = Rational{BigInt}(big(_numerator(c)), big(_denominator(c)))
+_q(c::Poly{SymNumber}) = RatFun(c)
+_gfieldtype(::Type{SymNumber}) = Rational{BigInt}
+_gfieldtype(::Type{Poly{SymNumber}}) = RatFun
+function _gclear(::Type{SymNumber}, cs::Vector{Rational{BigInt}})
+    den = reduce(lcm, (denominator(c) for c in cs); init = big(1))
+    SymNumber[SymNumber(numerator(c * den)) for c in cs]
+end
+function _gclear(::Type{Poly{SymNumber}}, cs::Vector{RatFun})
+    den = reduce((a, d) -> lcm(_unify(a, d)...), (c.den for c in cs))
+    Poly{SymNumber}[(c * RatFun(den)).num for c in cs]
+end
 
 # FGLM with multiplication matrices: the grevlex standard monomials s_1, ..., s_D are a
 # basis of the quotient; column s of M_i is the normal form of x_i s. A lex candidate
 # u = x_i t, t already standard in lex, has the normal form M_i nf(t): a matrix-vector
 # product instead of a reduction, which for the high-degree lex monomials is costly.
-function _fglm(G::Vector{_GP{SymNumber,W}}, ctx::_GCtx{W}, lex::_GCtx{W}) where {W}
+function _fglm(G::Vector{_GP{C,W}}, ctx::_GCtx{W}, lex::_GCtx{W}) where {C,W}
     n = ctx.n
-    Q = Rational{BigInt}
+    Q = _gfieldtype(C)
     unit(i) = one(W) << _gshift(n, ctx.b, i)
     # the standard monomials of G
     std = W[zero(W)]
@@ -302,8 +316,8 @@ function _fglm(G::Vector{_GP{SymNumber,W}}, ctx::_GCtx{W}, lex::_GCtx{W}) where 
     idx = collect(eachindex(G))
     function nfvec(m::W)
         v = zeros(Q, D)
-        haskey(index, m) && (v[index[m]] = 1; return v)
-        r, mult = _gnf(_GP{SymNumber,W}(W[_gkey(ctx, m)], W[m], SymNumber[SymNumber(1)]), G, idx, ctx)
+        haskey(index, m) && (v[index[m]] = one(Q); return v)
+        r, mult = _gnf(_GP{C,W}(W[_gkey(ctx, m)], W[m], C[one(G[1].c[1])]), G, idx, ctx)
         iszero(r) && return v
         μ = _q(mult)
         for t in eachindex(r.m)
@@ -328,7 +342,7 @@ function _fglm(G::Vector{_GP{SymNumber,W}}, ctx::_GCtx{W}, lex::_GCtx{W}) where 
     stair = W[]                                 # lex standard monomials, increasing
     vecs = Vector{Q}[]                          # their normal forms
     rows = Tuple{Int,Vector{Q},Vector{Q}}[]     # echelon: pivot, vector, combination of vecs
-    out = _GP{SymNumber,W}[]
+    out = _GP{C,W}[]
     cand = Tuple{W,Int,Int}[(zero(W), 0, 0)]    # monomial, from stair[t] times x_i
     seen = Set{W}([zero(W)])
     while !isempty(cand)
@@ -339,7 +353,7 @@ function _fglm(G::Vector{_GP{SymNumber,W}}, ctx::_GCtx{W}, lex::_GCtx{W}) where 
         v0 = t == 0 ? nfvec(u) : mulvar(i, vecs[t])
         v = copy(v0)
         α = zeros(Q, length(stair) + 1)
-        α[end] = 1
+        α[end] = one(Q)
         for (piv, rv, rα) in rows
             iszero(v[piv]) && continue
             f = v[piv] / rv[piv]
@@ -355,9 +369,8 @@ function _fglm(G::Vector{_GP{SymNumber,W}}, ctx::_GCtx{W}, lex::_GCtx{W}) where 
             ms = [u; stair]
             cs = [α[end]; α[1:end-1]]
             terms = sort([(ms[q], cs[q]) for q in findall(!iszero, cs)]; by = first, rev = true)
-            den = reduce(lcm, (denominator(c) for (_, c) in terms); init = big(1))
-            push!(out, _GP{SymNumber,W}(W[mm for (mm, _) in terms], W[mm for (mm, _) in terms],
-                                        SymNumber[SymNumber(numerator(c * den)) for (_, c) in terms]))
+            ks = W[_gkey(lex, mm) for (mm, _) in terms]
+            push!(out, _GP{C,W}(ks, W[mm for (mm, _) in terms], _gclear(C, Q[c for (_, c) in terms])))
         else
             push!(stair, u)
             push!(vecs, v0)
@@ -522,7 +535,7 @@ groebner(F::Tuple, vars::Sym...; kws...) = groebner(collect(F), vars...; kws...)
 function _groebner(exs::Vector{Sym}, vs::Vector{Sym}, params::Vector{Sym}, order::Symbol; fglm::Bool = true)
     _gwiden() do W
         ctx = _GCtx(W, length(vs), order)
-        if fglm && order === :lex && isempty(params)
+        if fglm && order === :lex
             ctxr = _GCtx(W, length(vs), :grevlex)
             G = _buchberger(_gconvert(exs, vs, params, ctxr), ctxr)
             if length(G) == 1 && G[1].m[1] == zero(W)
