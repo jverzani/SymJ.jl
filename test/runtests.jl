@@ -337,6 +337,20 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
                 @test all(f -> iszero(reduced(f, G, xs...; order = ord)[2]), F)
             end
         end
+        # with parameters, FGLM over Q(params) agrees with lex computed directly
+        let F = [gx^2 + gy^2 - ga, gx * gy - gr]
+            @test all(iszero, simplify.(groebner(F, gx, gy) .- SymJ._groebner(F, [gx, gy], [ga, gr], :lex; fglm = false)))
+        end
+        # lex with parameters through grevlex and FGLM, not a lex Buchberger that hangs
+        # (SymPy #30609); at numeric values of the parameters, the basis there
+        let gb = Sym(:gb), gc = Sym(:gc)
+            F1 = (1 + gx * gy)^3 * gz + gy^2 * (1 + gx * gy) * (4 + 3gx * gy)
+            F2 = gy + 3gx * (1 + gx * gy)^2 * gz + 3gx * gy^2 * (4 + 3gx * gy)
+            F3 = 2gx - 3gx^2 * gy - gx^3 * gz
+            t = @elapsed G = groebner([F1, F2 - gb, F3 - gc], gx, gy, gz)
+            @test t < 30
+            @test all(iszero, simplify.(subs.(G, gb => 2, gc => 3) .- groebner([F1, F2 - 2, F3 - 3], gx, gy, gz)))
+        end
         # division
         G = groebner([gx^2 + gy^2 - 1, gx - gy], gx, gy)
         q, r = reduced(gx^3 + gy, G, gx, gy)
