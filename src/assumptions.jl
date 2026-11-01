@@ -734,16 +734,42 @@ function _isreal(e::Sym, A::Assumptions)::Union{Nothing,Bool}
             mb !== nothing && mb & _NEG != 0 && mb & (_ZER | _POS) == 0 && return false
             _isreal(b, A) === false && return false
         end
+    elseif e.kind == FN && e.name in _REALFNS && length(e.args) == 1
+        return true
     elseif e.kind == MUL || e.kind == ADD
-        # real parts and one that is not real
-        parts = e.kind == MUL ? [b^x for (b, x) in zip(e.args, e.exps)] : e.args
+        parts = e.kind == MUL ? _unpair_conj([b^x for (b, x) in zip(e.args, e.exps)]) : e.args
         rs = [_isreal(p, A) for p in parts]
+        # real parts (in a product, conj(w)^k w^k = |w|^2k is real)
+        all(==(true), rs) && return true
+        # real parts and one that is not real
         if count(==(false), rs) == 1 && all(!=(nothing), rs)
             e.kind == ADD && return false
             return all(i -> rs[i] == false || _isnonzero(parts[i], A) === true, eachindex(parts)) ? false : nothing
         end
     end
     nothing
+end
+
+# the factors of a product less the pairs conj(w)^k, w^k (k an integer), whose product
+# |w|^2k is real and nonnegative for every w
+function _unpair_conj(ts::Vector{Sym})
+    out = copy(ts)
+    i = 1
+    while i <= length(out)
+        t = out[i]
+        b, k = t.kind == POW ? (t.args[1], t.args[2]) : (t, ONE)
+        if b.kind == FN && b.name === :conj && length(b.args) == 1 && k.kind == NUMBER &&
+           isexact(k.num) && isone(_denominator(k.num))
+            j = findfirst(s -> _eq(s, b.args[1]^k), out)
+            if j !== nothing
+                deleteat!(out, sort([i, j]))
+                i = 1
+                continue
+            end
+        end
+        i += 1
+    end
+    out
 end
 
 # is e an integer?

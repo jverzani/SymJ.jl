@@ -387,6 +387,8 @@ function _simplify(e::Sym, A::Assumptions)
     end
     # several piecewise functions (as from a definite integral with a parameter): one
     _count_fn(e, :piecewise) >= 2 && consider(x -> piecewise_fold(x; assume = A))
+    # conj(w) w = abs(w)^2
+    _has_fn(e, (:conj,)) && consider(_conj_pairs_to_abs)
     if _has_fn(e, _CIRCFNS)       # identities simplify_trig's normal form does not reach
         for g in (_simp_trig_rules, expand_trig, simplify_rational ∘ expand_trig)
             consider(g)

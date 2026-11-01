@@ -2125,6 +2125,15 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test conj(log(x)) isa Sym && SymJ._isfn1(conj(log(x)), :conj)         # a branch cut: not log(conj(x))
         @test SymJ._isfn1(conj(sqrt(x)), :conj) && SymJ._isfn1(real(x), :real)
         @test real(abs(x)) == abs(x) && imag(abs(x)) == 0 && real(conj(x)) == real(x) && imag(conj(x)) == -imag(x)
+        # real for every value: conj(w)^k w^k, real-valued functions (SymPy #29801)
+        @test imag(x * conj(x)) == 0
+        @test real(x * conj(x)) == conj(x) * x
+        @test imag(abs(x)^2) == 0
+        @test imag(conj(x)^2 * x^2 * conj(y) * y) == 0
+        @test imag(conj(sqrt(x)) * sqrt(x)) == 0
+        @test SymJ._isfn1(imag(conj(x) * x^2), :imag)                         # not real
+        @test isreal(x * conj(x))
+        @test iszero(simplify(abs(x)^2 - conj(x) * x))
         # numeric evaluation, lambdify, adjoints
         @test N(real(x)(x => 2 + 3im)) == 2 && lambdify(real(x) + imag(x))(2 + 3im) == 5
         @test [1+I x; y 2]' == [1-I conj(y); conj(x) 2] && transpose([x y]) == [x; y;;]
