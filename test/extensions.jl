@@ -156,6 +156,10 @@ import PolyLog as PL
         same(v, w) = VERSION >= v"1.12" ? v == w : N(v) ≈ N(w)
         @test ∫(x^2, (x, 0, 3)) == 9
         @test ∫(sin(x), (x, 0, PI)) == 2
+        # no elementary antiderivative: Beta over [0, π/2] (SymPy #30664)
+        @test N(∫(1 / sqrt(sin(x)), (x, 0, PI / 2))) ≈ 2.6220575542921198
+        @test N(∫(sqrt(tan(x)), (x, 0, PI / 2))) ≈ pi / sqrt(2)
+        @test N(∫(sin(x)^(1 // 3) * cos(x)^(2 // 3), (x, 0, PI / 2))) ≈ SF.gamma(2 / 3) * SF.gamma(5 / 6) / sqrt(pi)
         @test ∫(1 / (1 + x^2), (x, 0, Inf)) == PI / 2                   # a limit, not atan(Inf)
         @test ∫(1 / (1 + x^2), (x, -Inf, Inf)) == PI
         @test ∫(exp(-x), (x, 0, Inf)) == 1

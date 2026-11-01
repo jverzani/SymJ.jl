@@ -33,17 +33,67 @@ function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Boo
     v = _by_cases(A0) do A
         sub = collect(A.subst)
         g, l, h = isempty(sub) ? (Sym(f), lo, hi) : (subs(Sym(f), sub...), subs(lo, sub...), subs(hi, sub...))
-        # failing that, once more with f simplified (cos² + sin² in a denominator, a 0)
+        # failing that, once more with f simplified (cos² + sin² in a denominator, a 0);
+        # failing both, a known definite integral (no antiderivative needed)
         try
-            _definite(g, x, l, h, antider, A, principal_value)
+            try
+                _definite(g, x, l, h, antider, A, principal_value)
+            catch err
+                err isa InterruptException && rethrow()
+                s = try simplify(g) catch; rethrow(err) end
+                _eq(s, g) && rethrow()
+                _definite(s, x, l, h, antider, A, principal_value)
+            end
         catch err
             err isa InterruptException && rethrow()
-            s = try simplify(g) catch; rethrow(err) end
-            _eq(s, g) && rethrow()
-            _definite(s, x, l, h, antider, A, principal_value)
+            v = _known_definite(g, x, l, h)
+            v === nothing ? rethrow() : v
         end
     end
     _tidy_constant(v)
+end
+
+## definite integrals known without an antiderivative
+
+# ∫₀^{π/2} sinᵃx cosᵇx dx = B((a+1)/2, (b+1)/2)/2 = Γ(p)Γ(q)/(2Γ(p+q)), for rational
+# a, b > -1 (tan, cot, sec, csc as powers of sin and cos), times a constant; else nothing
+function _known_definite(f::Sym, x::Sym, lo::Sym, hi::Sym)
+    (iszero(lo) && _eq(hi, PI / 2)) || return nothing
+    c, a, b = ONE, N0, N0
+    fs = f.kind == MUL ? [(Sym(f.num), ONE); [(u, q) for (u, q) in zip(f.args, f.exps)]] : [(f, ONE)]
+    for (u, q) in fs
+        if !has(u, x) && !has(q, x)
+            c *= u^q
+            continue
+        end
+        if u.kind == POW && !has(u.args[2], x)
+            u, q = u.args[1], expand(u.args[2] * q)
+        end
+        (q.kind == NUMBER && isexact(q.num)) || return nothing
+        (u.kind == FN && length(u.args) == 1 && _eq(u.args[1], x)) || return nothing
+        k = q.num
+        u.name === :sin ? (a += k) : u.name === :cos ? (b += k) :
+        u.name === :tan ? (a += k; b -= k) : u.name === :cot ? (a -= k; b += k) :
+        u.name === :csc ? (a -= k) : u.name === :sec ? (b -= k) : return nothing
+    end
+    (a > SymNumber(-1) && b > SymNumber(-1)) || return nothing
+    p, q = Sym((a + N1) / SymNumber(2)), Sym((b + N1) / SymNumber(2))
+    gs = (_gamma_exact(p), _gamma_exact(q), _gamma_exact(p + q))
+    any(isnothing, gs) && return nothing
+    c * gs[1] * gs[2] / (2gs[3])
+end
+
+# Γ(a) for a rational a > 0: exact at integers and half-integers, else gamma(a) when the
+# SpecialFunctions extension has registered it; nothing otherwise
+function _gamma_exact(a::Sym)
+    n = a.num
+    if _isint(n)
+        return Sym(factorial(big(_toint(n) - 1)))
+    elseif _isint(n + n)
+        m = _toint(n - SymNumber(1 // 2))
+        return Sym(factorial(big(2m)) // (big(4)^m * factorial(big(m)))) * sqrt(PI)
+    end
+    haskey(FUNCTION_RULES, :gamma) ? apply_function(:gamma, Sym[a]) : nothing
 end
 
 # a value without symbols simplified, where that makes it smaller (radicals from the
