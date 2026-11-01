@@ -79,12 +79,10 @@ function _known_definite(f::Sym, x::Sym, lo::Sym, hi::Sym)
     (a > SymNumber(-1) && b > SymNumber(-1)) || return nothing
     p, q = Sym((a + N1) / SymNumber(2)), Sym((b + N1) / SymNumber(2))
     gs = (_gamma_exact(p), _gamma_exact(q), _gamma_exact(p + q))
-    any(isnothing, gs) && return nothing
     c * gs[1] * gs[2] / (2gs[3])
 end
 
-# Γ(a) for a rational a > 0: exact at integers and half-integers, else gamma(a) when the
-# SpecialFunctions extension has registered it; nothing otherwise
+# Γ(a) for a rational a > 0: exact at integers and half-integers, else gamma(a)
 function _gamma_exact(a::Sym)
     n = a.num
     if _isint(n)
@@ -93,7 +91,7 @@ function _gamma_exact(a::Sym)
         m = _toint(n - SymNumber(1 // 2))
         return Sym(factorial(big(2m)) // (big(4)^m * factorial(big(m)))) * sqrt(PI)
     end
-    haskey(FUNCTION_RULES, :gamma) ? apply_function(:gamma, Sym[a]) : nothing
+    apply_function(:gamma, Sym[a])
 end
 
 # a value without symbols simplified, where that makes it smaller (radicals from the

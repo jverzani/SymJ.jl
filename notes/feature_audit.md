@@ -129,7 +129,7 @@ separately. Names checked against SymPy 1.14 and Giac.jl's command table as befo
 | Capability | SymPy | Giac | SymJ |
 |:--|:--|:--|:--|
 | Elementary functions with exact values and rules | ✅ | ✅ | ✅ (Base's mathematical functions) |
-| Special functions | `gamma`, `zeta`, `besselj`, `erf`, `polylog`, `hyper`, `meijerg`, … | many | ✅ through extensions (SpecialFunctions, HypergeometricFunctions, PolyLog); ❌ Meijer G; ❌ Fresnel integrals (`fresnels`, `fresnelc`), associated Legendre (`assoc_legendre`), `hyperexpand`, `besselsimp`, Owen's T (not in SymPy 1.14) (SymPy #30064, #29645, #30708, #29905, #30345; Bessel naming #29706) |
+| Special functions | `gamma`, `zeta`, `besselj`, `erf`, `polylog`, `hyper`, `meijerg`, … | many | ✅ through SpecialFunctions, HypergeometricFunctions, PolyLog (dependencies); ❌ Meijer G; ❌ Fresnel integrals (`fresnels`, `fresnelc`), associated Legendre (`assoc_legendre`), `hyperexpand`, `besselsimp`, Owen's T (not in SymPy 1.14) (SymPy #30064, #29645, #30708, #29905, #30345; Bessel naming #29706) |
 | Piecewise, Heaviside, Dirac delta | `Piecewise`, `Heaviside`, `DiracDelta` | `piecewise`, `Heaviside`, `Dirac` | ✅ `SymJ.piecewise`, `SymJ.heaviside`, `SymJ.dirac`: substitution, `diff`, `limit` by side, `refine`, `lambdify`, integration interval by interval (continuous) and of `dirac`; rewriting `abs`, `sign`, `max`, `min`; from `Cases`; ◐ no simplification across pieces (sums of piecewise functions are not combined), breakpoints with several parameters not ordered |
 | Combinatorial functions | `factorial`, `binomial`, `fibonacci`, `harmonic`, `bell`, … | `factorial`, `comb`, … | ◐ `factorial`, `binomial` (a polynomial for an integer `k`) |
 

@@ -1,11 +1,11 @@
 # PolyLog on expressions: `li0` ... `li6`, `li(n, z)` and the real versions `reli1` ...
 # `reli4`, `reli(n, x)` with a `Sym` argument build unevaluated functions, evaluated
 # numerically by PolyLog when asked for.
-module SymJPolyLogExt
+module PolyLogSupport
 
 import PolyLog as PL
-using SymJ
-using SymJ: Sym, apply_function, register_function!, _symbolic_signatures, _unary, ZERO, PI
+using ..SymJ
+using ..SymJ: Sym, apply_function, register_function!, _symbolic_signatures, _unary, ZERO, PI
 
 const ONEARG = (:li0, :li1, :li2, :li3, :li4, :li5, :li6, :reli1, :reli2, :reli3, :reli4)
 

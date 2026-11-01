@@ -1,5 +1,5 @@
-# The package extensions for SpecialFunctions, HypergeometricFunctions, PolyLog and
-# RischIntegrate.
+# SpecialFunctions, HypergeometricFunctions and PolyLog (dependencies) and the
+# RischIntegrate extension.
 import SpecialFunctions as SF
 import RischIntegrate
 import HypergeometricFunctions as HF
@@ -9,10 +9,10 @@ import PolyLog as PL
     @syms x n a b c
     PI = SymJ.PI
 
-    # ambiguities introduced by an extension's methods
-    for (pkg, ext) in ((SF, :SymJSpecialFunctionsExt), (HF, :SymJHypergeometricFunctionsExt), (PL, :SymJPolyLogExt),
-                       (RischIntegrate, :SymJRischIntegrateExt))
-        E = Base.get_extension(SymJ, ext)
+    # ambiguities introduced by the methods SymJ adds to a package's functions (in a
+    # submodule for a dependency, the extension for RischIntegrate)
+    for (pkg, E) in ((SF, SymJ.SpecialFunctionsSupport), (HF, SymJ.HypergeometricSupport), (PL, SymJ.PolyLogSupport),
+                     (RischIntegrate, Base.get_extension(SymJ, :SymJRischIntegrateExt)))
         @test E isa Module
         amb = filter(p -> p[1].module === E || p[2].module === E, Test.detect_ambiguities(pkg, E))
         @test isempty(amb)
