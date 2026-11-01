@@ -24,7 +24,7 @@ end
     SymSet
 
 A finite union of disjoint intervals with exact endpoints, sorted and merged; the
-solutions of an inequality ([`solve`](@ref)). Supports `in`, `∪`, `∩`, `setdiff`,
+solutions of an inequality ([`solve`](@ref)). Supports `in`, `∪`, `∩`, `setdiff`, `⊆`,
 `isempty`; the intervals are `S.intervals`. Calling tests membership: `S(2)`, or
 `S(x => 2)` for a set from `solve(ineq, x)` (which records its variable).
 """
@@ -110,6 +110,10 @@ _endpoints(S::SymSet) = Sym[e for I in S.intervals for e in (I.lo, I.hi) if e !=
 Base.union(A::SymSet, B::SymSet) = _set_from(vcat(_endpoints(A), _endpoints(B)), (v, _) -> v in A || v in B)
 Base.intersect(A::SymSet, B::SymSet) = _set_from(vcat(_endpoints(A), _endpoints(B)), (v, _) -> v in A && v in B)
 Base.setdiff(A::SymSet, B::SymSet) = _set_from(vcat(_endpoints(A), _endpoints(B)), (v, _) -> v in A && !(v in B))
+Base.issubset(A::SymSet, B::SymSet) = isempty(setdiff(A, B))
+Base.issubset(A::Union{SymSet,SymInterval}, B::Union{SymSet,SymInterval}) = _asset(A) ⊆ _asset(B)
+_asset(S::SymSet) = S
+_asset(I::SymInterval) = SymSet([I])
 
 ## printing: (-∞, -1) ∪ [2, 3] ∪ {5}
 

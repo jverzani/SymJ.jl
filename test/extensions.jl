@@ -10,7 +10,8 @@ import PolyLog as PL
     PI = SymJ.PI
 
     # ambiguities introduced by an extension's methods
-    for (pkg, ext) in ((SF, :SymJSpecialFunctionsExt), (HF, :SymJHypergeometricFunctionsExt), (PL, :SymJPolyLogExt))
+    for (pkg, ext) in ((SF, :SymJSpecialFunctionsExt), (HF, :SymJHypergeometricFunctionsExt), (PL, :SymJPolyLogExt),
+                       (RischIntegrate, :SymJRischIntegrateExt))
         E = Base.get_extension(SymJ, ext)
         @test E isa Module
         amb = filter(p -> p[1].module === E || p[2].module === E, Test.detect_ambiguities(pkg, E))
@@ -115,6 +116,23 @@ import PolyLog as PL
         @test PL.li(3, x)(0.3) ≈ PL.li(3, 0.3) && PL.reli(3, x)(0.3) ≈ PL.reli(3, 0.3)
         @test diff(PL.li(n, x), x) == PL.li(n - 1, x) / x
         @test diff(PL.li3(x), x) == PL.li2(x) / x
+    end
+
+    @testset "RischIntegrate: special functions in answers" begin
+        ∫ = RischIntegrate.integrate
+        # Clausen functions and the like are expressions: diff and N work on the answer
+        F = ∫(x / sin(x), x)
+        @test F isa Sym
+        @test abs(N((diff(F, x) - x / sin(x))(0.7))) < 1e-12
+        @test !occursin("-1 *", string(F))
+        G = ∫(x^3 * tan(x), x)
+        @test abs(N((diff(G, x) - x^3 * tan(x))(1.3))) < 1e-12
+        H = ∫(x / (5 + 4cos(x)), x)
+        @test abs(N((diff(H, x) - x / (5 + 4cos(x)))(0.7))) < 1e-12
+        @test diff(RischIntegrate.clausen2(x), x) == -log(2 - 2cos(x)) / 2
+        @test diff(RischIntegrate.clausen(3, x), x) == -RischIntegrate.clausen2(x)
+        @test diff(RischIntegrate.sinhint(x), x) == sinh(x) / x
+        @test RischIntegrate.clausen2(x)(1.0) ≈ RischIntegrate.clausen2(1.0)
     end
 
     @testset "RischIntegrate: piecewise, heaviside, dirac" begin

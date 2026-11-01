@@ -177,6 +177,31 @@ Base.gcd(a::Sym, b::Sym; method::Symbol = :auto) =
 Base.lcm(a::Sym, b::Sym; method::Symbol = :auto) =
     _with_widening(() -> Sym(_lcm_poly(_poly_pair(a, b)...; method)))
 
+Base.gcd(a::Sym, b::Number; kws...) = gcd(a, Sym(b); kws...)
+Base.gcd(a::Number, b::Sym; kws...) = gcd(Sym(a), b; kws...)
+Base.lcm(a::Sym, b::Number; kws...) = lcm(a, Sym(b); kws...)
+Base.lcm(a::Number, b::Sym; kws...) = lcm(Sym(a), b; kws...)
+
+# polynomials with symbolic coefficients (sqrt(2), parameters): through cancel, monic
+function Base.gcd(p::Poly, q::Poly)
+    gs = _unify_gens(p, q)
+    P, Q = Sym(p), Sym(q)
+    iszero(P) && return _monic(Q, gs)
+    iszero(Q) && return _monic(P, gs)
+    a, _ = numer_denom(cancel(P / Q))
+    _monic(cancel(P / a), gs)
+end
+function Base.lcm(p::Poly, q::Poly)
+    gs = _unify_gens(p, q)
+    (iszero(p) || iszero(q)) && return Poly{Sym}(ZERO, gs)
+    G = Sym(gcd(p, q))
+    _monic(cancel(Sym(p) * Sym(q) / G), gs)
+end
+function _monic(e::Sym, gs::Vector{Sym})
+    g = Poly{Sym}(expand(e), gs)
+    iszero(g) ? g : Poly{Sym}(expand(cancel(Sym(g) / g.coefs[1])), gs)
+end
+
 function _poly_pair(a::Sym, b::Sym)
     gs = Set{Sym}()
     (_numpoly_symbols!(gs, a) && _numpoly_symbols!(gs, b)) ||

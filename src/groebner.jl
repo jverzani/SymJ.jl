@@ -431,8 +431,12 @@ _gsym(c::Sym) = c
 _gmonosym(ctx, m, vars) = prod((vars[i]^_gexp(ctx, m, i) for i in 1:ctx.n); init = ONE)
 
 # monic, as an expression
+const _GROEBNER_ALGEBRAIC_MSG =
+    "groebner: a leading coefficient vanishes for the algebraic numbers in the coefficients, " *
+    "which are taken as parameters; replace one (sqrt(3)) by a variable r, last, and add r^2 - 3"
 function _gtosym(p::_GP, ctx, vars; monic::Bool = true)
     lc = _gsym(p.c[1])
+    monic && iszero(lc) && throw(ArgumentError(_GROEBNER_ALGEBRAIC_MSG))
     _add_many(_cnorm(monic ? _gsym(c) / lc : _gsym(c)) * _gmonosym(ctx, m, vars) for (m, c) in zip(p.m, p.c))
 end
 
