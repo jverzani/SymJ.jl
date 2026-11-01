@@ -62,9 +62,12 @@ end
 #   Cl′ₙ = Cl_{n-1} (n even), -Cl_{n-1} (n odd), Cl₁(φ) = -log(2 - 2cos φ)/2;
 #   ∂φ Re Liₙ(ρe^{iφ}) = -Im Li_{n-1}, ∂φ Im Liₙ = Re Li_{n-1}, with
 #   Li₁ = -log(1 - z): Re = -log(1 - 2ρ cos φ + ρ²)/2, Im = atan(ρ sin φ/(1 - ρ cos φ)).
+# (RischIntegrate 1.2 on; older versions, as on Julia 1.10, have none of them)
 const RI_FUNCTIONS = [:clausen2 => 1, :clausen => 2, :repolylog => 3, :impolylog => 3,
                       :rehyp2f1 => 4, :imhyp2f1 => 4, :sinhint => 1, :coshint => 1]
+_hasri(f) = isdefined(RischIntegrate, f)
 for (f, n) in RI_FUNCTIONS, sig in SymJ._symbolic_signatures(n)
+    _hasri(f) || continue
     args = [Symbol(:a, i) for i in 1:n]
     @eval RischIntegrate.$f($([:($a::$T) for (a, T) in zip(args, sig)]...)) =
         SymJ.apply_function($(QuoteNode(f)), Sym[$(args...)])
@@ -91,7 +94,7 @@ function _dpolylog(re::Bool)
 end
 
 function __init__()
-    reg(name; kw...) = SymJ.register_function!(name; julia = getfield(RischIntegrate, name), kw...)
+    reg(name; kw...) = _hasri(name) && SymJ.register_function!(name; julia = getfield(RischIntegrate, name), kw...)
     reg(:clausen2; diff = (args, i) -> _cl1(args[1]))
     reg(:clausen; diff = _dclausen)
     reg(:repolylog; diff = _dpolylog(true))

@@ -118,7 +118,8 @@ import PolyLog as PL
         @test diff(PL.li3(x), x) == PL.li2(x) / x
     end
 
-    @testset "RischIntegrate: special functions in answers" begin
+    # (the special functions are in RischIntegrate 1.2 on; Julia 1.10 resolves 1.0)
+    isdefined(RischIntegrate, :clausen2) && @testset "RischIntegrate: special functions in answers" begin
         ∫ = RischIntegrate.integrate
         # Clausen functions and the like are expressions: diff and N work on the answer
         F = ∫(x / sin(x), x)
