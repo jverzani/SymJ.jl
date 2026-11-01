@@ -234,10 +234,7 @@ function _build(flat::Vector{Any})
     A = Assumptions(_Fields(), flat, Dict{Sym,Sym}(), Dict{Sym,Int8}(), Dict{Sym,Int8}(), Dict{Sym,SymSet}(),
                     Dict{Sym,Vector{Sym}}(), Sym[], _ACon[], Dict{Sym,Union{Nothing,UInt8}}())
     # membership facts first: equalities then avoid solving for those symbols
-    mems = [f for f in flat if f isa Membership]
-    for m in mems
-        _isnamed(m.x) || throw(ArgumentError("membership facts are about symbols, not $(m.x)"))
-    end
+    mems = Membership[_symbol_membership(f) for f in flat if f isa Membership]
     # equalities: solved for a symbol where they can be, and substituted
     rels = Any[]
     for f in flat
@@ -278,6 +275,31 @@ function _build(flat::Vector{Any})
     end
     _check!(A) || return nothing
     A
+end
+
+# a membership fact about c x + d (c ≠ 0, d rational) as the same fact about x, when they
+# are equivalent: for ℚ, ℝ, ℂ with c rational; for ℤ with c = ±1 and d an integer
+# (-n ∈ ℤ, n + 1 ∈ ℤ; not 2n ∈ ℤ, which says less than n ∈ ℤ, or n/2 ∈ ℤ, which says more)
+function _symbol_membership(m::Membership)
+    _isnamed(m.x) && return m
+    err() = throw(ArgumentError("membership facts are about a symbol x, or ±x + k (k an integer) " *
+                                "for ℤ, c x + d (c, d rational) for ℚ, ℝ, ℂ; not $(m.x)"))
+    vs = free_symbols(m.x)
+    length(vs) == 1 || err()
+    x = only(vs)
+    P = try
+        Poly{SymNumber}(m.x, [x])
+    catch e
+        e isa ArgumentError || rethrow()
+        err()
+    end
+    degree(P) == 1 || err()
+    c, d = expand(m.x - subs(m.x, x => 0)) / x, subs(m.x, x => 0)
+    (c.kind == NUMBER && d.kind == NUMBER) || err()
+    if m.set.rank == _ZR
+        (abs(c.num) == 1 && isone(_denominator(d.num))) || err()
+    end
+    Membership(x, m.set, m.negated)
 end
 
 function _flatten!(out, fs)

@@ -1913,6 +1913,12 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         # a predicate on a symbol is false (not known), and the message says so
         @test !isodd(x)
         @test occursin("isodd(n)", (try Assumptions(isodd(x)) catch e; sprint(showerror, e) end))
+        # membership of ±x + k (ℤ) or c x + d (ℚ, ℝ, ℂ) is membership of x (SymPy #29082)
+        @test iszero(refine(sin(PI * x); assume = (-x ∈ ℤ,)))
+        @test iszero(refine(sin(PI * x); assume = (x + 3 ∈ ℤ,)))
+        @test iszero(refine(imag(x); assume = (2x - 1 ∈ ℝ,)))
+        @test_throws ArgumentError Assumptions(2x ∈ ℤ)          # says less than x ∈ ℤ
+        @test_throws ArgumentError Assumptions(x^2 ∈ ℝ)
     end
 
     @testset "limit" begin
