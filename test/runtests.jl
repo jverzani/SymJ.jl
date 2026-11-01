@@ -1296,6 +1296,9 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test string(-x / (2y)) == "-x/(2*y)"
         @test string(x^-2) == "1/x^2"
         @test string(sqrt(Sym(8))) == "2*sqrt(2)"
+        # a float exponent prints as a float, not as sqrt (SymPy #29566)
+        @test string(x^Sym(0.5)) == "x^0.5"
+        @test string(x^Sym(0.5) - sqrt(x)) == "-sqrt(x) + x^0.5"
         @test string(Sym(2)^(1 // 3)) == "2^(1/3)"
         @test string(exp(x)) == "exp(x)"
         @test string(2IM) == "2*im"

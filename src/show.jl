@@ -7,7 +7,7 @@ Base.show(io::IO, ::MIME"text/plain", x::Sym) = show(io, x)
 
 # (_isneg, from patterns.jl: false for NaN, whose sign is not an integer)
 _negexp(e::Sym) = (e.kind == NUMBER || e.kind == MUL) && _isneg(e.num)
-_ishalf(e::Sym) = e.kind == NUMBER && e.num == SymNumber(1 // 2)
+_ishalf(e::Sym) = e.kind == NUMBER && !isfloat(e.num) && e.num == SymNumber(1 // 2)
 
 # precedence of the printed form of x
 function _prec(x::Sym)
