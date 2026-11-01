@@ -1789,6 +1789,13 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
 
     @testset "solve with assumptions" begin
         @syms a b n
+        # a float double root split by rounding into a complex pair is taken as real, with a
+        # warning (SymPy #30346)
+        let eq = -1.30616509926855e-8 * x^3 + 0.00273103448275862 * x ~ 0.480662068965517
+            rs = @test_logs (:warn, r"taken as real") solve(eq, x; assume = (x ≧ 0, x ≦ 264))
+            @test length(rs) == 1
+            @test isapprox(N(only(rs)), 264; rtol = 1e-10)
+        end
         @test solve(x^2 ~ 4, x; assume = (x ≫ 0,)) == [2] == solve(x^2 ~ 4, x; assume = @assume(x > 0))
         @test solve(x^2 ~ 2, x; assume = @assume(x in Rationals)) == Sym[]
         @test (@assuming x > 0 begin

@@ -41,7 +41,9 @@ solve(diff(x^2 + u(x)^2 - 1, x) ~ 0, diff(u(x), x))   # [-x/u(x)]
 With assumptions (`assume = (x ≫ 0,)`, an [`Assumptions`](@ref), or inside
 [`assuming`](@ref)), only the solutions they allow for `x` are kept: those in its
 number set (`x ∈ ℝ`), its range (`x ≫ 0`), and consistent with its relations to other
-symbols. Facts about the other symbols are used to decide that. When the answer
+symbols. Facts about the other symbols are used to decide that. For a real `x`, a
+floating point root whose imaginary part is tiny beside its size (a double root split
+by rounding, `264 ± 6e-6im`) is taken as real, with a warning. When the answer
 depends on something the assumptions leave open, the result is a `Cases` value: a
 list of `conditions => solutions`, which can be called with values (`cs(a => 4)`).
 

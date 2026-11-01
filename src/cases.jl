@@ -386,8 +386,26 @@ function _solve_assumed(eq::Relation, x::Sym, A::Assumptions)
         if v !== nothing                          # x itself is given: does it solve eq?
             return _decide(Relation(:eq, expand(subs(e.lhs - e.rhs, x => v)), ZERO), B) ? Sym[v] : Sym[]
         end
-        filter(r -> _allowed(r, x, B), _solve_eq(e, x))
+        filter(r -> _allowed(r, x, B), _real_if_tiny(_solve_eq(e, x), x, B))
     end
+end
+
+# for a real x, float roots whose imaginary part is tiny beside their size (a multiple
+# root split by rounding: 264 ± 6e-6im) are taken as real, with a warning
+function _real_if_tiny(rs, x::Sym, A::Assumptions)
+    rs isa Vector{Sym} || return rs
+    get(A.dom, x, _CR) <= _RR || haskey(A.sets, x) || return rs
+    out = Sym[]
+    for r in rs
+        w = (_hassymbol(r) || _isexactex(r)) ? nothing : try _evalc(r) catch; nothing end
+        if w isa Complex && !iszero(imag(w)) && abs(imag(w)) <= cbrt(eps()) * abs(w)
+            any(o -> !_hassymbol(o) && isapprox(N(o), real(w); rtol = cbrt(eps())), out) && continue
+            @warn "solve: the root $r is taken as real ($(real(w))); its imaginary part is presumed rounding error"
+            r = Sym(real(w))
+        end
+        push!(out, r)
+    end
+    out
 end
 
 # may x take the value r?
