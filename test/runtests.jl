@@ -608,6 +608,17 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
     @testset "Poly" begin
         # an expression as a generator: its symbols must not be in a coefficient (SymPy #29080)
         @test_throws ArgumentError Poly(x + 1 / x, 1 / x)
+        # division by a constant; by a polynomial in the generators: divrem
+        @test Poly(x^2 + 2x + 1, x) / 3 == Poly(x^2 / 3 + 2x / 3 + 1 // 3, x)
+        @test Poly(x^2 + 2x + 1, x) // 3 == Poly(x^2 / 3 + 2x / 3 + 1 // 3, x)
+        @test_throws ArgumentError Poly(x^2 + 1, x) / x
+        # gcd with symbolic (algebraic) coefficients, and with a Julia number
+        @test gcd(Poly(sqrt(Sym(2)) * x^2 + sqrt(Sym(2)) * x, x), Poly(x^2 - 1, x)) == Poly(x + 1, x)
+        @test gcd(Poly(x^2 - 2, x), Poly(x - sqrt(Sym(2)), x)) == Poly(x - sqrt(Sym(2)), x)
+        @test lcm(Poly(sqrt(Sym(2)) * x, x), Poly(x + 1, x)) == Poly(x^2 + x, x)
+        @test gcd(2x, 0) == 2x
+        @test lcm(2x, 3) == 6x
+        @test gcd(6, 4x) == 2
         @test_throws ArgumentError Poly(x^2 + sin(x), sin(x))
         @test degree(Poly(sin(x)^2 + 2sin(x), sin(x)), sin(x)) == 2
         @syms a b
@@ -1098,6 +1109,17 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
                       [Dict(x => (3 + sqrt(Sym(5))) / 2, y => (3 - sqrt(Sym(5))) / 2),
                        Dict(x => (3 - sqrt(Sym(5))) / 2, y => (3 + sqrt(Sym(5))) / 2)])
         @test length(solve([x^2 ~ 1, y^2 ~ 1], [x, y])) == 4                     # not in shape position
+        # an algebraic number in the coefficients is not a parameter (SymPy #29750)
+        let (s, c) = (Sym(:s), Sym(:c)), r3 = sqrt(Sym(3))
+            eqs = [2s * c - 2r3 * c^2 + r3 * s - 3c ~ 0, s^2 + c^2 - 1 ~ 0]
+            sols = solve(eqs, [s, c])
+            @test length(sols) == 4
+            @test all(d -> all(e -> iszero(simplify(subs(e.lhs - e.rhs, d...))), eqs), sols)
+            @test_throws ArgumentError groebner([e.lhs for e in eqs], s, c)
+        end
+        # (sqrt(2)*sqrt(3) unmerged: compared after simplify)
+        @test sameset(map(d -> Dict(k => simplify(v) for (k, v) in d), solve([x^2 + y^2 ~ 1, x ~ sqrt(Sym(2)) * y], [x, y])),
+                      [Dict(x => sqrt(Sym(6)) / 3, y => sqrt(Sym(3)) / 3), Dict(x => -sqrt(Sym(6)) / 3, y => -sqrt(Sym(3)) / 3)])
         # float solutions refined by Newton's method: small components keep their relative
         # accuracy (SymPy #29140)
         let
@@ -1192,6 +1214,11 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test P2s isa SymJ.SymSet && !(0 in P2s) && 2 in P2s && -1.5 in P2s && !(-1 in P2s)
         @test string(P2s ∪ T) == "(-∞, ∞)" && string(P2s ∩ T) == "(-∞, -1) ∪ (1, 3]"
         @test string(setdiff(T, P2s)) == "[-1, 1]" && isempty(setdiff(T, T))
+        # ⊆, with a set or one of its intervals
+        @test solve(x^2 ≪ 1, x) ⊆ T
+        @test !(T ⊆ P2s)
+        @test P2s.intervals[1] ⊆ P2s
+        @test !(solve(x ≦ 1, x) ⊆ P2s.intervals[1])
         @test sqrt(Sym(2)) in solve(x^2 ≦ 2, x) && !(sqrt(Sym(2)) in solve(x^2 ≪ 2, x))
         @test_throws ArgumentError solve(a * x ≫ 1, x)               # parameters: not yet
         @test_throws ArgumentError solve(sin(x) ≫ 0, x)

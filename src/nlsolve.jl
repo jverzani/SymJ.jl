@@ -33,7 +33,7 @@ function _solve_nonlinear(eqs::Vector{<:Relation}, vars::Vector{Sym})
         end
         iszero(n) || push!(nums, n)
     end
-    sols = isempty(nums) ? [Dict{Sym,Sym}()] : _solve_groebner(nums, vars)
+    sols = isempty(nums) ? [Dict{Sym,Sym}()] : _solve_algebraic(nums, vars)
     # drop solutions at a pole
     filter!(s -> all(d -> !_vanishes(subs(d, s...)), dens), sols)
     if inexact
@@ -72,6 +72,51 @@ function _polish(s::Dict{Sym,Sym}, nums::Vector{Sym}, vars::Vector{Sym})
         (w0 = z0[i]; c = ComplexF64(z[i]); iszero(imag(w0)) ? Sym(real(c)) : Sym(real(c)) + Sym(imag(c)) * IM))
         for (k, w) in s)
 end
+
+# Algebraic constants in the coefficients (sqrt(3)) are not parameters: a Gröbner basis
+# over Q(p) can have a leading coefficient that vanishes at p = sqrt(3) (p^2 - 3). Each
+# b^(1/q) becomes a new last variable r with r^q - b in the system, and the solutions
+# kept are those with r = b^(1/q). Only then: a new variable per constant is costly
+# (10^(-189/20) gives r^20 - 10^-189), so the basis over Q(p) is tried first.
+function _solve_algebraic(nums::Vector{Sym}, vars::Vector{Sym})
+    try
+        return _solve_groebner(nums, vars)
+    catch e
+        e isa ArgumentError && e.msg == _GROEBNER_ALGEBRAIC_MSG || rethrow()
+    end
+    atoms = Set{Sym}()
+    foreach(n -> _poly_atoms!(atoms, n), nums)
+    algs = sort!([a for a in atoms if _isalgconst(a)]; lt = _lt)
+    isempty(algs) && throw(ArgumentError(_GROEBNER_ALGEBRAIC_MSG))
+    rs = Sym[]
+    for i in eachindex(algs)
+        k = i
+        r = Sym(Symbol("_alg", k))
+        while any(n -> has(n, r), nums) || any(v -> _eq(v, r), vars)
+            k += length(algs)
+            r = Sym(Symbol("_alg", k))
+        end
+        push!(rs, r)
+    end
+    sub = [a => r for (a, r) in zip(algs, rs)]
+    eqs = Sym[expand(subs(n, sub...)) for n in nums]
+    for (a, r) in zip(algs, rs)
+        b, q = a.args[1], _denominator(a.args[2].num)
+        push!(eqs, r^q - b^_numerator(a.args[2].num))
+    end
+    sols = _solve_groebner(eqs, [vars; rs])
+    out = Dict{Sym,Sym}[]
+    for s in sols
+        all(((a, r),) -> haskey(s, r) && _vanishes(s[r] - a), sub) || continue
+        back = [r => a for (a, r) in sub]
+        push!(out, Dict{Sym,Sym}(k => simplify(subs(v, back...)) for (k, v) in s if !any(r -> _eq(k, r), rs)))
+    end
+    out
+end
+
+# b^(p/q), b and p/q rational: an algebraic number
+_isalgconst(a::Sym) = a.kind == POW && a.args[1].kind == NUMBER && isexact(a.args[1].num) &&
+    a.args[2].kind == NUMBER && isexact(a.args[2].num) && !_isint(a.args[2].num)
 
 function _solve_groebner(nums::Vector{Sym}, vars::Vector{Sym})
     G = groebner(nums, vars...)

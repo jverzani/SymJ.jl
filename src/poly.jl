@@ -584,6 +584,14 @@ for op in (:+, :-, :*)
     @eval Base.$op(p::Poly, x::Union{Number,Sym}) = $op(p, _lift(p, x))
     @eval Base.$op(x::Union{Number,Sym}, p::Poly) = $op(_lift(p, x), p)
 end
+# division by a constant (by a polynomial in the generators: divrem or divexact)
+function Base.:/(p::Poly, x::Union{Number,Sym})
+    c = Sym(x)
+    any(g -> has(c, g), p.gens) &&
+        throw(ArgumentError("divide by a polynomial in the generators with divrem or divexact"))
+    p * (ONE / c)
+end
+Base.://(p::Poly, x::Union{Number,Sym}) = p / x
 
 """
     diff(p::Poly, x)

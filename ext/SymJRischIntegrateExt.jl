@@ -56,8 +56,56 @@ function RischIntegrate.integrate(ex::Union{Sym,SymJ.Cases}, xab::Tuple, more::T
     v
 end
 
-# the integrator SymJ uses inside (dsolve)
-__init__() = (SymJ._INTEGRATOR[] = (f, x) -> integrate(f, x))
+# RischIntegrate's special functions on expressions, so answers with them are expressions
+# (not an IntegralWithRootSums of Julia Exprs): Clausen functions, Re/Im of polylogarithms
+# and of ₂F₁, the hyperbolic sine and cosine integrals. Derivatives in the angle φ:
+#   Cl′ₙ = Cl_{n-1} (n even), -Cl_{n-1} (n odd), Cl₁(φ) = -log(2 - 2cos φ)/2;
+#   ∂φ Re Liₙ(ρe^{iφ}) = -Im Li_{n-1}, ∂φ Im Liₙ = Re Li_{n-1}, with
+#   Li₁ = -log(1 - z): Re = -log(1 - 2ρ cos φ + ρ²)/2, Im = atan(ρ sin φ/(1 - ρ cos φ)).
+# (RischIntegrate 1.2 on; older versions, as on Julia 1.10, have none of them)
+const RI_FUNCTIONS = [:clausen2 => 1, :clausen => 2, :repolylog => 3, :impolylog => 3,
+                      :rehyp2f1 => 4, :imhyp2f1 => 4, :sinhint => 1, :coshint => 1]
+_hasri(f) = isdefined(RischIntegrate, f)
+for (f, n) in RI_FUNCTIONS, sig in SymJ._symbolic_signatures(n)
+    _hasri(f) || continue
+    args = [Symbol(:a, i) for i in 1:n]
+    @eval RischIntegrate.$f($([:($a::$T) for (a, T) in zip(args, sig)]...)) =
+        SymJ.apply_function($(QuoteNode(f)), Sym[$(args...)])
+end
+
+_cl1(φ) = -log(2 - 2cos(φ)) / 2
+_cl(n, φ) = n == 1 ? _cl1(φ) : n == 2 ? RischIntegrate.clausen2(φ) : RischIntegrate.clausen(n, φ)
+_isposint(a::Sym) = a.kind == SymJ.NUMBER && SymJ.isexact(a.num) && SymJ._isint(a.num) && a.num > SymJ.SymNumber(0)
+function _dclausen(args, i)
+    n, φ = args
+    i == 2 && _isposint(n) && n.num > SymJ.SymNumber(1) || return nothing
+    k = SymJ._toint(n.num)
+    iseven(k) ? _cl(k - 1, φ) : -_cl(k - 1, φ)
+end
+_reli(n, ρ, φ) = n == 1 ? -log(1 - 2ρ * cos(φ) + ρ^2) / 2 : RischIntegrate.repolylog(n, ρ, φ)
+_imli(n, ρ, φ) = n == 1 ? atan(ρ * sin(φ) / (1 - ρ * cos(φ))) : RischIntegrate.impolylog(n, ρ, φ)
+function _dpolylog(re::Bool)
+    (args, i) -> begin
+        n, ρ, φ = args
+        i == 3 && _isposint(n) && n.num > SymJ.SymNumber(1) || return nothing
+        k = SymJ._toint(n.num)
+        re ? -_imli(k - 1, ρ, φ) : _reli(k - 1, ρ, φ)
+    end
+end
+
+function __init__()
+    reg(name; kw...) = _hasri(name) && SymJ.register_function!(name; julia = getfield(RischIntegrate, name), kw...)
+    reg(:clausen2; diff = (args, i) -> _cl1(args[1]))
+    reg(:clausen; diff = _dclausen)
+    reg(:repolylog; diff = _dpolylog(true))
+    reg(:impolylog; diff = _dpolylog(false))
+    reg(:rehyp2f1)
+    reg(:imhyp2f1)
+    reg(:sinhint; diff = (args, i) -> sinh(args[1]) / args[1])
+    reg(:coshint; diff = (args, i) -> cosh(args[1]) / args[1])
+    # the integrator SymJ uses inside (dsolve)
+    SymJ._INTEGRATOR[] = (f, x) -> integrate(f, x)
+end
 
 @setup_workload begin
     @compile_workload begin
