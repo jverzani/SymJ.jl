@@ -606,6 +606,10 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
     end
 
     @testset "Poly" begin
+        # an expression as a generator: its symbols must not be in a coefficient (SymPy #29080)
+        @test_throws ArgumentError Poly(x + 1 / x, 1 / x)
+        @test_throws ArgumentError Poly(x^2 + sin(x), sin(x))
+        @test degree(Poly(sin(x)^2 + 2sin(x), sin(x)), sin(x)) == 2
         @syms a b
         p = Poly((x + y + 1)^3, x, y)
         @test p isa Poly{SymNumber}
@@ -1011,6 +1015,10 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test solve(2x^2 ~ x + 1, x) == [Sym(-1 // 2), Sym(1)]
         @test solve(x^3 - 3x + 1 ~ 0, x) == [2cos(10PI / 9), 2cos(4PI / 9), 2cos(2PI / 9)]  # real form
         @test all(r -> imag(N(r)) == 0, solve(x^3 - 3x + 1 ~ 0, x))
+        # a triple root, and Δ0 = 0, without Cardano's 0/0 (coefficients in im and y)
+        @test solve((x - 2IM * y)^3 ~ 0, x) == [2IM * y]
+        @test solve((x - 2IM * y)^3 * (x + y) ~ 0, x) == [-y, 2IM * y]
+        @test solve(x^3 + 3x^2 + 3x + 1 - y ~ 0, x)[1] == -(-y)^(1 // 3) - 1
         @test all(r -> !SymJ._hassymbol(r) && N(r) isa Number, solve(x^5 - x - 1 ~ 0, x))  # numeric (a + b*im)
         # symbolic coefficients
         @test solve(a * x + b ~ 0, x) == [-b / a]
@@ -1090,6 +1098,18 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
                       [Dict(x => (3 + sqrt(Sym(5))) / 2, y => (3 - sqrt(Sym(5))) / 2),
                        Dict(x => (3 - sqrt(Sym(5))) / 2, y => (3 + sqrt(Sym(5))) / 2)])
         @test length(solve([x^2 ~ 1, y^2 ~ 1], [x, y])) == 4                     # not in shape position
+        # float solutions refined by Newton's method: small components keep their relative
+        # accuracy (SymPy #29140)
+        let
+            @syms H c1 c2 c3 NaOH Na OH
+            K1, K2, Kw = Sym(10)^(-189 // 20), Sym(10)^(-64 // 5), Sym(10)^(-14)
+            eqs = [K1 * c1 ~ H * c2, K2 * c2 ~ H * c3, OH * Na ~ NaOH, H * OH ~ Kw,
+                   Na + H ~ OH + c2 + 2c3, c1 + c2 + c3 ~ 9 // 2000, NaOH + Na ~ 1 // 8]
+            sols = solve(eqs, [H, c1, c2, c3, NaOH, Na, OH])
+            phys = only(filter(s -> all(v -> N(s[v]) > 0, (H, c1, c2, c3, NaOH, Na, OH)), sols))
+            @test isapprox(N(phys[H]), 9.458052236307555e-14; rtol = 1e-10)
+            @test isapprox(N(phys[H] * phys[OH]), 1e-14; rtol = 1e-10)
+        end
         @test sameset(solve([x^2 + y^2 ~ 4, (x - 1)^2 + y^2 ~ 4], [x, y]),
                       [Dict(x => 1 // 2, y => sqrt(Sym(15)) / 2), Dict(x => 1 // 2, y => -sqrt(Sym(15)) / 2)])
         @test isempty(solve([x^2 + y^2 ~ 1, x^2 + y^2 ~ 4], [x, y]))
@@ -1207,6 +1227,17 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         let (a,) = symbols("a")
             @test solve((x^2 - a^2) / (x - a) ~ 2a, x) == Sym[]
         end
+        # rational powers of x as powers of one root of x (t = x^(1/10): t³ + t² = 3); the
+        # root kept unexpanded, whose numeric check otherwise loses it to cancellation
+        let r = solve(x^(3 // 10) + x^(1 // 5) ~ 3, x)
+            @test length(r) == 1
+            @test N(r[1]) ≈ 4.997466445630026
+        end
+        # a high degree (u = x^(3/100): degree 181) has numeric roots, not NaN
+        let r = solve(x^(543 // 100) + x^(222 // 100) ~ 5033 // 100, x)
+            @test N(r[1]) ≈ 2.0204868226226256
+            @test all(v -> abs(N(v^(543 // 100) + v^(222 // 100)) - 50.33) < 1e-8, r)
+        end
         # several radicals: squared away one at a time, extraneous roots dropped
         @test solve(sqrt(x) + sqrt(x + 5) ~ 5, x) == [4]
         @test solve(sqrt(x + 1) - sqrt(x - 1) ~ 1, x) == [5 // 4]
@@ -1277,6 +1308,9 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test string(-x / (2y)) == "-x/(2*y)"
         @test string(x^-2) == "1/x^2"
         @test string(sqrt(Sym(8))) == "2*sqrt(2)"
+        # a float exponent prints as a float, not as sqrt (SymPy #29566)
+        @test string(x^Sym(0.5)) == "x^0.5"
+        @test string(x^Sym(0.5) - sqrt(x)) == "-sqrt(x) + x^0.5"
         @test string(Sym(2)^(1 // 3)) == "2^(1/3)"
         @test string(exp(x)) == "exp(x)"
         @test string(2IM) == "2*im"
@@ -1755,6 +1789,13 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
 
     @testset "solve with assumptions" begin
         @syms a b n
+        # a float double root split by rounding into a complex pair is taken as real, with a
+        # warning (SymPy #30346)
+        let eq = -1.30616509926855e-8 * x^3 + 0.00273103448275862 * x ~ 0.480662068965517
+            rs = @test_logs (:warn, r"taken as real") solve(eq, x; assume = (x ≧ 0, x ≦ 264))
+            @test length(rs) == 1
+            @test isapprox(N(only(rs)), 264; rtol = 1e-10)
+        end
         @test solve(x^2 ~ 4, x; assume = (x ≫ 0,)) == [2] == solve(x^2 ~ 4, x; assume = @assume(x > 0))
         @test solve(x^2 ~ 2, x; assume = @assume(x in Rationals)) == Sym[]
         @test (@assuming x > 0 begin
@@ -1828,6 +1869,9 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test length(cs) == 4 && cs(a => 0, b => 5) == [-3, 3] && cs(a => 5, b => 0) == Sym[]
         @test occursin("a - 3 < b < a + 3", sprint(show, MIME"text/plain"(), cs))
         @test_throws ArgumentError solve(x^2 ~ 4, x; assume = (x ≫ 1, x ≪ 0))   # contradictory
+        # a predicate on a symbol is false (not known), and the message says so
+        @test !isodd(x)
+        @test occursin("isodd(n)", (try Assumptions(isodd(x)) catch e; sprint(showerror, e) end))
     end
 
     @testset "limit" begin
@@ -2192,6 +2236,17 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
     @testset "summation" begin
         @syms k n r a
         Σ = SymJ.summation
+        # the index is bound: not substituted, and renamed when a value would be captured
+        let y = Sym(:y), s = Σ(1 / (k^2 + y), k, 1, n)
+            @test string(subs(s, y => k)) == "Sum(1/(k′^2 + k), k′, 1, n)"
+            @test subs(s, k => 5) == s
+            @test subs(subs(s, y => k), n => 2) == 1 / (k + 1) + 1 / (k + 4)
+        end
+        # the binomial theorem with a polynomial factor, exact for every n ≥ 0 (SymPy #29731)
+        @test Σ(binomial(n, k) * (-1)^(n - k) * k, k, 0, n) == SymJ.piecewise((n ~ 1) => 1, true => 0)
+        @test Σ(binomial(n, k) * (-1)^(n - k) * k / factorial(n), k, 0, n) == SymJ.piecewise((n ~ 1) => 1, true => 0)
+        @test Σ(binomial(n, k) * (-1)^(n - k), k, 0, n) == (-1)^n * Sym(0)^n
+        @test Σ(binomial(n, k) * k * 3^k, k, 0, n) == 3n * 4^(n - 1)
         # a constant ratio whose power does not cancel: (-1)^k x^k is (-x)^k, x^(2k) is (x^2)^k
         let x = Sym(:x)
             @test Σ((-1)^k * x^k, k, 1, Inf; assume = (x ≫ 0, x ≪ 1)) == -x / (x + 1)
@@ -2358,6 +2413,10 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @syms y()
         D = SymJ.dsolve
         C1, C2, C3 = Sym(:C1), Sym(:C2), Sym(:C3)
+        # initial values at an equilibrium: the constant solution (SymPy #29827)
+        @test D(y'(x) ~ log(y(x)), y(x), y(1) => 1) == (y(x) ~ 1)
+        @test D(y''(x) ~ y(x) * (y(x) - 1), y(x), y(0) => 1, y'(0) => 0) == (y(x) ~ 1)
+        @test D(y'(x) ~ y(x), y(x), y(0) => 2) == (y(x) ~ 2exp(x))       # not an equilibrium
         # derivatives: bound variables, y' notation, evaluation after substitution
         @test y'(x) == diff(y(x), x) && y''(x) == diff(y(x), x, 2) && free_symbols(y'(0)) == Sym[]
         @test subs(diff(y(x), x), x => 0) == y'(0) && subs(y'(0), x => 5) == y'(0)

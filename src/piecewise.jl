@@ -339,10 +339,11 @@ function _integrate_pieces(e::Sym, x::Sym, integ)
     for i in eachindex(Fs)
         if i > 1
             b = bps[i-1]
-            l = limit(Fs[i-1], x => b; dir = :-)
-            r = limit(Fs[i], x => b; dir = :+)
-            (l isa Sym && r isa Sym) || return nothing
-            K = simplify(K + l - r)
+            # at a singular point (1/|sin x| at 0) the pieces are separate: nothing to match
+            # (a limit that fails there, as of -log(x - 1) at 1 from below, counts as one)
+            l = try limit(Fs[i-1], x => b; dir = :-) catch err; err isa InterruptException && rethrow(); nothing end
+            r = try limit(Fs[i], x => b; dir = :+) catch err; err isa InterruptException && rethrow(); nothing end
+            (l isa Sym && r isa Sym && _finite_value(l) && _finite_value(r)) && (K = simplify(K + l - r))
         end
         F = simplify(Fs[i] + K)
         push!(ps, (i == length(Fs) ? true : x ≪ bps[i]) => F)

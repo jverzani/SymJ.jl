@@ -245,6 +245,11 @@ import PolyLog as PL
         @test ∫(abs(cos(3x)), (x, 0, PI)) == 2
         @test ∫(abs(sin(2x)), (x, 2PI, 0)) == -4
         @test ∫(sign(sin(x)), (x, 0, 3PI)) == PI
+        # pieces separated by a singular point are not matched there (no Inf constants)
+        @test !occursin("Inf", string(RischIntegrate.integrate(1 / abs(sin(x)), x)))
+        @test N(∫(1 / abs(sin(x)), (x, 1, 2))) ≈ 1.0476051700585143
+        @test ∫(1 / abs(sin(x)), (x, 1, 4)) == Sym(Inf)
+        @test ∫(1 / abs(x - 1), (x, 2, 3)) == log(Sym(2))             # the piece is fixed on [2, 3]
         if VERSION >= v"1.12"          # an antiderivative known only numerically (₂F₁, root sums): a float
             @test N(∫(x / sqrt(1 - x^3), (x, 0, 1 // 2))) ≈ 0.12832329160032097
             @test N(∫(1 / (x^5 - x + 1), (x, 0, 1))) ≈ 1.5919853723336097

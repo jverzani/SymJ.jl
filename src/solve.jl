@@ -41,7 +41,9 @@ solve(diff(x^2 + u(x)^2 - 1, x) ~ 0, diff(u(x), x))   # [-x/u(x)]
 With assumptions (`assume = (x ≫ 0,)`, an [`Assumptions`](@ref), or inside
 [`assuming`](@ref)), only the solutions they allow for `x` are kept: those in its
 number set (`x ∈ ℝ`), its range (`x ≫ 0`), and consistent with its relations to other
-symbols. Facts about the other symbols are used to decide that. When the answer
+symbols. Facts about the other symbols are used to decide that. For a real `x`, a
+floating point root whose imaginary part is tiny beside its size (a double root split
+by rounding, `264 ± 6e-6im`) is taken as real, with a warning. When the answer
 depends on something the assumptions leave open, the result is a `Cases` value: a
 list of `conditions => solutions`, which can be called with values (`cs(a => 4)`).
 
@@ -277,7 +279,9 @@ function _solve_through(eq::Relation, n::Sym, x::Sym, bad::Vector{Sym})
     end
     out = Sym[]
     for r in _solve_eq(nu ~ 0, u), (arg, val) in _invert(g, r, x)
-        append!(out, _solve_eq(arg ~ val, x))
+        # x = val needs no solving: solving would expand val (a Cardano root to the 10th
+        # power), whose numeric value then loses the root to cancellation
+        _eq(arg, x) ? push!(out, _float_value(val)) : append!(out, _solve_eq(arg ~ val, x))
     end
     filter(r -> _satisfies(eq, x, r), out)
 end
@@ -458,6 +462,14 @@ function _one_period(a::Sym, b::Sym)
     sort!(out; by = N)
 end
 
+# a constant with floats in it as its numeric value ((1.02 + 0.07im)^(100/3) as a
+# complex float); others as they are
+function _float_value(v::Sym)
+    (_hassymbol(v) || _isexactex(v)) && return v
+    w = try _evalc(v) catch; return v end
+    abs(imag(w)) <= 1e-12 * max(1.0, abs(w)) ? Sym(real(w)) : Sym(real(w)) + Sym(imag(w)) * IM
+end
+
 # does r satisfy eq? (exactly, or numerically for constants; kept when undecidable)
 function _satisfies(eq::Relation, x::Sym, r::Sym)
     d = try
@@ -556,8 +568,15 @@ function _cardano(d, c, b, a)                                # a x³ + b x² + c
             return [2sqrt(-p / 3) * cos(θ - 2PI * k / 3) - b / (3a) for k in 0:2]
         end
     end
-    Δ0 = b^2 - 3a * c
-    Δ1 = 2b^3 - 9a * b * c + 27a^2 * d
+    Δ0 = expand(b^2 - 3a * c)
+    Δ1 = expand(2b^3 - 9a * b * c + 27a^2 * d)
+    # a triple root (Δ0 = Δ1 = 0), and Δ0 = 0, where C = Δ1^(1/3): the general formula
+    # would divide 0 by 0 ((x - 2im*y)^3 has Δ0 = Δ1 = 0 only once expanded)
+    if iszero(Δ0)
+        iszero(Δ1) && return [-b / (3a)]
+        C = Δ1^(1 // 3)
+        return [-(b + _OMEGA^k * C) / (3a) for k in 0:2]
+    end
     s = sqrt(Δ1^2 - 4Δ0^3)
     C = ((Δ1 + s) / 2)^(1 // 3)
     _iszero_value(C) && (C = ((Δ1 - s) / 2)^(1 // 3))
@@ -600,7 +619,10 @@ function _numeric_roots(c::Vector{Sym})
     n = length(a) - 1
     n == 0 && return Sym[]
     a ./= a[end]                                             # monic
-    R = 1 + maximum(abs, a[1:(end-1)])                       # Cauchy's root bound
+    # Fujiwara's root bound, 2 max |aₙ₋ₖ|^(1/k): Cauchy's, 1 + max |aₖ|, is far larger for a
+    # high degree, and its n-th power overflows (u^181 + u^74 - 50 gave NaN)
+    R = 2 * maximum(abs(a[n + 1 - k])^(1 / k) for k in 1:n)
+    R > 0 || (R = 1.0)
     z = [R * cis(2π * (k + 0.25) / n) for k in 0:(n - 1)]
     p(t) = evalpoly(t, a)
     dp(t) = evalpoly(t, [k * a[k+1] for k in 1:n])

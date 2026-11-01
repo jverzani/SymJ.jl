@@ -111,6 +111,12 @@ function dsolve(eq::Relation, yx::Sym, ics::Pair...; series::Union{Nothing,Integ
         end
         method === :laplace && throw(ArgumentError("dsolve: no Laplace transform solution for $(eq) (linear, constant coefficients, transformable right side)"))
     end
+    # initial values y(a) = c, y'(a) = … = 0 with y ≡ c a solution (an equilibrium: y' =
+    # log(y), y(1) = 1): that constant, which the general solution can miss
+    if !isempty(ics) && length(ics) == P.n
+        c = _ode_equilibrium(P, [_ode_ic(p, P) for p in ics])
+        c === nothing || return yx ~ c
+    end
     sol = _ode_solve(P, Cs)
     if (sol === nothing || sol[1] === :several) && !isempty(ics)
         # an autonomous equation with several branches of y': the constants and the
@@ -905,6 +911,19 @@ end
 ## initial conditions
 
 # a condition as (order, point, value)
+# c when the conditions are y(a) = c and y⁽ᵏ⁾(a) = 0 for 0 < k < n and the constant c
+# satisfies the equation for every x; else nothing
+function _ode_equilibrium(P::_ODE, conds)
+    any(((o, _, _),) -> o == 0, conds) || return nothing
+    c = only(v for (o, _, v) in conds if o == 0)
+    all(((o, _, v),) -> o == 0 || iszero(v), conds) || return nothing
+    v = try subs(P.F, P.ys[1] => c, (P.ys[i] => ZERO for i in 2:length(P.ys))...) catch err
+        _isdivzero(err) && return nothing
+        rethrow()
+    end
+    (iszero(v) || iszero(cancel(v)) || (!_hassymbol(v) && _iszero_value(v))) ? c : nothing
+end
+
 function _ode_ic(p::Pair, P::_ODE)
     c = _ode_ic_parts(Sym(p.first))
     c !== nothing && c[1] === P.yx.name && return (c[2], c[3], Sym(p.second))

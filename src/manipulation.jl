@@ -178,6 +178,7 @@ function _subs(ex::Sym, d::Dict{Sym,Sym})
     elseif k == FN
         ex.name === :Derivative && return _subs_derivative(ex, d)
         _isdefint(ex) && return _subs_defint(ex, d)
+        _isboundsum(ex) && return _subs_bound(ex, d, apply_function)
         new = _subs_args(ex.args, d)
         new === nothing && return ex
         return apply_function(ex.name, new)
@@ -329,10 +330,28 @@ _isderivat(ex::Sym) = ex.kind == FN && ex.name === :Derivative && length(ex.args
 # a definite integral Integral(f, v, a, b), ∫ₐᵇ f dv (printed Integral(f, (v, a, b)), as
 # integrate takes it): v is bound, so only f's other symbols and the limits are substituted
 _isdefint(ex::Sym) = ex.kind == FN && ex.name === :Integral && length(ex.args) == 4
-function _subs_defint(ex::Sym, d::Dict{Sym,Sym})
+_subs_defint(ex::Sym, d::Dict{Sym,Sym}) = _subs_bound(ex, d, _mkfn_node)
+
+# Sum(f, k, a, b) and Product(f, k, a, b): k is bound
+_isboundsum(ex::Sym) = ex.kind == FN && ex.name in (:Sum, :Product) && length(ex.args) == 4
+
+# F(f, v, a, b) with v bound: the limits substituted, f with v left alone. A value that
+# contains v would be captured by it (Σₖ 1/(k² + y) with y => k is Σⱼ 1/(j² + k), not
+# Σₖ 1/(k² + k)), so v is first renamed to a fresh symbol.
+function _subs_bound(ex::Sym, d::Dict{Sym,Sym}, build)
     f, v, a, b = ex.args
     df = haskey(d, v) ? Dict(k => w for (k, w) in d if !_eq(k, v)) : d
-    _mkfn_node(:Integral, Sym[_subs(f, df), v, _subs(a, d), _subs(b, d)])
+    if any(((k, w),) -> has(f, k) && has(w, v), df)
+        used = union(free_symbols(f), (free_symbols(w) for w in values(df))...)
+        nm = string(v.name)
+        w = Sym(Symbol(nm, "′"))
+        while w in used
+            nm *= "′"
+            w = Sym(Symbol(nm, "′"))
+        end
+        f, v = _subs(f, Dict(v => w)), w
+    end
+    build(ex.name, Sym[_subs(f, df), v, _subs(a, d), _subs(b, d)])
 end
 function _subs_derivative(ex::Sym, d::Dict{Sym,Sym})
     f, v = ex.args[1], ex.args[2]

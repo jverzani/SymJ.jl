@@ -406,7 +406,9 @@ function _zero_sets!(out, e::Sym, x::Sym)
         bs, ps = k == MUL ? (e.args, e.exps) : (e.args[1:1], e.args[2:2])
         for (b, p) in zip(bs, ps)
             # a negative power, or a symbolic one (x^n, singular at 0 for n < 0)
-            has(b, x) && ((p.kind == NUMBER && p.num < N0) || (p.kind != NUMBER && !has(p, x))) && push!(out, b)
+            # (the zeros of |u| are those of u)
+            bz = b.kind == FN && b.name === :abs && length(b.args) == 1 ? b.args[1] : b
+            has(b, x) && ((p.kind == NUMBER && p.num < N0) || (p.kind != NUMBER && !has(p, x))) && push!(out, bz)
             _zero_sets!(out, b, x)
             _zero_sets!(out, p, x)
         end
@@ -489,7 +491,11 @@ function _definite_by_pieces(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A, pv::B
     (a isa Real && b isa Real) || return nothing
     a, b = minmax(a, b)
     cuts = _piece_cuts(g, x, a, b)
-    (cuts === nothing || isempty(cuts)) && return nothing
+    cuts === nothing && return nothing
+    if isempty(cuts)                         # the pieces are fixed on the interval
+        gi = _pieces_at(g, x, Sym(SymNumber(rationalize(BigInt, (a + b) / 2; tol = (b - a) / 8))))
+        return gi === nothing ? nothing : _definite(gi, x, lo, hi, antider, A, pv)
+    end
     pts = Sym[(N(lo) <= N(hi) ? lo : hi); cuts; (N(lo) <= N(hi) ? hi : lo)]
     terms = Tuple{Int,Sym}[]
     for i in 1:(length(pts) - 1)
