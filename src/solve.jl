@@ -503,12 +503,23 @@ function _solve_lambert(eq::Relation, nu::Sym, u::Sym, g::Sym, x::Sym)
 end
 _lin_coeffs(c::Sym, x::Sym) = (α = cancel(diff(c, x)); (α, cancel(c - α * x)))
 
+# the assumptions of the solve in progress (abs inverts only for a real argument)
+const _SOLVE_ASSUME = ScopedValue{Any}(nothing)
+
 # g(x) = r as equations arg ~ value for an argument of g
 function _invert(g::Sym, r::Sym, x::Sym)
     k = g.kind
     if k == FN && length(g.args) == 1
         t = g.args[1]
         name = g.name
+        if name === :abs                                    # |t| = r: t = ±r, for real t
+            A = _SOLVE_ASSUME[]
+            if A !== nothing && _isreal(t, A) === true
+                _decide(Relation(:ge, r, ZERO), A) || return Tuple{Sym,Sym}[]
+                return iszero(r) ? [(t, r)] : [(t, r), (t, -r)]
+            end
+            throw(ArgumentError("solve: cannot invert abs($t) for $x: in the complex numbers |$t| = $r is a curve; assume $x ∈ ℝ"))
+        end
         name === :sin && return [(t, a) for a in _one_period(asin(r), PI - asin(r))]
         name === :cos && return [(t, a) for a in _one_period(acos(r), 2PI - acos(r))]
         name === :tan && return [(t, atan(r))]
@@ -526,6 +537,8 @@ function _invert(g::Sym, r::Sym, x::Sym)
             return [(e, b === E ? log(r) : log(r) / log(b))]
         elseif !has(e, x) && e.kind == NUMBER && isexact(e.num)   # t^(p/q) = r
             return [(b, r^inv(e))]
+        elseif !has(e, x)                                   # t^1.11 = r, t^a = r: the principal root
+            return [(b, r^(1 / e))]
         end
     end
     throw(ArgumentError("solve: cannot invert $g for $x"))

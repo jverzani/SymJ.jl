@@ -392,7 +392,8 @@ function _solve_assumed(eq::Relation, x::Sym, A::Assumptions)
         if v !== nothing                          # x itself is given: does it solve eq?
             return _decide(Relation(:eq, expand(subs(e.lhs - e.rhs, x => v)), ZERO), B) ? Sym[v] : Sym[]
         end
-        filter(r -> _allowed(r, x, B), _real_if_tiny(_solve_case(e, x, B), x, B))
+        rs = with(() -> _solve_case(e, x, B), _SOLVE_ASSUME => B)
+        filter(r -> _allowed(r, x, B), _real_if_tiny(rs, x, B))
     end
 end
 
@@ -494,7 +495,38 @@ function _defined_roots(rs::AbstractVector, e::Sym, x::Sym, B::Assumptions)
     end
 end
 
+# |u| with u real (x real): the equation solved with |u| = u, keeping the roots where
+# u ≥ 0, and with |u| = -u, keeping those where u ≤ 0 (|2x + 1| = x + 4; SymPy #28742)
+function _solve_abs_split(e::Relation, x::Sym, B::Assumptions)
+    _ismarkedreal(B, x) || return nothing
+    g = e.lhs - e.rhs
+    a = nothing
+    _replace_walk(g) do t
+        a === nothing && t.kind == FN && t.name === :abs && length(t.args) == 1 && has(t.args[1], x) &&
+            _isreal(t.args[1], B) === true && (a = t)
+        nothing
+    end
+    a === nothing && return nothing
+    # a lone |u| = r is inverted directly (r ≥ 0 by cases)
+    (_eq(e.lhs, a) && !has(e.rhs, x)) || (_eq(e.rhs, a) && !has(e.lhs, x)) && return nothing
+    u = a.args[1]
+    out = Sym[]
+    for (w, op) in ((u, :ge), (-u, :le))
+        rs = _solve_case(Relation(:eq, subs(e.lhs, a => w), subs(e.rhs, a => w)), x, B)
+        rs isa AbstractVector || return nothing
+        for r in rs
+            _decide(Relation(op, expand(subs(u, x => r)), ZERO), B) || continue
+            any(o -> iszero(expand(o - r)), out) || push!(out, r)
+        end
+    end
+    _sort_roots!(out)
+end
+
 function _solve_case(e::Relation, x::Sym, B::Assumptions)
+    if _has_fn(e.lhs - e.rhs, (:abs,))
+        r = _solve_abs_split(e, x, B)
+        r === nothing || return r
+    end
     n, d = numer_denom(cancel(e.lhs - e.rhs))
     for f in _param_factors(d, (x,))
         _decide(Relation(:ne, f, ZERO), B) || return Sym[]
