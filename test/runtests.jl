@@ -657,6 +657,15 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         end
         @test first(CSE((t1 + x)^2 + cos(t1 + x)))[1].first == Sym(:t2)   # names avoid the symbols
         @test CSE(x + y) == (Pair{Sym,Sym}[], x + y)
+        # powers of a root of unity reduced first: ω² = 1/ω for ω³ = 1 (SymPy #28051)
+        let ω = IM * sqrt(Sym(3)) / 2 - Sym(1) // 2, es = [ω^2 * x, ω^-2 * y, ω * x, ω^-1 * y]
+            @test SymJ._unity_powers(ω^2) == 1 / ω
+            @test SymJ._unity_powers(ω^-2) == ω
+            r, e = CSE(es)
+            @test length(r) == 2                                      # ω and 1/ω
+            @test all(d -> abs(N(subs(d, x => 1.5, y => 2.5))) < 1e-12,
+                     foldl((acc, q) -> subs.(acc, Ref(q)), reverse(r); init = e) .- es)
+        end
         let (r, e) = CSE(sqrt(x^2 + y^2) / (x^2 + y^2) + log(x^2 + y^2); prefix = :s)
             @test r == [Sym(:s1) => x^2 + y^2] && e == log(Sym(:s1)) + 1 / sqrt(Sym(:s1))
         end

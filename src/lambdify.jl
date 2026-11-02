@@ -195,6 +195,43 @@ end
 
 ## common subexpressions
 
+# powers of a root of unity ω (a constant with ωⁿ = 1, n ≤ 12) with their exponents
+# reduced into (-n/2, n/2]: ω² = 1/ω for a cube root of 1, so a cubic's roots share ω and
+# 1/ω instead of ω, ω², 1/ω, 1/ω² (SymPy #28051)
+function _unity_powers(e::Sym)
+    orders = Dict{Sym,Int}()
+    function order(b::Sym)
+        get!(orders, b) do
+            (_hassymbol(b) || b.kind == NUMBER || !_isexactex(b)) && return 0
+            for n in 2:12
+                iszero(expand(b^n - 1)) && return n
+            end
+            0
+        end
+    end
+    function reduced(b::Sym, p::Sym)
+        (p.kind == NUMBER && _isint(p.num)) || return nothing
+        n = order(b)
+        n == 0 && return nothing
+        k = _toint(p.num)
+        r = mod(k, n)
+        r > n ÷ 2 && (r -= n)
+        r == k ? nothing : r
+    end
+    _replace_walk(e) do t
+        if t.kind == POW
+            r = reduced(t.args[1], t.args[2])
+            return r === nothing ? nothing : _unity_powers(t.args[1])^r
+        elseif t.kind == MUL
+            rs = [reduced(b, p) for (b, p) in zip(t.args, t.exps)]
+            all(isnothing, rs) && return nothing
+            return Sym(t.num) * prod((r === nothing ? _unity_powers(b)^_unity_powers(p) : _unity_powers(b)^r
+                                      for (b, p, r) in zip(t.args, t.exps, rs)); init = ONE)
+        end
+        nothing
+    end
+end
+
 """
     SymJ.cse(ex; prefix = :t)
 
@@ -212,7 +249,7 @@ SymJ.cse((x + y)^2 + sin(x + y))      # ([t1 => x + y], t1^2 + sin(t1))
 ```
 """
 function cse(ex; prefix = :t)
-    outs = _outputs(ex)
+    outs = map(_unity_powers, _outputs(ex))
     # a product's factor b^p is counted as the power it is (exp(u) in exp(u)*sin(u) and
     # in exp(u) + 1 alike)
     factors(e) = e.kind == MUL ? Sym[isone(p) ? b : b^p for (b, p) in zip(e.args, e.exps)] : e.args
