@@ -2360,6 +2360,17 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
             @test sort(imag.(N.(LA.eigvals(C)))) ≈ [1 - sqrt(2), 1, 1 + sqrt(2)]
             @test SymJ.charpoly(Sym[1 2 3; 4 5 6; 7 8 10], x) == x^3 - 16x^2 - 12x + 3
         end
+        # matrices of square roots: eigvals hung in elimination (SymPy #28606, #28507)
+        let M = Sym[sqrt(Sym(3)) 4 sqrt(Sym(19)); sqrt(Sym(62)) sqrt(Sym(14)) 5; sqrt(Sym(7)) sqrt(Sym(59)) 5],
+            M5 = Sym[45 15 20 18 sqrt(Sym(5))/2; 15 85 35 22 Sym(11)//37; 20 35 15 40 3sqrt(Sym(3))/7;
+                     Sym(9)//2 2 4 12 sqrt(Sym(7))/5; Sym(25)//13 sqrt(Sym(7))/4 2 1 1]
+            # (rounded: the real parts of a conjugate pair differ in the last digits by platform)
+            by(z) = (round(real(z); digits = 8), round(imag(z); digits = 8))
+            num(A) = sort(complex.(LA.eigvals(ComplexF64.(N.(A)))); by)
+            @test sort(complex.(N.(LA.eigvals(M))); by) ≈ num(M)
+            @test sort(complex.(N.(LA.eigvals(M5))); by) ≈ num(M5)
+            @test size(LA.eigvecs(Sym[sqrt(Sym(2)) PI; sqrt(Sym(3)) E])) == (2, 2)
+        end
         # powers of im with the sign outside: im^3 = 1/im = -im
         @test IM^3 == -IM && 1 / IM == -IM && IM^-1 + IM == 0 && (-1)^(-1 // 3 * one(Sym)) == -(-1)^(2 // 3 * one(Sym))
         @test simplify(1 / (1 + IM)) == (1 - IM) / 2
