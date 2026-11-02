@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Solving equations — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=621ea2f1">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=62389356">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Solving equations — SymJ.jl">
   <meta property="og:title" content="Solving equations — SymJ.jl">
@@ -75,7 +75,7 @@
 <div class="md-docstring" id="CommonSolve.solve-Tuple{AbstractVector{&lt;:Relation}, Union{Tuple, AbstractVector}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>CommonSolve.solve</code> — <span class="md-docstring-sig">Tuple{AbstractVector{&lt;:Relation}, Union{Tuple, AbstractVector}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1cd2d8aed9e62c3052178ce67dcb92795b030dd5/src/linsolve.jl#L6-L32" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/29c55b5fc415ab327b056c17f184e6f5a2190702/src/linsolve.jl#L7-L41" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -89,7 +89,12 @@
 <li><p><strong>Polynomial (and rational) systems</strong> are solved through a lex Gröbner basis (<a href="../../reference/polynomials/#SymJ.groebner-Tuple{AbstractVector, Vararg{Sym}}"><code class="md-code-inline">groebner</code></a>), which is triangular, by back-substitution. The values are exact where the equations in one variable along the way can be solved exactly, numeric otherwise. With infinitely many solutions, the variables left free map to themselves.</p>
 </li>
 </ul>
-<p>Coefficients may involve other symbols; the solutions are then the generic ones (for example, assuming <code class="md-code-inline">a ≠ 0</code> in <code class="md-code-inline">a*x + y ~ 1</code>).</p>
+<p>Coefficients may involve parameters. Where the solution divides by an expression in them (a pivot of the elimination, a coefficient of the Gröbner basis, a denominator of a solution) that could vanish, the result is a <code class="md-code-inline">Cases</code> value, the case where it vanishes solved again with it substituted; a case that cannot be solved so holds an error. <code class="md-code-inline">assume</code> is not supported for systems yet.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve([a*x + y ~ 1, x - y ~ 2], [x, y])
+# a == 0 =&gt; [Dict(x =&gt; 3, y =&gt; 1)], a == -1 =&gt; [], a != 0, a != -1 =&gt; [Dict(x =&gt; 3/(a + 1), y =&gt; (1 - 2a)/(a + 1))]</code></pre>
+</div>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve([x + y ~ 3, x - y ~ 1], [x, y])          # [Dict(x =&gt; 2, y =&gt; 1)]
@@ -102,7 +107,7 @@ solve([x*y ~ 1, x + y ~ 3], [x, y])</code></pre>
 <div class="md-docstring" id="CommonSolve.solve-Tuple{Relation, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>CommonSolve.solve</code> — <span class="md-docstring-sig">Tuple{Relation, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1cd2d8aed9e62c3052178ce67dcb92795b030dd5/src/solve.jl#L14-L62" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/29c55b5fc415ab327b056c17f184e6f5a2190702/src/solve.jl#L14-L77" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -115,17 +120,24 @@ solve([x*y ~ 1, x + y ~ 3], [x, y])</code></pre>
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve(x^2 - 2 ~ 0, x)          # [-sqrt(2), sqrt(2)]
 solve(x^2 ~ -1, x)             # [-im, im]
-solve(a*x + b ~ 0, x)          # [-b/a]
 solve(diff(x^2 + u(x)^2 - 1, x) ~ 0, diff(u(x), x))   # [-x/u(x)]</code></pre>
 </div>
-<p>With assumptions (<code class="md-code-inline">assume = (x ≫ 0,)</code>, an <a href="../../reference/assumptions/#SymJ.Assumptions"><code class="md-code-inline">Assumptions</code></a>, or inside <a href="../../reference/assumptions/#SymJ.assuming-Tuple{Any, Vararg{Any}}"><code class="md-code-inline">assuming</code></a>), only the solutions they allow for <code class="md-code-inline">x</code> are kept: those in its number set (<code class="md-code-inline">x ∈ ℝ</code>), its range (<code class="md-code-inline">x ≫ 0</code>), and consistent with its relations to other symbols. Facts about the other symbols are used to decide that. For a real <code class="md-code-inline">x</code>, a floating point root whose imaginary part is tiny beside its size (a double root split by rounding, <code class="md-code-inline">264 ± 6e-6im</code>) is taken as real, with a warning. When the answer depends on something the assumptions leave open, the result is a <code class="md-code-inline">Cases</code> value: a list of <code class="md-code-inline">conditions =&gt; solutions</code>, which can be called with values (<code class="md-code-inline">cs(a =&gt; 4)</code>).</p>
+<p>With parameters, the solutions are correct for every value of them: where a coefficient could vanish, the result is a <code class="md-code-inline">Cases</code> value, a list of <code class="md-code-inline">conditions =&gt; solutions</code> (called with values, <code class="md-code-inline">cs(a =&gt; 4)</code>, it gives that case&#39;s solutions). The cases come from the leading coefficients of a polynomial (the next one when it vanishes), from denominators free of <code class="md-code-inline">x</code> (where they vanish the equation is not defined: no solutions), and from denominators of the solutions. A case in which every value of <code class="md-code-inline">x</code> is a solution holds an error. Assumptions that settle a coefficient give the plain answer.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve(a*x + b ~ 0, x)          # a == 0, b == 0 =&gt; (every x), a == 0, b != 0 =&gt; [], a != 0 =&gt; [-b/a]
+solve(a*x + b ~ 0, x; assume = (a ≫ 0,))   # [-b/a]
+solve(exp(a*x) ~ 2, x)         # a == 0 =&gt; [], a != 0 =&gt; [log(2)/a]
+solve(x^2 ~ a, x)              # [-sqrt(a), sqrt(a)]</code></pre>
+</div>
+<p>With assumptions (<code class="md-code-inline">assume = (x ≫ 0,)</code>, an <a href="../../reference/assumptions/#SymJ.Assumptions"><code class="md-code-inline">Assumptions</code></a>, or inside <a href="../../reference/assumptions/#SymJ.assuming-Tuple{Any, Vararg{Any}}"><code class="md-code-inline">assuming</code></a>), only the solutions they allow for <code class="md-code-inline">x</code> are kept: those in its number set (<code class="md-code-inline">x ∈ ℝ</code>), its range (<code class="md-code-inline">x ≫ 0</code>), and consistent with its relations to other symbols. Facts about the other symbols are used to decide that. For a real <code class="md-code-inline">x</code>, a floating point root whose imaginary part is tiny beside its size (a double root split by rounding, <code class="md-code-inline">264 ± 6e-6im</code>) is taken as real, with a warning. When the answer depends on something the assumptions leave open, the result is again a <code class="md-code-inline">Cases</code> value.</p>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve(x^2 ~ 4, x; assume = (x ≫ 0,))                # [2]
 solve(x^2 ~ a, x; assume = (x ∈ ℝ, a ∈ ℝ))         # a &lt; 0 =&gt; [], a == 0 =&gt; [0], a &gt; 0 =&gt; [-√a, √a]
 solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !(a &gt; 0) =&gt; []</code></pre>
 </div>
-<p><code class="md-code-inline">drop_empty = true</code> drops the cases with no solutions, and when one case is left gives its solutions alone: the conditions under which they hold are then not shown.</p>
+<p><code class="md-code-inline">drop_empty = true</code> drops the cases with no solutions (and those holding an error, such as every value of <code class="md-code-inline">x</code> solving the equation), and when one case is left gives its solutions alone: the conditions under which they hold are then not shown.</p>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve(x^2 ~ a, x; assume = (x ≫ 0,), drop_empty = true)   # [√a] (for a &gt; 0)</code></pre>
@@ -135,7 +147,7 @@ solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !
 <div class="md-docstring" id="SymJ.SymInterval">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymInterval</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1cd2d8aed9e62c3052178ce67dcb92795b030dd5/src/intervals.jl#L10-L15" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/29c55b5fc415ab327b056c17f184e6f5a2190702/src/intervals.jl#L10-L15" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -148,7 +160,7 @@ solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !
 <div class="md-docstring" id="SymJ.SymSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1cd2d8aed9e62c3052178ce67dcb92795b030dd5/src/intervals.jl#L23-L30" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/29c55b5fc415ab327b056c17f184e6f5a2190702/src/intervals.jl#L23-L30" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -161,7 +173,7 @@ solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !
 <div class="md-docstring" id="SymJ.CylindricalSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.CylindricalSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1cd2d8aed9e62c3052178ce67dcb92795b030dd5/src/ineqsystems.jl#L13-L25" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/29c55b5fc415ab327b056c17f184e6f5a2190702/src/ineqsystems.jl#L13-L25" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -189,6 +201,6 @@ solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=621ea2f1"></script>
+  <script src="../../assets/materialdocs.js?v=62389356"></script>
 </body>
 </html>
