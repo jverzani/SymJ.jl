@@ -47,7 +47,7 @@ function limit(f, xx0::Pair; dir = :both, assume = nothing)
     _isnamed(x) || throw(ArgumentError("limit: $x is not a symbol"))
     dir = dir in (:+, +, "+") ? :+ : dir in (:-, -, "-") ? :- : dir in (:both, "both") ? :both :
         throw(ArgumentError("limit: dir must be :both, :+ or :-, not $(repr(dir))"))
-    f = Sym(f)
+    f = _sinc_elementary(Sym(f))
     x0 = x0 isa Sym && x0.kind == NUMBER && isfloat(x0.num) && isinf(Float64(x0.num)) ? Float64(x0.num) : x0
     A = _assumptions(assume)
     signs = Pair{Sym,Symbol}[]
@@ -64,6 +64,12 @@ function limit(f, xx0::Pair; dir = :both, assume = nothing)
         signs = _gruntz_signs(A, x)
     end
     x0g = x0 isa Real ? x0 : Sym(x0)
+    # a piecewise function whose conditions are free of x (a ≠ 0) is a split on the
+    # parameters: the limit of each branch, under its condition
+    P = _param_piecewise(f, x)
+    if P !== nothing
+        return piecewise((c => limit(subs(f, P => v), x => x0; dir, assume) for (c, v) in _pieces(P))...)
+    end
     # piecewise functions, heaviside and dirac: the piece on each side
     if _haspieces(f, x)
         if x0g isa Real && isinf(x0g)

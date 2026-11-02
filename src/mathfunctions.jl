@@ -218,6 +218,14 @@ register_function!(:cosc; julia = cosc,
 Base.sinc(x::Sym) = apply_function(:sinc, Sym[x])
 Base.cosc(x::Sym) = apply_function(:cosc, Sym[x])
 
+# sinc and cosc through sin and cos, for limit and series: the same except at a removable
+# point, where limits and series agree
+_sinc_elementary(e::Sym) = (_hasfn(e, :sinc) || _hasfn(e, :cosc)) ? _replace_walk(e) do t
+    (t.kind == FN && length(t.args) == 1 && t.name in (:sinc, :cosc)) || return nothing
+    u = t.args[1]
+    t.name === :sinc ? sin(PI * u) / (PI * u) : cos(PI * u) / u - sin(PI * u) / (PI * u^2)
+end : e
+
 ## mod and rem: evaluated for constants (through floor and trunc), else unevaluated
 
 for (f, g) in ((:mod, floor), (:rem, trunc))

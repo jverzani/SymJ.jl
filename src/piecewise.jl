@@ -245,6 +245,18 @@ end
 
 ## limits: the piece taken on one side of x0
 
+# a piecewise node in e that involves x only in its values, not its conditions; or nothing
+function _param_piecewise(e::Sym, x::Sym)
+    if e.kind == FN && e.name === :piecewise && has(e, x) && all(((c, _),) -> !has(c, x), _pieces(e))
+        return e
+    end
+    for a in (e.kind == MUL ? [e.args; e.exps] : e.args)
+        p = _param_piecewise(a, x)
+        p === nothing || return p
+    end
+    nothing
+end
+
 const _PIECEFNS = (:piecewise, :heaviside, :dirac)
 _haspieces(e::Sym, x::Sym) = (e.kind == FN && e.name in _PIECEFNS && has(e, x)) ||
     any(a -> _haspieces(a, x), e.args) || (e.kind == MUL && any(a -> _haspieces(a, x), e.exps))
@@ -358,16 +370,50 @@ function _integrate_dirac(t::Sym, x::Sym)
     d = fs[i][1]
     k = length(d.args) == 2 ? _toint(d.args[2].num) : 0
     u = expand(d.args[1])
-    m = expand(subs(u, x => ONE) - subs(u, x => ZERO))
-    (m.kind == NUMBER && !iszero(m.num) && iszero(expand(u - m * x - subs(u, x => ZERO)))) || return nothing
-    a = expand(-subs(u, x => ZERO) / m)
     g = cancel(t / d)
     _haspieces(g, x) && return nothing
+    m = expand(subs(u, x => ONE) - subs(u, x => ZERO))
+    if !(m.kind == NUMBER && !iszero(m.num) && iszero(expand(u - m * x - subs(u, x => ZERO))))
+        k == 0 ? (return _integrate_dirac_roots(g, u, x)) : return nothing
+    end
+    a = expand(-subs(u, x => ZERO) / m)
     gk = g
     for _ in 1:k
         gk = diff(gk, x)
     end
     (-1)^k * subs(gk, x => a) / (m^k * abs(m)) * heaviside(x - a)
+end
+
+# ∫ g(x) dirac(u(x)) dx = Σ g(r)/|u′(r)| heaviside(x - r) over the real roots r of u, all
+# simple (u′(r) ≠ 0) and numeric, for a polynomial u (solve has all its roots; of
+# sin(x) only those in one period); nothing otherwise
+function _integrate_dirac_roots(g::Sym, u::Sym, x::Sym)
+    _ispoly_in(u, x) || return nothing
+    rs = try
+        solve(u ~ 0, x)
+    catch err
+        err isa InterruptException && rethrow()
+        return nothing
+    end
+    rs isa AbstractVector || return nothing
+    du = diff(u, x)
+    out = ZERO
+    for r in rs
+        _hassymbol(r) && return nothing
+        v = try _evalc(r) catch; return nothing end
+        abs(imag(v)) > 1e-12 * max(1, abs(v)) && continue        # not on the real line
+        s = simplify(subs(du, x => r))
+        _hassymbol(s) && return nothing
+        abs(_evalc(s)) < 1e-12 && return nothing                   # a double root: no value
+        out += subs(g, x => r) / abs(s) * heaviside(x - r)
+    end
+    out
+end
+_ispoly_in(u::Sym, x::Sym) = try
+    Poly{Sym}(u, [x]); true
+catch err
+    err isa ArgumentError || rethrow()
+    false
 end
 
 # the real numbers at which the conditions (and heaviside arguments) in e change, sorted
@@ -407,7 +453,7 @@ function _pieces_at(e::Sym, x::Sym, p::Sym)
     e.kind == FN && e.name in _PIECEFNS || return e
     if e.name === :piecewise
         for (c, v) in _pieces(e)
-            cv = subs(c, x => p)
+            cv = _truth(subs(c, x => p))
             cv == ONE && return v
             cv == ZERO || return nothing
         end
@@ -557,7 +603,7 @@ end
 
 # a condition at x = p: true, false, or nothing (not decided)
 function _pw_holds(c::Sym, x::Sym, p::Sym, A::Assumptions)
-    c = subs(c, x => p)
+    c = _truth(subs(c, x => p))
     c == ONE && return true
     c == ZERO && return false
     if c.kind == FN && c.name === :And

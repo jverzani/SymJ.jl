@@ -3,11 +3,11 @@
 # own `f`, used when asked for (N, calling the expression with numbers, lambdify) or
 # when an argument is a float. Exact special values and derivatives are given where
 # standard.
-module SymJSpecialFunctionsExt
+module SpecialFunctionsSupport
 
 import SpecialFunctions as SF
-using SymJ
-using SymJ: Sym, apply_function, register_function!, _symbolic_signatures, _unary, _odd,
+using ..SymJ
+using ..SymJ: Sym, apply_function, register_function!, _symbolic_signatures, _unary, _odd,
             PI, ZERO, ONE, NUMBER, isexact, _isint, _toint, _rat, SymNumber
 
 # name => argument counts

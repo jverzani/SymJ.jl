@@ -77,6 +77,10 @@ include("groebner.jl")
 include("nlsolve.jl")
 include("realroots.jl")
 include("lambdify.jl")
+# SpecialFunctions, HypergeometricFunctions and PolyLog on expressions
+include("specialfunctions.jl")
+include("hypergeometric.jl")
+include("polylog.jl")
 include("show.jl")
 include("precompile.jl")
 

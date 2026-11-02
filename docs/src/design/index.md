@@ -209,9 +209,9 @@ register_function!(:sin; julia = sin,                 # numeric evaluation, Term
     `Int`, `Integer`, `Rational`, `BigFloat` and the other number types convert
     values that fit them, else an `InexactError`.
   - *Not yet:* the bit and integer-representation functions.
-- **Package extensions.** These load automatically when the package is loaded with
-  SymJ: **SpecialFunctions**, **HypergeometricFunctions** (`_₁F₁`, `_₂F₁`, `_₃F₂`,
-  and `pFq` of those sizes) and **PolyLog** (`li0`–`li6`, `li(n, z)`, `reli…`).
+- **Special-function packages.** SymJ depends on **SpecialFunctions**,
+  **HypergeometricFunctions** (`_₁F₁`, `_₂F₁`, `_₃F₂`, and `pFq` of those sizes) and
+  **PolyLog** (`li0`–`li6`, `li(n, z)`, `reli…`); import a package to name its functions.
   - Calling a package function with a `Sym` argument, in any position, builds the
     unevaluated function: `sinint(x)`, `besselj(n, x)`.
   - The package's own function is registered as the numeric method. It runs only when

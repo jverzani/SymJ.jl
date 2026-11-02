@@ -1,11 +1,11 @@
 # HypergeometricFunctions on expressions: `_₁F₁`, `_₂F₁` and `_₃F₂` with a `Sym`
 # argument build unevaluated functions, evaluated numerically by HypergeometricFunctions
 # when asked for. `pFq(α, β, z)` maps to the named function of its sizes.
-module SymJHypergeometricFunctionsExt
+module HypergeometricSupport
 
 import HypergeometricFunctions as HF
-using SymJ
-using SymJ: Sym, apply_function, register_function!, _symbolic_signatures, ONE
+using ..SymJ
+using ..SymJ: Sym, apply_function, register_function!, _symbolic_signatures, ONE
 
 # name => (p, q): pFq with p numerator and q denominator parameters, then z
 const FUNCTIONS = [:_₁F₁ => (1, 1), :_₂F₁ => (2, 1), :_₃F₂ => (3, 2)]

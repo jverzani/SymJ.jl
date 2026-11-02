@@ -39,8 +39,8 @@ end
 The cost is that Julia's dispatch cannot tell sums from products: functions inspect the
 kind. Function applications are not separate types either. `sin(x)` is a node naming
 `sin`, and its rules (exact values, symmetries, derivative) live in a registry
-(`register_function!`), which package extensions add to for SpecialFunctions,
-HypergeometricFunctions and PolyLog.
+(`register_function!`), which SymJ's support for SpecialFunctions,
+HypergeometricFunctions and PolyLog adds to.
 
 ## Canonical form as you go
 

@@ -84,10 +84,20 @@ function _solve_algebraic(nums::Vector{Sym}, vars::Vector{Sym})
     catch e
         e isa ArgumentError && e.msg == _GROEBNER_ALGEBRAIC_MSG || rethrow()
     end
+    out = _solve_lifted(nums, vars, false)
+    out === nothing && throw(ArgumentError(_GROEBNER_ALGEBRAIC_MSG))
+    out
+end
+
+# the solutions with each algebraic constant b^(1/q) of the coefficients a new variable r
+# (r^q - b in the system), kept where r = b^(1/q); nothing when there are no such
+# constants. With first = true the new variables come first in the lex order, so they are
+# eliminated: a univariate polynomial over Q(√3) becomes one over Q, which factors.
+function _solve_lifted(nums::Vector{Sym}, vars::Vector{Sym}, first::Bool)
     atoms = Set{Sym}()
     foreach(n -> _poly_atoms!(atoms, n), nums)
     algs = sort!([a for a in atoms if _isalgconst(a)]; lt = _lt)
-    isempty(algs) && throw(ArgumentError(_GROEBNER_ALGEBRAIC_MSG))
+    isempty(algs) && return nothing
     rs = Sym[]
     for i in eachindex(algs)
         k = i
@@ -104,7 +114,7 @@ function _solve_algebraic(nums::Vector{Sym}, vars::Vector{Sym})
         b, q = a.args[1], _denominator(a.args[2].num)
         push!(eqs, r^q - b^_numerator(a.args[2].num))
     end
-    sols = _solve_groebner(eqs, [vars; rs])
+    sols = _solve_groebner(eqs, first ? [rs; vars] : [vars; rs])
     out = Dict{Sym,Sym}[]
     for s in sols
         all(((a, r),) -> haskey(s, r) && _vanishes(s[r] - a), sub) || continue

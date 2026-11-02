@@ -89,6 +89,8 @@ function _part(u::Sym, part::Int)
     elseif u.kind == FN && u.name === :conj && length(u.args) == 1
         return part == 1 ? apply_function(:real, u.args) : -apply_function(:imag, u.args)
     end
+    # real for every value of its symbols (abs(z)^2, conj(z) z): no assumptions
+    _isreal(u, Assumptions()) === true && return part == 1 ? u : ZERO
     nothing
 end
 
@@ -154,6 +156,24 @@ register_function!(:abs; julia = abs, diff = FUNCTION_RULES[:abs].diff,
         end
         _ABS_EVAL(args)
     end)
+
+# conj(w)^k w^k as abs(w)^2k throughout e (a candidate of simplify)
+function _conj_pairs_to_abs(e::Sym)
+    isempty(e.args) && return e
+    if e.kind == MUL
+        ts = [_conj_pairs_to_abs(b^p) for (b, p) in zip(e.args, e.exps)]
+        rest = _unpair_conj(ts)
+        length(rest) == length(ts) && return Sym(e.num) * prod(ts)
+        pairs = ONE
+        for t in ts
+            any(r -> r === t, rest) && continue
+            b, k = t.kind == POW ? (t.args[1], t.args[2]) : (t, ONE)
+            b.kind == FN && b.name === :conj && (pairs *= abs(b.args[1])^(2k))
+        end
+        return Sym(e.num) * pairs * prod(rest; init = ONE)
+    end
+    _rebuild_node(e, Sym[_conj_pairs_to_abs(a) for a in e.args])
+end
 
 Base.real(x::Sym) = apply_function(:real, Sym[x])
 Base.imag(x::Sym) = apply_function(:imag, Sym[x])
