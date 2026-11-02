@@ -1145,6 +1145,16 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test solve(sin(x) + cos(x) ~ -1, x) == [PI, 3PI / 2]
         @test !any(r -> isequal(r, PI), solve(sin(x) + a * cos(x) ~ a, x))
         @test !any(r -> isequal(r, PI), solve(sin(x) + 2cos(x) * abs(a) ~ 1, x))
+        # a float or symbolic exponent: the principal root (SymPy #28772)
+        @test solve(x^a ~ b, x) == [b^(1 / a)]
+        @test N(solve(x^1.11 ~ 2, x)[1])^1.11 ≈ 2
+        # abs for a real unknown: ±r, or the cases of the argument's sign (SymPy #28742)
+        @test solve(abs(x) ~ 1, x; assume = (x ∈ ℝ,)) == [-1, 1]
+        @test solve(abs(x - 2) ~ 3, x; assume = (x ∈ ℝ,)) == [-1, 5]
+        @test solve(abs(2x + 1) ~ x + 4, x; assume = (x ∈ ℝ,)) == [-5 // 3, 3]
+        @test solve(abs(x - 1) + abs(x + 1) ~ 4, x; assume = (x ∈ ℝ,)) == [-2, 2]
+        @test solve(abs(x) ~ a, x; assume = (x ∈ ℝ, a ∈ ℝ))(a => -1) == Sym[]
+        @test_throws ArgumentError solve(abs(x) ~ 1, x)                   # a circle in ℂ
         # a root where a denominator vanishes for some parameter values: dropped in that case
         cs = solve(sin(x) / (cos(x) - a) ~ 0, x)
         @test cs(a => 1) == [PI]
@@ -1169,6 +1179,12 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         holds(eqs, d) = all(eq -> cancel(subs(lhs(eq) - rhs(eq), d)) == 0 ||
                                   abs(N(subs(lhs(eq) - rhs(eq), d))) < 1e-12, eqs)
         @test solve([x + y ~ 3, x - y ~ 1], [x, y]) == [Dict(x => 2, y => 1)]
+        # not polynomial but triangular: one unknown at a time (SymPy #28064)
+        @test solve([exp(x) ~ 2, x + y ~ 3], [x, y]) == [Dict(x => log(Sym(2)), y => 3 - log(Sym(2)))]
+        @test solve([sin(x) ~ 0, x * y ~ 1], [x, y]) == [Dict(x => PI, y => 1 / PI), Dict(x => 2PI, y => 1 / (2PI))]
+        let (T, p, h, c) = symbols("T p h c")
+            @test solve([T * c ~ h, log(p) ~ 2T], [T, p])(c => 2) == [Dict(T => h / 2, p => exp(h))]
+        end
         @test solve([(x^2 - 1) / (x - 1) ~ 2, y ~ x], [x, y]) == Dict{Sym,Sym}[]   # x = 1 is not in the domain
         @test solve([(x^2 - 1) / (x - 1) ~ 3, x + y ~ 3], [x, y]) == [Dict(x => 2, y => 1)]
         sys3 = [2x + 3y - z ~ 1, x - y + 2z ~ 4, 3x + y + z ~ 6]
@@ -1895,6 +1911,11 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test sg(abs(x), G) == Set([0, 1]) && sg(exp(x) - 1, G) == Set([-1, 0, 1])
         # membership on numbers is a Bool
         @test 2 ∈ ℤ && !(Sym(1) / 2 ∈ ℤ) && Sym(π) ∈ ℝ && 1.5 ∈ ℚ && !(π ∈ ℚ) && im ∉ ℝ
+        # a polynomial in π with algebraic coefficients is irrational (SymPy #27993)
+        @test refine(PI + PI^2 ∈ ℚ) == 0
+        @test refine(sqrt(Sym(2)) * PI + PI^2 + 1 ∈ ℚ) == 0
+        @test_throws ArgumentError refine(PI + E ∈ ℚ)
+        @test solve(x - PI - PI^2 ~ 0, x; assume = (x ∈ ℚ,)) == Sym[]
         @test (x ∈ ℤ) isa SymJ.Membership && string(x ∉ ℤ) == "x ∉ ℤ"
         # blocks nest and add to the keyword
         assuming(x ≫ 0) do
@@ -2078,7 +2099,25 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
     @testset "refine and simplify" begin
         @syms a n
         R(e, as...) = refine(e; assume = Assumptions(as...))
-        @test R(sqrt(x^2), x ≫ 0) == x && R(sqrt(x^2), x ∈ ℝ) == abs(x) && R(sqrt(x^2)) == sqrt(x^2)
+        @test R(sqrt(x^2), x ≫ 0) == x
+        # inverse compositions where the inner value is in the range (SymPy #28376)
+        @test R(atanh(tanh(x)), x ∈ ℝ) == x
+        @test R(asinh(sinh(x)), x ∈ ℝ) == x
+        @test R(atanh(tanh(x))) == atanh(tanh(x))
+        @test R(atan(tan(x)), x ≫ -1, x ≪ 1) == x
+        @test R(atan(tan(x)), x ≫ 0) == atan(tan(x))
+        @test R(acos(cos(x)), x ≧ 0, x ≦ 1) == x
+        # acos, asin outside [-1, 1] (SymPy #28541)
+        @test simplify(real(acos(Sym(2)))) == 0
+        @test N(simplify(imag(acos(Sym(2))))) ≈ imag(acos(complex(2.0)))
+        @test R(real(acos(x)), x ≫ 1) == 0
+        @test R(real(asin(x)), x ≪ -1) == -PI / 2
+        # an equation: common terms taken off both sides (SymPy #28666)
+        @test simplify(x^2 + 1 ~ a^2 + 1) == (x^2 ~ a^2)
+        @test simplify(x + 1 ~ a + 1) == (x ~ a)
+        # contradictory conditions of a piece (SymPy #28323)
+        @test simplify(SymJ.piecewise((x ≧ 0, x^3 ≪ -8) => 1, true => 0)) == 0
+        @test simplify(SymJ.piecewise((x ≧ 0, x ≪ 2) => 1, true => 0)) == SymJ.piecewise((x ≧ 0, x ≪ 2) => 1, true => 0) && R(sqrt(x^2), x ∈ ℝ) == abs(x) && R(sqrt(x^2)) == sqrt(x^2)
         @test R(sqrt(x^4), x ∈ ℝ) == x^2 && R((x^3)^(1 // 3), x ≫ 0) == x
         @test R((x^3)^(1 // 3), x ∈ ℝ) == (x^3)^(1 // 3)          # a real cube root is not x^(1/3)'s branch
         @test R(abs(x), x ≪ 0) == -x && R(abs(2x * y), x ≫ 0) == 2x * abs(y) && R(sign(x - 1), x ≫ 2) == 1
@@ -2726,6 +2765,14 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         C1, C2 = Sym(:C1), Sym(:C2)
         @test L(Sym(1)) == 1 / s && L(t^3) == 6 / s^4 && L(exp(2t)) == 1 / (s - 2) && L(sin(3t)) == 3 / (s^2 + 9)
         @test L(cos(w * t)) == s / (s^2 + w^2) && L(sinh(t)) == 1 / (s^2 - 1) && L(t * sin(t)) == 2s / (s^2 + 1)^2
+        # bᵗ = e^(t log b) (SymPy #28136); derivatives of an unknown u(t) (#28720)
+        @test iszero(cancel(L(Sym(2)^t) - 1 / (s - log(Sym(2)))))     # (signs arranged differently on Julia 1.10)
+        @test iszero(cancel(L(w^t) - 1 / (s - log(w))))
+        let U = SymJ.apply_function(:LaplaceTransform, Sym[u(t), t, s])
+            @test L(diff(u(t), t, 2)) == s^2 * U - s * u(0) - subs(diff(u(t), t), t => 0)
+            @test IL(L(diff(u(t), t, 2))) == diff(u(t), t, 2)
+            @test IL(L(diff(u(t), t) + 3u(t) + exp(t))) == diff(u(t), t) + 3u(t) + exp(t)
+        end
         @test L(exp(-t) * cos(2t)) == (s + 1) / (s^2 + 2s + 5) && L(sqrt(t)) == SymJ.apply_function(:gamma, Sym[Sym(3 // 2)]) / s^(3 // 2)
         @test L(H(t - 1)) == exp(-s) / s && L(δ(t - 3)) == exp(-3s) && L(δ(t)) == 1 && L(H(t - 1) * exp(t)) == exp(1 - s) / (s - 1)
         @test IL(1 / (s^2 + 2s + 5)) == sin(2t) / (2exp(t)) && IL(1 / (s^2 * (s^2 + 1))) == t - sin(t)

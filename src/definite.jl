@@ -47,6 +47,7 @@ function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Boo
         catch err
             err isa InterruptException && rethrow()
             v = _known_definite(g, x, l, h)
+            v === nothing && (v = _gaussian_definite(g, x, l, h, A))
             v === nothing ? rethrow() : v
         end
     end
@@ -80,6 +81,47 @@ function _known_definite(f::Sym, x::Sym, lo::Sym, hi::Sym)
     p, q = Sym((a + N1) / SymNumber(2)), Sym((b + N1) / SymNumber(2))
     gs = (_gamma_exact(p), _gamma_exact(q), _gamma_exact(p + q))
     c * gs[1] * gs[2] / (2gs[3])
+end
+
+# Gaussian integrals, for a > 0 (decided by cases): ∫ℝ e^(-ax² + bx + c) dx =
+# √(π/a) e^(b²/4a + c), and with b = 0, ∫₀^∞ xⁿ e^(-ax²) dx = Γ((n+1)/2)/(2a^((n+1)/2))
+# (over ℝ twice that for even n, 0 for odd n). SymPy #28485.
+function _gaussian_definite(f::Sym, x::Sym, lo::Sym, hi::Sym, A::Assumptions)
+    whole = _isinfpt(lo) && _infsign(lo) < 0 && _isinfpt(hi) && _infsign(hi) > 0
+    half = iszero(lo) && _isinfpt(hi) && _infsign(hi) > 0
+    (whole || half) || return nothing
+    fs = f.kind == MUL ? [(u, q) for (u, q) in zip(f.args, f.exps)] : f.kind == POW ? [(f.args[1], f.args[2])] : [(f, ONE)]
+    c = f.kind == MUL ? Sym(f.num) : ONE
+    n, Q = 0, nothing
+    for (u, q) in fs
+        if !has(u, x) && !has(q, x)
+            c *= u^q
+        elseif _eq(u, x) && q.kind == NUMBER && _isint(q.num) && q.num >= N0
+            n += _toint(q.num)
+        elseif u === E && Q === nothing && _ispoly_in(q, x) && degree(Poly{Sym}(expand(q), [x]), x) == 2
+            Q = expand(q)
+        else
+            return nothing
+        end
+    end
+    Q === nothing && return nothing
+    a, b, c0 = -coeff(Q, x, 2), coeff(Q, x, 1), coeff(Q, x, 0)
+    c *= exp(c0)
+    if !_decide(Relation(:gt, a, ZERO), A)          # a ≤ 0: the integrand does not decay
+        (_isreal(b, A) === true && _isreal(c, A) === true) ||
+            throw(ArgumentError("integrate: $f diverges for $a ≤ 0"))
+        sg = _signs(c, A)
+        sg == _POS && return Sym(Inf)
+        sg == _NEG && return Sym(-Inf)
+        throw(ArgumentError("integrate: $f diverges for $a ≤ 0"))
+    end
+    if iszero(b)
+        g = _gamma_exact(Sym((n + 1) // 2)) / (2 * a^Sym((n + 1) // 2))
+        half && return c * g
+        return isodd(n) ? ZERO : 2c * g
+    end
+    (whole && n == 0) || return nothing
+    c * sqrt(PI / a) * exp(b^2 / (4a))
 end
 
 # Γ(a) for a rational a > 0: exact at integers and half-integers, else gamma(a)

@@ -14,6 +14,61 @@
 # rationals they stand for and the solutions converted back to floating point.
 
 function _solve_nonlinear(eqs::Vector{<:Relation}, vars::Vector{Sym})
+    try
+        return _solve_polynomial_system(eqs, vars)
+    catch err
+        (err isa ArgumentError && occursin("must be polynomial or rational", sprint(showerror, err))) || rethrow()
+        sols = _solve_triangular(eqs, vars)
+        sols === nothing ? rethrow() : return sols
+    end
+end
+
+# a system that is not polynomial, solved an equation in one unknown at a time: that
+# unknown's values substituted into the rest (T = h/c, then p from log(p) = …; SymPy
+# #28064). nothing when no equation has a single unknown.
+function _solve_triangular(eqs::Vector{<:Relation}, vars::Vector{Sym})
+    # equations without unknowns: true ones dropped, a false one (generically) no solution
+    free = [e for e in eqs if !any(v -> has(e.lhs - e.rhs, v), vars)]
+    if !isempty(free)
+        all(e -> iszero(simplify(e.lhs - e.rhs)), free) || return Dict{Sym,Sym}[]
+        eqs = [e for e in eqs if any(v -> has(e.lhs - e.rhs, v), vars)]
+        isempty(eqs) && return nothing
+    end
+    for (i, eq) in enumerate(eqs)
+        vs = [v for v in vars if has(eq.lhs - eq.rhs, v)]
+        length(vs) == 1 || continue
+        v = only(vs)
+        rs = try _solve_generic(eq, v) catch err; err isa ArgumentError || rethrow(); continue end
+        rs isa AbstractVector || continue
+        others = [u for u in vars if !_eq(u, v)]
+        out = Dict{Sym,Sym}[]
+        for r in rs
+            es = Relation[]
+            ok = true
+            for (j, e) in enumerate(eqs)
+                j == i && continue
+                f = Relation(:eq, subs(e.lhs, v => r), subs(e.rhs, v => r))
+                if any(u -> has(f.lhs - f.rhs, u), others)
+                    push!(es, f)
+                elseif !iszero(simplify(f.lhs - f.rhs))
+                    ok = false
+                    break
+                end
+            end
+            ok || continue
+            sub = isempty(others) || isempty(es) ? [Dict{Sym,Sym}()] : _solve_generic(es, others)
+            for d in sub
+                d = copy(d)
+                d[v] = r
+                push!(out, d)
+            end
+        end
+        return out
+    end
+    nothing
+end
+
+function _solve_polynomial_system(eqs::Vector{<:Relation}, vars::Vector{Sym})
     inexact = false
     nums, dens = Sym[], Sym[]
     for eq in eqs

@@ -36,18 +36,49 @@ function _lap(f::Sym, t::Sym, s::Sym)
     f = expand(f)
     if f.kind == ADD
         out = iszero(f.num) ? ZERO : Sym(f.num) / s
+        held = ZERO                                    # unknown functions: kept apart
         for (c, a) in zip(f.coefs, f.args)
-            out += Sym(c) * _lap_term(a, t, s)
+            r = _lap_unknown(a, t, s)
+            r === nothing ? (out += Sym(c) * _lap_term(a, t, s)) : (held += Sym(c) * r)
         end
-        return _lap_tidy(out, s)
+        return expand(held) + _lap_tidy(out, s)
     end
-    _lap_tidy(_lap_term(f, t, s), s)
+    r = _lap_unknown(f, t, s)
+    r === nothing ? _lap_tidy(_lap_term(f, t, s), s) : expand(r)
 end
 
 # exponentials of s kept apart, the rest cancelled
 _lap_tidy(F::Sym, s::Sym) = sum((_ode_tidy(cancel(R)) * exp(-c * s) for (c, R) in _lap_shifts(F, s)); init = ZERO)
 
+# an unknown function u(t) and its derivatives: L{u⁽ⁿ⁾(t)} = sⁿ U(s) - Σ sⁿ⁻¹⁻ᵏ u⁽ᵏ⁾(0),
+# U(s) the held LaplaceTransform(u(t), t, s) (SymPy #28720)
+register_function!(:LaplaceTransform)
+
+function _lap_unknown(term::Sym, t::Sym, s::Sym)
+    fs, cf = _lap_factors(term)
+    i = findfirst(((b, p),) -> has(b, t) || has(p, t), fs)
+    i === nothing && return nothing
+    any(j -> j != i && (has(fs[j][1], t) || has(fs[j][2], t)), eachindex(fs)) && return nothing
+    g, p = fs[i]
+    _eq(p, ONE) || return nothing
+    n = 0
+    while g.kind == FN && g.name === :Derivative && length(g.args) == 2 && _eq(g.args[2], t)
+        g, n = g.args[1], n + 1
+    end
+    (g.kind == FN && !haskey(FUNCTION_RULES, g.name) && length(g.args) == 1 && _eq(g.args[1], t)) || return nothing
+    U = apply_function(:LaplaceTransform, Sym[g, t, s])
+    out = s^n * U
+    d = g
+    for k in 0:(n - 1)
+        out -= s^(n - 1 - k) * subs(d, t => ZERO)
+        d = diff(d, t)
+    end
+    cf * out
+end
+
 function _lap_term(term::Sym, t::Sym, s::Sym)
+    r = _lap_unknown(term, t, s)
+    r === nothing || return r
     fs, cf = _lap_factors(term)
     for (i, (b, p)) in enumerate(fs)
         b.kind == FN && b.name in (:dirac, :heaviside) && length(b.args) == 1 && _eq(p, ONE) || continue
@@ -93,6 +124,9 @@ function _lap_expoly(term::Sym, t::Sym, s::Sym)
         elseif b === E && (d = diff(q, t); !has(d, t))
             cf *= exp(subs(q, t => ZERO))
             α += d
+        elseif !has(b, t) && (d = diff(q, t); !has(d, t))   # bᵗ = e^(t log b) (SymPy #28136)
+            cf *= b^subs(q, t => ZERO)
+            α += d * log(b)
         else
             throw(ArgumentError("laplace_transform: no transform found for $(term)"))
         end
@@ -144,10 +178,48 @@ SymJ.inverse_laplace_transform(exp(-2s) / s^2, s, t)         # (t - 2)*heaviside
 """
 function inverse_laplace_transform(F, s::Sym, t::Sym)
     (_isnamed(t) && _isnamed(s)) || throw(ArgumentError("inverse_laplace_transform: s and t are symbols"))
+    F = Sym(F)
+    # held transforms of unknown functions: U(s) = LaplaceTransform(u(t), t, s) back to u(t)
+    held = _held_transforms(F, s)
+    if !isempty(held)
+        out = ZERO
+        rest = F
+        for (U, g) in held
+            c = coeff(expand(F), U)
+            rest = expand(rest - c * U)
+            # c(s) a polynomial in s: sᵏ U(s) = L{u⁽ᵏ⁾} + Σ sᵏ⁻¹⁻ʲ u⁽ʲ⁾(0)
+            P = try Poly{Sym}(expand(c), [s]) catch err
+                err isa ArgumentError || rethrow()
+                throw(ArgumentError("inverse_laplace_transform: $U times $c is not supported"))
+            end
+            u = subs(g, g.args[1] => t)
+            for (ev, ck) in zip(exponent_vectors(P), coefficients(P))
+                k = ev[1]
+                out += ck * (k == 0 ? u : diff(u, t, k))
+                d = u
+                for j in 0:(k - 1)
+                    rest = expand(rest + ck * s^(k - 1 - j) * subs(d, t => ZERO))
+                    d = diff(d, t)
+                end
+            end
+        end
+        has(rest, s) || iszero(rest) || throw(ArgumentError("inverse_laplace_transform: no inverse found for $rest"))
+        return out + (iszero(rest) ? ZERO : inverse_laplace_transform(rest, s, t))
+    end
     out = ZERO
-    for (c, R) in _lap_shifts(Sym(F), s)
+    for (c, R) in _lap_shifts(F, s)
         g = _ilap_rational(R, s, t)
         out += iszero(c) ? g : heaviside(t - c) * subs(g, t => t - c)
+    end
+    out
+end
+
+function _held_transforms(F::Sym, s::Sym)
+    out = Pair{Sym,Sym}[]
+    _replace_walk(F) do e
+        e.kind == FN && e.name === :LaplaceTransform && length(e.args) == 3 && _eq(e.args[3], s) &&
+            !any(p -> _eq(p.first, e), out) && push!(out, e => e.args[1])
+        nothing
     end
     out
 end

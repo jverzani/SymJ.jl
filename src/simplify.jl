@@ -133,6 +133,7 @@ function _refine_rule(e::Sym, A::Assumptions)
         r === nothing || return r
     end
     k == FN && e.name === :atan2 && return _refine_atan2(e.args[1], e.args[2], A)
+    k == FN && e.name === :And && return _refine_and(e, A)
     if k == POW
         b, q = e.args
         if b.kind == NUMBER && b.num == NM1 && !(q.kind == NUMBER)
@@ -198,6 +199,8 @@ function _refine_rule(e::Sym, A::Assumptions)
             return nothing
         elseif f in (:sin, :cos, :tan)
             return _refine_trig(f, u, A)
+        elseif f in keys(_INVERSE_OF) && u.kind == FN && u.name === _INVERSE_OF[f] && length(u.args) == 1
+            return _refine_inverse(f, u.args[1], A)
         elseif f in (:real, :imag, :conj, :angle)
             return _refine_parts(f, u, A)
         elseif f in (:floor, :ceil)
@@ -347,8 +350,36 @@ function _reim(u::Sym, A::Assumptions)
         f === :cos && return (cos(a) * cosh(b), -sin(a) * sinh(b))
         f === :sinh && return (sinh(a) * cos(b), cosh(a) * sin(b))
         f === :cosh && return (cosh(a) * cos(b), sinh(a) * sin(b))
+        # acos, asin of a real number outside [-1, 1] (Julia's values, approached from
+        # above the real axis): acos(2) = -i acosh(2), asin(2) = π/2 + i acosh(2)
+        if f in (:acos, :asin) && iszero(b)
+            if _holds(Relation(:ge, a, ONE), A) === true
+                return f === :acos ? (ZERO, -acosh(a)) : (PI / 2, acosh(a))
+            elseif _holds(Relation(:le, a, -ONE), A) === true
+                return f === :acos ? (PI, -acosh(-a)) : (-PI / 2, acosh(-a))
+            elseif _holds(Relation(:ge, a, -ONE), A) === true && _holds(Relation(:le, a, ONE), A) === true
+                return (u, ZERO)
+            end
+        end
     end
     nothing
+end
+
+# f(g(v)) = v for g the function f inverts, where v is in f's range (SymPy #28376):
+# atanh(tanh(v)), asinh(sinh(v)) for real v; asin(sin(v)) for -π/2 ≤ v ≤ π/2, acos(cos(v))
+# for 0 ≤ v ≤ π, atan(tan(v)) for -π/2 < v < π/2, acosh(cosh(v)) for v ≥ 0
+const _INVERSE_OF = Dict(:atanh => :tanh, :asinh => :sinh, :asin => :sin, :acos => :cos, :atan => :tan,
+                         :acosh => :cosh)
+const _INVERSE_RANGE = Dict(:asin => (-PI / 2, PI / 2, true), :acos => (ZERO, PI, true),
+                            :atan => (-PI / 2, PI / 2, false), :acosh => (ZERO, nothing, true))
+function _refine_inverse(f::Symbol, v::Sym, A::Assumptions)
+    _isreal(v, A) === true || return nothing
+    r = get(_INVERSE_RANGE, f, nothing)
+    r === nothing && return v                      # atanh, asinh: all real v
+    lo, hi, closed = r
+    _holds(Relation(closed ? :ge : :gt, v, lo), A) === true || return nothing
+    hi === nothing || _holds(Relation(closed ? :le : :lt, v, hi), A) === true || return nothing
+    v
 end
 
 # sin, cos, tan of u + mπ, m an integer: (-1)^m sin, (-1)^m cos, tan of the rest
@@ -404,8 +435,25 @@ function simplify(ex; assume = nothing)
     A === nothing && (A = Assumptions())
     _simplify(_refine(Sym(ex), A), A)
 end
-simplify(r::Relation; assume = nothing) =
-    (v = refine(r; assume); v isa Bool ? v : Relation(v.op, simplify(v.lhs; assume), simplify(v.rhs; assume)))
+function simplify(r::Relation; assume = nothing)
+    v = refine(r; assume)
+    v isa Bool && return v
+    l, rr = _drop_common_terms(simplify(v.lhs; assume), simplify(v.rhs; assume))
+    Relation(v.op, l, rr)
+end
+
+# the terms on both sides of a relation taken away: x² + 1 ~ y² + 1 is x² ~ y² (SymPy #28666)
+function _drop_common_terms(l::Sym, r::Sym)
+    terms(e) = e.kind == ADD ? [Sym(c) * t for (c, t) in zip(e.coefs, e.args)] : (e.kind == NUMBER ? Sym[] : Sym[e])
+    konst(e) = e.kind == ADD ? Sym(e.num) : e.kind == NUMBER ? e : ZERO
+    lt, rt = terms(l), terms(r)
+    common = [t for t in lt if any(u -> _eq(u, t), rt)]
+    c = konst(l)
+    k = (!iszero(c) && _eq(c, konst(r))) ? c : ZERO
+    (isempty(common) && iszero(k)) && return l, r
+    d = _add_many(common) + k
+    l - d, r - d
+end
 
 function _simplify(e::Sym, A::Assumptions)
     _hassymbol(e) || e.kind == NUMBER || return _simplify_const(e, A)
@@ -429,6 +477,8 @@ function _simplify(e::Sym, A::Assumptions)
     end
     # several piecewise functions (as from a definite integral with a parameter): one
     _count_fn(e, :piecewise) >= 2 && consider(x -> piecewise_fold(x; assume = A))
+    # erfc(u) = 1 - erf(u): erf(x) + erfc(x) = 1 (SymPy #28900)
+    _has_fn(e, (:erfc,)) && consider(_erfc_to_erf)
     # conj(w) w = abs(w)^2
     _has_fn(e, (:conj,)) && consider(_conj_pairs_to_abs)
     # under a root, 1 ± cos(u) = 2cos²(u/2), 2sin²(u/2): √((1 + cos x)/2) = cos(x/2) for 0 < x < π
@@ -521,9 +571,14 @@ function _half_angle_radicands(e::Sym)
 end
 
 # a constant: powers, logarithms and radicals of numbers
+_erfc_to_erf(x::Sym) = _replace_walk(x) do t
+    t.kind == FN && t.name === :erfc && length(t.args) == 1 ? 1 - apply_function(:erf, Sym[t.args[1]]) : nothing
+end
+
 function _simplify_const(e::Sym, A::Assumptions)
     best = e
-    for g in (simplify_powers, simplify_log, simplify_radicals, (x; assume) -> simplify_gamma(x))
+    for g in (simplify_powers, simplify_log, simplify_radicals, (x; assume) -> simplify_gamma(x),
+              (x; assume) -> _erfc_to_erf(x))
         c = try g(e; assume = A) catch err; err isa InterruptException && rethrow(); e end
         c = try expand(c) catch; c end
         _nodes(c) < _nodes(best) && (best = c)

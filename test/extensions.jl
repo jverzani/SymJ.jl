@@ -178,6 +178,14 @@ import PolyLog as PL
         same(v, w) = VERSION >= v"1.12" ? v == w : N(v) ≈ N(w)
         @test ∫(x^2, (x, 0, 3)) == 9
         @test ∫(sin(x), (x, 0, PI)) == 2
+        # Gaussian integrals with a parameter (SymPy #28485)
+        @test ∫(exp(-a * x^2), (x, -Inf, Inf); assume = (a ≫ 0,)) == sqrt(PI) / sqrt(a)
+        @test ∫(x^2 * exp(-a * x^2), (x, 0, Inf); assume = (a ≫ 0,)) == sqrt(PI) / (4a^(3 // 2))
+        @test ∫(exp(-a * x^2 + b * x), (x, -Inf, Inf); assume = (a ≫ 0,)) == sqrt(PI / a) * exp(b^2 / (4a))
+        @test ∫(exp(-a * x^2), (x, -Inf, Inf))(a => -1) == Inf
+        # erfc(u) = 1 - erf(u) (SymPy #28900, #28894)
+        @test simplify(SF.erf(x) + SF.erfc(x)) == 1
+        @test simplify(SF.erf(sqrt(Sym(2)) / 2) + SF.erfc(sqrt(Sym(2)) / 2)) == 1
         # no elementary antiderivative: Beta over [0, π/2] (SymPy #30664)
         @test N(∫(1 / sqrt(sin(x)), (x, 0, PI / 2))) ≈ 2.6220575542921198
         @test N(∫(sqrt(tan(x)), (x, 0, PI / 2))) ≈ pi / sqrt(2)

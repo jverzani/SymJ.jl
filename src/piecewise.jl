@@ -229,6 +229,18 @@ function _refine_cond(e::Sym, A::Assumptions)
     v === nothing ? nothing : _cond(v)
 end
 
+# an And of relations that contradict each other (with the assumptions): false
+# (y ≥ 0 and y^3 < -8; SymPy #28323)
+function _refine_and(e::Sym, A::Assumptions)
+    all(a -> a.kind == FN && haskey(_COND_RELS, a.name), e.args) || return nothing
+    rels = Any[_relation_of(a) for a in e.args]
+    B = try _build(_flatten!(Any[], (A.facts, rels))) catch err
+        err isa ArgumentError || rethrow()
+        return nothing
+    end
+    B === nothing ? ZERO : nothing
+end
+
 # the sign of a heaviside's, sign's or abs's argument, where the assumptions decide it
 function _refine_step(e::Sym, A::Assumptions)
     e.name in (:heaviside, :sign, :abs) || return nothing

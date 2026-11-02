@@ -91,7 +91,36 @@ function _const_rational(e::Sym)::Union{Nothing,Bool}
         r === nothing && return nothing
         r || (irrational += 1)
     end
-    irrational == 0 ? true : irrational == 1 ? false : nothing
+    irrational == 0 && return true
+    irrational == 1 && return false
+    # algebraic multiples of rational powers of one of π, ℯ (and algebraic terms): a
+    # nonconstant polynomial in π^(1/m) with algebraic coefficients, so transcendental
+    # (π + π² ∈ ℚ is false; SymPy #27993)
+    cs = Set{Symbol}()
+    for t in (e.kind == ADD ? e.args : (e,))
+        c = _monomial_transc(t)
+        c === nothing && return nothing
+        c === :none || push!(cs, c)
+    end
+    length(cs) == 1 ? false : nothing
+end
+
+# the transcendental constant (:pi or :E) in an algebraic monomial c^q·(algebraic), :none
+# for an algebraic one, nothing for another kind of term (two constants, a function)
+function _monomial_transc(t::Sym)
+    fs = t.kind == MUL ? collect(zip(t.args, t.exps)) : t.kind == POW ? [(t.args[1], t.args[2])] :
+         t.kind == CONSTANT ? [(t, ONE)] : return nothing
+    found = :none
+    for (b, x) in fs
+        (x.kind == NUMBER && isexact(x.num)) || return nothing
+        if b.kind == CONSTANT && b.name in (:pi, :E)
+            found === :none || found === b.name || return nothing
+            found = b.name
+        elseif !(b.kind == NUMBER && isexact(b.num) && b.num > N0)
+            return nothing
+        end
+    end
+    found
 end
 
 function _monomial_rational(t::Sym)::Union{Nothing,Bool}
