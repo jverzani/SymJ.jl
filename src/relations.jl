@@ -79,7 +79,22 @@ function _compare(op::Symbol, a::Sym, b::Sym)
     end
     va, vb = N(a), N(b)
     (va isa Real && vb isa Real) || throw(ArgumentError("`$a $op $b`: not real numbers"))
-    op === :< ? va < vb : op === :<= ? va <= vb : op === :> ? va > vb : va >= vb
+    # decided by the sign of a - b, evaluated (checked in higher precision) as one
+    # expression: 20 + log(1 + 10^-20) > 20 although both sides are 20.0 as Float64s
+    s = _sign_of_difference(a, b, va, vb)
+    op === :< ? s < 0 : op === :<= ? s <= 0 : op === :> ? s > 0 : s >= 0
+end
+
+function _sign_of_difference(a::Sym, b::Sym, va, vb)
+    isinf(va) || isinf(vb) || isnan(va) || isnan(vb) || (abs(va - vb) > 1e-6 * max(abs(va), abs(vb))) &&
+        return sign(va - vb)
+    d = a - b
+    iszero(d) && return 0
+    v = N(d)
+    v isa Real || return sign(va - vb)
+    iszero(v) || return sign(v)
+    iszero(simplify(d)) && return 0
+    throw(ArgumentError("cannot decide the sign of $d numerically"))
 end
 for (S, T) in ((Sym, Sym), (Sym, Real), (Real, Sym))
     @eval Base.:<(a::$S, b::$T) = _compare(:<, Sym(a), Sym(b))

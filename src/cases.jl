@@ -476,6 +476,24 @@ function _alternatives(run, (f, ps))
     throw(ArgumentError("solve: the case $f = 0 is not supported"))
 end
 
+# the roots at which e stays defined in this case: an expression that must not vanish
+# (a denominator, cos for tan) may vanish at a root for some parameter values
+# (sin(x)/(cos(x) - a) at x = 0 when a = 1); each polynomial factor of its value there
+# is decided, and a root where one vanishes is dropped
+function _defined_roots(rs::AbstractVector, e::Sym, x::Sym, B::Assumptions)
+    zs = unique(_zero_sets!(Sym[], e, x))
+    (isempty(zs) || isempty(rs)) && return rs
+    filter(rs) do r
+        _hassymbol(r) || any(z -> any(u -> !_eq(u, x), _named(z)), zs) || return true
+        for z in zs
+            v = try subs(z, x => r) catch err; _isdivzero(err) && return false; rethrow() end
+            _hassymbol(v) || continue
+            all(f -> _decide(Relation(:ne, f, ZERO), B), _param_factors(cancel(v), (x,))) || return false
+        end
+        true
+    end
+end
+
 function _solve_case(e::Relation, x::Sym, B::Assumptions)
     n, d = numer_denom(cancel(e.lhs - e.rhs))
     for f in _param_factors(d, (x,))
@@ -497,8 +515,9 @@ function _solve_case(e::Relation, x::Sym, B::Assumptions)
         throw(ArgumentError("solve: every value of $x satisfies $e"))
     end
     rs = reduced ? _in_domain(_solve_eq(n ~ 0, x), e.lhs - e.rhs, x) : _solve_eq(e, x)
-    reduced && return rs
     rs isa AbstractVector || return rs            # an inequality's set
+    rs = _defined_roots(rs, e.lhs - e.rhs, x, B)
+    reduced && return rs
     ps = _degenerate_subst([numer_denom(r)[2] for r in rs], B, (x,))
     ps === nothing && return rs
     _alternatives(ps) do p

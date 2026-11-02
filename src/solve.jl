@@ -306,12 +306,26 @@ function _solve_weierstrass(eq::Relation, n::Sym, x::Sym, w::Sym)
         any(s -> _eq(s, u), ws) || push!(ws, u)
     end
     out = Sym[]
-    for u in ws
+    for (i, u) in enumerate(ws)
         for r in (_eq(w, x) ? Sym[u] : _solve_generic(w ~ u, x))
-            any(s -> _eq(s, r), out) || push!(out, r)
+            any(s -> _eq(s, r), out) && continue
+            # w = π (t = ∞) is no root of the polynomial in t: kept only where the equation
+            # is known to hold, not when parameters are left (a sin x + b cos x = c holds at
+            # π only for b + c = 0)
+            (i == 1 ? _holds_at_point(eq, x, r) : _satisfies(eq, x, r)) || continue
+            _defined_at(n, x, r) && push!(out, r)
         end
     end
-    filter(r -> _satisfies(eq, x, r) && _defined_at(n, x, r), out)
+    out
+end
+
+# eq holds at x = r: exactly, or numerically when no symbols are left
+function _holds_at_point(eq::Relation, x::Sym, r::Sym)
+    d = try subs(eq.lhs - eq.rhs, x => r) catch err; _isdivzero(err) && return false; rethrow() end
+    (iszero(d) || iszero(cancel(d))) && return true
+    _hassymbol(d) && return iszero(simplify(d))
+    v = try N(d) catch; return false end
+    abs(v) <= 1e-9 * max(1, abs(N(r)))
 end
 
 function _solve_through(eq::Relation, n::Sym, x::Sym, bad::Vector{Sym})
