@@ -535,10 +535,35 @@ _bigpower(e::Sym) = (e.kind == POW && e.args[1].kind == ADD && e.args[2].kind ==
     (e.kind == MUL && any(i -> e.args[i].kind == ADD && e.exps[i].kind == NUMBER && abs(e.exps[i].num) > SymNumber(10), eachindex(e.args))) ||
     any(_bigpower, e.args)
 
+# (not tried when the expanded numerator would be large: factoring it can take minutes,
+# as for the integral in SymPy #27957)
+const _FACTOR_MAX_TERMS = 2000
+
 function _factor_or_nothing(e::Sym)
     n, d = numer_denom(e)
+    _expanded_terms(n) > _FACTOR_MAX_TERMS && return nothing
     _ispolylike(n) && (_ispolylike(d) || d.kind == NUMBER) ? factor(n) / factor(d) : nothing
 end
+# an upper bound on the number of terms of expand(e) (capped)
+function _expanded_terms(e::Sym)
+    cap = 10^9
+    k = e.kind
+    k == ADD && return min(cap, (iszero(e.num) ? 0 : 1) + sum(_expanded_terms, e.args; init = 0))
+    if k == MUL || k == POW
+        bs, ps = k == MUL ? (e.args, e.exps) : ((e.args[1],), (e.args[2],))
+        t = 1
+        for (b, p) in zip(bs, ps)
+            m = _expanded_terms(b)
+            m == 1 && continue
+            q = p.kind == NUMBER && _isint(p.num) && p.num > N0 ? min(_toint_or(p.num, 64), 64) : 1
+            t = min(cap, t * (q == 1 ? m : binomial(big(m + q - 1), q) > cap ? cap : Int(binomial(big(m + q - 1), q))))
+        end
+        return t
+    end
+    1
+end
+_toint_or(x::SymNumber, d::Int) = (x.tag == T_SMALL ? x.n : d)
+
 _ispolylike(e::Sym) = (atoms = Set{Sym}(); _poly_atoms!(atoms, e) && !isempty(atoms))
 
 # the function applications in e with their arguments transformed, counting exp(u)

@@ -69,6 +69,17 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test sqrt(Sym(-4)) == 2IM
         @test Sym(2)^100 == Sym(big(2)^100)
         @test Sym(1) / 3 == Sym(1 // 3)
+        # a power too large to compute stays a power (SymPy #28112)
+        @test kind(Sym(5)^(Sym(5)^(Sym(5)^5))) == POW
+        @test Sym(0)^0 == 1
+        @test Sym(-1)^(Sym(10)^30 + 1) == -1
+        @test Sym(1 // 2)^(-3) == 8
+        # numer_denom of a long sum stays shallow (deep nesting overflowed the stack, #27957)
+        let depth(e) = isempty(e.args) ? 0 : 1 + maximum(depth, e.args)
+            @test depth(numer_denom(sum(1 / (x + k) for k in 1:100))[1]) < 10
+            @test cancel(sum(1 / (x + k) for k in 1:20) - (numer_denom(sum(1 / (x + k) for k in 1:20))[1] /
+                                                          numer_denom(sum(1 / (x + k) for k in 1:20))[2])) == 0
+        end
         @test N(sqrt(Sym(2))) ≈ sqrt(2)
         @test N(IM) == im
         @test Sym(π) == PI
