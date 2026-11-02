@@ -293,6 +293,24 @@ function _solve_weierstrass(eq::Relation, n::Sym, x::Sym, w::Sym)
     end
     num, _ = numer_denom(cancel(nt))
     num = expand(num)
+    # in a solve by cases, a leading coefficient that may vanish is decided: where it does,
+    # the degree drops and t = ∞ (w = π) is a root (a sin x + b cos x = c, b + c = 0)
+    at_pi = false
+    A = _SOLVE_ASSUME[]
+    if A !== nothing && _ispoly_in(num, t)
+        while has(num, t)
+            k = degree(Poly{Sym}(num, [t]), t)
+            lc = coeff(num, t, k)
+            all(f -> _decide(Relation(:ne, f, ZERO), A), _param_factors(lc, (x, t))) && break
+            num = expand(num - lc * t^k)
+            at_pi = true
+        end
+        if !has(num, t)                           # a constant: zero for every w, or never
+            (iszero(num) || !all(f -> _decide(Relation(:ne, f, ZERO), A), _param_factors(num, (x, t)))) &&
+                throw(ArgumentError("solve: every value of $x satisfies $eq"))
+            return at_pi ? filter(r -> _defined_at(n, x, r), _eq(w, x) ? Sym[PI] : _solve_generic(w ~ PI, x)) : Sym[]
+        end
+    end
     # with algebraic numbers in the coefficients (√3), through the polynomial over Q, which
     # factors: the roots come out in radicals of low degree, not by Cardano
     lifted = _solve_lifted(Sym[num], Sym[t], true)
@@ -312,7 +330,7 @@ function _solve_weierstrass(eq::Relation, n::Sym, x::Sym, w::Sym)
             # w = π (t = ∞) is no root of the polynomial in t: kept only where the equation
             # is known to hold, not when parameters are left (a sin x + b cos x = c holds at
             # π only for b + c = 0)
-            (i == 1 ? _holds_at_point(eq, x, r) : _satisfies(eq, x, r)) || continue
+            (i == 1 ? (at_pi || _holds_at_point(eq, x, r)) : _satisfies(eq, x, r)) || continue
             _defined_at(n, x, r) && push!(out, r)
         end
     end

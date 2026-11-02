@@ -1161,6 +1161,18 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test cs(a => -1) == [0, 2PI]
         @test cs(a => 0) == [0, PI, 2PI]
         @test solve(x / (x - a) ~ 0, x)(a => 0) == Sym[]
+        # a vanishing leading coefficient in tan(x/2): x = π is a root then (b + c = 0)
+        let (b, c) = symbols("b c"), cs = solve(a * sin(x) + b * cos(x) ~ c, x)
+            @test cs(a => 1, b => 2, c => -2)[1] == PI
+            @test cs(a => 0, b => 2, c => -2) == [PI]
+            @test length(cs(a => 1, b => 1, c => 1)) == 2
+        end
+        # leading coefficients in one function of x: c cos(x) = -c, a eˣ = 1
+        let c = Sym(:c)
+            @test solve(c * cos(x) ~ -c, x)(c => 2) == [PI]
+            @test_throws ArgumentError solve(c * cos(x) ~ -c, x)(c => 0)      # every x
+        end
+        @test solve(a * exp(x) ~ 1, x)(a => 0) == Sym[]
         @test solve(2sin(x) - 2sqrt(Sym(3)) * cos(x) + sqrt(Sym(3)) * tan(x) - 3 ~ 0, x) == [PI / 3, 5PI / 6, 7PI / 6, 4PI / 3]
         @test solve(tan(x) + cot(x) ~ 2, x) == [PI / 4, 5PI / 4]
         @test solve(sin(2x) + cos(2x) ~ 1, x) == [0, PI / 4]
