@@ -221,7 +221,9 @@ register_function!(:tan; julia = tan,
 const _ASIN_VALUES = Pair{Sym,Sym}[ZERO => ZERO, HALF => PI / 6, sqrt(Sym(2)) / 2 => PI / 4,
                                    sqrt(Sym(3)) / 2 => PI / 3, ONE => PI / 2]
 const _ATAN_VALUES = Pair{Sym,Sym}[ZERO => ZERO, sqrt(Sym(3)) / 3 => PI / 6, ONE => PI / 4,
-                                   sqrt(Sym(3)) => PI / 3]
+                                   sqrt(Sym(3)) => PI / 3, 2 - sqrt(Sym(3)) => PI / 12,
+                                   2 + sqrt(Sym(3)) => 5PI / 12, sqrt(Sym(2)) - 1 => PI / 8,
+                                   sqrt(Sym(2)) + 1 => 3PI / 8]
 function _table_value(table, a::Sym)
     for (v, θ) in table
         _eq(a, v) && return θ
@@ -284,6 +286,10 @@ register_function!(:log; julia = log,
             if a.kind == POW && a.args[1] === E && a.args[2].kind == NUMBER
                 return a.args[2]                 # log(e^r) == r for real r
             end
+            # the principal value at an exact negative number or ±im: log(-c) = log(c) + iπ
+            a.kind == NUMBER && isexact(a.num) && a.num < N0 && return log(Sym(-a.num)) + IM * PI
+            _eq(a, IM) && return IM * PI / 2
+            _eq(a, -IM) && return -IM * PI / 2
             return nothing
         end
         length(args) == 2 || throw(ArgumentError("log takes one or two arguments"))
@@ -400,7 +406,10 @@ for (f, g, jump) in ((:floor, floor, round), (:ceil, ceil, round), (:trunc, trun
             a.kind == NUMBER && isexact(a.num) && return Sym(SymNumber(g(BigInt, _rat(a.num))))
             _isfn(a, f) && return a
             v = _constant_float(a, jump)
-            v === nothing ? nothing : Sym(SymNumber(g(BigInt, v)))
+            v === nothing || return Sym(SymNumber(g(BigInt, v)))
+            # floor(-v) = -ceil(v), ceil(-v) = -floor(v); trunc and round (ties to even) are odd
+            _could_extract_minus(a) || return nothing
+            -apply_function(f === :floor ? :ceil : f === :ceil ? :floor : f, Sym[-a])
         end))
 end
 

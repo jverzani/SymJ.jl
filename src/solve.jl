@@ -248,6 +248,50 @@ _factor_pairs(t::Sym) = t.kind == MUL ? Tuple{Sym,Sym}[(b, p) for (b, p) in zip(
 # function can introduce extraneous roots (sqrt(x) = -1), so candidates are checked
 # by substitution. sin and cos give the solutions for their argument in [0, 2π].
 
+const _WEIERSTRASS_FNS = (:sin, :cos, :tan, :cot, :sec, :csc)
+
+# the one argument of trigonometric functions, all of them among sin, cos, tan, cot, sec,
+# csc; nothing otherwise
+function _common_trig_arg(bad::Vector{Sym})
+    all(b -> b.kind == FN && b.name in _WEIERSTRASS_FNS && length(b.args) == 1, bad) || return nothing
+    w = bad[1].args[1]
+    all(b -> _eq(b.args[1], w), bad) ? w : nothing
+end
+
+# n(sin w, cos w, tan w, …) = 0 through t = tan(w/2): sin w = 2t/(1 + t²), cos w =
+# (1 - t²)/(1 + t²), a rational equation in t; w = 2 atan(t) in [0, 2π), and w = π
+# (t = ∞) when it is a solution. Candidates are checked in the original equation.
+function _solve_weierstrass(eq::Relation, n::Sym, x::Sym, w::Sym)
+    t = Sym(Symbol("_t", objectid(w)))
+    S, C = 2t / (1 + t^2), (1 - t^2) / (1 + t^2)
+    sub = Dict(:sin => S, :cos => C, :tan => S / C, :cot => C / S, :sec => 1 / C, :csc => 1 / S)
+    nt = _replace_walk(n) do e
+        (e.kind == FN && e.name in _WEIERSTRASS_FNS && length(e.args) == 1 && _eq(e.args[1], w)) || return nothing
+        sub[e.name]
+    end
+    num, _ = numer_denom(cancel(nt))
+    num = expand(num)
+    # with algebraic numbers in the coefficients (√3), through the polynomial over Q, which
+    # factors: the roots come out in radicals of low degree, not by Cardano
+    lifted = _solve_lifted(Sym[num], Sym[t], true)
+    ts = lifted === nothing ? solve(num ~ 0, t) : Sym[d[t] for d in lifted if haskey(d, t)]
+    ts isa AbstractVector || throw(ArgumentError("solve: $eq: the equation in tan($w/2) has cases"))
+    ws = Sym[PI]
+    for r in ts
+        u = 2atan(r)
+        v = try N(u) catch; nothing end
+        v isa Real && v < 0 && (u += 2PI)
+        any(s -> _eq(s, u), ws) || push!(ws, u)
+    end
+    out = Sym[]
+    for u in ws
+        for r in (_eq(w, x) ? Sym[u] : solve(w ~ u, x))
+            any(s -> _eq(s, r), out) || push!(out, r)
+        end
+    end
+    filter(r -> _satisfies(eq, x, r) && _defined_at(n, x, r), out)
+end
+
 function _solve_through(eq::Relation, n::Sym, x::Sym, bad::Vector{Sym})
     common = _common_power(bad)                     # exp(2x), exp(x): powers of one exp
     if common === nothing
@@ -260,6 +304,9 @@ function _solve_through(eq::Relation, n::Sym, x::Sym, bad::Vector{Sym})
                 u = Sym(Symbol("_u", objectid(R)))
                 return _solve_radical(eq, subs(n, R => u), u, R, x)
             end
+            # sin, cos, tan, … of one argument: through t = tan(w/2)
+            w = _common_trig_arg(bad)
+            w === nothing || return _solve_weierstrass(eq, n, x, w)
             throw(ArgumentError(
                 "solve: $eq involves $x through several functions ($(join(bad, ", "))); not supported yet"))
         end

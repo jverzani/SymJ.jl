@@ -948,10 +948,11 @@ function _rational_sum(f::Sym, k::Sym, a::Sym, b)
     parts = Tuple{Sym,Sym,Int}[]                                 # (c, α, m)
     for t in terms
         c, u = _split_kfree(t, k)
-        (u.kind == POW && u.args[2].kind == NUMBER && _isint(u.args[2].num) && u.args[2].num < N0) || return nothing
+        (u.kind == POW && u.args[2].kind == NUMBER && _isint(u.args[2].num) && u.args[2].num < N0) ||
+            return _rational_sum_roots(f, k, a, b)
         m = -_toint(u.args[2].num)
         lin = u.args[1]
-        _xdeg(lin, k) == 1 || return nothing
+        _xdeg(lin, k) == 1 || return _rational_sum_roots(f, k, a, b)
         c1 = _coef(lin, k, 1)
         α = expand(_coef(lin, k, 0) / c1)
         push!(parts, (c / c1^m, α, m))
@@ -959,6 +960,102 @@ function _rational_sum(f::Sym, k::Sym, a::Sym, b)
     b === nothing && return _rational_infinite(parts, a)
     _harmonic_combine(_add_many(_hurwitz_finite(c, α, m, a, b) for (c, α, m) in parts))
 end
+
+# an irreducible denominator d (k² + a²) through its roots, all simple: f = Σ c/(k - z)
+# with c = n(z)/d′(z); digamma of the roots, and ψ(1 + w) - ψ(1 - w) = 1/w - π cot(πw)
+# for the pairs that make one (conjugate roots: Σ 1/(k² + a²) = (πa coth(πa) - 1)/(2a²))
+function _rational_sum_roots(f::Sym, k::Sym, a::Sym, b)
+    n, d = numer_denom(f)
+    deg = _xdeg(d, k)
+    _xdeg(n, k) < deg || return nothing
+    zs = try solve(d ~ 0, k) catch err; err isa InterruptException && rethrow(); return nothing end
+    (zs isa AbstractVector && length(zs) == deg) || return nothing     # simple roots only
+    # a finite sum with roots in parameters is no clearer in digamma: left as a Sum
+    b === nothing || !any(_hassymbol, zs) || return nothing
+    dd = diff(d, k)
+    parts = Tuple{Sym,Sym,Int}[]
+    for z in zs
+        q = simplify(subs(dd, k => z))
+        iszero(q) && return nothing
+        push!(parts, (_complex_rationalized(simplify(subs(n, k => z) / q)), -z, 1))
+    end
+    r = b === nothing ? _rational_infinite(parts, a) :
+        _add_many(_hurwitz_finite(c, α, m, a, b) for (c, α, m) in parts)
+    r isa Sym ? _digamma_reflect(r) : r
+end
+
+# a constant p/q as re + im i with real denominators ((a + bi)/(c + di)), so that sums
+# of such constants cancel under expand; e itself otherwise
+function _complex_rationalized(e::Sym)
+    _hassymbol(e) && return e
+    p, q = numer_denom(e)
+    a, b = something(_const_parts(p), (nothing, nothing))
+    c, d = something(_const_parts(q), (nothing, nothing))
+    (a === nothing || c === nothing) && return e
+    den = expand(c^2 + d^2)
+    iszero(den) && return e
+    expand((a * c + b * d) / den + IM * (b * c - a * d) / den)
+end
+
+# in each sum, c ψ(u) - c ψ(s - u) for an integer s through the reflection formula
+# ψ(1 - u) - ψ(u) = π cot(πu) and ψ(x + 1) = ψ(x) + 1/x:
+#   ψ(u) - ψ(s - u) = -π cot(πu) - (ψ(s - u) - ψ(1 - u)),
+# the last a finite sum; cot(iπb) = -i coth(πb)
+function _digamma_reflect(e::Sym)
+    _hasfn(e, :digamma) || return e
+    r = _replace_walk(e) do t
+        t.kind == ADD || return nothing
+        v = _digamma_pairs(t)
+        _eq(v, t) ? nothing : v
+    end
+    simplify(r)
+end
+function _digamma_pairs(e::Sym)
+    terms = [(Sym(c), t) for (c, t) in zip(e.coefs, e.args)]
+    split(ct) = (f = _digamma_factor(ct[2]); (ct[1] * ct[2] / f, f))
+    used = falses(length(terms))
+    out = Sym[Sym(e.num)]
+    for i in eachindex(terms)
+        used[i] && continue
+        ci, ψi = split(terms[i])
+        if _isfn1(ψi, :digamma)
+            u = ψi.args[1]
+            j = findfirst(eachindex(terms)) do j
+                (j > i && !used[j]) || return false
+                cj, ψj = split(terms[j])
+                _isfn1(ψj, :digamma) || return false
+                s = expand(ψj.args[1] + u)
+                s.kind == NUMBER && _isint(s.num) && iszero(simplify(cj + ci))
+            end
+            if j !== nothing
+                used[i] = used[j] = true
+                s = _toint(expand(split(terms[j])[2].args[1] + u).num)
+                m = s - 1                                   # ψ(1 - u + m) - ψ(1 - u)
+                D = m >= 0 ? _add_many(1 / (1 - u + q) for q in 0:(m - 1)) :
+                             -_add_many(1 / (1 - u + q) for q in m:-1)
+                push!(out, ci * (-_pi_cot(u) - D))
+                continue
+            end
+        end
+        push!(out, terms[i][1] * terms[i][2])
+    end
+    _add_many(out)
+end
+# π cot(πu): cot has period π, so the integer part of u's constant drops; with u = c + ib,
+# b real, cot(iπb) = -i coth(πb) and cot(π/2 + iπb) = -i tanh(πb)
+function _pi_cot(u::Sym)
+    c = u.kind == ADD ? u.num : u.kind == NUMBER ? u.num : N0
+    isexact(c) || (c = N0)
+    f = c - SymNumber(floor(_numerator(c) // _denominator(c)))      # in [0, 1)
+    b = expand((u - Sym(c)) / IM)
+    if _isreal(b, Assumptions()) === true
+        iszero(f) && return -IM * PI * coth(PI * b)
+        f == SymNumber(1 // 2) && return -IM * PI * tanh(PI * b)
+    end
+    PI * cot(PI * expand(u - Sym(c - f)))
+end
+_digamma_factor(t::Sym) = _isfn1(t, :digamma) ? t : t.kind == MUL ?
+    (i = findfirst(q -> _isfn1(t.args[q], :digamma) && t.exps[q] == ONE, eachindex(t.args)); i === nothing ? ONE : t.args[i]) : ONE
 
 # harmonic numbers whose arguments differ by integers written with the smallest one:
 # H(n + 2) = H(n + 1) + 1/(n + 2)
@@ -1008,14 +1105,20 @@ end
 function _rational_infinite(parts, a::Sym)
     ones = [(c, α) for (c, α, m) in parts if m == 1]
     total = _add_many(c for (c, _) in ones)
-    if !isempty(ones) && !iszero(expand(total))
+    if !isempty(ones) && !iszero(expand(total)) && !iszero(simplify(total))
         total.kind == NUMBER && return Sym(total.num > N0 ? Inf : -Inf)
         return nothing
     end
     out = ZERO
-    for (c, α) in ones                      # Σ c_i (ψ(∞) - ψ(a + α_i)), the ψ(∞) cancelling
-        lo = expand(a + α)
-        out += lo.kind == NUMBER && _isint(lo.num) && lo.num >= N1 ? -c * harmonic(lo - 1) :
+    # Σ c_i (ψ(∞) - ψ(a + α_i)), the ψ(∞) cancelling; harmonic numbers H(lo - 1) = ψ(lo) + γ
+    # only when every lo is a positive integer, so that the γ cancel too (with
+    # 1/((k + 1)(2k + 1)), ψ(3/2) beside H(1) would leave a γ/2)
+    los = [expand(a + α) for (_, α) in ones]
+    allint = all(lo -> lo.kind == NUMBER && _isint(lo.num) && lo.num >= N1, los)
+    # integers and half-integers: ψ(n) + γ = H(n - 1), ψ(n + 1/2) + γ = -2log(2) + Σ_{j≤n} 2/(2j - 1)
+    halves = all(lo -> lo.kind == NUMBER && _isint(2 * lo.num) && lo.num > N0, los)
+    for ((c, _), lo) in zip(ones, los)
+        out += allint ? -c * harmonic(lo - 1) : halves ? -c * _digamma_plus_gamma(lo) :
             -c * apply_function(:digamma, Sym[lo])
     end
     for (c, α, m) in parts
@@ -1023,6 +1126,13 @@ function _rational_infinite(parts, a::Sym)
         out += c * _hurwitz_zeta(m, expand(a + α))
     end
     simplify(out)
+end
+
+# ψ(q) + γ for q a positive integer or half-integer
+function _digamma_plus_gamma(q::Sym)
+    _isint(q.num) && return harmonic(q - 1)
+    n = _toint(q.num - SymNumber(1 // 2))
+    -2log(Sym(2)) + (n == 0 ? ZERO : _add_many(Sym(2) / (2j - 1) for j in 1:n))
 end
 
 # ζ(m, q) = Σ_{j≥0} 1/(j + q)^m; for an integer q ≥ 1, ζ(m) - Σ_{j<q} j^-m, with

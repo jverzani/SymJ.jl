@@ -234,10 +234,7 @@ function _build(flat::Vector{Any})
     A = Assumptions(_Fields(), flat, Dict{Sym,Sym}(), Dict{Sym,Int8}(), Dict{Sym,Int8}(), Dict{Sym,SymSet}(),
                     Dict{Sym,Vector{Sym}}(), Sym[], _ACon[], Dict{Sym,Union{Nothing,UInt8}}())
     # membership facts first: equalities then avoid solving for those symbols
-    mems = [f for f in flat if f isa Membership]
-    for m in mems
-        _isnamed(m.x) || throw(ArgumentError("membership facts are about symbols, not $(m.x)"))
-    end
+    mems = Membership[_symbol_membership(f) for f in flat if f isa Membership]
     # equalities: solved for a symbol where they can be, and substituted
     rels = Any[]
     for f in flat
@@ -278,6 +275,31 @@ function _build(flat::Vector{Any})
     end
     _check!(A) || return nothing
     A
+end
+
+# a membership fact about c x + d (c ≠ 0, d rational) as the same fact about x, when they
+# are equivalent: for ℚ, ℝ, ℂ with c rational; for ℤ with c = ±1 and d an integer
+# (-n ∈ ℤ, n + 1 ∈ ℤ; not 2n ∈ ℤ, which says less than n ∈ ℤ, or n/2 ∈ ℤ, which says more)
+function _symbol_membership(m::Membership)
+    _isnamed(m.x) && return m
+    err() = throw(ArgumentError("membership facts are about a symbol x, or ±x + k (k an integer) " *
+                                "for ℤ, c x + d (c, d rational) for ℚ, ℝ, ℂ; not $(m.x)"))
+    vs = free_symbols(m.x)
+    length(vs) == 1 || err()
+    x = only(vs)
+    P = try
+        Poly{SymNumber}(m.x, [x])
+    catch e
+        e isa ArgumentError || rethrow()
+        err()
+    end
+    degree(P) == 1 || err()
+    c, d = expand(m.x - subs(m.x, x => 0)) / x, subs(m.x, x => 0)
+    (c.kind == NUMBER && d.kind == NUMBER) || err()
+    if m.set.rank == _ZR
+        (abs(c.num) == 1 && isone(_denominator(d.num))) || err()
+    end
+    Membership(x, m.set, m.negated)
 end
 
 function _flatten!(out, fs)
@@ -686,6 +708,10 @@ function _fnmask(e::Sym, A::Assumptions)
     mu === nothing && return nothing
     f in (:sign, :atan, :asinh, :sinh, :tanh, :erf, :cbrt) && return mu
     f === :cosh && return _POS
+    if f in (:sin, :cos)
+        m = _trig_interval_mask(f, u, A)
+        m === nothing || return m
+    end
     f in (:sin, :cos, :tan, :cot, :sec, :csc) && return _ALLS
     f === :floor && return (mu & _NEG) | (mu & (_ZER | _POS) == 0 ? 0x00 : _ZER) | (mu & _POS)
     f === :ceil && return (mu & _POS) | (mu & (_ZER | _NEG) == 0 ? 0x00 : _ZER) | (mu & _NEG)
@@ -694,6 +720,34 @@ function _fnmask(e::Sym, A::Assumptions)
         return _signs(u - 1, A)
     end
     nothing
+end
+
+# the signs of cos(u) or sin(u) for u = c x + d (c, d constants) with x in one bounded
+# interval, when u's range lies within one half-period; nothing otherwise
+function _trig_interval_mask(f::Symbol, u::Sym, A::Assumptions)
+    vs = _named(u)
+    length(vs) == 1 || return nothing
+    x = only(vs)
+    S = get(A.sets, x, nothing)
+    (S === nothing || length(S.intervals) != 1) && return nothing
+    I = only(S.intervals)
+    (I.lo === nothing || I.hi === nothing) && return nothing
+    d = subs(u, x => ZERO)
+    c = expand(u - d) / x
+    (_hassymbol(c) || _hassymbol(d)) && return nothing
+    cv, dv = try (Float64(N(c)), Float64(N(d))) catch; return nothing end
+    lo, hi = try (Float64(N(I.lo)), Float64(N(I.hi))) catch; return nothing end
+    a, b, ac, bc = cv > 0 ? (cv * lo + dv, cv * hi + dv, I.lclosed, I.rclosed) :
+                            (cv * hi + dv, cv * lo + dv, I.rclosed, I.lclosed)
+    f === :sin && (a -= pi / 2; b -= pi / 2)            # sin(t) = cos(t - π/2)
+    # cos is positive on (-π/2, π/2) + 2kπ and negative on (π/2, 3π/2) + 2kπ
+    k = floor((a + pi / 2) / pi)                        # the half-period a falls in
+    z0, z1 = -pi / 2 + k * pi, pi / 2 + k * pi          # its zeros
+    tol = 1e-12 * max(1.0, abs(a), abs(b))
+    (a >= z0 - tol && b <= z1 + tol) || return nothing
+    s = iseven(Int(k)) ? _POS : _NEG
+    zero_end = (abs(a - z0) <= tol && ac) || (abs(b - z1) <= tol && bc)
+    zero_end ? s | _ZER : s
 end
 
 ## three-valued queries
@@ -712,16 +766,46 @@ function _isreal(e::Sym, A::Assumptions)::Union{Nothing,Bool}
             mb !== nothing && mb & _NEG != 0 && mb & (_ZER | _POS) == 0 && return false
             _isreal(b, A) === false && return false
         end
+        # b < 0, q real and not an integer: b^q = |b|^q e^(iπq) is not real
+        if q.kind != NUMBER && _signs(b, A) == _NEG && _isreal(q, A) === true && _isinteger(q, A) === false
+            return false
+        end
+    elseif e.kind == FN && e.name in _REALFNS && length(e.args) == 1
+        return true
     elseif e.kind == MUL || e.kind == ADD
-        # real parts and one that is not real
-        parts = e.kind == MUL ? [b^x for (b, x) in zip(e.args, e.exps)] : e.args
+        parts = e.kind == MUL ? _unpair_conj([b^x for (b, x) in zip(e.args, e.exps)]) : e.args
         rs = [_isreal(p, A) for p in parts]
+        # real parts (in a product, conj(w)^k w^k = |w|^2k is real)
+        all(==(true), rs) && return true
+        # real parts and one that is not real
         if count(==(false), rs) == 1 && all(!=(nothing), rs)
             e.kind == ADD && return false
             return all(i -> rs[i] == false || _isnonzero(parts[i], A) === true, eachindex(parts)) ? false : nothing
         end
     end
     nothing
+end
+
+# the factors of a product less the pairs conj(w)^k, w^k (k an integer), whose product
+# |w|^2k is real and nonnegative for every w
+function _unpair_conj(ts::Vector{Sym})
+    out = copy(ts)
+    i = 1
+    while i <= length(out)
+        t = out[i]
+        b, k = t.kind == POW ? (t.args[1], t.args[2]) : (t, ONE)
+        if b.kind == FN && b.name === :conj && length(b.args) == 1 && k.kind == NUMBER &&
+           isexact(k.num) && isone(_denominator(k.num))
+            j = findfirst(s -> _eq(s, b.args[1]^k), out)
+            if j !== nothing
+                deleteat!(out, sort([i, j]))
+                i = 1
+                continue
+            end
+        end
+        i += 1
+    end
+    out
 end
 
 # is e an integer?

@@ -19,8 +19,8 @@
 differ by integers are written through one of them and cancelled, and the reflection
 formula `gamma(a)gamma(1 - a) = π/sin(πa)` and duplication formula `gamma(a)gamma(a +
 1/2) = 2^(1 - 2a)√π gamma(2a)` are applied where the result is smaller. The result is in
-factorials and binomials, or in `gamma` when `ex` has `gamma` (from the SpecialFunctions
-extension). As SymPy's `combsimp` and `gammasimp`. Not exported; used by
+factorials and binomials, or in `gamma` when `ex` has `gamma` (SpecialFunctions'
+`gamma`). As SymPy's `combsimp` and `gammasimp`. Not exported; used by
 [`simplify`](@ref).
 
 ```julia

@@ -1,5 +1,5 @@
-# The package extensions for SpecialFunctions, HypergeometricFunctions, PolyLog and
-# RischIntegrate.
+# SpecialFunctions, HypergeometricFunctions and PolyLog (dependencies) and the
+# RischIntegrate extension.
 import SpecialFunctions as SF
 import RischIntegrate
 import HypergeometricFunctions as HF
@@ -9,10 +9,10 @@ import PolyLog as PL
     @syms x n a b c
     PI = SymJ.PI
 
-    # ambiguities introduced by an extension's methods
-    for (pkg, ext) in ((SF, :SymJSpecialFunctionsExt), (HF, :SymJHypergeometricFunctionsExt), (PL, :SymJPolyLogExt),
-                       (RischIntegrate, :SymJRischIntegrateExt))
-        E = Base.get_extension(SymJ, ext)
+    # ambiguities introduced by the methods SymJ adds to a package's functions (in a
+    # submodule for a dependency, the extension for RischIntegrate)
+    for (pkg, E) in ((SF, SymJ.SpecialFunctionsSupport), (HF, SymJ.HypergeometricSupport), (PL, SymJ.PolyLogSupport),
+                     (RischIntegrate, Base.get_extension(SymJ, :SymJRischIntegrateExt)))
         @test E isa Module
         amb = filter(p -> p[1].module === E || p[2].module === E, Test.detect_ambiguities(pkg, E))
         @test isempty(amb)
@@ -147,6 +147,16 @@ import PolyLog as PL
         @test ∫(H(x - a), x) == P(x ≪ a => 0, true => x - a)                               # a parameter
         @test ∫(cos(x) * D(x - 1), x) == cos(Sym(1)) * H(x - 1) && ∫(exp(x) * D(2x - 2), x) == E / 2 * H(x - 1)
         @test ∫(x^2 * D(x - 2, 1), x) == -4H(x - 2)                                       # δ′: -g′(a)
+        # δ(u(x)) = Σ δ(x - r)/|u′(r)| over the simple real roots of a polynomial u (SymPy #29001)
+        @test ∫(D(x^2 - 1) * x^2, (x, -3, 3)) == 1
+        @test ∫(D(x^2 - 1) * x^2, (x, 0, 3)) == 1 // 2
+        @test ∫(D(x^3 - x), (x, -2, 2)) == 2
+        @test ∫(D(x^2 + 1), (x, -3, 3)) == 0
+        @test_throws ArgumentError ∫(D(x^2), (x, -3, 3))                 # a double root
+        @test_throws ArgumentError ∫(D(sin(x)), (x, -10, 10))            # not a polynomial
+        # float breakpoints (SymPy #29064)
+        @test N(∫(P(x ≪ 0.5 => 0, true => 1), (x, 0, 1))) ≈ 0.5
+        @test N(∫(P(x ≪ 0.25 => x, x ≪ 0.75 => 1, true => x^2), (x, 0, 1))) ≈ 1 / 32 + 1 / 2 + 37 / 192
     end
 
     @testset "RischIntegrate: definite integrals" begin
@@ -156,6 +166,10 @@ import PolyLog as PL
         same(v, w) = VERSION >= v"1.12" ? v == w : N(v) ≈ N(w)
         @test ∫(x^2, (x, 0, 3)) == 9
         @test ∫(sin(x), (x, 0, PI)) == 2
+        # no elementary antiderivative: Beta over [0, π/2] (SymPy #30664)
+        @test N(∫(1 / sqrt(sin(x)), (x, 0, PI / 2))) ≈ 2.6220575542921198
+        @test N(∫(sqrt(tan(x)), (x, 0, PI / 2))) ≈ pi / sqrt(2)
+        @test N(∫(sin(x)^(1 // 3) * cos(x)^(2 // 3), (x, 0, PI / 2))) ≈ SF.gamma(2 / 3) * SF.gamma(5 / 6) / sqrt(pi)
         @test ∫(1 / (1 + x^2), (x, 0, Inf)) == PI / 2                   # a limit, not atan(Inf)
         @test ∫(1 / (1 + x^2), (x, -Inf, Inf)) == PI
         @test ∫(exp(-x), (x, 0, Inf)) == 1

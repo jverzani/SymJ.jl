@@ -529,7 +529,7 @@ arguments differ by integers, and writes factorial ratios as binomials:
 SymJ.simplify_gamma(factorial(n + 2) / factorial(n)), SymJ.simplify_gamma(binomial(n + 1, k) / binomial(n, k)), SymJ.simplify_gamma(factorial(n) / (factorial(k) * factorial(n - k)))
 ```
 
-With the SpecialFunctions extension loaded it also applies the reflection formula
+With SpecialFunctions' `gamma` it also applies the reflection formula
 (`gamma(x)gamma(1 - x) = π/sin(πx)`) and the duplication formula.
 
 Expansion goes the other way. `SymJ.expand_trig` writes trigonometric and hyperbolic
