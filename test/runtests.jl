@@ -1068,9 +1068,23 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test solve(x^3 + 3x^2 + 3x + 1 - y ~ 0, x)[1] == -(-y)^(1 // 3) - 1
         @test all(r -> !SymJ._hassymbol(r) && N(r) isa Number, solve(x^5 - x - 1 ~ 0, x))  # numeric (a + b*im)
         # symbolic coefficients
-        @test solve(a * x + b ~ 0, x) == [-b / a]
+        # (cases where a coefficient vanishes)
+        cs = solve(a * x + b ~ 0, x)
+        @test cs isa SymJ.Cases
+        @test cs(a => 2, b => 4) == [-2]
+        @test cs(a => 0, b => 1) == Sym[]
+        @test last(cs.cases).second == [-b / a]
+        @test solve(a * x + b ~ 0, x; assume = (a ≫ 0,)) == [-b / a]
         @test solve(x^2 ~ a, x) == [-sqrt(a), sqrt(a)]
-        q = solve(a * x^2 + b * x + c ~ 0, x)
+        cs = solve(exp(a * x) ~ 2, x)
+        @test cs(a => 0) == Sym[]
+        @test cs(a => 1) == [log(Sym(2))]
+        @test solve(x / a ~ 1, x)(a => 0) == Sym[]
+        @test solve(x / a ~ 1, x)(a => 3) == [3]
+        cs = solve(a * x^2 + b * x + c ~ 0, x)
+        @test cs(a => 0, b => 2, c => -4) == [2]
+        @test cs(a => 0, b => 0, c => 1) == Sym[]
+        q = last(cs.cases).second
         @test length(q) == 2 && all(r -> cancel(subs(a * x^2 + b * x + c, x => r)) == 0 ||
                                      abs(N(subs(a * x^2 + b * x + c, x => r, a => 2, b => 3, c => -5))) < 1e-12, q)
         @test solve(x^2 - a^2 ~ 0, x) == [-a, a] || Set(solve(x^2 - a^2 ~ 0, x)) == Set([-a, a])
@@ -1136,9 +1150,20 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
                           ([x / 2 + y / 3 ~ 1, x ~ y], [x, y]), ([x + y ~ sin(a), x - y ~ cos(a)], [x, y]),
                           ([x + 2y + z ~ a, y - z ~ b, x + z ~ 0], [x, y, z]))
             ds = solve(eqs, vs)
+            ds isa SymJ.Cases && (ds = last(ds.cases).second)       # the generic case
             @test length(ds) == 1 && length(ds[1]) == length(vs) && holds(eqs, ds[1])
         end
-        @test solve([a * x + b * y ~ 1, b * x - a * y ~ 0], [x, y]) == [Dict(x => a / (a^2 + b^2), y => b / (a^2 + b^2))]
+        @test last(solve([a * x + b * y ~ 1, b * x - a * y ~ 0], [x, y]).cases).second == [Dict(x => a / (a^2 + b^2), y => b / (a^2 + b^2))]
+        # pivots that can vanish give cases (SymPy #30224: a = 0 kept)
+        cs = solve([a * x + y ~ 1, x - y ~ 2], [x, y])
+        @test cs(a => 0) == [Dict(x => 3, y => 1)]
+        @test cs(a => -1) == Dict{Sym,Sym}[]
+        @test cs(a => 1) == [Dict(x => Sym(3 // 2), y => Sym(-1 // 2))]
+        cs = solve([x + y ~ 1, x + y ~ a], [x, y])
+        @test cs(a => 1) == [Dict(x => 1 - y, y => y)]
+        @test cs(a => 2) == Dict{Sym,Sym}[]
+        cs = solve([a * x + b * y ~ 0, x^2 + y^2 ~ 1], [x, y])
+        @test Set(cs(a => 0, b => 1)) == Set([Dict{Sym,Sym}(x => -1, y => 0), Dict{Sym,Sym}(x => 1, y => 0)])
         d = only(solve([0.5x + y ~ 1, x - y ~ 0.25], [x, y]))
         @test N(d[x]) ≈ 5 / 6 && N(d[y]) ≈ 7 / 12
 
@@ -1313,8 +1338,9 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test solve(sqrt(x) - sqrt(x + 1) ~ 2, x) == Sym[]
         @test solve(sqrt(x^2 + 1) ~ sqrt(2x^2 - 3), x) == [-2, 2]
         let (y,) = symbols("y")             # implicit differentiation: where dy/dx = 0
-            @test solve(3sqrt(x^2 + y^2) - x * sqrt(x^2 + y^2) - x * sqrt((3 - x)^2 + (3 - y)^2) ~ 0, x) ==
-                  [y, 3y / (2y - 3)]
+            cs = solve(3sqrt(x^2 + y^2) - x * sqrt(x^2 + y^2) - x * sqrt((3 - x)^2 + (3 - y)^2) ~ 0, x)
+            @test last(cs.cases).second == [y, 3y / (2y - 3)]
+            @test cs(y => 3 // 2) == [3 // 2]                   # 3y/(2y - 3) has no value there
         end
     end
 
@@ -1894,7 +1920,10 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         cs = solve(x^2 ~ a, x; assume = (x ≫ 0,))
         @test length(cs) == 2 && cs[1] == (Any[a ≫ 0] => [sqrt(a)])
         @test cs(a => 4) == [2] && cs(a => -1) == Sym[] && cs[a => 4] == cs[1]
-        @test length(solve(a * x ~ 1, x; assume = (x ≫ 0,))) == 2
+        cs = solve(a * x ~ 1, x; assume = (x ≫ 0,))
+        @test cs(a => 2) == [1 // 2]
+        @test cs(a => 0) == Sym[]
+        @test cs(a => -1) == Sym[]
         # drop_empty: the cases with no solutions dropped, one left given as its solutions
         @test solve(x^2 ~ a, x; assume = (x ≫ 0,), drop_empty = true) == [sqrt(a)]
         @test solve(x^2 ~ 4, x; assume = (x ≫ 0,), drop_empty = true) == [2]

@@ -47,7 +47,7 @@ function _hyper(p::Vector{Sym}, n::Sym; algebraic::Bool = false)
         m = maximum(degs)
         zpoly = _add_many(_coef(P[i+1], n, m) * Z^i for i in 0:d if degs[i+1] == m)
         has(zpoly, Z) || continue
-        zs = try solve(expand(zpoly) ~ 0, Z) catch; continue end
+        zs = try _solve_generic(expand(zpoly) ~ 0, Z) catch; continue end
         for z in unique(zs)
             iszero(z) && continue
             Q = Sym[expand(z^i * P[i+1]) for i in 0:d]
@@ -75,7 +75,7 @@ function _monic_divisors(p::Sym, n::Sym; algebraic::Bool = false)
         (e.kind == NUMBER && _isint(e.num)) || return nothing
         lc = _coef(b, n, _xdeg(b, n))
         if algebraic && _xdeg(b, n) >= 2
-            rs = try solve(b ~ 0, n) catch; Sym[] end
+            rs = try _solve_generic(b ~ 0, n) catch; Sym[] end
             if length(rs) == _xdeg(b, n)
                 append!(facs, ((expand(n - r), _toint(e.num)) for r in rs))
                 continue
@@ -101,7 +101,7 @@ function _poly_solutions(Q::Vector{Sym}, n::Sym)
     N = Sym(Symbol("_hyper_N"))
     ind = _add_many(_coef(r[j+1], n, _xdeg(r[j+1], n)) * prod((N - t for t in 0:(j - 1)); init = ONE)
                     for j in nz if _xdeg(r[j+1], n) - j == b)
-    roots = try solve(expand(ind) ~ 0, N) catch; return Sym[] end
+    roots = try _solve_generic(expand(ind) ~ 0, N) catch; return Sym[] end
     ints = [_toint(v.num) for v in roots if v.kind == NUMBER && _isint(v.num) && v.num >= N0]
     isempty(ints) && return Sym[]
     D = maximum(ints)
@@ -153,7 +153,7 @@ function _recurrence_solve(p::Vector{Sym}, n::Sym, value, algebraic::Bool)
         v === nothing || push!(eqs, _add_many(cs[j] * simplify(subs(hs[j], n => m)) for j in 1:r) ~ v)
     end
     length(eqs) == r + 2 || return nothing
-    sol = try solve(eqs, cs) catch; return nothing end
+    sol = try _solve_generic(eqs, cs) catch; return nothing end
     (sol isa AbstractVector && !isempty(sol)) || return nothing
     s = first(sol)
     all(c -> haskey(s, c), cs) || return nothing
@@ -161,7 +161,7 @@ function _recurrence_solve(p::Vector{Sym}, n::Sym, value, algebraic::Bool)
 end
 function _int_roots!(out, q::Sym, n::Sym)
     has(q, n) || return out
-    for v in (try solve(q ~ 0, n) catch; Sym[] end)
+    for v in (try _solve_generic(q ~ 0, n) catch; Sym[] end)
         v.kind == NUMBER && _isint(v.num) && push!(out, _toint(v.num))
     end
     out
@@ -247,7 +247,7 @@ function _dalembert_solve(p::Vector{Sym}, g::Sym, n::Sym, value, avoid)
             push!(eqs, _add_many(cs[j] * simplify(subs(B[j], n => m)) for j in 1:r) ~ v - simplify(subs(yp, n => m)))
         end
         length(eqs) == r + 2 || return nothing
-        sol = try solve(eqs, cs) catch; return nothing end
+        sol = try _solve_generic(eqs, cs) catch; return nothing end
         (sol isa AbstractVector && !isempty(sol)) || return nothing
         c = first(sol)
         all(x -> haskey(c, x), cs) || return nothing

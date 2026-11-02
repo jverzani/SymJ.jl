@@ -171,7 +171,7 @@ function (C::CylindricalSet)(ps::Pair...)
     end
     isempty(rest) && return C.feasible && isempty(open)
     isempty(open) && return _whole_like(rest)
-    solve(open, rest)
+    _solve_generic(open, rest)
 end
 Base.in(pt::AbstractDict, C::CylindricalSet) = C(pt...) === true
 

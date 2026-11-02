@@ -50,6 +50,7 @@ end
 _subsvals(v::Sym, vals) = subs(v, vals...)
 _subsvals(v::AbstractVector{Sym}, vals) = Sym[_subsvals(u, vals) for u in v]
 _subsvals(v::AbstractVector, vals) = map(u -> _subsvals(u, vals), v)
+_subsvals(v::AbstractDict{Sym,Sym}, vals) = Dict{Sym,Sym}(k => subs(w, vals...) for (k, w) in v)
 _subsvals(v, vals) = v
 
 # shown as GruntzLimit shows its LimitCases: conditions with Julia's operators
@@ -381,12 +382,127 @@ function _solve_assumed(eq::Relation, x::Sym, A::Assumptions)
     eq.op === :eq || return _solve_ineq_assumed(eq, x, A)
     _by_cases(A) do B
         sub = [k => w for (k, w) in B.subst if !_eq(k, x)]
-        e = isempty(sub) ? eq : Relation(:eq, subs(eq.lhs, sub...), subs(eq.rhs, sub...))
+        e = try
+            isempty(sub) ? eq : Relation(:eq, subs(eq.lhs, sub...), subs(eq.rhs, sub...))
+        catch err
+            _isdivzero(err) || rethrow()
+            return Sym[]                          # a denominator vanishes: not defined
+        end
         v = get(B.subst, x, nothing)
         if v !== nothing                          # x itself is given: does it solve eq?
             return _decide(Relation(:eq, expand(subs(e.lhs - e.rhs, x => v)), ZERO), B) ? Sym[v] : Sym[]
         end
-        filter(r -> _allowed(r, x, B), _real_if_tiny(_solve_eq(e, x), x, B))
+        filter(r -> _allowed(r, x, B), _real_if_tiny(_solve_case(e, x, B), x, B))
+    end
+end
+
+## degenerate parameter values: coefficients that vanish
+#
+# The solutions of an equation with parameters hold where its coefficients do not
+# vanish (a*x = b gives b/a for a ≠ 0). Each coefficient whose zero the assumptions
+# leave open is decided by cases: the leading coefficients of a polynomial in x, until
+# one is nonzero (a*x^2 + b*x + c: a ≠ 0, else b ≠ 0, else c ≠ 0); a denominator free of
+# x (where it vanishes the equation is not defined); and otherwise the denominators of
+# the solutions found (log(2)/a for exp(a*x) = 2). A case that sets a coefficient to zero
+# is solved again with that value substituted.
+
+# the factors of c's numerator that involve parameters but none of the unknowns, whose
+# vanishing makes a case (each up to a constant factor)
+# symbols that are not parameters: the variables of unknowns that are function calls
+# (x for u(x): implicit differentiation divides by x without a case x = 0)
+const _NOT_PARAMS = ScopedValue{Vector{Sym}}(Sym[])
+
+function _param_factors(c::Sym, unknowns)
+    out = Sym[]
+    _hassymbol(c) || return out
+    for part in (numer_denom(c)[1],)
+        _hassymbol(part) || continue
+        f = try factor(part) catch err; err isa ArgumentError || rethrow(); part end
+        bs = f.kind == MUL ? [b for (b, p) in zip(f.args, f.exps) if p.kind == NUMBER && p.num > N0] :
+             f.kind == POW && f.args[2].kind == NUMBER && f.args[2].num > N0 ? [f.args[1]] : [f]
+        for b in bs
+            _hassymbol(b) && !any(u -> has(b, u), unknowns) && !any(u -> has(b, u), _NOT_PARAMS[]) || continue
+            atoms = Set{Sym}()
+            _poly_atoms!(atoms, b)
+            all(_isnamed, atoms) || continue      # a polynomial in the parameters
+            b = _content_free(b)
+            any(o -> (q = cancel(o / b); q.kind == NUMBER), out) || push!(out, b)
+        end
+    end
+    out
+end
+
+# b without its numeric content and sign (2a^2 + 2b^2 and -a^2 - b^2 as a^2 + b^2)
+function _content_free(b::Sym)
+    b.kind == ADD && isexact(b.num) && all(isexact, b.coefs) || return b
+    g = gcd(Rational{BigInt}[Rational{BigInt}(_numerator(c), _denominator(c)) for c in (iszero(b.num) ? b.coefs : [b.coefs; b.num])])
+    b.coefs[1] < N0 && (g = -g)                   # the first term positive
+    iszero(g) || isone(g) ? b : expand(b / Sym(SymNumber(g)))
+end
+
+# nothing when every factor of every expression in D is nonzero in this case; else the
+# substitutions that make the first vanishing one zero: p => r for a factor linear in a
+# parameter p (the assumptions substitute a = 0 or a = b themselves; this covers
+# a*b = 1), one for each root otherwise (a^2 + b^2 = 0: a = ±i b)
+function _degenerate_subst(D, B::Assumptions, unknowns)
+    for g in D, f in _param_factors(g, unknowns)
+        _decide(Relation(:ne, f, ZERO), B) && continue
+        ps = _named(f)
+        for p in ps
+            P = try Poly{Sym}(expand(f), [p]) catch; continue end
+            degree(P, p) == 1 || continue
+            c1, c0 = coeff(f, p, 1), coeff(f, p, 0)
+            all(h -> _decide(Relation(:ne, h, ZERO), B), _param_factors(c1, unknowns)) || continue
+            return f => [p => cancel(-c0 / c1)]
+        end
+        rs = isempty(ps) ? Sym[] : (try _solve_generic(f ~ 0, ps[1]) catch err; err isa ArgumentError || rethrow(); Sym[] end)
+        isempty(rs) || return f => [ps[1] => r for r in rs]
+        throw(ArgumentError("solve: the case $f = 0 is not supported"))
+    end
+    nothing
+end
+
+# the answers under each alternative substitution for f = 0: one, or all of them when
+# they are all empty (none has solutions); different answers depend on which root holds
+function _alternatives(run, (f, ps))
+    rs = try
+        [run(p) for p in ps]
+    catch err
+        (err isa ArgumentError || _isdivzero(err)) && length(ps) > 1 || rethrow()
+        throw(ArgumentError("solve: the case $f = 0 is not supported"))
+    end
+    length(rs) == 1 && return rs[1]
+    all(r -> r isa AbstractVector && isempty(r), rs) && return rs[1]
+    throw(ArgumentError("solve: the case $f = 0 is not supported"))
+end
+
+function _solve_case(e::Relation, x::Sym, B::Assumptions)
+    n, d = numer_denom(cancel(e.lhs - e.rhs))
+    for f in _param_factors(d, (x,))
+        _decide(Relation(:ne, f, ZERO), B) || return Sym[]
+    end
+    reduced = false
+    if has(n, x) && _ispoly_in(n, x)
+        while has(n, x)
+            k = degree(Poly{Sym}(n, [x]), x)
+            lc = coeff(n, x, k)
+            all(f -> _decide(Relation(:ne, f, ZERO), B), _param_factors(lc, (x,))) && break
+            n = expand(n - lc * x^k)              # lc vanishes in this case
+            reduced = true
+        end
+    end
+    if !has(n, x)
+        iszero(n) && throw(ArgumentError("solve: every value of $x satisfies $e"))
+        all(f -> _decide(Relation(:ne, f, ZERO), B), _param_factors(n, (x,))) && return Sym[]
+        throw(ArgumentError("solve: every value of $x satisfies $e"))
+    end
+    rs = reduced ? _in_domain(_solve_eq(n ~ 0, x), e.lhs - e.rhs, x) : _solve_eq(e, x)
+    reduced && return rs
+    rs isa AbstractVector || return rs            # an inequality's set
+    ps = _degenerate_subst([numer_denom(r)[2] for r in rs], B, (x,))
+    ps === nothing && return rs
+    _alternatives(ps) do p
+        _solve_case(Relation(:eq, subs(e.lhs, p), subs(e.rhs, p)), x, B)
     end
 end
 

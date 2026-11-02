@@ -95,7 +95,7 @@ function _algebraic_root(b::Vector{BigInt}, f::Float64, rtol)
     else
         z = Sym(:_nsimplify_z)
         p = sum(Sym(b[k + 1]) * z^k for k in 0:d)
-        rs = try solve(p ~ 0, z) catch; return nothing end
+        rs = try _solve_generic(p ~ 0, z) catch; return nothing end
         rs isa AbstractVector || return nothing
     end
     best, err = nothing, Inf

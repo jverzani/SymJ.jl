@@ -455,7 +455,7 @@ function _eig_roots(f::Sym, λ::Sym)
         u = _square_root(expand(4 * a2 * c0 - b1^2))           # -D = u^2
         u === nothing || return Sym[(-b1 - IM * u) / (2a2), (-b1 + IM * u) / (2a2)]
     end
-    solve(f ~ 0, λ)
+    _solve_generic(f ~ 0, λ)
 end
 # u with e == u^2 (a square of a polynomial times a rational square), else nothing
 function _square_root(e::Sym)
