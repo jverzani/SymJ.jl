@@ -81,7 +81,7 @@ separately. Names checked against SymPy 1.14 and Giac.jl's command table as befo
 | Nonlinear systems | `nonlinsolve`, `solve` | `solve` | ◐ polynomial and rational systems, through a lex Gröbner basis; not transcendental ones; transcendental systems such as `2^x + 2^y ~ 10` are an error (SymPy #30849, #29315) |
 | Inequalities: one unknown; linear systems | `solve`, `solveset` | `solve` | ✅ unions of intervals; cylindrical description for linear systems; ❌ with parameters (`reduce_inequalities`; SymPy #30688, #30598) |
 | Solutions under assumptions (domain, range, parameter cases) | `solveset(…, domain)`, assumptions on symbols | `assume` | ✅ `solve(…; assume)`: roots filtered by the unknown's facts; a `Cases` result when they depend on open facts. Not yet for systems |
-| Equations in several unrelated functions of the unknown | `solve` | `solve` | ❌ e.g. `sin(x) + cos(x) ~ 1`, `sin(4x) + sin(3x) ~ 0` (SymPy #30401) |
+| Equations in several unrelated functions of the unknown | `solve` | `solve` | ◐ sin, cos, tan, cot, sec, csc of one argument, through `tan(x/2)` (`sin(x) + cos(x) ~ 1`; SymPy #29745); ❌ different arguments, `sin(4x) + sin(3x) ~ 0` (SymPy #30401) |
 | Equations with `floor`, `sign` (interval solutions) | `solve`, `nonlinsolve` | not checked | ❌ an error: cannot invert `floor` (SymPy #29026, #29007, #28970) |
 | Nonlinear inequality systems | partial | partial | ❌ |
 | Numeric root finding, any equation | `nsolve` | `fsolve` | ◐ polynomials: `SymJ.real_roots` (correctly rounded) and `SymJ.root_intervals` (exact isolation); other equations through Roots.jl or NonlinearSolve.jl, which take SymJ expressions as they are |

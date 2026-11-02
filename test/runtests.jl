@@ -95,6 +95,11 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test log(Sym(1)) == 0
         @test log(E) == 1
         @test log(exp(Sym(3))) == 3
+        # the principal value at a negative number or ±im (SymPy's log(-1) = iπ)
+        @test log(Sym(-1)) == IM * PI
+        @test log(Sym(-2)) == log(Sym(2)) + IM * PI
+        @test log(IM) == IM * PI / 2
+        @test log(-IM) == -IM * PI / 2
         @test kind(log(Sym(2), x)) == FN && length(log(Sym(2), x).args) == 2
         @test log(x, x) == 1
         @test log(x, 1) == 0
@@ -141,6 +146,11 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test floor(Sym(7 // 2)) == 3 && floor(Sym(-7 // 2)) == -4 && ceil(Sym(π)) == 4
         @test trunc(Sym(-7 // 2)) == -3 && round(Sym(5 // 2)) == 2 && round(Sym(7 // 2)) == 4
         @test round(sqrt(Sym(2))) == 1 && kind(floor(x)) == FN && floor(floor(x)) == floor(x)
+        # floor(-v) = -ceil(v), ceil(-v) = -floor(v); trunc and round are odd (SymPy #30300)
+        @test floor(x) + ceil(-x) == 0
+        @test floor(-x) == -ceil(x)
+        @test trunc(-x) == -trunc(x)
+        @test round(-x) == -round(x)
         @test round(x)(2.5) == 2.0
         # rewrites
         @test log2(x) == log(Sym(2), x) && log10(x) == log(Sym(10), x)
@@ -303,6 +313,10 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test N(lambertw(Sym(1))) ≈ 0.5671432904097838 && lambertw(x)(1.0) ≈ 0.5671432904097838
         @test lambdify(lambertw(x))(1.0) ≈ 0.5671432904097838
         @test N(lambertw(Sym(-1 // 5), -1)) ≈ -2.542641357773527
+        # W(u) exp(W(u)) = u, on every branch (SymPy #29737)
+        @test simplify(exp(lambertw(x)) * lambertw(x) - x) == 0
+        @test simplify(y * lambertw(x) * exp(lambertw(x) + y)) == x * y * exp(y)
+        @test simplify(lambertw(x, -1) * exp(lambertw(x, -1))) == x
     end
 
     @testset "Gröbner bases" begin
@@ -418,6 +432,7 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @syms sa
         S(e, args...) = Sym(series(e, args...))
         @test S(sin(x), x) == x - x^3 / 6 + x^5 / 120
+        @test S(sinc(x), x, 0, 4) == 1 - PI^2 * x^2 / 6                      # entire (SymPy #30545)
         @test S(exp(x), x, 0, 4) == 1 + x + x^2 / 2 + x^3 / 6
         @test S(log(1 + x), x, 0, 5) == x - x^2 / 2 + x^3 / 3 - x^4 / 4
         @test S(atan(x), x) == x - x^3 / 3 + x^5 / 5
@@ -508,6 +523,12 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
             @test diff(H(2x), y) == 0
             @test string(diff(H(x), x)) == "Derivative(H(x), x)"            # of a symbol: as it was
             @test subs(diff(H(x^2), x), H(x) => sin(x)) == 2x * cos(x^2)
+            # several arguments: Σ ∂ᵢH ∂argsᵢ/∂x, ∂ᵢH at the point in a fresh dummy (SymPy extra-11)
+            t, D = Sym(:t), (e, v, a) -> SymJ.apply_function(:Derivative, Sym[e, v, a])
+            @test diff(H(x + y, x * y), x) == D(H(t, x * y), t, x + y) + y * D(H(x + y, t), t, x * y)
+            @test diff(H(x, x), x) == D(H(t, x), t, x) + D(H(x, t), t, x)
+            @test string(diff(H(x, y), x)) == "Derivative(H(x, y), x)"      # symbols: as it was
+            @test diff(H(x^2, t), x) == 2x * D(H(Sym(:s), t), Sym(:s), x^2)   # t is taken
             R = sqrt(x^2 + y^2 + z^2)                                         # curl of H(r) r̂ is 0
             M, N, P = H(R) * [x, y, z] / R
             @test diff(P, y) - diff(N, z) == 0
@@ -1021,6 +1042,7 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test solve(log(x) - log(x - 1) ~ 1, x) == [Sym(ℯ) / (Sym(ℯ) - 1)]
         @test_throws ArgumentError solve(log(x) + sin(x) ~ 1, x)
         @test_throws ArgumentError solve(x * log(x) + log(x - 1) ~ 1, x)
+        @test solve(exp(x) ~ -1, x) == [IM * PI]
         # N outside the real domain, with an exact integer argument
         @test N(log(Sym(-3))) ≈ log(complex(-3.0)) && N(log(Sym(-2)) + log(Sym(-3)) - log(Sym(6))) ≈ 2π * im
         @parameters a b c
@@ -1081,7 +1103,12 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         # a square root mixed with x: squared, extraneous roots dropped
         @test solve(sqrt(x + 1) ~ x - 1, x) == [Sym(3)]                # 0 is extraneous
         @test solve(sqrt(x) + x ~ 6, x) == [Sym(4)] && solve(x - sqrt(x) ~ 0, x) == [Sym(0), Sym(1)]
-        @test_throws ArgumentError solve(sin(x) + cos(x) ~ 1, x)     # two functions: not yet
+        # sin, cos, tan, … of one argument: through t = tan(x/2), solutions in [0, 2π) (SymPy #29745)
+        @test solve(sin(x) + cos(x) ~ 1, x) == [0, PI / 2]
+        @test solve(2sin(x) - 2sqrt(Sym(3)) * cos(x) + sqrt(Sym(3)) * tan(x) - 3 ~ 0, x) == [PI / 3, 5PI / 6, 7PI / 6, 4PI / 3]
+        @test solve(tan(x) + cot(x) ~ 2, x) == [PI / 4, 5PI / 4]
+        @test solve(sin(2x) + cos(2x) ~ 1, x) == [0, PI / 4]
+        @test_throws ArgumentError solve(sin(x) + cos(2x) ~ 1, x)    # two arguments: not yet
         # Lambert W: (αx + β) e^(γx + δ) = K, both real branches when there are two
         @test solve(x * exp(x) ~ 1, x) == [lambertw(Sym(1))] && solve(x ~ exp(-x), x) == [lambertw(Sym(1))]
         @test Set(solve(x * exp(x) ~ -1 // 5, x)) == Set([lambertw(Sym(-1 // 5)), lambertw(Sym(-1 // 5), -1)])
@@ -1103,6 +1130,7 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test solve([x + y + z ~ 1, x - z ~ 0], [x, y, z]) == [Dict(x => z, y => 1 - 2z, z => z)]
         @test solve([x + y ~ 1, x + y ~ 2], [x, y]) == Dict{Sym,Sym}[]
         @test solve([x + y ~ 1, 2x + 2y ~ 2], [x, y]) == [Dict(x => 1 - y, y => y)]
+        @test_throws ArgumentError solve([x + y ~ 1, x - y ~ 2], [x, y]; assume = (x ≫ 0,))   # not yet for systems
         @test solve((x + y ~ 3, x - y ~ 1), (x, y)) == [Dict(x => 2, y => 1)]       # tuples
         for (eqs, vs) in (([a * x + y ~ 1, x - y ~ b], [x, y]), ([a * x + b * y ~ 1, b * x - a * y ~ 0], [x, y]),
                           ([x / 2 + y / 3 ~ 1, x ~ y], [x, y]), ([x + y ~ sin(a), x - y ~ cos(a)], [x, y]),
@@ -1919,11 +1947,18 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test iszero(refine(imag(x); assume = (2x - 1 ∈ ℝ,)))
         @test_throws ArgumentError Assumptions(2x ∈ ℤ)          # says less than x ∈ ℤ
         @test_throws ArgumentError Assumptions(x^2 ∈ ℝ)
+        # b^q, b < 0 and q real, not an integer, is not real (SymPy #29335)
+        @test SymJ._isreal(x^y, Assumptions(x ≪ 0, y ∈ ℚ, y ∉ ℤ)) === false
+        @test SymJ._isreal(x^y, Assumptions(x ≪ 0, y ∈ ℚ)) === nothing
     end
 
     @testset "limit" begin
         @syms a b
         @test limit(sin(x) / x, x => 0) == 1 && limit((1 + 1 / x)^x, x => Inf) == E
+        # sinc and cosc through sin and cos (SymPy #30545)
+        @test limit(sinc(x), x => 0) == 1
+        @test limit(cosc(x), x => 0) == 0
+        @test limit(sinc(x) / x^2 - 1 / x^2, x => 0) == -PI^2 / 6
         @test limit(1 / x, x => 0; dir = :+) == Sym(Inf) && limit(-x, x => Inf) == Sym(-Inf)
         @test limit(1 / x, x => 0; dir = :+) isa Sym && limit(x^2, x => Sym(Inf)) == Sym(Inf)
         @test limit(x * exp(1 / x), x => 0; dir = -) == 0
@@ -1985,6 +2020,20 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test R((x^3)^(1 // 3), x ∈ ℝ) == (x^3)^(1 // 3)          # a real cube root is not x^(1/3)'s branch
         @test R(abs(x), x ≪ 0) == -x && R(abs(2x * y), x ≫ 0) == 2x * abs(y) && R(sign(x - 1), x ≫ 2) == 1
         @test R(log(exp(x)), x ∈ ℝ) == x && R(log(exp(x))) == log(exp(x)) && R(log(x^2), x ≫ 0) == 2log(x)
+        # exp(iπ w): integer multiples of 2πi drop out (SymPy #29196)
+        @test R(exp(2PI * IM * n), n ∈ ℤ) == 1
+        @test R(exp(PI * IM * n), n ∈ ℤ) == (-1)^n
+        @test R(exp(2PI * IM * (n + 1 // 2)), n ∈ ℤ) == -1
+        @test R(exp(3PI * IM * n + IM * x), n ∈ ℤ) == (-1)^n * exp(IM * x)
+        @test R(exp(PI * IM * n / 2), n ∈ ℤ) == exp(PI * IM * n / 2)
+        @test R(exp(2PI * IM * x)) == exp(2PI * IM * x)
+        # half angles under a root, and the signs of sin, cos on an interval (SymPy #29371)
+        @test simplify(sqrt((1 + cos(x)) / 2); assume = (x ≫ 0, x ≪ PI)) == cos(x / 2)
+        @test simplify(sqrt(1 + cos(x)) * sqrt(1 - cos(x)); assume = (x ≫ 0, x ≪ PI)) == sin(x)
+        @test R(sin(x) ≫ 0, x ≫ 0, x ≪ PI) === true
+        @test R(cos(x) ≪ 0, x ≫ PI / 2, x ≪ 3PI / 2) === true
+        @test R(cos(x) ≫ 0, x ≫ 0, x ≪ PI) isa Relation                      # changes sign
+        @test R(sin(x) ≫ 0, x ≧ 0, x ≦ PI) isa Relation                       # 0 at the ends
         @test R((-1)^(2n), n ∈ ℤ) == 1 && R((-1)^(2n + 1), n ∈ ℤ) == -1
         @test R(sin(n * PI), n ∈ ℤ) == 0 && R(cos(n * PI), n ∈ ℤ) == (-1)^n
         @test R(sin(x + 2n * PI), n ∈ ℤ) == sin(x) && R(cos(x + n * PI), n ∈ ℤ) == (-1)^n * cos(x)
@@ -2292,6 +2341,14 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
     @testset "summation" begin
         @syms k n r a
         Σ = SymJ.summation
+        # rational summands: shifts both integer and not (the γ of ψ cancels only together)
+        @test Σ(1 / ((k + 1) * (2k + 1)), k, 1, Inf) == log(Sym(4)) - 1
+        @test Σ(1 / ((k + 1) * (2k + 1)), k, 0, Inf) == log(Sym(4))
+        @test abs(N(Σ(k / (k^3 + 1), k, 1, Inf)) - 1.1116439382244) < 1e-6
+        # an irreducible denominator through its roots, digamma pairs by reflection (SymPy #29670)
+        @test Σ(1 / (k^2 + 1), k, 1, Inf) == PI * coth(PI) / 2 - 1 // 2
+        @test Σ(1 / (k^2 + k + 1), k, 0, Inf) == sqrt(Sym(3)) * PI * tanh(sqrt(Sym(3)) * PI / 2) / 3
+        @test abs(N(subs(Σ(1 / (k^2 + a^2), k, 1, Inf), a => 2)) - (2π * coth(2π) - 1) / 8) < 1e-12
         # the index is bound: not substituted, and renamed when a value would be captured
         let y = Sym(:y), s = Σ(1 / (k^2 + y), k, 1, n)
             @test string(subs(s, y => k)) == "Sum(1/(k′^2 + k), k′, 1, n)"
@@ -2689,6 +2746,9 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test limit(f, x => 0; dir = :+) == 0 && limit(P(x ≪ 1 => x, true => 2 - x), x => 1) == 1
         @test limit(H(x), x => 0; dir = :-) == 0 && limit(f, x => Inf) == Sym(Inf)
         @test_throws GruntzError limit(H(x), x => 0)
+        # conditions free of x split on the parameters (SymPy #30249)
+        @test limit(P(Ne(a, 0) => 0, true => x), x => a; dir = :+) == P(Ne(a, 0) => 0, true => a)
+        @test limit(P(a ≫ 0 => sin(x) / x, true => x^2), x => 0) == P(a ≫ 0 => 1, true => 0)
         # folding into one piecewise function; simplify does it when smaller
         F = SymJ.piecewise_fold
         @test F(abs(x) + abs(x - 1), x) == P(x ≦ 0 => 1 - 2x, x ≦ 1 => 1, true => 2x - 1)

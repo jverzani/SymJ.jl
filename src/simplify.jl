@@ -84,6 +84,47 @@ _nonneg(u, A) = (m = _signs(u, A); m !== nothing && m & _NEG == 0)
 _nonpos(u, A) = (m = _signs(u, A); m !== nothing && m & _POS == 0)
 _ispos(u, A) = _signs(u, A) == _POS
 
+# exp(iπ w) with w = c₀ + Σ cⱼ tⱼ: a term with tⱼ an integer and cⱼ an even integer drops
+# out, one with cⱼ odd is (-1)^tⱼ, and c₀ is reduced mod 2; nothing if nothing changes
+function _refine_exp_ipi(u::Sym, A::Assumptions)
+    w = expand(u / (IM * PI))
+    c0, terms = if w.kind == ADD
+        w.num, collect(zip(w.coefs, w.args))
+    elseif w.kind == NUMBER
+        w.num, Tuple{SymNumber,Sym}[]
+    elseif w.kind == MUL
+        N0, [(w.num, w / Sym(w.num))]
+    else
+        N0, [(N1, w)]
+    end
+    changed = false
+    sign = ONE
+    rest = ZERO
+    for (c, t) in terms
+        if isexact(c) && isone(_denominator(c)) && _isinteger(t, A) === true
+            changed = true
+            isodd(_numerator(c)) && (sign *= NM1^t)
+        else
+            rest += Sym(c) * t
+        end
+    end
+    if isexact(c0) && (c0 >= SymNumber(2) || c0 < N0)
+        changed = true
+        c0 = c0 - SymNumber(2) * SymNumber(floor(_numerator(c0) // _denominator(c0) // 2))
+    end
+    # exp(iπ c₀) = cos(π c₀) + i sin(π c₀) where both are exact (c₀ = 1, 1/2, 1/3, …)
+    k = ONE
+    if isexact(c0) && !iszero(c0)
+        cs, sn = cos(PI * Sym(c0)), sin(PI * Sym(c0))
+        if !_has_fn(cs, (:cos,)) && !_has_fn(sn, (:sin,))
+            changed = true
+            k, c0 = expand(cs + IM * sn), N0
+        end
+    end
+    changed || return nothing
+    sign * k * exp(IM * PI * (Sym(c0) + rest))
+end
+
 # one identity at the node, or nothing
 function _refine_rule(e::Sym, A::Assumptions)
     k = e.kind
@@ -99,6 +140,7 @@ function _refine_rule(e::Sym, A::Assumptions)
             _isinteger(expand((q - 1) / 2), A) === true && return -ONE
             return nothing
         end
+        _eq(b, E) && return _refine_exp_ipi(q, A)                            # exp(2πi n) = 1
         if b.kind == POW                                                     # (c^p)^q
             c, p = b.args
             _eq(c, E) && _isreal(p, A) === true && return exp(expand(p * q))   # exp(u)^q
@@ -389,6 +431,18 @@ function _simplify(e::Sym, A::Assumptions)
     _count_fn(e, :piecewise) >= 2 && consider(x -> piecewise_fold(x; assume = A))
     # conj(w) w = abs(w)^2
     _has_fn(e, (:conj,)) && consider(_conj_pairs_to_abs)
+    # under a root, 1 ± cos(u) = 2cos²(u/2), 2sin²(u/2): √((1 + cos x)/2) = cos(x/2) for 0 < x < π
+    # W(u) exp(W(u)) = u, on every branch
+    _has_fn(e, (:lambertw,)) && consider(_lambertw_pairs)
+    if _has_fn(e, (:cos,))
+        # only when refine then takes a root (fewer fractional powers): √(cos²(x/2)) alone is no gain
+        function halfangle(x)
+            c = _refine(_half_angle_radicands(x), A)
+            _root_of_trig_square(c) ? nothing : c
+        end
+        consider(halfangle)
+        consider(x -> (c = halfangle(x); c === nothing ? nothing : simplify_trig(c)))   # 2cos(x/2)sin(x/2) = sin(x)
+    end
     if _has_fn(e, _CIRCFNS)       # identities simplify_trig's normal form does not reach
         for g in (_simp_trig_rules, expand_trig, simplify_rational ∘ expand_trig)
             consider(g)
@@ -396,6 +450,76 @@ function _simplify(e::Sym, A::Assumptions)
     end
     best
 end
+# in each product, W(u)^k exp(k W(u) + r) as u^k exp(r), k an integer (W any branch of
+# lambertw): W e^W = u
+function _lambertw_pairs(e::Sym)
+    _replace_walk(e) do t
+        t.kind == MUL || return nothing
+        bs, ps = collect(t.args), collect(t.exps)
+        changed = false
+        for i in eachindex(bs)
+            w, k = bs[i], ps[i]
+            (w.kind == FN && w.name === :lambertw && k.kind == NUMBER && isexact(k.num) && isone(_denominator(k.num))) || continue
+            j = findfirst(j -> j != i && _eq(bs[j], E), eachindex(bs))
+            j === nothing && continue
+            ex = ps[j]
+            rest = expand(ex - k * w)
+            has(rest, w) && continue                        # the coefficient of W is not k
+            bs[i], ps[i] = w.args[1], k
+            ps[j] = rest
+            changed = true
+        end
+        changed ? Sym(t.num) * prod(b^p for (b, p) in zip(bs, ps)) : nothing
+    end
+end
+
+# whether e has a non-integer power of an expression with cos² or sin² in it (a root
+# refine could not take)
+function _root_of_trig_square(e::Sym)
+    sq(b) = _has_node(b, t -> t.kind == POW && t.args[2] == Sym(2) && (_isfn1(t.args[1], :cos) || _isfn1(t.args[1], :sin))) ||
+            (b.kind == MUL && any(i -> b.exps[i] == Sym(2) && (_isfn1(b.args[i], :cos) || _isfn1(b.args[i], :sin)), eachindex(b.args)))
+    frac(q) = !(q.kind == NUMBER && isone(_denominator(q.num)))
+    e.kind == POW && frac(e.args[2]) && sq(e.args[1]) && return true
+    e.kind == MUL && any(i -> frac(e.exps[i]) && sq(e.args[i]), eachindex(e.args)) && return true
+    any(_root_of_trig_square, e.args)
+end
+_has_node(e::Sym, p) = p(e) || any(a -> _has_node(a, p), e.args)
+
+# n + n cos(u) as 2n cos²(u/2) and n - n cos(u) as 2n sin²(u/2), in the bases of non-integer
+# powers only (where refine can then take the root)
+function _half_angle_radicands(e::Sym)
+    half(t::Sym) = _replace_walk(t) do s
+        (s.kind == ADD && length(s.args) == 1 && _isfn1(s.args[1], :cos)) || return nothing
+        n, c, u = s.num, s.coefs[1], s.args[1].args[1]
+        iszero(n) && return nothing
+        c == n && return 2Sym(n) * cos(u / 2)^2
+        c == -n && return 2Sym(n) * sin(u / 2)^2
+        nothing
+    end
+    _replace_walk(e) do t
+        if t.kind == POW
+            b, q = t.args
+            (q.kind == NUMBER && isone(_denominator(q.num))) && return nothing
+            nb = half(b)
+            return _eq(nb, b) ? nothing : nb^q
+        elseif t.kind == MUL
+            changed = false
+            fs = Sym[]
+            for (b, q) in zip(t.args, t.exps)
+                if !(q.kind == NUMBER && isone(_denominator(q.num)))
+                    nb = half(b)
+                    changed |= !_eq(nb, b)
+                    push!(fs, nb^q)
+                else
+                    push!(fs, b^q)
+                end
+            end
+            return changed ? Sym(t.num) * prod(fs) : nothing
+        end
+        nothing
+    end
+end
+
 # a constant: powers, logarithms and radicals of numbers
 function _simplify_const(e::Sym, A::Assumptions)
     best = e

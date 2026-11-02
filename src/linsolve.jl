@@ -30,7 +30,9 @@ solve([x^2 + y^2 ~ 1, x ~ y], [x, y])          # [Dict(x => -√2/2, y => -√2/
 solve([x*y ~ 1, x + y ~ 3], [x, y])
 ```
 """
-function solve(eqs::AbstractVector{<:Relation}, vars::Union{AbstractVector,Tuple})
+function solve(eqs::AbstractVector{<:Relation}, vars::Union{AbstractVector,Tuple}; assume = nothing)
+    assume === nothing ||
+        throw(ArgumentError("solve: assumptions are not supported for systems yet; solve the system, then refine its solutions"))
     vars = Sym[Sym(v) for v in vars]
     all(_isnamed, vars) ||
         return _solve_for_calls((es, vs, _) -> solve(es, vs), collect(Relation, eqs), vars)
@@ -98,7 +100,7 @@ function _solve_linear(eqs, vars::Vector{Sym})
         _gauss_jordan(map(rf, A), map(rf, b), vars, Sym)
     end
 end
-solve(eqs::Tuple{Vararg{Relation}}, vars) = solve(collect(Relation, eqs), vars)
+solve(eqs::Tuple{Vararg{Relation}}, vars; kws...) = solve(collect(Relation, eqs), vars; kws...)
 
 # A x = b from the equations: each lhs - rhs in lowest terms, no unknown in the
 # denominator, of degree at most 1 in the unknowns

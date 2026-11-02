@@ -147,6 +147,16 @@ import PolyLog as PL
         @test ∫(H(x - a), x) == P(x ≪ a => 0, true => x - a)                               # a parameter
         @test ∫(cos(x) * D(x - 1), x) == cos(Sym(1)) * H(x - 1) && ∫(exp(x) * D(2x - 2), x) == E / 2 * H(x - 1)
         @test ∫(x^2 * D(x - 2, 1), x) == -4H(x - 2)                                       # δ′: -g′(a)
+        # δ(u(x)) = Σ δ(x - r)/|u′(r)| over the simple real roots of a polynomial u (SymPy #29001)
+        @test ∫(D(x^2 - 1) * x^2, (x, -3, 3)) == 1
+        @test ∫(D(x^2 - 1) * x^2, (x, 0, 3)) == 1 // 2
+        @test ∫(D(x^3 - x), (x, -2, 2)) == 2
+        @test ∫(D(x^2 + 1), (x, -3, 3)) == 0
+        @test_throws ArgumentError ∫(D(x^2), (x, -3, 3))                 # a double root
+        @test_throws ArgumentError ∫(D(sin(x)), (x, -10, 10))            # not a polynomial
+        # float breakpoints (SymPy #29064)
+        @test N(∫(P(x ≪ 0.5 => 0, true => 1), (x, 0, 1))) ≈ 0.5
+        @test N(∫(P(x ≪ 0.25 => x, x ≪ 0.75 => 1, true => x^2), (x, 0, 1))) ≈ 1 / 32 + 1 / 2 + 37 / 192
     end
 
     @testset "RischIntegrate: definite integrals" begin

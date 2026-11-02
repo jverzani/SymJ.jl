@@ -708,6 +708,10 @@ function _fnmask(e::Sym, A::Assumptions)
     mu === nothing && return nothing
     f in (:sign, :atan, :asinh, :sinh, :tanh, :erf, :cbrt) && return mu
     f === :cosh && return _POS
+    if f in (:sin, :cos)
+        m = _trig_interval_mask(f, u, A)
+        m === nothing || return m
+    end
     f in (:sin, :cos, :tan, :cot, :sec, :csc) && return _ALLS
     f === :floor && return (mu & _NEG) | (mu & (_ZER | _POS) == 0 ? 0x00 : _ZER) | (mu & _POS)
     f === :ceil && return (mu & _POS) | (mu & (_ZER | _NEG) == 0 ? 0x00 : _ZER) | (mu & _NEG)
@@ -716,6 +720,34 @@ function _fnmask(e::Sym, A::Assumptions)
         return _signs(u - 1, A)
     end
     nothing
+end
+
+# the signs of cos(u) or sin(u) for u = c x + d (c, d constants) with x in one bounded
+# interval, when u's range lies within one half-period; nothing otherwise
+function _trig_interval_mask(f::Symbol, u::Sym, A::Assumptions)
+    vs = _named(u)
+    length(vs) == 1 || return nothing
+    x = only(vs)
+    S = get(A.sets, x, nothing)
+    (S === nothing || length(S.intervals) != 1) && return nothing
+    I = only(S.intervals)
+    (I.lo === nothing || I.hi === nothing) && return nothing
+    d = subs(u, x => ZERO)
+    c = expand(u - d) / x
+    (_hassymbol(c) || _hassymbol(d)) && return nothing
+    cv, dv = try (Float64(N(c)), Float64(N(d))) catch; return nothing end
+    lo, hi = try (Float64(N(I.lo)), Float64(N(I.hi))) catch; return nothing end
+    a, b, ac, bc = cv > 0 ? (cv * lo + dv, cv * hi + dv, I.lclosed, I.rclosed) :
+                            (cv * hi + dv, cv * lo + dv, I.rclosed, I.lclosed)
+    f === :sin && (a -= pi / 2; b -= pi / 2)            # sin(t) = cos(t - π/2)
+    # cos is positive on (-π/2, π/2) + 2kπ and negative on (π/2, 3π/2) + 2kπ
+    k = floor((a + pi / 2) / pi)                        # the half-period a falls in
+    z0, z1 = -pi / 2 + k * pi, pi / 2 + k * pi          # its zeros
+    tol = 1e-12 * max(1.0, abs(a), abs(b))
+    (a >= z0 - tol && b <= z1 + tol) || return nothing
+    s = iseven(Int(k)) ? _POS : _NEG
+    zero_end = (abs(a - z0) <= tol && ac) || (abs(b - z1) <= tol && bc)
+    zero_end ? s | _ZER : s
 end
 
 ## three-valued queries
@@ -733,6 +765,10 @@ function _isreal(e::Sym, A::Assumptions)::Union{Nothing,Bool}
             mb = _signs(b, A)
             mb !== nothing && mb & _NEG != 0 && mb & (_ZER | _POS) == 0 && return false
             _isreal(b, A) === false && return false
+        end
+        # b < 0, q real and not an integer: b^q = |b|^q e^(iπq) is not real
+        if q.kind != NUMBER && _signs(b, A) == _NEG && _isreal(q, A) === true && _isinteger(q, A) === false
+            return false
         end
     elseif e.kind == FN && e.name in _REALFNS && length(e.args) == 1
         return true

@@ -268,7 +268,7 @@ at 0, or a function without a derivative rule) gives an `ArgumentError`.
 """
 function series(ex, x::Sym, x0 = 0, n::Real = 6)
     _isnamed(x) || throw(ArgumentError("series: $x is not a symbol"))
-    ex = Sym(ex)
+    ex = _sinc_elementary(Sym(ex))
     sub = x0 isa Real && isinf(x0) ? (x0 > 0 ? inv(_T) : -inv(_T)) : Sym(x0) + _T
     ext = subs(ex, x => sub)
     order = Rational{Int}(rationalize(n))

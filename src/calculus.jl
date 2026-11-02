@@ -134,6 +134,22 @@ function _monomial_power(t::Sym, x::Sym)
     cf, e
 end
 
+# nodes that are not unknown functions (no chain rule through their arguments)
+const _NO_CHAIN = (:Integral, :Sum, :Product, :Derivative, :piecewise, :And, :Or, :Not)
+
+# a symbol for a bound variable that occurs nowhere in ex
+function _fresh_dummy(ex::Sym)
+    for n in (:t, :s, :u, :v, :w)
+        t = Sym(n)
+        has(ex, t) || return t
+    end
+    k = 1
+    while has(ex, Sym(Symbol(:t, k)))
+        k += 1
+    end
+    Sym(Symbol(:t, k))
+end
+
 function _diff(ex::Sym, x::Sym)
     k = ex.kind
     _isnamed(ex) && return _eq(ex, x) ? ONE : ZERO
@@ -181,6 +197,25 @@ function _diff(ex::Sym, x::Sym)
             da = _diff(a, x)
             iszero(da) && return ZERO
             return mul(SymDerivative(SymFunction(ex.name), 1)(a), da)
+        end
+        if rule === nothing && length(ex.args) >= 2 && !_isderivat(ex) && !(ex.name in _NO_CHAIN)
+            # an unknown function of several arguments: Σ ∂ᵢf(args) ∂argsᵢ/∂x, with ∂ᵢf at
+            # the point the derivative in slot i at argsᵢ, Derivative(f(…, t, …), t, argsᵢ)
+            # for a dummy t that occurs nowhere else
+            t = _fresh_dummy(ex)
+            terms = Sym[]
+            for i in eachindex(ex.args)
+                da = _diff(ex.args[i], x)
+                iszero(da) && continue
+                a = ex.args[i]
+                slot = Sym[j == i ? t : ex.args[j] for j in eachindex(ex.args)]
+                Fi = apply_function(ex.name, slot)
+                Di = a.kind == SYMBOL && !any(j -> j != i && has(ex.args[j], a), eachindex(ex.args)) ?
+                     _mkfn_node(:Derivative, Sym[apply_function(ex.name, ex.args), a]) :
+                     apply_function(:Derivative, Sym[Fi, t, a])
+                push!(terms, mul(Di, da))
+            end
+            return isempty(terms) ? ZERO : _add_many(terms)
         end
         terms = Sym[]
         for i in eachindex(ex.args)
