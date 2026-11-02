@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Implementation — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=9e51eee3">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=d0023682">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Implementation — SymJ.jl">
   <meta property="og:title" content="Implementation — SymJ.jl">
@@ -98,7 +98,7 @@ end</code></pre>
 <li><p><strong>Identity.</strong> The struct is <code class="md-code-inline">mutable</code> with all fields <code class="md-code-inline">const</code>, so <code class="md-code-inline">===</code> is pointer identity, a free first test for equality, and storing a node copies a pointer, not a wide struct.</p>
 </li>
 </ul>
-<p>The cost is that Julia&#39;s dispatch cannot tell sums from products: functions inspect the kind. Function applications are not separate types either. <code class="md-code-inline">sin(x)</code> is a node naming <code class="md-code-inline">sin</code>, and its rules (exact values, symmetries, derivative) live in a registry (<code class="md-code-inline">register_function!</code>), which package extensions add to for SpecialFunctions, HypergeometricFunctions and PolyLog.</p>
+<p>The cost is that Julia&#39;s dispatch cannot tell sums from products: functions inspect the kind. Function applications are not separate types either. <code class="md-code-inline">sin(x)</code> is a node naming <code class="md-code-inline">sin</code>, and its rules (exact values, symmetries, derivative) live in a registry (<code class="md-code-inline">register_function!</code>), which SymJ&#39;s support for SpecialFunctions, HypergeometricFunctions and PolyLog adds to.</p>
 <h2 id="Canonical-form-as-you-go" class="md-heading">Canonical form as you go<a href="#Canonical-form-as-you-go" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p>Sums collect like terms and products collect like bases when they are built: <code class="md-code-inline">x + 2x</code> is <code class="md-code-inline">3x</code>, <code class="md-code-inline">x*y*x</code> is <code class="md-code-inline">x^2*y</code>, <code class="md-code-inline">exp(x)*exp(y)</code> is <code class="md-code-inline">exp(x + y)</code>. There is no separate simplification pass for these identities, so <code class="md-code-inline">a - a == 0</code> holds for any <code class="md-code-inline">a</code>.</p>
 <p>A sum is stored as a constant plus sorted parallel vectors of terms and coefficients, a product as a coefficient plus sorted vectors of bases and exponents. This is SymEngine&#39;s dictionary representation, laid out as sorted vectors instead of hash tables. Adding two sums is a merge of sorted vectors, and equality is elementwise comparison.</p>
@@ -349,6 +349,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=9e51eee3"></script>
+  <script src="../assets/materialdocs.js?v=d0023682"></script>
 </body>
 </html>

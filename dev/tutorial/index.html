@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=4585e2ce">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=c5d45c08">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -792,7 +792,7 @@ SymJ.simplify_gamma(factorial(n + 2) / factorial(n)), SymJ.simplify_gamma(binomi
 \[\left( \left( n + 1 \right) \cdot \left( n + 2 \right), \; \frac{n + 1}{ - k + n + 1}, \; \binom{n}{k} \right)\]
 </div>
 </div>
-<p>With the SpecialFunctions extension loaded it also applies the reflection formula (<code class="md-code-inline">gamma(x)gamma(1 - x) = π/sin(πx)</code>) and the duplication formula.</p>
+<p>With SpecialFunctions&#39; <code class="md-code-inline">gamma</code> it also applies the reflection formula (<code class="md-code-inline">gamma(x)gamma(1 - x) = π/sin(πx)</code>) and the duplication formula.</p>
 <p>Expansion goes the other way. <code class="md-code-inline">SymJ.expand_trig</code> writes trigonometric and hyperbolic functions of sums and integer multiples through functions of the terms:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -2204,6 +2204,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=4585e2ce"></script>
+  <script src="../assets/materialdocs.js?v=c5d45c08"></script>
 </body>
 </html>

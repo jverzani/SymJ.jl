@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Design notes — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=f47d215e">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=5f565318">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Design notes — SymJ.jl">
   <meta property="og:title" content="Design notes — SymJ.jl">
@@ -287,7 +287,7 @@ end</code></pre>
 </li>
 </ul>
 </li>
-<li><p><strong>Package extensions.</strong> These load automatically when the package is loaded with SymJ: <strong>SpecialFunctions</strong>, <strong>HypergeometricFunctions</strong> (<code class="md-code-inline">_₁F₁</code>, <code class="md-code-inline">_₂F₁</code>, <code class="md-code-inline">_₃F₂</code>, and <code class="md-code-inline">pFq</code> of those sizes) and <strong>PolyLog</strong> (<code class="md-code-inline">li0</code>–<code class="md-code-inline">li6</code>, <code class="md-code-inline">li(n, z)</code>, <code class="md-code-inline">reli…</code>).</p>
+<li><p><strong>Special-function packages.</strong> SymJ depends on <strong>SpecialFunctions</strong>, <strong>HypergeometricFunctions</strong> (<code class="md-code-inline">_₁F₁</code>, <code class="md-code-inline">_₂F₁</code>, <code class="md-code-inline">_₃F₂</code>, and <code class="md-code-inline">pFq</code> of those sizes) and <strong>PolyLog</strong> (<code class="md-code-inline">li0</code>–<code class="md-code-inline">li6</code>, <code class="md-code-inline">li(n, z)</code>, <code class="md-code-inline">reli…</code>); import a package to name its functions.</p>
 <ul class="md-list-tight">
 <li><p>Calling a package function with a <code class="md-code-inline">Sym</code> argument, in any position, builds the unevaluated function: <code class="md-code-inline">sinint(x)</code>, <code class="md-code-inline">besselj(n, x)</code>.</p>
 </li>
@@ -631,6 +631,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=f47d215e"></script>
+  <script src="../../assets/materialdocs.js?v=5f565318"></script>
 </body>
 </html>
