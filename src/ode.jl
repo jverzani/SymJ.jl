@@ -170,7 +170,7 @@ function _ode_quadratic_branches(P, S::Sym, c::Sym, Cs)
     Y0 = P.ys[1]
     d2 = diff(S, Y0, 2)
     (iszero(d2) || has(d2, Y0)) && return nothing
-    ys = try solve(S ~ c, Y0) catch; return nothing end
+    ys = try _solve_generic(S ~ c, Y0) catch; return nothing end
     (ys isa AbstractVector && length(ys) == 2) || return nothing
     bs = [_ode_absorb(_ode_tidy(y), Cs, P.x) for y in ys]
     all(b -> _ode_verified(P, :explicit, b, Cs), bs) ? bs : nothing
@@ -401,7 +401,7 @@ function _ode_reduce(P::_ODE, Cs)
     (sol === nothing || sol[1] === :several) && return nothing
     kind, v = sol
     if kind !== :explicit
-        vs = try solve(v ~ Cs[1], Q.ys[1]) catch; Sym[] end
+        vs = try _solve_generic(v ~ Cs[1], Q.ys[1]) catch; Sym[] end
         length(vs) == 1 || return nothing
         v = vs[1]
     end
@@ -486,7 +486,7 @@ function _ode_roots(a::Vector{Sym})
     for (b, e) in fs
         has(b, r) || continue
         m = e.kind == NUMBER && _isint(e.num) ? _toint(e.num) : return nothing
-        rs = solve(b ~ 0, r)
+        rs = _solve_generic(b ~ 0, r)
         length(rs) == degree(Poly{Sym}(expand(b), [r]), r) || throw(ArgumentError("dsolve: roots of $b not found"))
         append!(out, ((ρ, m) for ρ in rs))
     end
@@ -587,7 +587,7 @@ function _ode_undetermined(a::Vector{Sym}, g::Sym, x::Sym)
         Q = try Poly{Sym}(R, vars) catch; return nothing end
         any(c -> has(c, x), coefficients(Q)) && return nothing
         eqs = [c ~ 0 for c in coefficients(Q)]
-        sol = solve(eqs, unknowns)
+        sol = _solve_generic(eqs, unknowns)
         isempty(sol) && return nothing
         yp += subs(trial, (u => get(sol[1], u, ZERO) for u in unknowns)...)
     end
@@ -653,7 +653,7 @@ function _ode_first_order(P::_ODE, Cs)
     Y0, Y1 = P.ys
     x = P.x
     a = diff(P.F, Y1)
-    f = has(a, Y1) ? (fs = solve(P.F ~ 0, Y1); length(fs) == 1 ? fs[1] : return nothing) : -subs(P.F, Y1 => ZERO) / a
+    f = has(a, Y1) ? (fs = _solve_generic(P.F ~ 0, Y1); length(fs) == 1 ? fs[1] : return nothing) : -subs(P.F, Y1 => ZERO) / a
     f = _ode_tidy(f)
     C = Cs[1]
     fallback = nothing             # a solution with an unevaluated integral, if no other
@@ -671,7 +671,7 @@ end
 function _ode_explicit(r, Y0::Sym, C::Sym)
     kind, S = r
     kind === :explicit && return r
-    ys = try solve(S ~ C, Y0) catch; Sym[] end
+    ys = try _solve_generic(S ~ C, Y0) catch; Sym[] end
     length(ys) == 1 && return (:explicit, _ode_absorb(_ode_tidy(ys[1]), [C]))
     r
 end
@@ -825,7 +825,7 @@ function _ode_riccati_particular(P::_ODE, q0, q1, q2, C)
         res = _ode_tidy(diff(y1, x) - q0 - q1 * y1 - q2 * y1^2)
         n, _ = numer_denom(res)
         has(n, c) || continue
-        cs = try solve(expand(n) ~ 0, c) catch; continue end
+        cs = try _solve_generic(expand(n) ~ 0, c) catch; continue end
         for cv in cs
             has(cv, x) && continue                    # c must be a constant
             y1v = _ode_tidy(subs(y1, c => cv))
@@ -873,14 +873,14 @@ function _ode_auto_branches(P::_ODE, Cs; implicit::Bool = false, conds = nothing
         _, a, v = conds[i0]
         _, a1, w = conds[i1]
         _eq(a, a1) || return nothing
-        c1s = kind === :explicit ? (try solve(subs(g, s => v) ~ w, C1) catch; Sym[] end) :
+        c1s = kind === :explicit ? (try _solve_generic(subs(g, s => v) ~ w, C1) catch; Sym[] end) :
               Sym[_ode_tidy(subs(g, s => v, p0 => w))]
         length(c1s) == 1 || return nothing
         g = _ode_tidy(subs(g, C1 => c1s[1]))
-        gs = kind === :explicit ? [g] : (try solve(g ~ c1s[1], p0) catch; Sym[] end)
+        gs = kind === :explicit ? [g] : (try _solve_generic(g ~ c1s[1], p0) catch; Sym[] end)
         gs = [gi for gi in gs if iszero(_ode_tidy(subs(gi, s => v) - w))]
     else
-        gs = kind === :explicit ? [g] : (try solve(g ~ C1, p0) catch; Sym[] end)
+        gs = kind === :explicit ? [g] : (try _solve_generic(g ~ C1, p0) catch; Sym[] end)
     end
     # y real: sqrt(exp(2y)) is exp(y)
     gs = [refine(_ode_tidy(gi); assume = Assumptions(s ∈ ℝ)) for gi in gs if !iszero(gi)]
@@ -897,7 +897,7 @@ function _ode_auto_branches(P::_ODE, Cs; implicit::Bool = false, conds = nothing
             continue
         end
         c2 = conds === nothing ? C2 : _ode_tidy(subs(H, s => v) - a)
-        ys = implicit || _hasfn(H, :Integral) ? Sym[] : (try solve(H ~ x + c2, s) catch; Sym[] end)
+        ys = implicit || _hasfn(H, :Integral) ? Sym[] : (try _solve_generic(H ~ x + c2, s) catch; Sym[] end)
         conds === nothing || (ys = [yy for yy in ys if iszero(_ode_tidy(subs(yy, x => a) - v))])
         if length(ys) == 1
             push!(out, (:explicit, _ode_tidy(ys[1]), ZERO))
@@ -950,8 +950,8 @@ function _ode_ics(P::_ODE, kind::Symbol, S::Sym, Cs, conds)
         used = [C for C in Cs if has(S, C)]
         # one constant: the equation's solve, which takes C in exp, tan, …; a system's
         # needs it polynomial
-        sols = length(eqs) == 1 && length(used) == 1 ? [[used[1] => c] for c in solve(eqs[1], used[1])] :
-               solve(eqs, used)
+        sols = length(eqs) == 1 && length(used) == 1 ? [[used[1] => c] for c in _solve_generic(eqs[1], used[1])] :
+               _solve_generic(eqs, used)
         isempty(sols) && throw(ArgumentError("dsolve: no solution satisfies the initial conditions"))
         T = [_ode_tidy(subs(S, sol...)) for sol in sols]
         length(unique(T)) == 1 || throw(ArgumentError("dsolve: several solutions satisfy the initial conditions: $(join(T, ", "))"))
@@ -970,11 +970,11 @@ function _ode_ics(P::_ODE, kind::Symbol, S::Sym, Cs, conds)
         ds = _ode_implicit_derivs(P, S)
         eqs = [_ode_tidy(subs(S, x => a, Y0 => v)) ~ Ci;
                [_ode_tidy(subs(ds[o], x => a, Y0 => v)) ~ w for (o, _, w) in conds if o > 0]]
-        sols = solve(eqs, [C for C in Cs if has(S, C) || _eq(C, Ci)])
+        sols = _solve_generic(eqs, [C for C in Cs if has(S, C) || _eq(C, Ci)])
         length(sols) == 1 || throw(ArgumentError("dsolve: the initial conditions don't fix the constants"))
         S, c = _ode_tidy(subs(S, sols[1]...)), _ode_tidy(subs(Ci, sols[1]...))
     end
-    ys = try solve(S ~ c, Y0) catch; Sym[] end
+    ys = try _solve_generic(S ~ c, Y0) catch; Sym[] end
     good = [y for y in ys if (z = _ode_tidy(subs(y, x => a) - v); iszero(z) || _ode_numzero(z, Sym[]) === true)]
     length(good) == 1 && return (:explicit, _ode_tidy(good[1]), ZERO)
     (:implicit, S, c)
@@ -1265,7 +1265,7 @@ function _odesys_ics(S, yxs, Cs, t, ics)
         j === nothing && throw(ArgumentError("dsolve: an initial condition is y(a) => v or y'(a) => v for an unknown y; got $(p)"))
         push!(eqs, _ode_tidy(subs(diff(S[j], t, c[2]), t => c[3])) ~ Sym(p.second))
     end
-    sols = solve(eqs, Cs)
+    sols = _solve_generic(eqs, Cs)
     isempty(sols) && throw(ArgumentError("dsolve: no solution satisfies the initial conditions"))
     length(sols) == 1 || throw(ArgumentError("dsolve: the initial conditions don't fix the constants"))
     [_ode_tidy(subs(s, sols[1]...)) for s in S]
@@ -1288,7 +1288,7 @@ function _ode_series(P::_ODE, Cs, N::Integer, x0, conds)
     Yn = P.ys[end]
     c = diff(P.F, Yn)
     f = if has(c, Yn)
-        fs = solve(P.F ~ 0, Yn)
+        fs = _solve_generic(P.F ~ 0, Yn)
         length(fs) == 1 || throw(ArgumentError("dsolve: the highest derivative can't be solved for uniquely"))
         fs[1]
     else
@@ -1361,7 +1361,7 @@ function _ode_frobenius(P::_ODE, Cs, N::Integer, a::Sym)
     q = coefs(_ode_tidy((x - a)^2 * A[1] / A[3]))
     r = Sym(:_ode_r)
     F(ρ) = ρ * (ρ - 1) + p[1] * ρ + q[1]
-    rs = solve(expand(F(r)) ~ 0, r)
+    rs = _solve_generic(expand(F(r)) ~ 0, r)
     isempty(rs) && nope()
     all(ρ -> _eq(subs(ρ, IM => ZERO), ρ), rs) ||
         throw(ArgumentError("dsolve: the indicial roots at $a are complex; not done"))

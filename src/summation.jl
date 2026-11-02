@@ -302,8 +302,8 @@ function _hypergeometric_series(f::Sym, k::Sym, a::Sym)
     # the ratio as z * Π(k + αᵢ) / ((k + 1) Π(k + βⱼ))
     lcn, lcd = _coef(n, k, dn), _coef(d, k, dd)
     z = cancel(lcn / lcd)
-    roots_n = dn == 0 ? Sym[] : [expand(-r) for r in solve(n ~ 0, k)]
-    roots_d = dd == 0 ? Sym[] : [expand(-r) for r in solve(d ~ 0, k)]
+    roots_n = dn == 0 ? Sym[] : [expand(-r) for r in _solve_generic(n ~ 0, k)]
+    roots_d = dd == 0 ? Sym[] : [expand(-r) for r in _solve_generic(d ~ 0, k)]
     (length(roots_n) == dn && length(roots_d) == dd) || return nothing
     i1 = findfirst(==(ONE), roots_d)
     i1 === nothing && return nothing                 # the (k + 1) of k!
@@ -539,7 +539,7 @@ end
 # the nonnegative integer roots of R(h)
 function _nonneg_int_roots(R::Sym, h::Sym)
     has(R, h) || return Int[]
-    rs = try solve(R ~ 0, h) catch; return Int[] end
+    rs = try _solve_generic(R ~ 0, h) catch; return Int[] end
     sort!(unique([_toint(r.num) for r in rs if r.kind == NUMBER && _isint(r.num) && r.num >= N0]))
 end
 
@@ -568,7 +568,7 @@ function _gosper_x(a::Sym, b::Sym, c::Sym, k::Sym, extra::Vector{Sym} = Sym[])
     end
     P = try Poly{Sym}(eq, [k]) catch; return nothing end
     eqs = [cf ~ 0 for cf in coefficients(P)]
-    sols = try solve(eqs, unknowns) catch; return nothing end
+    sols = try _solve_generic(eqs, unknowns) catch; return nothing end
     isempty(sols) && return nothing
     s = first(sols)
     x = zero_all(subs(xk, s...))                                     # free coefficients 0
@@ -714,7 +714,7 @@ function _first_order_solve(rec, f::Sym, k::Sym, n::Sym, a::Sym, b::Sym)
     bad = Int[]
     for p in (numer_denom(ρ)...,)
         has(p, n) || continue
-        for r in (try solve(p ~ 0, n) catch; Sym[] end)
+        for r in (try _solve_generic(p ~ 0, n) catch; Sym[] end)
             r.kind == NUMBER && _isint(r.num) && push!(bad, _toint(r.num))
         end
     end
@@ -737,7 +737,7 @@ function _hyper_product(ρ::Sym, n::Sym, n0::Int)
         has(p, n) || (C *= sgn == 1 ? p : 1 / p; continue)
         lc = _coef(p, n, _xdeg(p, n))
         C *= sgn == 1 ? lc : 1 / lc
-        roots = solve(p ~ 0, n)
+        roots = _solve_generic(p ~ 0, n)
         length(roots) == _xdeg(p, n) || (roots = _roots_with_multiplicity(p, n))
         for r in roots
             α = -r                                   # the factor (n + α)
@@ -753,7 +753,7 @@ function _roots_with_multiplicity(p::Sym, n::Sym)
     out = Sym[]
     for (b, e) in fs
         has(b, n) || continue
-        for r in solve(b ~ 0, n), _ in 1:_toint(e.num)
+        for r in _solve_generic(b ~ 0, n), _ in 1:_toint(e.num)
             push!(out, r)
         end
     end
@@ -968,7 +968,7 @@ function _rational_sum_roots(f::Sym, k::Sym, a::Sym, b)
     n, d = numer_denom(f)
     deg = _xdeg(d, k)
     _xdeg(n, k) < deg || return nothing
-    zs = try solve(d ~ 0, k) catch err; err isa InterruptException && rethrow(); return nothing end
+    zs = try _solve_generic(d ~ 0, k) catch err; err isa InterruptException && rethrow(); return nothing end
     (zs isa AbstractVector && length(zs) == deg) || return nothing     # simple roots only
     # a finite sum with roots in parameters is no clearer in digamma: left as a Sum
     b === nothing || !any(_hassymbol, zs) || return nothing

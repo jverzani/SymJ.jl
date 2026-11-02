@@ -34,8 +34,23 @@ each once: `cos(x) ~ 0` gives `[π/2, 3π/2]`, `sin(x) ~ -1//2` gives `[7π/6, 1
 ```julia
 solve(x^2 - 2 ~ 0, x)          # [-sqrt(2), sqrt(2)]
 solve(x^2 ~ -1, x)             # [-im, im]
-solve(a*x + b ~ 0, x)          # [-b/a]
 solve(diff(x^2 + u(x)^2 - 1, x) ~ 0, diff(u(x), x))   # [-x/u(x)]
+```
+
+With parameters, the solutions are correct for every value of them: where a
+coefficient could vanish, the result is a `Cases` value, a list of
+`conditions => solutions` (called with values, `cs(a => 4)`, it gives that case's
+solutions). The cases come from the leading coefficients of a polynomial (the next one
+when it vanishes), from denominators free of `x` (where they vanish the equation is not
+defined: no solutions), and from denominators of the solutions. A case in which every
+value of `x` is a solution holds an error. Assumptions that settle a coefficient give
+the plain answer.
+
+```julia
+solve(a*x + b ~ 0, x)          # a == 0, b == 0 => (every x), a == 0, b != 0 => [], a != 0 => [-b/a]
+solve(a*x + b ~ 0, x; assume = (a ≫ 0,))   # [-b/a]
+solve(exp(a*x) ~ 2, x)         # a == 0 => [], a != 0 => [log(2)/a]
+solve(x^2 ~ a, x)              # [-sqrt(a), sqrt(a)]
 ```
 
 With assumptions (`assume = (x ≫ 0,)`, an [`Assumptions`](@ref), or inside
@@ -44,8 +59,7 @@ number set (`x ∈ ℝ`), its range (`x ≫ 0`), and consistent with its relatio
 symbols. Facts about the other symbols are used to decide that. For a real `x`, a
 floating point root whose imaginary part is tiny beside its size (a double root split
 by rounding, `264 ± 6e-6im`) is taken as real, with a warning. When the answer
-depends on something the assumptions leave open, the result is a `Cases` value: a
-list of `conditions => solutions`, which can be called with values (`cs(a => 4)`).
+depends on something the assumptions leave open, the result is again a `Cases` value.
 
 ```julia
 solve(x^2 ~ 4, x; assume = (x ≫ 0,))                # [2]
@@ -53,28 +67,36 @@ solve(x^2 ~ a, x; assume = (x ∈ ℝ, a ∈ ℝ))         # a < 0 => [], a == 0
 solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a > 0 => [√a], !(a > 0) => []
 ```
 
-`drop_empty = true` drops the cases with no solutions, and when one case is left gives
-its solutions alone: the conditions under which they hold are then not shown.
+`drop_empty = true` drops the cases with no solutions (and those holding an error, such
+as every value of `x` solving the equation), and when one case is left gives its
+solutions alone: the conditions under which they hold are then not shown.
 
 ```julia
 solve(x^2 ~ a, x; assume = (x ≫ 0,), drop_empty = true)   # [√a] (for a > 0)
 ```
 """
 function solve(eq::Relation, x::Sym; assume = nothing, drop_empty::Bool = false)
+    A = something(_assumptions(assume), Assumptions())
     r = if !_isnamed(x)
-        _solve_for_calls((es, vs, B) -> solve(only(es), only(vs); assume = B), [eq], [x];
-                         assume = _assumptions(assume))
+        with(_NOT_PARAMS => _named(x)) do
+            _solve_for_calls((es, vs, B) -> solve(only(es), only(vs); assume = B), [eq], [x]; assume = A)
+        end
     else
-        A = _assumptions(assume)
-        A === nothing ? _solve_eq(eq, x) : _solve_assumed(eq, x, A)
+        _solve_assumed(eq, x, A)
     end
     drop_empty ? _drop_empty(r) : r
 end
 
-# the cases that have solutions; their solutions alone when one case is left
+# the generic solutions, coefficients with parameters taken to be nonzero (what internal
+# callers use)
+_solve_generic(eq::Relation, x::Sym) = _isnamed(x) ? _solve_eq(eq, x) :
+    _solve_for_calls((es, vs, _) -> _solve_generic(only(es), only(vs)), [eq], [x])
+
+# the cases that have solutions; their solutions alone when one case is left. Cases that
+# hold an error (every value a solution, a case not supported) are dropped too.
 function _drop_empty(r)
     r isa Cases || return r
-    cs = [c for c in r.cases if !(c.second isa AbstractVector && isempty(c.second))]
+    cs = [c for c in r.cases if !(c.second isa AbstractVector && isempty(c.second)) && !(c.second isa Exception)]
     isempty(cs) && return Sym[]
     length(cs) == 1 && return cs[1].second
     typeof(r)(cs)
@@ -274,7 +296,7 @@ function _solve_weierstrass(eq::Relation, n::Sym, x::Sym, w::Sym)
     # with algebraic numbers in the coefficients (√3), through the polynomial over Q, which
     # factors: the roots come out in radicals of low degree, not by Cardano
     lifted = _solve_lifted(Sym[num], Sym[t], true)
-    ts = lifted === nothing ? solve(num ~ 0, t) : Sym[d[t] for d in lifted if haskey(d, t)]
+    ts = lifted === nothing ? _solve_generic(num ~ 0, t) : Sym[d[t] for d in lifted if haskey(d, t)]
     ts isa AbstractVector || throw(ArgumentError("solve: $eq: the equation in tan($w/2) has cases"))
     ws = Sym[PI]
     for r in ts
@@ -285,7 +307,7 @@ function _solve_weierstrass(eq::Relation, n::Sym, x::Sym, w::Sym)
     end
     out = Sym[]
     for u in ws
-        for r in (_eq(w, x) ? Sym[u] : solve(w ~ u, x))
+        for r in (_eq(w, x) ? Sym[u] : _solve_generic(w ~ u, x))
             any(s -> _eq(s, r), out) || push!(out, r)
         end
     end

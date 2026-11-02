@@ -598,10 +598,18 @@ Some equations need the Lambert W function:
 solve(x * exp(x) ~ 1, x)
 ```
 
-Symbols other than the unknown are allowed:
+Symbols other than the unknown are allowed. The answer is right for every value of
+them, so where a coefficient could vanish it splits into cases (a case where every `x`
+is a solution holds an error):
 
 ```@example tut
 solve(a * x^2 + b * x + c ~ 0, x)
+```
+
+An assumption that settles the coefficient gives the plain answer:
+
+```@example tut
+solve(a * x^2 + b * x + c ~ 0, x; assume = @assume(a > 0))
 ```
 
 ### Inequalities
@@ -626,6 +634,9 @@ their values. A linear system has at most one:
 ```@example tut
 solve([x + y ~ 3, x - y ~ 1], [x, y])
 ```
+
+With parameters, a pivot that could vanish splits the answer into cases (here
+`a = -1`, where the system has no solution):
 
 ```@example tut
 solve([a * x + y ~ 1, x - y ~ b], [x, y])

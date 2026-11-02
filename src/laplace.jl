@@ -195,7 +195,7 @@ function _ilap_part(N::Sym, D::Sym, s::Sym, t::Sym)
     lead = cancel(D / q^k)                           # (with the numeric coefficient)
     P = Poly{Sym}(expand(q), [s])
     lq = Sym(coefficients(P)[1])                     # q = lq Π (s - ρ)
-    ρs = degree(P, s) == 2 ? _ilap_quadratic_roots(q, s) : solve(q ~ 0, s)
+    ρs = degree(P, s) == 2 ? _ilap_quadratic_roots(q, s) : _solve_generic(q ~ 0, s)
     length(ρs) == degree(P, s) || throw(ArgumentError("inverse_laplace_transform: the roots of $q were not found"))
     out = ZERO
     for ρ in ρs

@@ -487,7 +487,7 @@ function _zeros_in(z::Sym, x::Sym, lo::Sym, hi::Sym)
         n1, n2 = floor(Int, (min(ua, ub) - N(off)) / π) - 1, ceil(Int, (max(ua, ub) - N(off)) / π) + 1
         return Sym[expand(x - (u - (off + n * PI)) / k) for n in n1:n2]
     end
-    rs = try solve(z ~ 0, x) catch err
+    rs = try _solve_generic(z ~ 0, x) catch err
         err isa ArgumentError || rethrow()
         throw(ArgumentError("integrate: cannot locate the singular points of the integrand (the zeros of $z)"))
     end
@@ -569,7 +569,7 @@ function _piece_cuts(g::Sym, x::Sym, a::Real, b::Real)
         ok[] || return
         if n.kind == FN && (haskey(_COND_RELS, n.name) || n.name === :heaviside) && has(n, x)
             u = haskey(_COND_RELS, n.name) ? n.args[1] - n.args[2] : n.args[1]
-            rs = try solve(u ~ 0, x) catch; (ok[] = false; return) end
+            rs = try _solve_generic(u ~ 0, x) catch; (ok[] = false; return) end
             rs isa AbstractVector || (ok[] = false; return)
             P = _trig_period(u, x)
             p = P === nothing ? nothing : N(P)

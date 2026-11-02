@@ -130,6 +130,7 @@ _isalgconst(a::Sym) = a.kind == POW && a.args[1].kind == NUMBER && isexact(a.arg
 
 function _solve_groebner(nums::Vector{Sym}, vars::Vector{Sym})
     G = groebner(nums, vars...)
+    _DIVISORS[] === nothing || foreach(g -> _gb_divisors(g, vars), G)
     G == [ONE] && return Dict{Sym,Sym}[]
     # split on the irreducible factors of the last variable's polynomial
     n = length(vars)
@@ -147,6 +148,16 @@ function _solve_groebner(nums::Vector{Sym}, vars::Vector{Sym})
         end
     end
     _backsub(G, vars, n, Dict{Sym,Sym}())
+end
+
+# a basis element's leading coefficient (lex in vars) and the denominators of its
+# coefficients: the basis over Q(parameters) divided by them
+function _gb_divisors(g::Sym, vars::Vector{Sym})
+    P = try Poly{Sym}(g, vars) catch; return end
+    evs, cs = collect(exponent_vectors(P)), collect(coefficients(P))
+    isempty(cs) && return
+    _divisor!(cs[argmax(evs)])
+    foreach(c -> _divisor!(numer_denom(c)[2]), cs)
 end
 
 # p a polynomial in x alone, with rational coefficients

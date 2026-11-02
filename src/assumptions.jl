@@ -404,6 +404,10 @@ function _add_fact!(A::Assumptions, f)
         _restrict!(A, x, _set_from(rs, (v, atpoint) -> atpoint))
         return true
     end
+    # an equation does not make its symbols real: a^2 + b^2 = 0 holds for b = i a. One
+    # nonlinear in symbols not known to be real is not used (only decided)
+    r.op === :eq && !all(x -> _ismarkedreal(A, x), vs) && any(t -> !_isnamed(t), keys(_linform(d)[1])) &&
+        throw(ArgumentError("$r: a nonlinear equation in symbols that may be complex is not supported as an assumption"))
     foreach(x -> _markreal!(A, x), vs)
     if length(vs) == 1 && r.op !== :eq
         x = only(vs)

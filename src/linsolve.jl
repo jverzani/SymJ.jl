@@ -1,7 +1,8 @@
 # Linear systems: Gauss–Jordan elimination over an exact field, SymNumber for numeric
 # coefficients and RatFun (rational functions in the other symbols and parameters)
 # otherwise; RatFun's canonical form makes the pivot zero tests exact. With parameters
-# the result is the generic solution (pivots such as `a` assumed nonzero).
+# the result is the generic solution (pivots such as `a` assumed nonzero), split by
+# cases on those pivots by `solve`.
 
 """
     solve(eqs::AbstractVector{<:Relation}, vars)
@@ -20,8 +21,16 @@ unknown is `solve(eq, x)`, which gives a vector of values instead.
   otherwise. With infinitely many solutions, the variables left free map to
   themselves.
 
-Coefficients may involve other symbols; the solutions are then the generic ones (for
-example, assuming `a ≠ 0` in `a*x + y ~ 1`).
+Coefficients may involve parameters. Where the solution divides by an expression in
+them (a pivot of the elimination, a coefficient of the Gröbner basis, a denominator of
+a solution) that could vanish, the result is a `Cases` value, the case where it
+vanishes solved again with it substituted; a case that cannot be solved so holds an
+error. `assume` is not supported for systems yet.
+
+```julia
+solve([a*x + y ~ 1, x - y ~ 2], [x, y])
+# a == 0 => [Dict(x => 3, y => 1)], a == -1 => [], a != 0, a != -1 => [Dict(x => 3/(a + 1), y => (1 - 2a)/(a + 1))]
+```
 
 ```julia
 solve([x + y ~ 3, x - y ~ 1], [x, y])          # [Dict(x => 2, y => 1)]
@@ -34,8 +43,51 @@ function solve(eqs::AbstractVector{<:Relation}, vars::Union{AbstractVector,Tuple
     assume === nothing ||
         throw(ArgumentError("solve: assumptions are not supported for systems yet; solve the system, then refine its solutions"))
     vars = Sym[Sym(v) for v in vars]
+    all(_isnamed, vars) || return with(_NOT_PARAMS => unique!(reduce(vcat, map(_named, vars)))) do
+        _solve_for_calls((es, vs, _) -> solve(es, vs), collect(Relation, eqs), vars)
+    end
+    all(e -> e.op === :eq, eqs) || return _solve_ineq_system(eqs, vars)
+    _by_cases(Assumptions()) do B
+        _solve_system_case(collect(Relation, eqs), vars, B)
+    end
+end
+
+# the divisions the generic solution made (pivots, Gröbner coefficients), collected
+const _DIVISORS = ScopedValue{Union{Nothing,Vector{Sym}}}(nothing)
+_divisor!(c) = (D = _DIVISORS[]; D === nothing || push!(D, Sym(c)); nothing)
+
+# the system in the case B: no solutions where a denominator free of the unknowns
+# vanishes; the generic solutions where none of the divisors does; else the system again
+# with the vanishing one substituted
+function _solve_system_case(eqs::Vector{Relation}, vars::Vector{Sym}, B)
+    sub = [k => w for (k, w) in B.subst if !any(v -> _eq(v, k), vars)]
+    es = try
+        isempty(sub) ? eqs : Relation[Relation(:eq, subs(e.lhs, sub...), subs(e.rhs, sub...)) for e in eqs]
+    catch err
+        _isdivzero(err) || rethrow()
+        return Dict{Sym,Sym}[]
+    end
+    for e in es, f in _param_factors(numer_denom(cancel(e.lhs - e.rhs))[2], vars)
+        _decide(Relation(:ne, f, ZERO), B) || return Dict{Sym,Sym}[]
+    end
+    D = Sym[]
+    sols = with(() -> _solve_generic(es, vars), _DIVISORS => D)
+    for s in sols, v in vars
+        push!(D, numer_denom(s[v])[2])
+    end
+    ps = _degenerate_subst(D, B, vars)
+    ps === nothing && return sols
+    _alternatives(ps) do p
+        _solve_system_case(Relation[Relation(:eq, subs(e.lhs, p), subs(e.rhs, p)) for e in es], vars, B)
+    end
+end
+
+# the generic solutions, coefficients with parameters taken to be nonzero (what internal
+# callers use)
+function _solve_generic(eqs::AbstractVector{<:Relation}, vars::Union{AbstractVector,Tuple})
+    vars = Sym[Sym(v) for v in vars]
     all(_isnamed, vars) ||
-        return _solve_for_calls((es, vs, _) -> solve(es, vs), collect(Relation, eqs), vars)
+        return _solve_for_calls((es, vs, _) -> _solve_generic(es, vs), collect(Relation, eqs), vars)
     all(e -> e.op === :eq, eqs) || return _solve_ineq_system(eqs, vars)
     sols = if _islinear(eqs, vars)
         sol = _solve_linear(eqs, vars)
@@ -136,6 +188,7 @@ function _gauss_jordan(A::Matrix{C}, b::Vector{C}, vars::Vector{Sym}, ::Type{Sym
         if p != r
             M[r, :], M[p, :] = M[p, :], M[r, :]
         end
+        C === SymNumber || _divisor!(M[r, col])
         piv = inv(M[r, col])
         M[r, :] = [e * piv for e in M[r, :]]
         for i in 1:m
@@ -146,7 +199,10 @@ function _gauss_jordan(A::Matrix{C}, b::Vector{C}, vars::Vector{Sym}, ::Type{Sym
         push!(pivots, (r, col))
         r += 1
     end
-    any(i -> !iszero(M[i, k+1]), r:m) && return nothing        # 0 = nonzero: inconsistent
+    if any(i -> !iszero(M[i, k+1]), r:m)                       # 0 = nonzero: inconsistent
+        C === SymNumber || foreach(i -> iszero(M[i, k+1]) || _divisor!(M[i, k+1]), r:m)
+        return nothing
+    end
     pivcols = Set(c for (_, c) in pivots)
     free = [j for j in 1:k if !(j in pivcols)]
     sol = Dict{Sym,Sym}()

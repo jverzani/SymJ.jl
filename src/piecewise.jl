@@ -390,7 +390,7 @@ end
 function _integrate_dirac_roots(g::Sym, u::Sym, x::Sym)
     _ispoly_in(u, x) || return nothing
     rs = try
-        solve(u ~ 0, x)
+        _solve_generic(u ~ 0, x)
     catch err
         err isa InterruptException && rethrow()
         return nothing
@@ -423,7 +423,7 @@ function _breakpoints(e::Sym, x::Sym)
     function visit(n::Sym)
         if n.kind == FN && (haskey(_COND_RELS, n.name) || n.name === :heaviside) && has(n, x)
             u = haskey(_COND_RELS, n.name) ? n.args[1] - n.args[2] : n.args[1]
-            rs = try solve(u ~ 0, x) catch; (ok[] = false; Sym[]) end
+            rs = try _solve_generic(u ~ 0, x) catch; (ok[] = false; Sym[]) end
             rs isa AbstractVector || (ok[] = false; return)
             for r in rs
                 (_hassymbol(r) || _isreal_const(r) === true) && !any(q -> iszero(expand(q - r)), out) && push!(out, r)
@@ -573,7 +573,7 @@ function _pw_breakpoints(g::Sym, x::Sym, A::Assumptions)
     out = Sym[]
     function visit(n::Sym)
         if n.kind == FN && haskey(_COND_RELS, n.name) && has(n, x)
-            rs = solve(n.args[1] - n.args[2] ~ 0, x)
+            rs = _solve_generic(n.args[1] - n.args[2] ~ 0, x)
             rs isa AbstractVector || throw(ArgumentError("piecewise_fold: the points where $(_relation_of(n)) changes were not found"))
             for r in rs
                 r = _ode_tidy(r)
