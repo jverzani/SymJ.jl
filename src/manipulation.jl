@@ -699,12 +699,46 @@ _binom(n::Int, k::Int) = n <= 60 ? SymNumber(binomial(n, k)) : SymNumber(binomia
     N(ex)
 
 Evaluate `ex` numerically as a `Float64` (or `ComplexF64` when the value is not real).
+The value is checked in higher precision: where Float64 arithmetic loses it (terms that
+cancel, `log` of a number within `1e-16` of 1), the precision is raised (to 2048 bits)
+until two evaluations agree, and the result is that value rounded to `Float64`.
 """
 function N(ex::Sym)
-    z = _evalc(ex)
+    z = _checked_value(ex, _evalc(ex))
     iszero(imag(z)) ? real(z) : z
 end
 N(x::Number) = x
+
+# z (the Float64 value of ex) confirmed, or replaced, by evaluations in BigFloat at
+# rising precision: two that agree to Float64 accuracy settle it. An expression that
+# cannot be evaluated in BigFloat keeps z.
+function _checked_value(ex::Sym, z::ComplexF64)
+    (ex.kind == NUMBER || ex.kind == CONSTANT || !isfinite(z)) && return z
+    prev, tol = z, 1e-13                         # Float64 against 256 bits: a looser test
+    for p in (256, 512, 1024, 2048)
+        w = _bigvalue(ex, p)
+        w === nothing && return z
+        wf = ComplexF64(w)
+        (wf == prev || abs(wf - prev) <= tol * max(abs(wf), abs(prev))) && return wf
+        prev, tol = wf, 8eps()
+    end
+    prev
+end
+
+function _bigvalue(ex::Sym, p::Int)
+    setprecision(BigFloat, p) do
+        for F in (BigFloat, Complex{BigFloat})
+            try
+                return Complex{BigFloat}(_ev(ex, _Named(NamedTuple()), F, Ref{Union{Nothing,Sym}}(nothing)))
+            catch err
+                err isa DomainError && F === BigFloat && continue
+                err isa Union{DomainError,MethodError,ArgumentError,InexactError,OverflowError} && return nothing
+                rethrow()
+            end
+        end
+        nothing
+    end
+end
 
 function _evalc(ex::Sym)::ComplexF64
     k = ex.kind

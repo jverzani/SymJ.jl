@@ -157,6 +157,16 @@ import PolyLog as PL
         # float breakpoints (SymPy #29064)
         @test N(∫(P(x ≪ 0.5 => 0, true => 1), (x, 0, 1))) ≈ 0.5
         @test N(∫(P(x ≪ 0.25 => x, x ≪ 0.75 => 1, true => x^2), (x, 0, 1))) ≈ 1 / 32 + 1 / 2 + 37 / 192
+        # complex pieces made continuous where the one-sided limit fails (SymPy #28190)
+        let rect = P((-Sym(1) // 2 ≦ x, x ≦ Sym(1) // 2) => 1, true => 0)
+            @test ∫(rect * exp(-2IM * x), (x, -Inf, Inf)) == sin(Sym(1))
+            @test ∫(rect * exp(-2IM * PI * a * x), (x, -Inf, Inf)) == sin(PI * a) / (PI * a)
+        end
+        # no piece holds past the last condition: not defined there (SymPy #28469)
+        @test ∫(P(x ≪ 1 => x), x) == P(x ≪ 1 => x^2 / 2)
+        let (a1, a2, a3, t) = symbols("a1 a2 a3 t")
+            @test ∫(P(x ≪ 1 => a1, x ≪ 2 => a2, x ≪ 3 => a3), (x, 0, t))(t => Sym(5) // 2) == a1 + a2 + a3 / 2
+        end
     end
 
     @testset "RischIntegrate: definite integrals" begin

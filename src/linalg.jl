@@ -418,7 +418,30 @@ Not exported.
 """
 function charpoly(A::AbstractMatrix, λ::Sym)
     n = _square(A)
-    expand(LinearAlgebra.det(λ * LinearAlgebra.I(n) - Sym[Sym(a) for a in A]))
+    c = _berkowitz(Sym[Sym(a) for a in A])
+    expand(_add_many(c[k+1] * λ^(n - k) for k in 0:n))
+end
+
+# the coefficients of det(λI - A), highest power first, by Berkowitz's algorithm: no
+# division, so no denominator to cancel (det(λI - A) by elimination over entries with
+# i or radicals is a ratio whose cancellation can fail, and its numerator then has
+# spurious roots: SymPy #28212, #28793)
+function _berkowitz(A::Matrix{Sym})
+    n = size(A, 1)
+    n == 0 && return Sym[ONE]
+    v = Sym[ONE, -A[1, 1]]
+    for r in 2:n
+        a, R, C, M = A[r, r], A[r, 1:r-1], A[1:r-1, r], A[1:r-1, 1:r-1]
+        q = Sym[ONE, -a]
+        w = C
+        for _ in 0:(r - 2)
+            push!(q, -expand(sum(R[i] * w[i] for i in eachindex(w))))
+            w = Sym[expand(sum(M[i, j] * w[j] for j in eachindex(w))) for i in eachindex(w)]
+        end
+        # (r + 1) × r lower-triangular Toeplitz matrix with first column q, times v
+        v = Sym[expand(_add_many(q[i - j + 1] * v[j] for j in 1:min(i, r))) for i in 1:(r + 1)]
+    end
+    v
 end
 
 # (eigenvalue, algebraic multiplicity) pairs, from the factored characteristic polynomial

@@ -73,6 +73,17 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test N(IM) == im
         @test Sym(π) == PI
         @test N(Sym(π) / 4) ≈ π / 4
+        # checked in higher precision where Float64 loses the value (SymPy #28602, #28579, #28280)
+        let h = Sym(13) / Sym(10)^46, e = -177682458096 * sqrt(Sym(3)) - 84161668320 * sqrt(7 - 4sqrt(Sym(3))) +
+                48590761860 * sqrt(Sym(3)) * sqrt(7 - 4sqrt(Sym(3))) + 307755045036
+            @test N(log1p(h)) ≈ 1.3e-45
+            @test N(exp(h) - 1) ≈ 1.3e-45
+            @test N(log(1 / (Sym(10)^-22 + 1))) ≈ -1e-22
+            @test N(e) ≈ 1.2263867743179892e-6
+            @test 20 + log(1 + Sym(10)^-20) > 20
+            @test 1 + Sym(10)^-20 > 1
+            @test !(exp(Sym(10)^-20) <= 1)
+        end
         @test Sym(0.5) + Sym(0.25) == Sym(0.75)
     end
 
@@ -1119,6 +1130,16 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test solve(sqrt(x) + x ~ 6, x) == [Sym(4)] && solve(x - sqrt(x) ~ 0, x) == [Sym(0), Sym(1)]
         # sin, cos, tan, … of one argument: through t = tan(x/2), solutions in [0, 2π) (SymPy #29745)
         @test solve(sin(x) + cos(x) ~ 1, x) == [0, PI / 2]
+        # x = π (t = ∞) only where it is a solution (SymPy #28213)
+        @test solve(sin(x) + cos(x) ~ -1, x) == [PI, 3PI / 2]
+        @test !any(r -> isequal(r, PI), solve(sin(x) + a * cos(x) ~ a, x))
+        @test !any(r -> isequal(r, PI), solve(sin(x) + 2cos(x) * abs(a) ~ 1, x))
+        # a root where a denominator vanishes for some parameter values: dropped in that case
+        cs = solve(sin(x) / (cos(x) - a) ~ 0, x)
+        @test cs(a => 1) == [PI]
+        @test cs(a => -1) == [0, 2PI]
+        @test cs(a => 0) == [0, PI, 2PI]
+        @test solve(x / (x - a) ~ 0, x)(a => 0) == Sym[]
         @test solve(2sin(x) - 2sqrt(Sym(3)) * cos(x) + sqrt(Sym(3)) * tan(x) - 3 ~ 0, x) == [PI / 3, 5PI / 6, 7PI / 6, 4PI / 3]
         @test solve(tan(x) + cot(x) ~ 2, x) == [PI / 4, 5PI / 4]
         @test solve(sin(2x) + cos(2x) ~ 1, x) == [0, PI / 4]
@@ -1302,7 +1323,9 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test (-1 + sqrt(1 + 4 * Sym(2)^(1 // 3))) / 2 in solve(expand((x^2 + x)^3 - 2) ~ 0, x)
 
         # products: solved factor by factor
-        @test solve(diff((a / x)^x, x) ~ 0, x) == [a / SymJ.E]          # (a/x)^x is never 0
+        cs = solve(diff((a / x)^x, x) ~ 0, x)                           # (a/x)^x is never 0
+        @test last(cs.cases).second == [a / SymJ.E]
+        @test first(cs.cases).first == Any[a ~ 0]                       # (0/x)^x is constant
         @test solve(diff(x^x, x) ~ 0, x) == [1 / SymJ.E]
         @test solve(x * exp(x) ~ 0, x) == [0]
         @test solve((x - 1)^2 * exp(2x) ~ 0, x) == [1]
@@ -2318,6 +2341,14 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
             @test F isa LA.Eigen && all(iszero, map(simplify, A * F.vectors - F.vectors * LA.Diagonal(F.values)))
         end
         @test SymJ.charpoly([a b; c a], x) == expand((x - a)^2 - b * c)
+        # without division, so no spurious roots from an uncancelled denominator (SymPy #28212, #28793)
+        let M = Sym[sqrt(Sym(2)) PI; sqrt(Sym(3)) E], C = Sym[IM -IM 0; -IM IM -IM; 0 -IM IM]
+            @test length(LA.eigvals(M)) == 2
+            @test sort(real.(N.(LA.eigvals(M)))) ≈ sort(real.(LA.eigvals(Float64.(N.(M)))))
+            @test length(LA.eigvals(C)) == 3
+            @test sort(imag.(N.(LA.eigvals(C)))) ≈ [1 - sqrt(2), 1, 1 + sqrt(2)]
+            @test SymJ.charpoly(Sym[1 2 3; 4 5 6; 7 8 10], x) == x^3 - 16x^2 - 12x + 3
+        end
         # powers of im with the sign outside: im^3 = 1/im = -im
         @test IM^3 == -IM && 1 / IM == -IM && IM^-1 + IM == 0 && (-1)^(-1 // 3 * one(Sym)) == -(-1)^(2 // 3 * one(Sym))
         @test simplify(1 / (1 + IM)) == (1 - IM) / 2

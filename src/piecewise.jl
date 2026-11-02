@@ -339,28 +339,46 @@ function _integrate_pieces(e::Sym, x::Sym, integ)
             push!(pts, Sym(SymNumber(rationalize(BigInt, (lo + hi) / 2; tol = (hi - lo) / 8))))
         end
     end
-    Fs = Sym[]
+    # (no piece holds on an interval: the integrand, and so the antiderivative, is not
+    # defined there)
+    Fs = Union{Sym,Nothing}[]
     for p in pts
         gi = _pieces_at(g, x, p)
-        gi === nothing && return nothing
-        push!(Fs, integ(gi))
+        push!(Fs, gi === nothing ? nothing : integ(gi))
     end
+    all(F -> F === nothing, Fs) &&
+        throw(ArgumentError("integrate: no piece of $g holds anywhere"))
+    last = findlast(F -> F !== nothing, Fs)
     # continuity at each breakpoint
     K = ZERO
     ps = Pair[]
-    for i in eachindex(Fs)
-        if i > 1
+    for i in 1:last
+        if Fs[i] === nothing
+            push!(ps, (x ≪ bps[i]) => Sym(NaN))
+            continue
+        end
+        if i > 1 && Fs[i-1] !== nothing
             b = bps[i-1]
             # at a singular point (1/|sin x| at 0) the pieces are separate: nothing to match
             # (a limit that fails there, as of -log(x - 1) at 1 from below, counts as one)
-            l = try limit(Fs[i-1], x => b; dir = :-) catch err; err isa InterruptException && rethrow(); nothing end
-            r = try limit(Fs[i], x => b; dir = :+) catch err; err isa InterruptException && rethrow(); nothing end
+            l = _side_value(Fs[i-1], x, b, :-)
+            r = _side_value(Fs[i], x, b, :+)
             (l isa Sym && r isa Sym && _finite_value(l) && _finite_value(r)) && (K = simplify(K + l - r))
         end
         F = simplify(Fs[i] + K)
         push!(ps, (i == length(Fs) ? true : x ≪ bps[i]) => F)
     end
     out + piecewise(ps...)
+end
+
+# F's one-sided limit at b, or (where the limit fails, as for complex exponentials) its
+# value there when F is defined at b: an antiderivative is continuous where defined.
+# Nothing when neither is known.
+function _side_value(F::Sym, x::Sym, b::Sym, dir::Symbol)
+    l = try limit(F, x => b; dir) catch err; err isa InterruptException && rethrow(); nothing end
+    l isa Sym && return l
+    v = try subs(F, x => b) catch err; _isdivzero(err) || rethrow(); return nothing end
+    _defined_at(F, x, b) && _finite_value(v) ? v : nothing
 end
 
 function _integrate_dirac(t::Sym, x::Sym)
