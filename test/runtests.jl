@@ -2353,7 +2353,8 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         let M = Sym[sqrt(Sym(3)) 4 sqrt(Sym(19)); sqrt(Sym(62)) sqrt(Sym(14)) 5; sqrt(Sym(7)) sqrt(Sym(59)) 5],
             M5 = Sym[45 15 20 18 sqrt(Sym(5))/2; 15 85 35 22 Sym(11)//37; 20 35 15 40 3sqrt(Sym(3))/7;
                      Sym(9)//2 2 4 12 sqrt(Sym(7))/5; Sym(25)//13 sqrt(Sym(7))/4 2 1 1]
-            by(z) = (real(z), imag(z))
+            # (rounded: the real parts of a conjugate pair differ in the last digits by platform)
+            by(z) = (round(real(z); digits = 8), round(imag(z); digits = 8))
             num(A) = sort(complex.(LA.eigvals(ComplexF64.(N.(A)))); by)
             @test sort(complex.(N.(LA.eigvals(M))); by) ≈ num(M)
             @test sort(complex.(N.(LA.eigvals(M5))); by) ≈ num(M5)
