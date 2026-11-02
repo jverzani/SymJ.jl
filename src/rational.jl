@@ -19,15 +19,31 @@ function numer_denom(ex::Sym)
         return Sym(SymNumber(_numerator(ex.num))), Sym(SymNumber(_denominator(ex.num)))
     elseif k == ADD
         n, d = numer_denom(Sym(ex.num))
+        parts = Tuple{Sym,Sym}[]
         for i in eachindex(ex.args)
             ni, di = numer_denom(_with_coef(ex.coefs[i], ex.args[i]))
-            if _eq(d, di)
-                n = n + ni
-            else
-                n, d = n * di + ni * d, d * di
-            end
+            j = findfirst(p -> _eq(p[2], di), parts)
+            j === nothing ? push!(parts, (ni, di)) : (parts[j] = (parts[j][1] + ni, di))
         end
-        return n, d
+        if length(parts) <= 16
+            for (ni, di) in parts
+                if _eq(d, di)
+                    n = n + ni
+                else
+                    n, d = n * di + ni * d, d * di
+                end
+            end
+            return n, d
+        end
+        # many denominators: over their product as one flat sum Σ nᵢ Πⱼ≠ᵢ dⱼ (folding
+        # n*dᵢ + nᵢ*d term by term nests one level per term: 1176 deep for a sum of
+        # radicals, and recursive walkers overflow the stack)
+        isone(d) || push!(parts, (n, d))
+        iszero(n) && isone(d) && length(parts) == 0 && return ZERO, ONE
+        ds = [p[2] for p in parts]
+        n = _add_many(p[1] * prod(ds[j] for j in eachindex(ds) if j != i) for (i, p) in enumerate(parts)) +
+            (isone(d) ? n * prod(ds) : ZERO)
+        return n, prod(ds)
     elseif k == MUL
         n, d = numer_denom(Sym(ex.num))
         for i in eachindex(ex.args)

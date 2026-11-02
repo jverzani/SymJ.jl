@@ -415,6 +415,12 @@ function _numpow(b::SymNumber, e::SymNumber)
     end
     if _isint(e)
         iszero(b) && sign(e) < 0 && throw(DivisionByZero("division by zero"))
+        iszero(e) && return ONE
+        iszero(b) && return ZERO
+        isone(b) && return ONE
+        _isN1(-b) && return iseven(_numerator(e)) ? ONE : MINUS_ONE
+        # a result beyond any memory (5^(5^3125)) stays a power
+        _toobig_pow(b, e) && return _mkpow_node(Sym(b), Sym(e))
         return Sym(b^_toint(e))
     end
     if iszero(b)
@@ -425,6 +431,15 @@ function _numpow(b::SymNumber, e::SymNumber)
     sign(b) < 0 && return mul(_minus_one_pow(e), _numpow(-b, e))
     _isint(b) || return mul(_numpow(SymNumber(_numerator(b)), e), _numpow(SymNumber(_denominator(b)), -e))
     _introot_pow(_numerator(b), e)
+end
+
+# b^e (e an integer) with more than about 10^7 bits in its numerator or denominator
+const _MAX_POW_BITS = 10^7
+function _toobig_pow(b::SymNumber, e::SymNumber)
+    n = abs(_numerator(e))
+    n <= 64 && return false
+    bits = max(log2(abs(big(_numerator(b)))), log2(big(_denominator(b))))
+    n * bits > _MAX_POW_BITS
 end
 
 # n^(p/q) for an integer n > 1 and q > 1
