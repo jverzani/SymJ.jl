@@ -403,19 +403,107 @@ function Base.:*(p::Poly{C}, q::Poly{C}) where {C}
     _sorted_poly(p.gens, p.layout, monos, coefs)
 end
 
-# Integer coefficients that fit in Int: accumulate in Int128 when the bound
-# max|a| * max|b| * min(#p, #q) guarantees no overflow.
+# Integer coefficients that fit in Int: each product fits in Int128, and the sums are
+# accumulated without allocating, in Int128 when the bound max|a| * max|b| * min(#p, #q)
+# allows, else in 192 bits (`_I192`), which holds any such sum. (Rational{BigInt}
+# arithmetic allocates on every multiply-add, some 50 times slower.)
 _issmallint(c::SymNumber) = c.tag == T_SMALL && c.d == 1
 
 function _mul_smallint(p::Poly{SymNumber}, q::Poly{SymNumber})
     (all(_issmallint, p.coefs) && all(_issmallint, q.coefs)) || return nothing
     bound = Float64(maximum(c -> abs(c.n), p.coefs)) * Float64(maximum(c -> abs(c.n), q.coefs)) *
             min(length(p.coefs), length(q.coefs))
-    bound < 2.0^125 || return nothing
-    t = _MonoTable{Int128}(length(p.monos) + length(q.monos), _monotype(p))
-    _mul_into!(t, p.monos, Int128[c.n for c in p.coefs], q.monos, Int128[c.n for c in q.coefs])
-    monos, acc = _contents(t)
-    _sorted_poly(p.gens, p.layout, monos, SymNumber[SymNumber(a) for a in acc])
+    pc, qc = Int128[c.n for c in p.coefs], Int128[c.n for c in q.coefs]
+    T = bound < 2.0^125 ? Int128 : _I192
+    r = _mul_dense(p, q, pc, qc, T)
+    monos, acc = if r === nothing
+        t = _MonoTable{T}(length(p.monos) + length(q.monos), _monotype(p))
+        _mul_into!(t, p.monos, pc, q.monos, qc)
+        _contents(t)
+    else
+        r
+    end
+    coefs = SymNumber[SymNumber(_toint(a)) for a in acc]
+    r === nothing ? _sorted_poly(p.gens, p.layout, monos, coefs) : Poly{SymNumber}(p.gens, p.layout, monos, coefs)
+end
+
+# A 192-bit signed accumulator: the value is lo + hi * 2^128, `lo` wrapping on overflow
+# and `hi` counting the wraps. Adding an Int128 never allocates.
+struct _I192
+    lo::Int128
+    hi::Int64
+end
+Base.convert(::Type{_I192}, c::Int128) = _I192(c, 0)
+@inline function Base.:+(w::_I192, c::Int128)
+    s, o = Base.add_with_overflow(w.lo, c)
+    _I192(s, o ? w.hi + (c > 0 ? 1 : -1) : w.hi)
+end
+Base.iszero(w::_I192) = iszero(w.lo) & iszero(w.hi)
+Base.zero(::Type{_I192}) = _I192(0, 0)
+_toint(a::Int128) = a
+_toint(w::_I192) = iszero(w.hi) ? w.lo : big(w.lo) + (big(w.hi) << 128)
+
+# Dense multiplication, for products whose terms fill their exponent box: the output is
+# taken one exponent e of gens[1] at a time, its terms accumulated in a dense array over
+# the exponents of the other generators (mixed radix, the product's degrees bounding
+# each digit, so offsets add as the monomials do). Terms of p and q with a given exponent
+# of gens[1] are contiguous (lex order), and reading the slices for e from the top down
+# gives the result already sorted. `nothing` when the box is large or sparse: the hash
+# table's random access is then the cheaper.
+const _DENSE_SLICE_MAX = 1 << 18          # entries in one slice (≤ 8 MB at 32 bytes)
+
+function _mul_dense(p::Poly, q::Poly, pc::Vector{Int128}, qc::Vector{Int128}, ::Type{T}) where {T}
+    n, L = length(p.gens), p.layout
+    M = _monotype(p)
+    dp, dq = _maxdegs(p), _maxdegs(q)
+    degs = dp .+ dq
+    # radices of the other generators, gens[n] the least significant digit
+    slice = 1
+    for i in 2:n
+        slice *= degs[i] + 1
+        slice > _DENSE_SLICE_MAX && return nothing
+    end
+    big(length(p.monos)) * length(q.monos) >= 2 * big(degs[1] + 1) * slice || return nothing
+    offset(m) = (o = 0; for i in 2:n; o = o * (degs[i] + 1) + _exponent(m, L, n, i); end; o)
+    po, qo = Int[offset(m) for m in p.monos], Int[offset(m) for m in q.monos]
+    # the range of terms with exponent e of gens[1], for each e
+    ranges(P, d) = (r = fill(1:0, d + 1);
+                    for (k, m) in enumerate(P.monos); e = _exponent(m, L, n, 1) + 1;
+                        r[e] = isempty(r[e]) ? (k:k) : (first(r[e]):k); end; r)
+    rp, rq = ranges(p, dp[1]), ranges(q, dq[1])
+    acc = fill(zero(T), slice)
+    monos, vals = M[], T[]
+    for e in degs[1]:-1:0
+        any_ = false
+        for a in max(0, e - dq[1]):min(dp[1], e)
+            I, J = rp[a+1], rq[e-a+1]
+            (isempty(I) || isempty(J)) && continue
+            any_ = true
+            @inbounds for i in I
+                ci, oi = pc[i], po[i] + 1
+                for j in J
+                    k = oi + qo[j]
+                    acc[k] += ci * qc[j]
+                end
+            end
+        end
+        any_ || continue
+        top = M(e) << _shift(L, n, 1)
+        @inbounds for k in slice:-1:1
+            v = acc[k]
+            iszero(v) && continue
+            acc[k] = zero(T)
+            m, o = top, k - 1
+            for i in n:-1:2
+                r = degs[i] + 1
+                m += M(o % r) << _shift(L, n, i)
+                o ÷= r
+            end
+            push!(monos, m)
+            push!(vals, v)
+        end
+    end
+    monos, vals
 end
 
 # Open-addressing hash table from packed monomial to accumulated coefficient.
@@ -439,7 +527,7 @@ end
 @inline _slot(m::BigInt, mask::Int) = Int(hash(m) & (mask % UInt)) + 1
 
 # add c to the entry for m; returns true if m was not present
-@inline function _addto!(t::_MonoTable{M,T}, m::M, c::T) where {M,T}
+@inline function _addto!(t::_MonoTable{M,T}, m::M, c) where {M,T}
     keys = t.keys
     mask = length(keys) - 1
     i = _slot(m, mask)
@@ -480,7 +568,7 @@ function _grow!(t::_MonoTable{M,T}) where {M,T}
     end
 end
 
-function _mul_into!(t::_MonoTable{M,T}, pm, pc::Vector{T}, qm, qc::Vector{T}) where {M,T}
+function _mul_into!(t::_MonoTable{M,T}, pm, pc::Vector{S}, qm, qc::Vector{S}) where {M,T,S}
     @inbounds for i in eachindex(pm)
         mi, ci = pm[i], pc[i]
         for j in eachindex(qm)
