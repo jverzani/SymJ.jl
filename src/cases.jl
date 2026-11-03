@@ -522,6 +522,14 @@ function _solve_abs_split(e::Relation, x::Sym, B::Assumptions)
     _sort_roots!(out)
 end
 
+# the one atom of n (a function call, power) that involves x, when there is one
+function _single_x_atom(n::Sym, x::Sym)
+    atoms = Set{Sym}()
+    _poly_atoms!(atoms, n)
+    bad = [a for a in atoms if has(a, x)]
+    length(bad) == 1 && !_eq(bad[1], x) ? bad[1] : nothing
+end
+
 function _solve_case(e::Relation, x::Sym, B::Assumptions)
     if _has_fn(e.lhs - e.rhs, (:abs,))
         r = _solve_abs_split(e, x, B)
@@ -539,6 +547,29 @@ function _solve_case(e::Relation, x::Sym, B::Assumptions)
             all(f -> _decide(Relation(:ne, f, ZERO), B), _param_factors(lc, (x,))) && break
             n = expand(n - lc * x^k)              # lc vanishes in this case
             reduced = true
+        end
+    elseif has(n, x)
+        # a polynomial in one function g of x (c cos(x) + c): its leading coefficients in g
+        # likewise (c = 0: every x)
+        g = _single_x_atom(n, x)
+        if g !== nothing
+            u = Sym(Symbol("_g", objectid(g)))
+            m = expand(subs(n, g => u))
+            if !has(m, x) && _ispoly_in(m, u)
+                m0 = m
+                while has(m, u)
+                    k = degree(Poly{Sym}(m, [u]), u)
+                    lc = coeff(m, u, k)
+                    all(f -> _decide(Relation(:ne, f, ZERO), B), _param_factors(lc, (x, u))) && break
+                    m = expand(m - lc * u^k)
+                end
+                if !has(m, u)
+                    iszero(m) && throw(ArgumentError("solve: every value of $x satisfies $e"))
+                    all(f -> _decide(Relation(:ne, f, ZERO), B), _param_factors(m, (x, u))) && return Sym[]
+                    throw(ArgumentError("solve: every value of $x satisfies $e"))
+                end
+                _eq(m, m0) || (n = subs(m, u => g); reduced = true)
+            end
         end
     end
     if !has(n, x)
