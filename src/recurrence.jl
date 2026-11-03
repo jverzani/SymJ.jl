@@ -550,11 +550,14 @@ function _constant_coefficients(p::Vector{Sym}, n::Sym, value)
     r = Sym(:_rsolve_r)
     χ = _add_many(p[i+1] * r^i for i in 0:d)
     basis = Sym[]
-    _, facs = factor_squarefree(Poly(χ, r))
+    # numeric coefficients: the squarefree factors, roots with their multiplicities;
+    # symbolic ones: distinct roots only (else Hyper)
+    facs = all(c -> !_hassymbol(c), p) ? [(Sym(q), m) for (q, m) in factor_squarefree(Poly(χ, r))[2]] : [(χ, 1)]
     for (q, m) in facs
-        degree(q, r) >= 1 || continue
-        rs = try _solve_generic(Sym(q) ~ 0, r) catch err; err isa ArgumentError || rethrow(); return nothing end
-        rs isa AbstractVector && length(rs) == degree(q, r) || return nothing
+        dq = degree(Poly{Sym}(q, [r]), r)
+        dq >= 1 || continue
+        rs = try _solve_generic(q ~ 0, r) catch err; err isa ArgumentError || rethrow(); return nothing end
+        rs isa AbstractVector && length(rs) == dq || return nothing
         any(ρ -> _nodes(ρ) > _RSOLVE_MAX_ROOT_NODES, rs) && return :large
         for ρ in rs, j in 0:(m - 1)
             push!(basis, n^j * ρ^n)
@@ -571,7 +574,9 @@ function _constant_coefficients(p::Vector{Sym}, n::Sym, value)
     v = Sym[value(n0 + i) for i in 0:(d - 1)]
     cs = try A \ v catch err; err isa Union{ArgumentError,SingularException} || rethrow(); return nothing end
     S = _add_many(cancel(c) * b for (c, b) in zip(cs, basis))
-    S, n0
+    # a common power factored out when shorter: 2^n n + 2^n as 2^n (n + 1)
+    F = try factor(S) catch err; err isa ArgumentError || rethrow(); S end
+    (_nodes(F) < _nodes(S) ? F : S), n0
 end
 
 # 8·2^(n - 3) as 2^n, term by term

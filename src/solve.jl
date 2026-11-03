@@ -182,7 +182,7 @@ function _solve_eq(eq::Relation, x::Sym)
     # floating point coefficients that are not a polynomial's numbers alone (those get
     # numeric roots): solved with the rationals they stand for, the solutions' numbers
     # made floats again (y = c + 0.5b, 175 = 1.5 log(x); SymPy #27528, #27712)
-    if !_isexactex(n) && (!isempty(bad) || any(a -> !_eq(a, x), atoms) || !exact)
+    if !_isexactex(n) && !_float_exponent(n) && (!isempty(bad) || any(a -> !_eq(a, x), atoms) || !exact)
         q = _exactfloats(eq.lhs - eq.rhs)
         _isexactex(q) || throw(ArgumentError("solve: complex floating point coefficients are not supported"))
         rs = _solve_eq(q ~ 0, x)
@@ -196,6 +196,12 @@ function _solve_eq(eq::Relation, x::Sym)
     end
     _sort_roots!(unique(_in_domain(roots, eq.lhs - eq.rhs, x)))
 end
+
+# a floating point exponent somewhere in e (x^1.11: its exact rational has a huge
+# denominator, so those keep their own path)
+_float_exponent(e::Sym) = (e.kind == POW && e.args[2].kind == NUMBER && isfloat(e.args[2].num)) ||
+    (e.kind == MUL && any(p -> p.kind == NUMBER && isfloat(p.num), e.exps)) ||
+    any(_float_exponent, e.args) || any(_float_exponent, e.exps)
 
 # the numbers of e as floats, except exponents and coefficients ±1 (b/2 + y as
 # 0.5*b + y), and its constant parts as their values (exp(350/3), π/6)

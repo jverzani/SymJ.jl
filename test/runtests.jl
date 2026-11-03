@@ -2576,7 +2576,7 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
             @test SymJ.summation(k, k, 5, 0) == subs(SymJ.summation(k, k, n, 0), n => 5)
             # a Sym infinity is a bound as Inf is (SymPy #27893)
             @test SymJ.summation(1 / (x^2 + 1), x, 0, Sym(Inf)) == SymJ.summation(1 / (x^2 + 1), x, 0, Inf)
-            @test_throws ArgumentError SymJ.summation(1 / (x^2 + 1), x, Sym(-Inf), 0)
+            @test SymJ.summation(1 / (x^2 + 1), x, Sym(-Inf), 0) == SymJ.summation(1 / (x^2 + 1), x, 0, Inf)
         end
         @syms k n r a
         Σ = SymJ.summation
