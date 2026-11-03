@@ -410,6 +410,8 @@ end
 function _numpow(b::SymNumber, e::SymNumber)
     if isfloat(b) || isfloat(e)
         bf, ef = Float64(b), Float64(e)
+        # an exact base to an infinite power: 0 stays exact (0^∞, (1/2)^∞, 2^-∞), as in limits
+        !isfloat(b) && isinf(ef) && abs(bf) != 1 && (abs(bf) < 1) == (ef > 0) && return ZERO
         bf < 0 && !isinteger(ef) && return _mkpow_node(Sym(b), Sym(e))
         return Sym(bf^ef)
     end

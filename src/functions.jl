@@ -209,7 +209,10 @@ register_function!(:tan; julia = tan,
         r = _pi_multiple(a)
         if r !== nothing
             s, c = _sinpi(r), _sinpi(r + 1 // 2)
-            s !== nothing && c !== nothing && !iszero(c) && return s / c
+            if s !== nothing && c !== nothing
+                iszero(c) && throw(DivisionByZero("tan($a): a pole"))
+                return s / c
+            end
         end
         _isfn(a, :atan) && return a.args[1]
         _odd(:tan, a)
@@ -322,7 +325,8 @@ function _ratio_rule(name::Symbol, num::Union{Nothing,Symbol}, den::Symbol, pari
         n = num === nothing ? ONE : apply_function(num, Sym[a])
         if !_hasfn(d, den) && (num === nothing || !_hasfn(n, num))
             iszero(d) || return n / d
-            return nothing                                # a pole
+            # a pole: an error, as 1/0 is (not a finite-looking value; SymPy #27185)
+            throw(DivisionByZero("$name($a): a pole"))
         end
         parity === :odd ? _odd(name, a) : parity === :even ? _even(name, a) : nothing
     end)

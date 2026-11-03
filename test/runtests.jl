@@ -55,6 +55,11 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
     end
 
     @testset "exact numbers" begin
+        # an exact base to an infinite power that is 0 is an exact 0 (SymPy #27605)
+        @test Sym(0)^Sym(Inf) === SymJ.ZERO
+        @test (Sym(1) / 2)^Sym(Inf) === SymJ.ZERO
+        @test Sym(2)^Sym(-Inf) === SymJ.ZERO
+        @test Sym(2)^Sym(Inf) == Inf
         @test sqrt(Sym(4)) == 2
         @test sqrt(Sym(8)) == 2 * sqrt(Sym(2))
         @test sqrt(Sym(2)) * sqrt(Sym(2)) == 2
@@ -99,6 +104,12 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
     end
 
     @testset "functions" begin
+        # poles are errors, as 1/0 is (tan(π/2) left as a value made a wrong integral; SymPy #27185)
+        @test_throws SymJ.DivisionByZero tan(PI / 2)
+        @test_throws SymJ.DivisionByZero sec(PI / 2)
+        @test_throws SymJ.DivisionByZero cot(Sym(0))
+        @test_throws SymJ.DivisionByZero csc(PI)
+        @test tan(PI / 4) == 1
         @test sin(Sym(0)) == 0
         @test sin(PI) == 0
         @test cos(PI) == -1
@@ -145,7 +156,8 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         # reciprocal trig: exact values through cos/sin/tan, poles unevaluated, parity
         @test sec(Sym(0)) == 1 && sec(PI / 3) == 2 && csc(PI / 6) == 2
         @test cot(PI / 4) == 1 && cot(PI / 2) == 0
-        @test kind(sec(PI / 2)) == FN && kind(csc(Sym(0))) == FN
+        @test_throws SymJ.DivisionByZero sec(PI / 2)              # a pole: an error, as 1/0
+        @test_throws SymJ.DivisionByZero csc(Sym(0))
         @test sec(-x) == sec(x) && csc(-x) == -csc(x) && cot(-x) == -cot(x)
         @test sec(acos(x)) == 1 / x
         @test kind(sec(x)) == FN && operation(sec(x)) === sec
@@ -1069,6 +1081,20 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
     end
 
     @testset "solve" begin
+        # a candidate from squaring is dropped when it fails for every sampled parameter
+        # value (SymPy #27381); one valid for some parameter values is kept
+        let a = Sym(:a), b = Sym(:b), x = Sym(:x)
+            @test solve(a * (2sqrt(1 - b^2) + 1) - b * (2sqrt(1 - a^2) + 1) ~ 0, b) == [a]
+            @test solve(sqrt(x) ~ a, x) == [a^2]
+            @test length(solve(sqrt(x + 1) ~ x - a, x)) == 2
+        end
+        # a system's components where a divisor of its solutions vanishes (SymPy #27008, #27458)
+        let (x0, x1, x2, x3, x4, x5) = Sym.([:x0, :x1, :x2, :x3, :x4, :x5]), (x, y, z) = Sym.([:x, :y, :z])
+            r = solve([x0 * x1 - x2 ~ 0, x3 + x4 - x5 ~ 0, x0 - x5 ~ 1], [x0, x1, x2, x3, x4, x5])
+            @test length(r) == 2
+            @test any(s -> s[x5] == -1 && s[x0] == 0 && s[x2] == 0 && s[x1] == x1, r)
+            @test length(solve([x * y ~ 0, x + z ~ 1], [x, y, z])) == 2
+        end
         # unknowns that are function calls or derivatives (implicit differentiation)
         let (a, b, c, d) = symbols("a b c d"), u = SymFunction(:u), v = SymFunction(:v)
             ex2 = diff(x * u(x) - (a * x^3 + b * x^2 + c * x + d), x)
@@ -1477,6 +1503,12 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
     end
 
     @testset "printing" begin
+        # a float coefficient 1.0 is shown: 1.0*k is not k (SymPy #27198)
+        let k = Sym(:k), x = Sym(:x), y = Sym(:y)
+            @test string(Sym(1.0) * k) == "1.0*k"
+            @test string(-Sym(1.0) * k) == "-1.0*k"
+            @test string((1.0x - y)^2 - (x - y)^2) == "(1.0*x - y)^2 - (x - y)^2"
+        end
         # NaN prints (its sign is not an integer)
         @test string(Sym(NaN)) == "NaN"
         @test string(Sym(Inf) - Sym(Inf)) == "NaN"
@@ -2537,6 +2569,15 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
     end
 
     @testset "summation" begin
+        # reversed bounds by Karr's convention, as the closed forms: Σ_{a}^{b} = -Σ_{b+1}^{a-1}
+        let k = Sym(:k), n = Sym(:n), x = Sym(:x)
+            @test SymJ.summation(k, k, 5, 1) == -9
+            @test SymJ.summation(k, k, 5, 4) == 0
+            @test SymJ.summation(k, k, 5, 0) == subs(SymJ.summation(k, k, n, 0), n => 5)
+            # a Sym infinity is a bound as Inf is (SymPy #27893)
+            @test SymJ.summation(1 / (x^2 + 1), x, 0, Sym(Inf)) == SymJ.summation(1 / (x^2 + 1), x, 0, Inf)
+            @test_throws ArgumentError SymJ.summation(1 / (x^2 + 1), x, Sym(-Inf), 0)
+        end
         @syms k n r a
         Σ = SymJ.summation
         # rational summands: shifts both integer and not (the γ of ψ cancels only together)

@@ -593,9 +593,32 @@ function _satisfies(eq::Relation, x::Sym, r::Sym)
         rethrow()
     end
     (iszero(d) || iszero(cancel(d))) && return true
-    _hassymbol(d) && return true
+    _hassymbol(d) && return _holds_somewhere(d, r)
     v = try N(d) catch; return true end
     abs(v) <= 1e-9 * max(1, abs(N(r)))
+end
+
+# With parameters left, a candidate is dropped only when the equation fails at every one
+# of several sample values of the parameters (complex arithmetic, principal branches):
+# a root valid for some parameters only (x = a² of sqrt(x) = a, for a ≥ 0) is kept, a
+# spurious one from squaring (SymPy #27381) is not. Kept when no sample can be evaluated.
+const _SAMPLE_VALUES = (0.37, -0.61, 1.43, -1.89, 0.0731, 2.71, -3.17, 0.83, 5.3, -0.29)
+
+function _holds_somewhere(d::Sym, r::Sym)
+    syms = collect(free_symbols(d))
+    tried = false
+    for k in 1:8
+        vals = [s => Sym(_SAMPLE_VALUES[mod1(k + 3j, length(_SAMPLE_VALUES))]) for (j, s) in enumerate(syms)]
+        v, w = try
+            N(subs(d, vals...)), N(subs(r, vals...))
+        catch
+            continue
+        end
+        (v isa Number && w isa Number && isfinite(v) && isfinite(w)) || continue
+        tried = true
+        abs(v) <= 1e-9 * max(1, abs(w)) && return true
+    end
+    !tried
 end
 
 function _solve_exact(n::Sym, x::Sym, atoms)
