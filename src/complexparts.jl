@@ -177,11 +177,11 @@ end
 
 Base.real(x::Sym) = apply_function(:real, Sym[x])
 Base.imag(x::Sym) = apply_function(:imag, Sym[x])
-Base.conj(x::Sym) = apply_function(:conj, Sym[x])
+Base.conj(x::Sym) = apply_function(:conj, Sym[x])::Sym   # (inferred: adjoint of a Matrix{Sym} is one of Sym)
 Base.angle(x::Sym) = apply_function(:angle, Sym[x])
 Base.reim(x::Sym) = (real(x), imag(x))
 # for arrays of expressions: A' and transpose(A)
-Base.adjoint(x::Sym) = conj(x)
+Base.adjoint(x::Sym) = conj(x)::Sym
 Base.transpose(x::Sym) = x
 
 # the symbols vs taken to be real: conj(v), real(v), imag(v) are v, v, 0 (an integral's

@@ -128,6 +128,10 @@ end
 # one identity at the node, or nothing
 function _refine_rule(e::Sym, A::Assumptions)
     k = e.kind
+    # ±∞ plus real terms is ±∞ (x + ∞ with x real; SymPy #27605); a real term is finite
+    if k == ADD && isfloat(e.num) && isinf(Float64(e.num)) && all(t -> _isreal(t, A) === true, e.args)
+        return Sym(e.num)
+    end
     if k == FN && (haskey(_COND_RELS, e.name) || e.name in (:heaviside, :sign, :abs))
         r = haskey(_COND_RELS, e.name) ? _refine_cond(e, A) : _refine_step(e, A)
         r === nothing || return r
@@ -439,7 +443,69 @@ function simplify(r::Relation; assume = nothing)
     v = refine(r; assume)
     v isa Bool && return v
     l, rr = _drop_common_terms(simplify(v.lhs; assume), simplify(v.rhs; assume))
+    A = _assumptions(assume)
+    A === nothing && (A = Assumptions())
+    d = l - rr
+    if v.op === :eq
+        # a + i b = 0 with a, b real: a = 0 and b = 0 (X = iY; SymPy #27759)
+        parts = _real_imag_split(d, A)
+        parts === nothing || return _fact_and([simplify(Relation(:eq, p, ZERO); assume) for p in parts])
+        # terms of one sign summing to 0: each is 0 (X = -Y with X, Y ≥ 0; SymPy #27755)
+        ts = _signed_terms(d, A)
+        ts === nothing || return _fact_and([simplify(Relation(:eq, t, ZERO); assume) for t in ts])
+    end
+    # one side, without numeric content, when shorter: -x ~ x is x ~ 0, y ≥ -y is y ≥ 0
+    # (SymPy #27754, #27623)
+    one = _one_sided(v.op, simplify(d; assume))
+    one !== nothing && _nodes(one.lhs) + _nodes(one.rhs) < _nodes(l) + _nodes(rr) && return one
     Relation(v.op, l, rr)
+end
+
+_fact_and(fs) = any(f -> f === false, fs) ? false : (gs = [f for f in fs if f !== true];
+    isempty(gs) ? true : length(gs) == 1 ? gs[1] : reduce(&, gs))
+
+const _FLIP = Dict(:lt => :gt, :gt => :lt, :le => :ge, :ge => :le, :eq => :eq, :ne => :ne)
+
+# d op 0 with d's numeric content divided out (a negative one flipping an inequality)
+function _one_sided(op::Symbol, d::Sym)
+    _hassymbol(d) || return nothing
+    c = d.kind == MUL ? d.num : nothing
+    if d.kind == ADD
+        q = _content_free(d)
+        r = cancel(d / q)
+        r.kind == NUMBER || return Relation(op, d, ZERO)
+        c = r.num
+        d = q
+    elseif c !== nothing && isexact(c)
+        d = d / Sym(c)
+    else
+        return Relation(op, d, ZERO)
+    end
+    Relation(sign(c) < 0 ? _FLIP[op] : op, d, ZERO)
+end
+
+# (a, b) with d = a + i b, a and b real under A and b ≠ 0 structurally; else nothing
+function _real_imag_split(d::Sym, A)
+    _isreal(d, A) === true && return nothing
+    a, b = try
+        _refine(real(d), A), _refine(imag(d), A)
+    catch err
+        err isa InterruptException && rethrow()
+        return nothing
+    end
+    (iszero(b) || _hasfn(a, :real) || _hasfn(a, :imag) || _hasfn(b, :real) || _hasfn(b, :imag)) && return nothing
+    (_isreal(a, A) === true && _isreal(b, A) === true) || return nothing
+    (a, b)
+end
+
+# the terms of a sum d when all are ≥ 0 under A, or all ≤ 0 (at least one with a symbol)
+function _signed_terms(d::Sym, A)
+    d.kind == ADD && iszero(d.num) || return nothing
+    ts = [Sym(c) * t for (c, t) in zip(d.coefs, d.args)]
+    ms = [_smask(t, A) for t in ts]
+    any(isnothing, ms) && return nothing
+    (all(m -> m & _NEG == 0, ms) || all(m -> m & _POS == 0, ms)) || return nothing
+    ts
 end
 
 # the terms on both sides of a relation taken away: x² + 1 ~ y² + 1 is x² ~ y² (SymPy #28666)
@@ -455,7 +521,23 @@ function _drop_common_terms(l::Sym, r::Sym)
     l - d, r - d
 end
 
+# float exponents with an integer value made exact: x^2.0 is x^2 (it then merges with
+# x^2; SymPy #27706, #27796)
+function _exact_int_exponents(e::Sym)
+    _replace_walk(e) do t
+        if t.kind == POW && t.args[2].kind == NUMBER && isfloat(t.args[2].num)
+            v = Float64(t.args[2].num)
+            isinteger(v) && abs(v) < 2^53 && return _exact_int_exponents(t.args[1])^Sym(Int(v))
+        elseif t.kind == MUL && any(p -> p.kind == NUMBER && isfloat(p.num) && isinteger(Float64(p.num)), t.exps)
+            return Sym(t.num) * prod((_exact_int_exponents(b)^(p.kind == NUMBER && isfloat(p.num) && isinteger(Float64(p.num)) ?
+                                     Sym(Int(Float64(p.num))) : p) for (b, p) in zip(t.args, t.exps)); init = ONE)
+        end
+        nothing
+    end
+end
+
 function _simplify(e::Sym, A::Assumptions)
+    e = _exact_int_exponents(e)
     _hassymbol(e) || e.kind == NUMBER || return _simplify_const(e, A)
     # function arguments first
     e = _map_fn_args(a -> _simplify(a, A), e)
@@ -474,6 +556,16 @@ function _simplify(e::Sym, A::Assumptions)
     for g in (simplify_rational, powers, expansion, _factor_or_nothing, simplify_trig, simplify_hyperbolic, logs, radicals, simplify_gamma,
               simplify_rational ∘ powers, expansion ∘ simplify_rational, expansion ∘ radicals)
         consider(g)
+    end
+    # a sum's circular-function terms simplified apart from the rest (sin² + cos² + (x + y)³:
+    # the whole is never smaller expanded; SymPy #27356)
+    if e.kind == ADD && _has_fn(e, _CIRCFNS)
+        ts = [Sym(c) * t for (c, t) in zip(e.coefs, e.args)]
+        trig = [t for t in ts if _has_fn(t, _CIRCFNS)]
+        if 1 < length(trig) < length(ts)
+            rest = Sym(e.num) + _add_many(t for t in ts if !_has_fn(t, _CIRCFNS))
+            consider(_ -> _simplify(_add_many(trig), A) + rest)
+        end
     end
     # several piecewise functions (as from a definite integral with a parameter): one
     _count_fn(e, :piecewise) >= 2 && consider(x -> piecewise_fold(x; assume = A))
@@ -494,7 +586,7 @@ function _simplify(e::Sym, A::Assumptions)
         consider(x -> (c = halfangle(x); c === nothing ? nothing : simplify_trig(c)))   # 2cos(x/2)sin(x/2) = sin(x)
     end
     if _has_fn(e, _CIRCFNS)       # identities simplify_trig's normal form does not reach
-        for g in (_simp_trig_rules, expand_trig, simplify_rational ∘ expand_trig)
+        for g in (_simp_trig_rules, _expand_trig_small, simplify_rational ∘ _expand_trig_small)
             consider(g)
         end
     end
@@ -787,6 +879,20 @@ SymJ.expand_trig(tan(2x))         # 2*tan(x)/(1 - tan(x)^2)
 """
 expand_trig(ex) = _expand_trig(Sym(ex))
 
+# for simplify's candidates: e unchanged when a circular function's argument has an
+# integer multiple beyond _CIRC_MAX_MULTIPLE (a polynomial of that degree; SymPy #27293)
+function _expand_trig_small(e::Sym)
+    big = false
+    _replace_walk(e) do t
+        if !big && t.kind == FN && length(t.args) == 1 && t.name in _CIRCFNS
+            q = _trig_split(t.args[1])[1]
+            abs(numerator(q)) > _CIRC_MAX_MULTIPLE && (big = true)
+        end
+        nothing
+    end
+    big ? e : _expand_trig(e)
+end
+
 # top down: a function is expanded on its argument as it is, then inside what remains
 function _expand_trig(e::Sym)
     isempty(e.args) && return e
@@ -932,13 +1038,18 @@ end
 _circ_multiple(u::Sym, g::Sym) = (r = expand(u / g); r.kind == NUMBER && isexact(r.num) && isone(_denominator(r.num)) ? Int(_numerator(r.num)) : nothing)
 
 # e with the functions (and exponentials) of multiples of the bases as polynomials and
-# quotients in S, C; nothing if an argument is not a multiple of a base
+# quotients in S, C; nothing if an argument is not a multiple of a base, or a multiple
+# larger than _CIRC_MAX_MULTIPLE
+const _CIRC_MAX_MULTIPLE = 32
 function _circ_poly(e::Sym, bases::Vector{Sym}, vars, M::_Circ)
     ok = Ref(true)
     function find(u)
         for (i, g) in enumerate(bases)
             k = _circ_multiple(u, g)
-            k === nothing || return i, k
+            k === nothing && continue
+            # a polynomial of degree k in S, C: sin(316801t) is beyond any use (SymPy #27293)
+            abs(k) > _CIRC_MAX_MULTIPLE && return nothing
+            return i, k
         end
         nothing
     end

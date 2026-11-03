@@ -409,6 +409,11 @@ for (f, g, jump) in ((:floor, floor, round), (:ceil, ceil, round), (:trunc, trun
         eval = _unary(function (a)
             a.kind == NUMBER && isexact(a.num) && return Sym(SymNumber(g(BigInt, _rat(a.num))))
             _isfn(a, f) && return a
+            # floor(floor(u)/m) = floor(u/m) for an integer m > 0, ceil alike (SymPy #27400)
+            if f in (:floor, :ceil) && a.kind == MUL && length(a.args) == 1 && _isone(a.exps[1]) &&
+               _isfn(a.args[1], f) && isexact(a.num) && isone(_numerator(a.num)) && _denominator(a.num) > 1
+                return apply_function(f, Sym[a.args[1].args[1] * Sym(a.num)])
+            end
             v = _constant_float(a, jump)
             v === nothing || return Sym(SymNumber(g(BigInt, v)))
             # floor(-v) = -ceil(v), ceil(-v) = -floor(v); trunc and round (ties to even) are odd

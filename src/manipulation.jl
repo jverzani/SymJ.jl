@@ -713,9 +713,19 @@ N(x::Number) = x
 # rising precision: two that agree to Float64 accuracy settle it. An expression that
 # cannot be evaluated in BigFloat keeps z.
 function _checked_value(ex::Sym, z::ComplexF64)
-    (ex.kind == NUMBER || ex.kind == CONSTANT || !isfinite(z)) && return z
+    (ex.kind == NUMBER || ex.kind == CONSTANT) && return z
+    ps = (256, 512, 1024, 2048)
+    if !isfinite(z)
+        # an overflow or underflow on the way (1/log(1003/1000)^1000 is 1/0 in Float64,
+        # then NaN; SymPy #27278): BigFloat's exponent range does not, and then precision
+        w = _bigvalue(ex, 256)
+        w === nothing && return z
+        z = ComplexF64(w)
+        isfinite(z) || return z
+        ps = (512, 1024, 2048)
+    end
     prev, tol = z, 1e-13                         # Float64 against 256 bits: a looser test
-    for p in (256, 512, 1024, 2048)
+    for p in ps
         w = _bigvalue(ex, p)
         w === nothing && return z
         wf = ComplexF64(w)

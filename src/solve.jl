@@ -169,6 +169,8 @@ function _solve_eq(eq::Relation, x::Sym)
     _isnamed(x) || throw(ArgumentError("solve: $x is not a symbol"))
     eq.op === :eq || return _solve_inequality(eq, x)
     _isnamed(x) || throw(ArgumentError("solve: $x is not a symbol"))
+    r = _solve_piecewise(eq, x)
+    r === nothing || return r
     n, _ = numer_denom(cancel(eq.lhs - eq.rhs))
     if !has(n, x)
         iszero(n) && throw(ArgumentError("solve: every value of $x satisfies $eq"))
@@ -177,6 +179,15 @@ function _solve_eq(eq::Relation, x::Sym)
     atoms = Set{Sym}()
     exact = _poly_atoms!(atoms, n)
     bad = [a for a in atoms if !_eq(a, x) && has(a, x)]
+    # floating point coefficients that are not a polynomial's numbers alone (those get
+    # numeric roots): solved with the rationals they stand for, the solutions' numbers
+    # made floats again (y = c + 0.5b, 175 = 1.5 log(x); SymPy #27528, #27712)
+    if !_isexactex(n) && !_float_exponent(n) && (!isempty(bad) || any(a -> !_eq(a, x), atoms) || !exact)
+        q = _exactfloats(eq.lhs - eq.rhs)
+        _isexactex(q) || throw(ArgumentError("solve: complex floating point coefficients are not supported"))
+        rs = _solve_eq(q ~ 0, x)
+        return rs isa AbstractVector ? Sym[_floatify(r) for r in rs] : rs
+    end
     roots = if !isempty(bad)
         fs = _product_factors(eq.lhs - eq.rhs, n, x)
         fs === nothing ? _solve_through(eq, n, x, bad) : _solve_product(eq, fs, x)
@@ -184,6 +195,35 @@ function _solve_eq(eq::Relation, x::Sym)
         exact ? _solve_exact(n, x, atoms) : _solve_inexact(n, x)
     end
     _sort_roots!(unique(_in_domain(roots, eq.lhs - eq.rhs, x)))
+end
+
+# a floating point exponent somewhere in e (x^1.11: its exact rational has a huge
+# denominator, so those keep their own path)
+_float_exponent(e::Sym) = (e.kind == POW && e.args[2].kind == NUMBER && isfloat(e.args[2].num)) ||
+    (e.kind == MUL && any(p -> p.kind == NUMBER && isfloat(p.num), e.exps)) ||
+    any(_float_exponent, e.args) || any(_float_exponent, e.exps)
+
+# the numbers of e as floats, except exponents and coefficients ±1 (b/2 + y as
+# 0.5*b + y), and its constant parts as their values (exp(350/3), π/6)
+function _floatify(e::Sym)
+    f(c::SymNumber) = isexact(c) ? SymNumber(Float64(c)) : c
+    if !_hassymbol(e) && e.kind != NUMBER       # a constant: its value (π/6, exp(350/3))
+        v = try N(e) catch; nothing end
+        v isa Number && isfinite(v) && return Sym(v)
+    end
+    k = e.kind
+    k == NUMBER && return Sym(f(e.num))
+    if k == ADD
+        return Sym(f(e.num)) + _add_many((_isN1(abs(c)) ? Sym(c) : Sym(f(c))) * _floatify(a) for (c, a) in zip(e.coefs, e.args))
+    elseif k == MUL
+        c = _isN1(abs(e.num)) ? Sym(e.num) : Sym(f(e.num))
+        return c * prod((_floatify(a)^x for (a, x) in zip(e.args, e.exps)); init = ONE)
+    elseif k == POW
+        return _floatify(e.args[1])^e.args[2]
+    elseif k == FN
+        return apply_function(e.name, Sym[_floatify(a) for a in e.args])
+    end
+    e
 end
 
 # the roots at which e is defined: cancel can remove a factor of a denominator, so
@@ -352,6 +392,8 @@ function _solve_through(eq::Relation, n::Sym, x::Sym, bad::Vector{Sym})
         if length(bad) > 1
             r = _solve_logs(eq, n, x)
             r === nothing || return r
+            r = _solve_exp_bases(eq, x)
+            r === nothing || return r
             # several radicals: one squared away at a time (the rest in the recursion)
             if all(_issqrt, bad) && length(bad) <= 4
                 R = first(bad)
@@ -385,6 +427,98 @@ function _solve_through(eq::Relation, n::Sym, x::Sym, bad::Vector{Sym})
         _eq(arg, x) ? push!(out, _float_value(val)) : append!(out, _solve_eq(arg ~ val, x))
     end
     filter(r -> _satisfies(eq, x, r), out)
+end
+
+# a piecewise function of x in the equation: solved piece by piece, a piece's roots kept
+# where its condition holds and no earlier one does (SymPy #27037); nested ones in the
+# recursion. Conditions left with parameters are decided (cases). nothing if there is none.
+function _solve_piecewise(eq::Relation, x::Sym)
+    P = nothing
+    _replace_walk(eq.lhs - eq.rhs) do t
+        P === nothing && t.kind == FN && t.name === :piecewise && has(t, x) && (P = t)
+        nothing
+    end
+    P === nothing && return nothing
+    holds(c, r) = begin
+        v = subs(c, x => r)
+        v.kind == NUMBER && return !iszero(v)
+        _iscond(v) || throw(ArgumentError("solve: cannot decide the condition $v"))
+        A = _SOLVE_ASSUME[]
+        A === nothing && throw(ArgumentError("solve: cannot decide the condition $v"))
+        v.name === :And ? all(a -> holds(a, r), v.args) : _decide(_relation_of(v), A)
+    end
+    out = Sym[]
+    ps = _pieces(P)
+    for (i, (c, v)) in enumerate(ps)
+        e = Relation(:eq, subs(eq.lhs, P => v), subs(eq.rhs, P => v))
+        rs = try
+            has(e.lhs - e.rhs, x) ? _solve_eq(e, x) : Sym[]
+        catch err
+            err isa ArgumentError && occursin("every value", sprint(showerror, err)) || rethrow()
+            throw(ArgumentError("solve: every $x where $c holds satisfies the equation"))
+        end
+        rs isa AbstractVector || return nothing
+        for r in rs
+            holds(c, r) && !any(j -> holds(ps[j][1], r), 1:(i - 1)) || continue
+            any(o -> _eq(o, r), out) || push!(out, r)
+        end
+    end
+    out
+end
+
+# Π bᵢ^uᵢ = Π cⱼ^vⱼ with positive constant bases (and positive constant factors): their
+# logarithms, Σ uᵢ log bᵢ = Σ vⱼ log cⱼ (2^x 3^(x²) = 6: x log 2 + x² log 3 = log 6;
+# SymPy #27330). Candidates checked in the original equation; nothing if not of this form.
+function _solve_exp_bases(eq::Relation, x::Sym)
+    function logsum(e::Sym)
+        if e.kind == NUMBER
+            (isexact(e.num) || isfloat(e.num)) && e.num > N0 || return nothing
+            return _log_primes(e)
+        elseif e.kind == POW
+            b, p = e.args
+            (!_hassymbol(b) && _ispositive_const(b)) || return nothing
+            return p * _log_primes(b)
+        elseif e.kind == MUL
+            e.num > N0 || return nothing
+            acc = _log_primes(Sym(e.num))
+            for (b, p) in zip(e.args, e.exps)
+                (!_hassymbol(b) && _ispositive_const(b)) || return nothing
+                acc += p * _log_primes(b)
+            end
+            return acc
+        end
+        nothing
+    end
+    L, R = logsum(eq.lhs), logsum(eq.rhs)
+    (L === nothing || R === nothing) && return nothing
+    (has(L, x) || has(R, x)) || return nothing
+    cands = try _solve_eq(expand(L - R) ~ 0, x) catch err; err isa ArgumentError || rethrow(); return nothing end
+    cands isa AbstractVector || return nothing
+    filter(r -> _satisfies(eq, x, r), cands)
+end
+
+_ispositive_const(b::Sym) = (v = try N(b) catch; return false end; v isa Real && v > 0)
+
+# log(c) of a positive rational as Σ k log(p) over its primes (log 6 = log 2 + log 3, so
+# the equation's coefficients factor), by trial division up to 10^6; else log(c)
+function _log_primes(c::Sym)
+    (c.kind == NUMBER && isexact(c.num)) || return log(c)
+    n, d = big(_numerator(c.num)), big(_denominator(c.num))
+    out = ZERO
+    for (m, sgn) in ((n, 1), (d, -1))
+        p = big(2)
+        while p * p <= m && p <= 10^6
+            k = 0
+            while iszero(m % p)
+                m ÷= p
+                k += 1
+            end
+            k > 0 && (out += sgn * k * log(Sym(p)))
+            p += p == 2 ? 1 : 2
+        end
+        m > 1 && (out += sgn * log(Sym(m)))
+    end
+    out
 end
 
 # Σ cᵢ log(fᵢ) + R = 0, linear in the logarithms with rational cᵢ (constant logs such as
@@ -537,6 +671,12 @@ function _invert(g::Sym, r::Sym, x::Sym)
                 return iszero(r) ? [(t, r)] : [(t, r), (t, -r)]
             end
             throw(ArgumentError("solve: cannot invert abs($t) for $x: in the complex numbers |$t| = $r is a curve; assume $x ∈ ℝ"))
+        end
+        # sign(t) = 0 exactly where t = 0; another value is a set of t (an inequality)
+        if name === :sign
+            iszero(r) && return [(t, ZERO)]
+            r.kind == NUMBER && !(_isN1(abs(r.num))) && return Tuple{Sym,Sym}[]
+            throw(ArgumentError("solve: sign($t) = $r holds on a set of $x (an inequality in $t), not at points"))
         end
         name === :sin && return [(t, a) for a in _one_period(asin(r), PI - asin(r))]
         name === :cos && return [(t, a) for a in _one_period(acos(r), 2PI - acos(r))]

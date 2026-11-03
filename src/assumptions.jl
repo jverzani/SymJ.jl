@@ -635,12 +635,58 @@ function _signs(e::Sym, A::Assumptions)::Union{Nothing,UInt8}
     if m !== nothing && m & _ZER != 0 && count_ones(m) > 1 && _known_nonzero(e, A)
         m &= ~_ZER
     end
+    if (m === nothing || count_ones(m) > 1) && _SPLIT_DEPTH[] < 3
+        ms = with(() -> _sign_by_split(e, A), _SPLIT_DEPTH => _SPLIT_DEPTH[] + 1)
+        ms === nothing || (m = m === nothing ? ms : (m & ms == 0 ? m : m & ms))
+    end
     if (m === nothing || count_ones(m) > 1) && !_IN_EXTREMA[]
         me = with(() -> _sign_by_extrema(e, A), _IN_EXTREMA => true)
         me === nothing || (m = m === nothing ? me : (m & me == 0 ? m : m & me))
     end
     A.cache[e] = m
     m
+end
+
+# The sign of e through a function of a real argument it contains, by cases: floor(u) as
+# u - w and ceil(u) as u + w with w ∈ [0, 1); |u| as u where u ≥ 0 and -u where u ≤ 0;
+# max(a, b) (min) by a ≥ b or not. The union of the cases' signs (x - floor(x) ≥ 0,
+# a ≤ |a|, max(a, 1) ≥ a; SymPy #27564, #27364). nothing when there is no such function
+# or a case is undecided.
+const _SPLIT_DEPTH = ScopedValue(0)
+function _sign_by_split(e::Sym, A::Assumptions)
+    t = nothing
+    _replace_walk(e) do s
+        t === nothing || return nothing
+        s.kind == FN || return nothing
+        if s.name in (:floor, :ceil, :abs) && length(s.args) == 1 && _isreal(s.args[1], A) === true
+            t = s
+        elseif s.name in (:max, :min) && length(s.args) == 2 && all(a -> _isreal(a, A) === true, s.args)
+            t = s
+        end
+        nothing
+    end
+    t === nothing && return nothing
+    branches = if t.name in (:floor, :ceil)
+        w = Sym(Symbol("_frac", _SPLIT_DEPTH[]))
+        B = _with_fact(A, FactAnd(Any[Relation(:ge, w, ZERO), Relation(:lt, w, ONE)]))
+        [(B, subs(e, t => (t.name === :floor ? t.args[1] - w : t.args[1] + w)))]
+    elseif t.name === :abs
+        u = t.args[1]
+        [(_with_fact(A, Relation(:ge, u, ZERO)), subs(e, t => u)), (_with_fact(A, Relation(:le, u, ZERO)), subs(e, t => -u))]
+    else
+        a, b = t.args
+        big, small = t.name === :max ? (a, b) : (b, a)
+        [(_with_fact(A, Relation(:ge, a, b)), subs(e, t => (t.name === :max ? a : b))),
+         (_with_fact(A, Relation(:le, a, b)), subs(e, t => (t.name === :max ? b : a)))]
+    end
+    m = 0x00
+    for (B, g) in branches
+        B === nothing && continue                       # a case that cannot hold
+        mb = _signs(expand(g), B)
+        mb === nothing && return nothing
+        m |= mb
+    end
+    m == 0x00 ? nothing : m
 end
 
 # the sign of a real expression in one symbol x on x's interval, from its range: the
@@ -737,7 +783,10 @@ end
 # structural: from the signs of the parts
 function _smask(e::Sym, A::Assumptions)::Union{Nothing,UInt8}
     k = e.kind
-    k == NUMBER && return _maskof(Int(sign(e.num)))
+    if k == NUMBER
+        isfloat(e.num) && isnan(Float64(e.num)) && return nothing     # NaN has no sign
+        return _maskof(Int(sign(e.num)))
+    end
     if _isnamed(e)
         S = get(A.sets, e, nothing)
         S === nothing || return _setmask(S)

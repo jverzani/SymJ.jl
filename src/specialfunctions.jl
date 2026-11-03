@@ -149,8 +149,10 @@ function __init__()
     reg(:besselj1; eval = odd_at0(:besselj1), diff = d1(a -> SF.besselj0(a) - SF.besselj1(a) / a))
     reg(:bessely0; diff = d1(a -> -SF.bessely1(a)))
     reg(:bessely1; diff = d1(a -> SF.bessely0(a) - SF.bessely1(a) / a))
-    foreach(reg, (:besseljx, :besselyx, :besselix, :besselkx, :besselh, :besselhx, :hankelh1x, :hankelh2x,
-                  :sphericalbesselj, :sphericalbessely, :jinc))
+    # spherical: f_ν' = f_{ν-1} - (ν + 1)/x f_ν, for j and y alike (SymPy #26958)
+    reg(:sphericalbesselj; diff = dx((ν, a) -> SF.sphericalbesselj(ν - 1, a) - (ν + 1) * SF.sphericalbesselj(ν, a) / a))
+    reg(:sphericalbessely; diff = dx((ν, a) -> SF.sphericalbessely(ν - 1, a) - (ν + 1) * SF.sphericalbessely(ν, a) / a))
+    foreach(reg, (:besseljx, :besselyx, :besselix, :besselkx, :besselh, :besselhx, :hankelh1x, :hankelh2x, :jinc))
 
     reg(:ellipk; eval = at0(PI / 2), diff = d1(m -> (SF.ellipe(m) - (1 - m) * SF.ellipk(m)) / (2m * (1 - m))))
     reg(:ellipe; eval = at0(PI / 2), diff = d1(m -> (SF.ellipe(m) - SF.ellipk(m)) / (2m)))
