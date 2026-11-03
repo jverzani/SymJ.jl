@@ -22,6 +22,9 @@ import PolyLog as PL
     fd(f, v; h = 1e-6) = (f(v + h) - f(v - h)) / (2h)
 
     @testset "SpecialFunctions" begin
+        # spherical Bessel derivatives: f_ν' = f_{ν-1} - (ν + 1)/x f_ν (SymPy #26958)
+        @test diff(SF.sphericalbesselj(2, x), x) == SF.sphericalbesselj(1, x) - 3SF.sphericalbesselj(2, x) / x
+        @test lambdify(diff(SF.sphericalbessely(2, x), x), x)(1.3) ≈ (SF.sphericalbessely(2, 1.3 + 1e-6) - SF.sphericalbessely(2, 1.3 - 1e-6)) / 2e-6 rtol = 1e-6
         # (function, arguments before x, point): symbolic value at the point == the package's
         cases = [(SF.gamma, (), 0.4), (SF.gamma, (1.5,), 0.4), (SF.loggamma, (), 0.4), (SF.digamma, (), 0.4),
                  (SF.trigamma, (), 0.4), (SF.invdigamma, (), 0.4), (SF.polygamma, (1,), 0.4), (SF.beta, (1.5,), 0.4),

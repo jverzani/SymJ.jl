@@ -28,6 +28,8 @@ Arguments may be any number type (`BigFloat`, dual numbers, intervals, ...).
 A function of several variables can also be called with them in one tuple or vector,
 `f((1.0, 2.0))`; calling it with the wrong number of values is an error.
 
+A variable may also be a function call, `u(t)` or its derivative: `lambdify(u'(t)^2 + u(t), u(t), u'(t))`.
+
 `lambdify_expr` gives the generated Julia expression.
 """
 lambdify(ex, vars::Sym...) = _lambdify(ex, collect(Sym, vars))
@@ -69,7 +71,17 @@ The Julia expression (an anonymous function) that [`lambdify`](@ref) compiles.
 """
 function lambdify_expr(ex, vars::Union{Tuple,AbstractVector})
     vars = Sym[Sym(v) for v in vars]
-    all(_isnamed, vars) || throw(ArgumentError("variables must be symbols or parameters"))
+    # function calls as variables (θ(t), θ'(t); SymPy #27006): each replaced by a fresh
+    # symbol, larger ones first (a derivative before the function inside it)
+    if !all(_isnamed, vars)
+        all(v -> _isnamed(v) || v.kind == FN, vars) ||
+            throw(ArgumentError("variables must be symbols, parameters or function calls such as u(t)"))
+        calls = sort([v for v in vars if !_isnamed(v)]; by = _nodes, rev = true)
+        fresh = Dict(c => Sym(Symbol("_lam", i)) for (i, c) in enumerate(calls))
+        sub(e) = subs(Sym(e), (c => fresh[c] for c in calls)...)
+        ex = ex isa Tuple ? map(sub, ex) : ex isa AbstractArray ? map(sub, ex) : sub(ex)
+        vars = Sym[_isnamed(v) ? v : fresh[v] for v in vars]
+    end
     args = [Symbol(:arg, i) for i in eachindex(vars)]
     cg = _Codegen(Dict{Sym,Symbol}(v => a for (v, a) in zip(vars, args)))
     outs = _outputs(ex)

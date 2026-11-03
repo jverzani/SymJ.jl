@@ -385,6 +385,11 @@ function _positive_content(b::Sym)
 end
 
 function _mulpow_int(M::Sym, e::Sym)
+    # a coefficient whose power is beyond any memory stays a power, as a number's does
+    # ((10^9 x)^(10^9); SymPy #27278)
+    if isexact(M.num) && !_isN1(M.num) && _toobig_pow(M.num, e.num)
+        return mul(_mkpow_node(Sym(M.num), e), pow(_scale(M, inv(M.num)), e))
+    end
     c = M.num^_toint(e.num)
     bases = Sym[]
     exps = Sym[]

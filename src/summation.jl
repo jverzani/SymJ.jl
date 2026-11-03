@@ -47,12 +47,22 @@ function summation(f, k::Sym, a, b; assume = nothing)
     b isa Sym && _isinfpt(b) && (b = Float64(b.num))
     infb = b isa Real && isinf(b)
     infb && b < 0 && throw(ArgumentError("summation: the upper bound is -Inf"))
-    a isa Real && isinf(a) && throw(ArgumentError("summation: an infinite lower bound ($a) is not supported"))
+    if a isa Real && isinf(a)
+        a > 0 && throw(ArgumentError("summation: the lower bound is Inf"))
+        # from -∞: k ↦ -k, Σ_{k=-∞}^{b} f(k) = Σ_{k=-b}^{∞} f(-k); over all integers, split
+        # at 0 (SymPy #27824, #27893, #27256)
+        g = subs(f, k => -k)
+        infb || return summation(g, k, -Sym(b), Inf; assume)
+        return _sum_parts(summation(g, k, 1, Inf; assume), summation(f, k, 0, Inf; assume))
+    end
     a, bs = Sym(a), infb ? nothing : Sym(b)
     _summation(f, k, a, bs, assume)
 end
 
 const _DIRECT_TERMS = 1000
+
+# u + v for sums that may be Cases
+_sum_parts(u, v) = (u isa Cases || v isa Cases) ? _sum_cases(Any[u, v]) : u + v
 
 # b === nothing: an infinite sum
 function _summation(f::Sym, k::Sym, a::Sym, b, assume)

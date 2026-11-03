@@ -313,7 +313,8 @@ end
 # sums unevaluated), or nothing
 function _solve_chain(p::Vector{Sym}, g::Sym, n::Sym, value, avoid)
     hom = _annihilate(p, g, n)
-    sol = hom === nothing ? nothing : _recurrence_solve(hom, n, value)
+    sol = hom === nothing ? nothing : _constant_coefficients(hom, n, value)
+    sol === nothing && hom !== nothing && (sol = _recurrence_solve(hom, n, value))
     sol === nothing || return (sol[1], sol[2], sol[1])
     _dalembert_solve(p, g, n, value, avoid)
 end
@@ -503,9 +504,12 @@ function rsolve(eq, yn::Sym, inits::Pair...)
     # hypergeometric solutions (of the recurrence made homogeneous), else d'Alembertian
     # ones, else interlaced ones (Liouvillian)
     hom = _annihilate(p, g, n)
-    sol = hom === nothing ? nothing : _recurrence_solve(hom, n, value)
-    sol === nothing && (sol = _dalembert_solve(p, g, n, value, _named(e)))
-    sol === nothing && (sol = _liouvillian_solve(p, g, n, value, _named(e)))
+    sol = hom === nothing ? nothing : _constant_coefficients(hom, n, value)
+    held = sol === :large                          # roots too large: the recurrence itself
+    held && (sol = nothing)
+    !held && sol === nothing && hom !== nothing && (sol = _recurrence_solve(hom, n, value))
+    !held && sol === nothing && (sol = _dalembert_solve(p, g, n, value, _named(e)))
+    !held && sol === nothing && (sol = _liouvillian_solve(p, g, n, value, _named(e)))
     if sol === nothing
         # no closed form: the recurrence itself, with d consecutive values
         vs = Sym[]
@@ -530,6 +534,44 @@ function rsolve(eq, yn::Sym, inits::Pair...)
             throw(ArgumentError("rsolve: the solution found does not satisfy the recurrence"))
     end
     _merge_powers_terms(S)                         # (y's own index: the shift was only of n)
+end
+
+# Constant coefficients: the solutions Σ_j C_j n^j r^n over the roots r (multiplicity
+# m, j < m) of the characteristic polynomial Σ p_i r^i, the constants from d consecutive
+# values. Hyper's search over the coefficients' factors took minutes for a quartic
+# (SymPy #27902). nothing when the coefficients involve n, p_0 is 0, or a root is not
+# found in radicals. :large when the roots are large radicals (a quartic's by Ferrari):
+# a closed form in them is of little use and costly to fit, so the recurrence is kept.
+const _RSOLVE_MAX_ROOT_NODES = 60
+function _constant_coefficients(p::Vector{Sym}, n::Sym, value)
+    any(c -> has(c, n), p) && return nothing
+    iszero(p[1]) && return nothing
+    d = length(p) - 1
+    r = Sym(:_rsolve_r)
+    χ = _add_many(p[i+1] * r^i for i in 0:d)
+    basis = Sym[]
+    _, facs = factor_squarefree(Poly(χ, r))
+    for (q, m) in facs
+        degree(q, r) >= 1 || continue
+        rs = try _solve_generic(Sym(q) ~ 0, r) catch err; err isa ArgumentError || rethrow(); return nothing end
+        rs isa AbstractVector && length(rs) == degree(q, r) || return nothing
+        any(ρ -> _nodes(ρ) > _RSOLVE_MAX_ROOT_NODES, rs) && return :large
+        for ρ in rs, j in 0:(m - 1)
+            push!(basis, n^j * ρ^n)
+        end
+    end
+    length(basis) == d || return nothing
+    # d consecutive values from the first one known
+    n0 = nothing
+    for m in 0:(2d)
+        all(i -> value(m + i) !== nothing, 0:(d - 1)) && (n0 = m; break)
+    end
+    n0 === nothing && return nothing
+    A = Sym[subs(b, n => n0 + i) for i in 0:(d - 1), b in basis]
+    v = Sym[value(n0 + i) for i in 0:(d - 1)]
+    cs = try A \ v catch err; err isa Union{ArgumentError,SingularException} || rethrow(); return nothing end
+    S = _add_many(cancel(c) * b for (c, b) in zip(cs, basis))
+    S, n0
 end
 
 # 8·2^(n - 3) as 2^n, term by term
