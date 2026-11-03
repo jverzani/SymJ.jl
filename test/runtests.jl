@@ -2488,6 +2488,27 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         Fib = Sym[1 1; 1 0]^n
         @test [round(Int, N(subs(Fib[1, 2], n => k))) for k in 1:10] == [1, 1, 2, 3, 5, 8, 13, 21, 34, 55]
         @test isapprox(N.(subs.(exp(t * Sym[1 2; 3 4]), t => 0.3)), exp(0.3 * [1 2; 3 4]); rtol = 1e-10)
+        # sqrt, log and non-integer powers (stdlib's Schur route needs floats)
+        @test sqrt(Sym[4 1; 0 4]) == Sym[2 1//4; 0 2]
+        @test Sym[4 1; 0 4]^(3//2) == Sym[8 3; 0 8]
+        @test Sym[4 1; 0 4]^(2//1) == Sym[16 8; 0 16]
+        @test log(Sym[2 1; 0 2]) == [log(Sym(2)) 1//2; 0 log(Sym(2))]
+        @test sqrt(Sym[0 0; 0 4]) == Sym[0 0; 0 2]
+        let x = Sym(:x), S = Sym[1 x; x 2]^(1//2)
+            @test isapprox(N.(subs.(S * S, x => 3)), [1.0 3; 3 2]; atol = 1e-10)
+        end
+        @test_throws ArgumentError sqrt(Sym[0 1; 0 0])
+        @test_throws ArgumentError log(Sym[0 1; 0 0])
+        # pseudoinverse from the rank factorization
+        @test LA.pinv(Sym[1 2; 2 4]) == Sym[1//25 2//25; 2//25 4//25]
+        @test LA.pinv(Sym[1 2 3; 4 5 6]) == Sym[-17//18 4//9; -1//9 1//9; 13//18 -2//9]
+        @test LA.pinv(zeros(Sym, 2, 3)) == zeros(Sym, 3, 2)
+        let a = Sym(:a), M = Sym[a 1; 2a 2]
+            @test map(cancel, M * LA.pinv(M) * M - M) == zeros(Sym, 2, 2)
+        end
+        let x = Sym(:x)
+            @test N.(subs.(LA.pinv(Sym[1 x; 2 2x; 0 1]), x => 2)) ≈ LA.pinv([1 2.0; 2 4; 0 1])
+        end
     end
 
     @testset "summation" begin

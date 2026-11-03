@@ -832,3 +832,60 @@ matrix): `Sym[1 1; 1 0]^n` gives the Fibonacci numbers.
 """
 Base.:^(A::AbstractMatrix{Sym}, n::Sym) = _matfun(λ -> λ^n, A)
 Base.:^(A::StridedMatrix{Sym}, n::Sym) = _matfun(λ -> λ^n, A)
+
+# a function with a branch point at 0 (sqrt, log, fractional powers) has no value, or
+# not enough derivatives, at a zero eigenvalue
+function _matfun_branch(f, A::AbstractMatrix{Sym}, name)
+    try
+        _matfun(f, A)
+    catch err
+        err isa DivisionByZero || rethrow()
+        throw(ArgumentError("$name is not defined for this matrix: its function is not " *
+                            "defined (or not differentiable enough) at the eigenvalue 0"))
+    end
+end
+
+"""
+    sqrt(A::AbstractMatrix{Sym}), log(A), A^p for a non-integer number p
+
+The principal square root (logarithm, power) of a square matrix of expressions, exactly,
+through its Jordan form (as for [`exp`](@ref)): `sqrt(A)^2 == A`. An error when the
+function is not defined at an eigenvalue (log, or a negative power, at 0; sqrt or a
+fractional power at 0 in a Jordan block larger than 1).
+
+```julia
+sqrt(Sym[4 1; 0 4])          # [2 1/4; 0 2]
+Sym[4 1; 0 4]^(3//2)         # [8 3; 0 8]
+```
+"""
+Base.sqrt(A::StridedMatrix{Sym}) = _matfun_branch(sqrt, A, "sqrt")
+Base.sqrt(A::AbstractMatrix{Sym}) = _matfun_branch(sqrt, A, "sqrt")
+Base.log(A::StridedMatrix{Sym}) = _matfun_branch(log, A, "log")
+Base.log(A::AbstractMatrix{Sym}) = _matfun_branch(log, A, "log")
+function Base.:^(A::StridedMatrix{Sym}, p::Union{Rational,AbstractFloat,AbstractIrrational})
+    isinteger(p) && return A^Integer(p)
+    q = p isa Rational ? Sym(p) : p isa AbstractIrrational ? Sym(p) : p
+    _matfun_branch(λ -> λ^q, A, "A^($p)")
+end
+
+"""
+    pinv(A::AbstractMatrix{Sym})
+
+The Moore–Penrose pseudoinverse of a matrix of expressions, exactly, from the rank
+factorization `A = C F` (`C` the pivot columns, `F` the nonzero rows of the reduced row
+echelon form): `pinv(A) = F' (F F')⁻¹ (C' C)⁻¹ C'`. Symbols are complex, so `'` conjugates;
+the rank is generic, as for [`SymJ.rref`](@ref).
+
+```julia
+pinv(Sym[1 2; 2 4])          # [1/25 2/25; 2/25 4/25]
+```
+"""
+function LinearAlgebra.pinv(A::AbstractMatrix{Sym})
+    R, pivots = _rref_field(A)
+    r = length(pivots)
+    r == 0 && return zeros(Sym, size(A, 2), size(A, 1))
+    C = Matrix{Sym}(A[:, pivots])
+    F = R[1:r, :]
+    ct(M) = Sym[conj(M[j, i]) for i in axes(M, 2), j in axes(M, 1)]
+    map(cancel, ct(F) * inv(F * ct(F)) * inv(ct(C) * C) * ct(C))
+end
