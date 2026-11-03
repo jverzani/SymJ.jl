@@ -42,9 +42,12 @@ SymJ.summation(1/k^2, k, 1, Inf)        # π^2/6
 function summation(f, k::Sym, a, b; assume = nothing)
     _isnamed(k) || throw(ArgumentError("summation: $k is not a symbol"))
     f = Sym(f)
+    # a Sym infinity is a bound as Inf is (it was taken as a number: digamma(∞ ± i))
+    a isa Sym && _isinfpt(a) && (a = Float64(a.num))
+    b isa Sym && _isinfpt(b) && (b = Float64(b.num))
     infb = b isa Real && isinf(b)
     infb && b < 0 && throw(ArgumentError("summation: the upper bound is -Inf"))
-    a isa Real && isinf(a) && throw(ArgumentError("summation from -Inf is not supported"))
+    a isa Real && isinf(a) && throw(ArgumentError("summation: an infinite lower bound ($a) is not supported"))
     a, bs = Sym(a), infb ? nothing : Sym(b)
     _summation(f, k, a, bs, assume)
 end
@@ -56,8 +59,8 @@ function _summation(f::Sym, k::Sym, a::Sym, b, assume)
     iszero(f) && return ZERO
     # numeric bounds, few terms: add them
     if b !== nothing && a.kind == NUMBER && b.kind == NUMBER && _isint(a.num) && _isint(b.num) &&
-       _toint(b.num) - _toint(a.num) <= _DIRECT_TERMS
-        return _add_many(subs(f, k => Sym(i)) for i in _toint(a.num):_toint(b.num))
+       abs(_toint(b.num) - _toint(a.num)) <= _DIRECT_TERMS
+        return _direct_sum(f, k, _toint(a.num), _toint(b.num))
     end
     # a polynomial in k as a whole (Σ(2k + 1) is (n + 1)^2, not n(n + 1) + n + 1)
     P = try Poly{Sym}(expand(f), [k]) catch; nothing end
@@ -103,9 +106,18 @@ register_function!(:Sum; eval = args -> begin
     length(args) == 4 || return nothing
     f, k, a, b = args
     (a.kind == NUMBER && b.kind == NUMBER && _isint(a.num) && _isint(b.num) &&
-     _toint(b.num) - _toint(a.num) <= _DIRECT_TERMS) || return nothing
-    _add_many(subs(f, k => Sym(i)) for i in _toint(a.num):_toint(b.num))
+     abs(_toint(b.num) - _toint(a.num)) <= _DIRECT_TERMS) || return nothing
+    _direct_sum(f, k, _toint(a.num), _toint(b.num))
 end)
+
+# Σ_{k=a}^{b} f term by term. Reversed bounds follow Karr's convention, as the closed
+# forms do (F(b+1) - F(a) for an antidifference F): Σ_{k=a}^{b} = -Σ_{k=b+1}^{a-1}, so
+# Σ_{k=a}^{a-1} = 0 and Σ_{k=5}^{1} k = -(2 + 3 + 4) (before, 0, while the closed form
+# gave -n(n-1)/2 for Σ_{k=n}^{0} k)
+function _direct_sum(f::Sym, k::Sym, a, b)
+    b >= a - 1 && return _add_many(subs(f, k => Sym(i)) for i in a:b)
+    -_add_many(subs(f, k => Sym(i)) for i in (b + 1):(a - 1))
+end
 
 # f = c * t with c free of k
 function _split_kfree(f::Sym, k::Sym)

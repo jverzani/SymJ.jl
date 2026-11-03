@@ -33,25 +33,45 @@ function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Boo
     v = _by_cases(A0) do A
         sub = collect(A.subst)
         g, l, h = isempty(sub) ? (Sym(f), lo, hi) : (subs(Sym(f), sub...), subs(lo, sub...), subs(hi, sub...))
-        # failing that, once more with f simplified (cos² + sin² in a denominator, a 0);
-        # failing both, a known definite integral (no antiderivative needed)
-        try
+        _definite_degenerate(g, x, l, h, A) do g, l, h
+            # failing that, once more with f simplified (cos² + sin² in a denominator, a 0);
+            # failing both, a known definite integral (no antiderivative needed)
             try
-                _definite(g, x, l, h, antider, A, principal_value)
+                try
+                    _definite(g, x, l, h, antider, A, principal_value)
+                catch err
+                    err isa InterruptException && rethrow()
+                    s = try simplify(g) catch; rethrow(err) end
+                    _eq(s, g) && rethrow()
+                    _definite(s, x, l, h, antider, A, principal_value)
+                end
             catch err
                 err isa InterruptException && rethrow()
-                s = try simplify(g) catch; rethrow(err) end
-                _eq(s, g) && rethrow()
-                _definite(s, x, l, h, antider, A, principal_value)
+                v = _known_definite(g, x, l, h)
+                v === nothing && (v = _gaussian_definite(g, x, l, h, A))
+                v === nothing ? rethrow() : v
             end
-        catch err
-            err isa InterruptException && rethrow()
-            v = _known_definite(g, x, l, h)
-            v === nothing && (v = _gaussian_definite(g, x, l, h, A))
-            v === nothing ? rethrow() : v
         end
     end
     _tidy_constant(v)
+end
+
+# The value run(g, l, h) of the integral, with a case for each parameter factor of its
+# denominator that the integrand's own denominator does not have: where it vanishes the
+# formula does not hold (∫₀¹ e^{ct} dt = (e^c - 1)/c, but 1 at c = 0; SymPy #27280), and
+# the integral is computed again with that value substituted
+function _definite_degenerate(run, g::Sym, x::Sym, l::Sym, h::Sym, A::Assumptions)
+    v = run(g, l, h)
+    (v isa Sym && _hassymbol(v)) || return v
+    own = _param_factors(numer_denom(g)[2], (x,))
+    D = [f for f in _param_factors(numer_denom(cancel(v))[2], (x,))
+         if !any(o -> cancel(o / f).kind == NUMBER, own)]
+    isempty(D) && return v
+    ps = _degenerate_subst(D, A, (x,))
+    ps === nothing && return v
+    _alternatives(ps) do p
+        _definite_degenerate(run, subs(g, p), x, subs(l, p), subs(h, p), A)
+    end
 end
 
 ## definite integrals known without an antiderivative

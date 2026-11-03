@@ -183,10 +183,62 @@ end
 _isalgconst(a::Sym) = a.kind == POW && a.args[1].kind == NUMBER && isexact(a.args[1].num) &&
     a.args[2].kind == NUMBER && isexact(a.args[2].num) && !_isint(a.args[2].num)
 
+# Back-substitution divides by the leading coefficient of each level's polynomial in its
+# variable. Where that coefficient involves free unknowns (x1 (x5 + 1) - x2: x5 free),
+# the component on which it vanishes is lost (SymPy #27008): each such factor is added to
+# the system and that system solved too. Components already solved (the same basis
+# reached through other factors) are skipped; past `_MAX_COMPONENTS` an error, rather
+# than an answer missing solutions.
+const _MAX_COMPONENTS = 256
+const _COMPONENTS = ScopedValue{Union{Nothing,Set{Vector{Sym}}}}(nothing)
+
 function _solve_groebner(nums::Vector{Sym}, vars::Vector{Sym})
+    _COMPONENTS[] === nothing && return with(() -> _solve_groebner(nums, vars), _COMPONENTS => Set{Vector{Sym}}())
     G = groebner(nums, vars...)
-    _DIVISORS[] === nothing || foreach(g -> _gb_divisors(g, vars), G)
     G == [ONE] && return Dict{Sym,Sym}[]
+    seen = _COMPONENTS[]
+    G in seen && return Dict{Sym,Sym}[]
+    push!(seen, G)
+    length(seen) > _MAX_COMPONENTS && throw(ArgumentError("solve: the system splits into more than " *
+        "$_MAX_COMPONENTS components (where divisors of its solutions vanish); not supported"))
+    degen = Sym[]
+    out = _solve_groebner_basis(G, nums, vars, degen)
+    for f in _unknown_factors(degen, vars)
+        append!(out, _solve_groebner([nums; f], vars))
+    end
+    isempty(degen) ? out : _uniquesols(out)
+end
+
+# the irreducible factors (up to constants) of the expressions in D that involve vars:
+# through products and powers (sqrt(-y^2) vanishes where y does)
+function _unknown_factors(D::Vector{Sym}, vars::Vector{Sym})
+    out = Sym[]
+    function add!(b)
+        if b.kind == MUL
+            for (a, p) in zip(b.args, b.exps)
+                p.kind == NUMBER && p.num > N0 && add!(a)
+            end
+            return
+        elseif b.kind == POW
+            p = b.args[2]
+            p.kind == NUMBER && p.num > N0 && add!(b.args[1])
+            return
+        end
+        any(v -> has(b, v), vars) || return
+        atoms = Set{Sym}()
+        _poly_atoms!(atoms, b)
+        all(_isnamed, atoms) || return            # a polynomial (no radicals of values found)
+        f = try factor(b) catch err; err isa ArgumentError || rethrow(); b end
+        f.kind in (MUL, POW) && return add!(f)
+        f = _content_free(f)
+        any(o -> cancel(o / f).kind == NUMBER, out) || push!(out, f)
+    end
+    foreach(c -> add!(numer_denom(c)[1]), D)
+    out
+end
+
+function _solve_groebner_basis(G::Vector{Sym}, nums::Vector{Sym}, vars::Vector{Sym}, degen::Vector{Sym})
+    _DIVISORS[] === nothing || foreach(g -> _gb_divisors(g, vars), G)
     # split on the irreducible factors of the last variable's polynomial
     n = length(vars)
     last = [g for g in G if _mainvar(g, vars) == n]
@@ -197,12 +249,12 @@ function _solve_groebner(nums::Vector{Sym}, vars::Vector{Sym})
             for (f, _) in facs
                 degree(f) >= 1 || continue
                 Gf = groebner([G; Sym(f)], vars...)
-                Gf == [ONE] || append!(out, _backsub(Gf, vars, n, Dict{Sym,Sym}()))
+                Gf == [ONE] || append!(out, _backsub(Gf, vars, n, Dict{Sym,Sym}(), degen))
             end
             return out
         end
     end
-    _backsub(G, vars, n, Dict{Sym,Sym}())
+    _backsub(G, vars, n, Dict{Sym,Sym}(), degen)
 end
 
 # a basis element's leading coefficient (lex in vars) and the denominators of its
@@ -221,7 +273,7 @@ _onlyvar(p::Sym, x::Sym) = (atoms = Set{Sym}(); _poly_atoms!(atoms, p) && all(a 
 # the index of the first of vars that p involves (0 if none)
 _mainvar(p::Sym, vars::Vector{Sym}) = something(findfirst(v -> has(p, v), vars), 0)
 
-function _backsub(G::Vector{Sym}, vars::Vector{Sym}, k::Int, sol::Dict{Sym,Sym})
+function _backsub(G::Vector{Sym}, vars::Vector{Sym}, k::Int, sol::Dict{Sym,Sym}, degen::Vector{Sym} = Sym[])
     k == 0 && return [sol]
     x = vars[k]
     pairs = [v => sol[v] for v in vars[(k+1):end] if haskey(sol, v)]
@@ -237,16 +289,32 @@ function _backsub(G::Vector{Sym}, vars::Vector{Sym}, k::Int, sol::Dict{Sym,Sym})
         end
         push!(qs, q)
     end
-    isempty(qs) && return _backsub(G, vars, k - 1, sol)            # x is free
+    isempty(qs) && return _backsub(G, vars, k - 1, sol, degen)      # x is free
     sort!(qs; by = q -> _xdegree(q, x))
+    # where a factor common to q's coefficients vanishes, x is free there
+    ct = _xcontent(qs[1], x)
+    ct !== nothing && any(v -> has(ct, v), vars) && push!(degen, ct)
     out = Dict{Sym,Sym}[]
     for r in _solve1(qs[1], x)
         all(q -> _satisfies(q ~ 0, x, r), qs[2:end]) || continue
+        # where r's denominator vanishes, the formula does not give the solutions
+        den = numer_denom(r)[2]
+        any(v -> has(den, v), vars) && push!(degen, den)
         s = copy(sol)
         s[x] = r
-        append!(out, _backsub(G, vars, k - 1, s))
+        append!(out, _backsub(G, vars, k - 1, s, degen))
     end
     out
+end
+
+# the gcd of q's coefficients in x, c for q = c x^d (nothing when q is not a polynomial
+# in x, or when they have no common factor)
+function _xcontent(q::Sym, x::Sym)
+    P = try Poly{Sym}(q, [x]) catch; return nothing end
+    cs = Sym[Sym(c) for c in coefficients(P)]
+    isempty(cs) && return nothing
+    g = length(cs) == 1 ? cs[1] : try reduce(gcd, cs) catch err; err isa ArgumentError || rethrow(); return nothing end
+    _hassymbol(g) ? g : nothing
 end
 
 # the roots of q in x: numeric when floating point values were substituted into it

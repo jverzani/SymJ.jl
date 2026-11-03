@@ -281,7 +281,7 @@ end
 
 # exp(a + c log(u)) = u^c exp(a), and the solution simplified where smaller
 function _ode_tidy(e::Sym)
-    e = _ode_signs(_explog(e))
+    e = _ode_signs(_explog(_empty_integrals(e)))
     s = try simplify(e) catch; e end
     _nodes(s) <= _nodes(e) ? s : e
 end
@@ -943,8 +943,28 @@ function _ode_ic_parts(k::Sym)
     f.kind == FN && length(f.args) == 1 && _eq(f.args[1], t) ? (f.name, o, k.args[3]) : nothing
 end
 
+# An unevaluated antiderivative Integral(f, x) (an unknown forcing P(x)) taken as the
+# definite integral from the conditions' point a: ∫ₐˣ f ds is 0 at x = a, which fixes the
+# constants (substituting x = a into Integral(f, x) gave Integral(f(a), a); SymPy #27479)
+function _from_point(S::Sym, x::Sym, a::Sym)
+    _hasfn(S, :Integral) || return S
+    k = 0                              # a dummy variable for each (nested ones differ)
+    _replace_walk(S) do e
+        (e.kind == FN && e.name === :Integral && length(e.args) == 2 && _eq(e.args[2], x)) || return nothing
+        k += 1
+        s = Sym(Symbol(x.name, "_s", k == 1 ? "" : string(k)))
+        _mkfn_node(:Integral, Sym[subs(e.args[1], x => s), s, a, x])
+    end
+end
+
+# Integral(f, v, a, a) is 0
+_empty_integrals(e::Sym) = _hasfn(e, :Integral) ? _replace_walk(e) do t
+    _isdefint(t) && _eq(t.args[3], t.args[4]) ? ZERO : nothing
+end : e
+
 function _ode_ics(P::_ODE, kind::Symbol, S::Sym, Cs, conds)
     x, Y0 = P.x, P.ys[1]
+    allequal(c[2] for c in conds) && (S = _from_point(S, x, conds[1][2]))
     if kind === :explicit
         eqs = [_ode_tidy(subs(diff(S, x, o), x => a)) ~ v for (o, a, v) in conds]
         used = [C for C in Cs if has(S, C)]
@@ -1259,6 +1279,10 @@ end
 
 function _odesys_ics(S, yxs, Cs, t, ics)
     eqs = Relation[]
+    pts = [_ode_ic_parts(Sym(p.first)) for p in ics]
+    if all(!isnothing, pts) && allequal(c[3] for c in pts)
+        S = [_from_point(s, t, pts[1][3]) for s in S]
+    end
     for p in ics
         c = _ode_ic_parts(Sym(p.first))
         j = c === nothing ? nothing : findfirst(y -> y.name === c[1], yxs)

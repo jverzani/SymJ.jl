@@ -162,7 +162,9 @@ import PolyLog as PL
         ri_complex = try ∫(exp(IM * x), x); true catch; false end
         ri_complex && let rect = P((-Sym(1) // 2 ≦ x, x ≦ Sym(1) // 2) => 1, true => 0)
             @test ∫(rect * exp(-2IM * x), (x, -Inf, Inf)) == sin(Sym(1))
-            @test ∫(rect * exp(-2IM * PI * a * x), (x, -Inf, Inf)) == sin(PI * a) / (PI * a)
+            ft = ∫(rect * exp(-2IM * PI * a * x), (x, -Inf, Inf))         # with the case a = 0
+            @test ft(a => 0) == 1
+            @test last(ft.cases).second == sin(PI * a) / (PI * a)
         end
         # no piece holds past the last condition: not defined there (SymPy #28469)
         @test ∫(P(x ≪ 1 => x), x) == P(x ≪ 1 => x^2 / 2)
@@ -270,6 +272,17 @@ import PolyLog as PL
         @test ∫(sqrt(x^2 * (b^2 + 1)), x) == SymJ.piecewise(x ≪ 0 => -x^2 * sqrt(b^2 + 1) / 2, true => x^2 * sqrt(b^2 + 1) / 2)
         @test ∫(sqrt(x^2 * (b^2 + 1)), (x, 0, a / b), (c, 0, 2PI); assume = @assume(a > 0, b > 0)) == PI * a^2 * sqrt(b^2 + 1) / b^2
         @test ∫(sqrt(4x^2), (x, -1, 2)) == 5
+        # an antiderivative that divides by a parameter: a case where it vanishes (SymPy #27280, #27073)
+        @syms t
+        cs = ∫(exp(c * t), (t, 0, 1))
+        @test cs isa SymJ.Cases
+        @test cs(c => 0) == 1
+        @test cs(c => 2) == (exp(Sym(2)) - 1) / 2
+        @test ∫(exp(im * b * x), (x, -1, 1))(b => 0) == 2
+        @test ∫((b - a) * exp(t * c + (1 - t) * a), (t, 0, 1))(c => a) == (b - a) * exp(a)
+        @test ∫(x / a, (x, 0, 1)) == 1 / (2a)               # the integrand's own denominator: no case
+        # an end at a pole of the antiderivative (tan θ at π/2): a one-sided limit (SymPy #27185)
+        @test ∫((8 - (4 - 4cos(x)^2)^(Sym(3) // 2)) / 3, (x, 0, PI / 2)) == 4PI / 3 - Sym(16) // 9
     end
 
     @testset "RischIntegrate: principal values" begin
@@ -337,6 +350,16 @@ import PolyLog as PL
         @syms y()
         C1, C2 = Sym(:C1), Sym(:C2)
         D = SymJ.dsolve
+        # an unknown forcing: its integral from the conditions' point (SymPy #27479)
+        let t = Sym(:t), P = SymFunction(:P), S = SymFunction(:S)
+            r = D(diff(S(t), t) ~ P(t) - S(t), S(t), S(0) => 10)
+            @test !occursin("Integral(P(0)", string(r))
+            @test SymJ._ode_tidy(subs(r.rhs, t => 0)) == 10
+            @test iszero(simplify(diff(r.rhs, t) - (P(t) - r.rhs)))
+            r2 = D(diff(y(t), t, 2) ~ P(t), y(t), y(1) => 0, y'(1) => 2)
+            @test SymJ._ode_tidy(subs(r2.rhs, t => 1)) == 0
+            @test SymJ._ode_tidy(subs(diff(r2.rhs, t), t => 1)) == 2
+        end
         @test D(y'(x) ~ 1 / (1 + x^2), y(x)) == (y(x) ~ atan(x) + C1)
         @test D(y''(x) ~ sin(x), y(x)) == (y(x) ~ C1 * x + C2 - sin(x))
         @test D(y'(x) ~ (x^2 + y(x)^2) / (x * y(x)), y(x)) == (y(x) ~ sqrt((C1 + 2log(x)) * x^2))   # homogeneous
