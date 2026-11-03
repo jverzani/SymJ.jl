@@ -2037,6 +2037,14 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
     end
 
     @testset "limit" begin
+        # an integer variable at ∞: sin(πv) without v's integer polynomial part (SymPy #28313)
+        let n = Sym(:n), Z = (n ∈ ℤ,)
+            @test N(limit((1 + sin(PI * sqrt(4n^2 + 1)))^n, n => Inf; assume = Z)) ≈ exp(pi / 4)
+            @test limit(sin(PI * n), n => Inf; assume = Z) == 0
+            @test limit(cos(2PI * n) + 1 / n, n => Inf; assume = Z) == 1
+            @test_throws SymJ.GruntzError limit(n * sin(PI * sqrt(n^2 + 1)), n => Inf; assume = Z)   # ±π/2
+            @test_throws SymJ.GruntzError limit(sin(PI * n), n => Inf)              # n real: no limit
+        end
         @syms a b
         @test limit(sin(x) / x, x => 0) == 1 && limit((1 + 1 / x)^x, x => Inf) == E
         # sinc and cosc through sin and cos (SymPy #30545)
