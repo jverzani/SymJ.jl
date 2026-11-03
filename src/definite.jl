@@ -663,3 +663,62 @@ function _sign_oracle(A::Assumptions)
         m == _POS ? 1 : m == _NEG ? -1 : nothing
     end
 end
+
+# drop_removable_singularities = true: a case p = q whose value is the limit of the
+# general formula as p → q (both sides) is a removable singularity of that formula, and
+# is merged into it (∫₀¹ e^{ct} dt: (e^c - 1)/c, its value 1 at c = 0 the limit), the
+# condition p ≠ q dropped from the general case. Repeated until none is left; a single
+# case left with no conditions is its value.
+function _drop_removable(v)
+    v isa Cases || return v
+    cs = collect(v.cases)
+    changed = true
+    while changed
+        changed = false
+        for (i, (ci, vi)) in enumerate(cs)
+            k = findfirst(c -> c isa Relation && c.op === :eq && _isnamed(c.lhs), ci)
+            k === nothing && continue
+            eq = ci[k]
+            rest = ci[[j for j in eachindex(ci) if j != k]]
+            # the general case: the same conditions with p ≠ q in place of p = q
+            j = findfirst(eachindex(cs)) do j
+                j == i && return false
+                cj = cs[j].first
+                length(cj) == length(ci) || return false
+                m = findfirst(c -> c isa Relation && c.op === :ne && _eq(c.lhs, eq.lhs) && _eq(c.rhs, eq.rhs), cj)
+                m !== nothing && all(c -> any(r -> isequal(r, c), rest), cj[[t for t in eachindex(cj) if t != m]])
+            end
+            j === nothing && continue
+            g = cs[j].second
+            (g isa Sym && vi isa Sym) || continue
+            _removable_at(g, eq.lhs, eq.rhs, vi) || continue
+            cj = cs[j].first
+            cs[j] = Any[c for c in cj if !(c isa Relation && c.op === :ne && _eq(c.lhs, eq.lhs) && _eq(c.rhs, eq.rhs))] => g
+            deleteat!(cs, i)
+            changed = true
+            break
+        end
+    end
+    length(cs) == 1 && isempty(cs[1].first) && return cs[1].second
+    typeof(v)(cs)
+end
+
+# is val the limit of g as p → q, from both sides? (g simplified when the limit fails:
+# -i e^{ib}/b + i e^{-ib}/b is 2 sin(b)/b)
+function _removable_at(g::Sym, p::Sym, q::Sym, val::Sym)
+    lim(h, dir) = try
+        limit(h, p => q; dir = dir)
+    catch err
+        err isa Union{GruntzError,ArgumentError,DomainError} || rethrow()
+        nothing
+    end
+    for dir in (:+, :-)
+        L = lim(g, dir)
+        L === nothing && (L = lim(simplify(g), dir))
+        L === nothing && return false
+        L isa Sym || return false
+        d = cancel(L - val)
+        iszero(d) || (!_hassymbol(d) && abs(N(d)) < 1e-12) || return false
+    end
+    true
+end

@@ -282,6 +282,11 @@ import PolyLog as PL
         (try ∫(exp(IM * x), x); true catch; false end) && @test ∫(exp(im * b * x), (x, -1, 1))(b => 0) == 2
         @test ∫((b - a) * exp(t * c + (1 - t) * a), (t, 0, 1))(c => a) == (b - a) * exp(a)
         @test ∫(x / a, (x, 0, 1)) == 1 / (2a)               # the integrand's own denominator: no case
+        # drop_removable_singularities = true: a case that is the formula's limit is merged into it
+        @test iszero(cancel(∫(exp(c * t), (t, 0, 1); drop_removable_singularities = true) - (exp(c) - 1) / c))
+        (try ∫(exp(IM * x), x); true catch; false end) &&
+            @test ∫(exp(im * b * x), (x, -1, 1); drop_removable_singularities = true) isa Sym
+        @test ∫(x^t, (x, 0, 1); drop_removable_singularities = true) isa SymJ.Cases   # t ≤ -1 is no such case
         # an end at a pole of the antiderivative (tan θ at π/2): a one-sided limit (SymPy #27185)
         @test ∫((8 - (4 - 4cos(x)^2)^(Sym(3) // 2)) / 3, (x, 0, PI / 2)) == 4PI / 3 - Sym(16) // 9
     end
