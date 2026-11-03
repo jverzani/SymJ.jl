@@ -635,8 +635,85 @@ function _signs(e::Sym, A::Assumptions)::Union{Nothing,UInt8}
     if m !== nothing && m & _ZER != 0 && count_ones(m) > 1 && _known_nonzero(e, A)
         m &= ~_ZER
     end
+    if (m === nothing || count_ones(m) > 1) && !_IN_EXTREMA[]
+        me = with(() -> _sign_by_extrema(e, A), _IN_EXTREMA => true)
+        me === nothing || (m = m === nothing ? me : (m & me == 0 ? m : m & me))
+    end
     A.cache[e] = m
     m
+end
+
+# the sign of a real expression in one symbol x on x's interval, from its range: the
+# values at the critical points inside and at the closed ends, the limits at the open
+# ones (2^y - y > 0 for y > 0; SymPy #29342). Only when that is sound: e continuous
+# there (no denominator vanishes inside), not periodic (solve gives the critical points
+# of one period only), and the critical points found exactly.
+const _IN_EXTREMA = ScopedValue(false)
+const _PERIODIC_FNS = (:sin, :cos, :tan, :cot, :sec, :csc)
+# not differentiable everywhere: an extremum may sit where the derivative does not exist
+const _NONSMOOTH_FNS = (:abs, :sign, :floor, :ceil, :round, :trunc, :piecewise, :heaviside, :dirac,
+                        :max, :min, :mod, :rem, :real, :imag, :conj, :angle)
+
+function _sign_by_extrema(e::Sym, A::Assumptions)
+    vs = _named(e)
+    length(vs) == 1 || return nothing
+    x = only(vs)
+    (_has_fn(e, _PERIODIC_FNS) || _has_fn(e, _NONSMOOTH_FNS)) && return nothing
+    S = get(A.sets, x, nothing)
+    if S === nothing
+        get(A.dom, x, _CR) == _RR || return nothing          # real: the whole line
+        I = SymInterval(nothing, nothing, false, false)
+    else
+        length(S.intervals) == 1 || return nothing
+        I = only(S.intervals)
+    end
+    (I.lo === nothing || !_hassymbol(I.lo)) && (I.hi === nothing || !_hassymbol(I.hi)) || return nothing
+    lo = I.lo === nothing ? -Inf : Float64(N(I.lo))
+    hi = I.hi === nothing ? Inf : Float64(N(I.hi))
+    inside(v) = lo < v < hi
+    real_roots(eq) = (rs = _solve_generic(eq, x); rs isa AbstractVector || error("cases");
+                      [Float64(real(w)) for w in (N(r) for r in rs) if abs(imag(w)) <= 1e-12 * max(1, abs(w))])
+    try
+        for z in unique(_zero_sets!(Sym[], e, x))           # continuous on the interval
+            any(inside, real_roots(z ~ 0)) && return nothing
+        end
+        d = diff(e, x)
+        rs = _solve_generic(d ~ 0, x)
+        rs isa AbstractVector || return nothing
+        # and where f' does not exist but f does ((x^2)^(1/3) at 0)
+        for z in unique(_zero_sets!(Sym[], d, x))
+            zr = _solve_generic(z ~ 0, x)
+            zr isa AbstractVector || return nothing
+            append!(rs, zr)
+        end
+        pts = Sym[r for r in rs if (w = N(r); abs(imag(w)) <= 1e-12 * max(1, abs(w)) && inside(Float64(real(w))))]
+        exact = Sym[subs(e, x => r) for r in pts]          # values at the critical points
+        attained = Float64[Float64(real(N(v))) for v in exact]
+        bounds = Float64[]
+        for (p, closed, dir, inf) in ((I.lo, I.lclosed, :+, -Inf), (I.hi, I.rclosed, :-, Inf))
+            if p === nothing
+                v = limit(e, x => inf)
+                push!(bounds, Float64(real(N(v))))
+            elseif closed
+                push!(exact, subs(e, x => p))
+                push!(attained, Float64(real(N(exact[end]))))
+            else
+                push!(bounds, Float64(real(N(limit(e, x => p; dir)))))
+            end
+        end
+        all(isfinite, attained) || return nothing
+        all(v -> v > 0, attained) && all(v -> v >= 0, bounds) && return _POS
+        all(v -> v < 0, attained) && all(v -> v <= 0, bounds) && return _NEG
+        # a minimum (maximum) of exactly 0: e ≥ 0 (≤ 0), zero there
+        zero_at = [iszero(simplify(v)) for v in exact]
+        any(zero_at) || return nothing
+        others = [attained[i] for i in eachindex(attained) if !zero_at[i]]
+        all(v -> v > 0, others) && all(v -> v >= 0, bounds) && return _POS | _ZER
+        all(v -> v < 0, others) && all(v -> v <= 0, bounds) && return _NEG | _ZER
+    catch err
+        err isa InterruptException && rethrow()
+    end
+    nothing
 end
 
 function _known_nonzero(e::Sym, A::Assumptions)

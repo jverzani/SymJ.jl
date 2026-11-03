@@ -101,8 +101,9 @@ function limit(f, xx0::Pair; dir = :both, assume = nothing)
     for (conds, v) in cs
         rels = Any[_relation(c) for c in conds]
         if A !== nothing && !isempty(rels)
-            B = _build(_flatten!(Any[], (A.facts, rels)))
+            B = try _build(_flatten!(Any[], (A.facts, rels))) catch err; err isa ArgumentError || rethrow(); A end
             B === nothing && continue                     # excluded by the assumptions
+            any(r -> _holds(r, A) === false, rels) && continue   # (2^y > y for y > 0)
             rels = _simplify_conds(rels, A)
         end
         push!(cases, rels => _limit_value(v))
