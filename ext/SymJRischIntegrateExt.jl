@@ -45,15 +45,16 @@ end
 # and at ±∞, by cases on parameters; principal_value = true takes Cauchy principal values
 # at the singular points inside and at ±∞ (see SymJ's definite.jl)
 # (an inner integral by cases, as the integrand of an outer one: the cases the outer
-# interval allows)
+# interval allows). drop_removable_singularities = true merges a case p = q into the
+# general formula when its value is the formula's limit there (SymJ._drop_removable).
 function RischIntegrate.integrate(ex::Union{Sym,SymJ.Cases}, xab::Tuple, more::Tuple...; assume = nothing,
-                                  principal_value::Bool = false, kw...)
+                                  principal_value::Bool = false, drop_removable_singularities::Bool = false, kw...)
     antider = (f, x, A) -> RischIntegrate.integrate(f, x; assume = A, kw...)
     v = SymJ._definite_integral(ex, xab, assume, antider; principal_value)
     for t in more
         v = SymJ._definite_integral(v, t, assume, antider; principal_value)
     end
-    v
+    drop_removable_singularities ? SymJ._drop_removable(v) : v
 end
 
 # RischIntegrate's special functions on expressions, so answers with them are expressions

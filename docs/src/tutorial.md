@@ -1192,6 +1192,21 @@ integrate(exp(-a * x), (x, 0, Inf))
 integrate(exp(-a * x), (x, 0, Inf); assume = @assume(a > 0))
 ```
 
+Where the formula divides by a parameter, the value where that factor vanishes is a
+case of its own:
+
+```@example tut
+@syms c
+integrate(exp(c * x), (x, 0, 1))
+```
+
+Here the case is a removable singularity: its value 1 is the formula's limit as
+`c → 0`. `drop_removable_singularities = true` merges such cases into the formula:
+
+```@example tut
+integrate(exp(c * x), (x, 0, 1); drop_removable_singularities = true)
+```
+
 An iterated integral lists its intervals innermost first. The inner integral may have
 cases on the outer variable (here on the sign of `x`, for `y^m`); the outer interval keeps
 the ones it allows, or is split where they change:
