@@ -278,7 +278,7 @@ import PolyLog as PL
         @test cs isa SymJ.Cases
         @test cs(c => 0) == 1
         @test cs(c => 2) == (exp(Sym(2)) - 1) / 2
-        @test ∫(exp(im * b * x), (x, -1, 1))(b => 0) == 2
+        ri_complex && @test ∫(exp(im * b * x), (x, -1, 1))(b => 0) == 2   # (complex constants: RischIntegrate ≥ 1.2)
         @test ∫((b - a) * exp(t * c + (1 - t) * a), (t, 0, 1))(c => a) == (b - a) * exp(a)
         @test ∫(x / a, (x, 0, 1)) == 1 / (2a)               # the integrand's own denominator: no case
         # an end at a pole of the antiderivative (tan θ at π/2): a one-sided limit (SymPy #27185)
