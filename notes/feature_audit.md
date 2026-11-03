@@ -116,13 +116,13 @@ separately. Names checked against SymPy 1.14 and Giac.jl's command table as befo
 | Capability | SymPy | Giac | SymJ |
 |:--|:--|:--|:--|
 | Matrices of expressions: products | `Matrix` | built in | ✅ Julia arrays of `Sym` |
-| Matrix functions | `Matrix.exp`, `analytic_func` | `exp` (matrix), `matpow` | ✅ `exp`, `sin`, `cos`, `A^n` (symbolic `n`) through the Jordan form |
+| Matrix functions | `Matrix.exp`, `analytic_func` | `exp` (matrix), `matpow` | ✅ `exp`, `sin`, `cos`, `sqrt`, `log`, `A^n` (symbolic `n`) and `A^p` (non-integer `p`) through the Jordan form |
 | Determinant, inverse, solving | `Matrix` methods `det`, `inv`, `LUsolve` | `det`, `inverse`, `linsolve` | ✅ `det` (Bareiss for polynomials), `inv` (adjugate or Gauss–Jordan over rational functions), `A \ b`, exactly with first-nonzero pivoting |
 | Row reduction, null space, rank | `Matrix` methods `rref`, `nullspace`, `rank` | `rref`, `ker`, `rank` | ✅ `SymJ.rref`, `nullspace`, `rank` (generic: symbolic pivots nonzero) |
 | Eigenvalues, eigenvectors, Jordan form | `Matrix` methods `eigenvals`, `eigenvects`, `jordan_form` | `eigenvals`, `eigenvects`, `jordan` | ✅ `eigvals` (with multiplicity), `eigvecs`, `eigen` (diagonalizable), `SymJ.charpoly`, `SymJ.jordan_form` |
 | LU, QR, SVD | `Matrix` methods `LUdecomposition`, `QRdecomposition` | `lu`, `qr`, `svd` | ✅ `lu` (a `LinearAlgebra.LU`), `qr` (exact Gram–Schmidt), `svd` and `svdvals` (a `LinearAlgebra.SVD`; squared singular values of degree at most 2 over the rationals) |
 | Smith normal form | `smith_normal_form`, `smith_normal_decomp` (`sympy.matrices.normalforms`) | `smith`, `ismith` | ❌ (SymPy #29139); Hermite normal form (`hermite_normal_form`) too (SymPy #28601) |
-| Pseudoinverse | `Matrix.pinv` | — | ❌ `pinv` of a symbolic matrix is an error (SymPy #30759) |
+| Pseudoinverse | `Matrix.pinv` | — | ✅ `pinv` from the rank factorization (generic rank, as for `rref`) (SymPy #30759) |
 | Schur, Cholesky decompositions (symbolic) | `Matrix.cholesky`, `LDLdecomposition` | `cholesky` | ❌ `schur` of a `Sym` matrix is a MethodError (SymPy #28255); no symbolic Cholesky (#28477) |
 | Permanent | `Matrix.per` | `permanent` | ❌ (SymPy #28539) |
 | Rank conditions with parameters | — | — | ❌ `rank` is generic; no cases where it drops (SymPy #28232) |
