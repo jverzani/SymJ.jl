@@ -697,6 +697,23 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test exponent_vectors(Poly(x^2 * y + 3, x, y)) == [[2, 1], [0, 0]]
         @test coefficients(Poly(2x^2 - 1 // 2, x)) == [SymNumber(2), SymNumber(-1 // 2)]
 
+        # products of integer polynomials: dense slices and the hash table, with Int128
+        # or 192-bit accumulation, agree with expression arithmetic
+        let z = Sym(:z), f = 1 + x + y + z, c = 2^62 - 1
+            P = Poly(f, x, y, z)
+            @test Sym(P^6 * (P^6 + 1)) == SymJ._expand_generic(f^6 * (f^6 + 1))     # dense
+            @test Sym(Poly(x^9 - y^7 + 3z, x, y, z) * Poly(x^8 + 5y^3 * z - 1, x, y, z)) ==
+                  SymJ._expand_generic((x^9 - y^7 + 3z) * (x^8 + 5y^3 * z - 1))   # sparse
+            # Int64 coefficients whose sums pass 2^127: 192-bit accumulation, both signs
+            h = sum(c * x^i * y^j for i in 0:4, j in 0:4)
+            H = Poly(h, x, y)
+            @test Sym(H * H) == SymJ._expand_generic(h * h)                       # dense
+            @test Sym(H * -H) == SymJ._expand_generic(-h * h)
+            s = sum(c * x^(7i) * y^(3i) for i in 0:9) - c * z^20
+            S = Poly(s, x, y, z)
+            @test Sym(S * S) == SymJ._expand_generic(s * s)                       # sparse
+        end
+
         # arithmetic agrees with expression arithmetic
         q = Poly(x - 2y + 3, x, y)
         for r in (p + q, p - q, p * q, q^4, -q, 2 * p, p + 1, p * x)
