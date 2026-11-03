@@ -1932,6 +1932,16 @@ _add_many_test(f, k, n) = sum(subs(f, k => i) for i in 1:n)
         @test sg(abs(x), G) == Set([0, 1]) && sg(exp(x) - 1, G) == Set([-1, 0, 1])
         # membership on numbers is a Bool
         @test 2 ∈ ℤ && !(Sym(1) / 2 ∈ ℤ) && Sym(π) ∈ ℝ && 1.5 ∈ ℚ && !(π ∈ ℚ) && im ∉ ℝ
+        # signs from the range on an interval: critical points and end values (SymPy #29342)
+        let y = Sym(:y)
+            @test refine(2^y - y ≫ 0; assume = (y ≫ 0,)) == true
+            @test refine(log(x) - x ≪ 0; assume = (x ≫ 0,)) == true
+            @test refine(exp(x) - x - 1 ≧ 0; assume = (x ∈ ℝ,)) == true
+            @test refine(exp(x) - x - 1 ≫ 0; assume = (x ≫ 0,)) == true
+            @test refine(exp(x) - x - 1 ≫ 0; assume = (x ∈ ℝ,)) isa Relation   # 0 at x = 0
+            @test refine(x - log(x) - 2 ≫ 0; assume = (x ≫ 0,)) isa Relation   # negative at 1
+            @test limit(x^y / x^(2^y), x => Inf; assume = (y ≫ 0,)) == 0
+        end
         # a polynomial in π with algebraic coefficients is irrational (SymPy #27993)
         @test refine(PI + PI^2 ∈ ℚ) == 0
         @test refine(sqrt(Sym(2)) * PI + PI^2 + 1 ∈ ℚ) == 0
