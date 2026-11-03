@@ -62,6 +62,10 @@ function limit(f, xx0::Pair; dir = :both, assume = nothing)
             x0 isa Real || (x0 = subs(Sym(x0), sub...))
         end
         signs = _gruntz_signs(A, x)
+        # an integer variable at ±∞: sin(πv), cos(πv) without v's integer-valued polynomial part
+        if get(A.dom, x, _CR) == _ZR && x0 isa Real && isinf(x0)
+            f = _integer_trig_shift(f, x, x0, A)
+        end
     end
     x0g = x0 isa Real ? x0 : Sym(x0)
     # a piecewise function whose conditions are free of x (a ≠ 0) is a split on the
@@ -118,6 +122,28 @@ function limit(f, xx0::Pair; dir = :both, assume = nothing)
     end
     T = typejoin(map(c -> typeof(c.second), cases)...)
     Cases{T}([c.first => c.second for c in cases])
+end
+
+# For an integer n: sin(πv) = (-1)^p sin(π(v - p)) and cos(πv) = (-1)^p cos(π(v - p)) for
+# any integer-valued p; with p the polynomial part of v's expansion at ±∞ (integer
+# coefficients), v - p has a limit: sin(π√(4n² + 1)) = sin(π(√(4n² + 1) - 2n)) → 0
+# (SymPy #28313)
+function _integer_trig_shift(f::Sym, n::Sym, x0::Real, A)
+    _replace_walk(f) do e
+        (e.kind == FN && e.name in (:sin, :cos) && length(e.args) == 1) || return nothing
+        v = expand(e.args[1] / PI)
+        has(v, n) || return nothing
+        s = try series(v, n, x0, 2) catch err; err isa ArgumentError || rethrow(); return nothing end
+        p = ZERO
+        for (ex, c) in zip(s.ps.e, s.ps.c)
+            ex > 0 && continue                       # the vanishing terms (t = 1/n)
+            (isinteger(ex) && c.kind == NUMBER && _isint(c.num)) || return nothing
+            p += c * (x0 > 0 ? n : -n)^Int(-ex)
+        end
+        iszero(p) && return nothing
+        # (refining only the sign: refine would take the integer multiple of π back out)
+        _refine((-1)^p, A) * apply_function(e.name, Sym[PI * expand(v - p)])
+    end
 end
 
 const _GRUNTZ_REL = Dict(:< => :lt, :<= => :le, :(==) => :eq, :!= => :ne, :>= => :ge, :> => :gt)
