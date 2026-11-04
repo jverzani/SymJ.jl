@@ -40,6 +40,15 @@ _isalgebraic_atom(a::Sym) = a.kind == POW && a.args[2].kind == NUMBER && isexact
 function _field_matrix(A::AbstractMatrix)
     S = Sym[Sym(a) for a in A]
     all(e -> e.kind == NUMBER, S) && return map(e -> e.num, S), Sym      # floating point too
+    # floating point numbers with symbols: over the rationals they stand for, the
+    # results' numbers floats again (inv([x-0.3 -0.06; -0.2 x-0.5]); SymPy #26271)
+    if any(e -> !_isexactex(e), S) && any(_hassymbol, S)
+        X = Sym[_exactfloats(e; short = true) for e in S]
+        if all(_isexactex, X)
+            M, back = _field_matrix(reshape(X, size(S)))
+            return M, (a -> _floatify(back(a)))
+        end
+    end
     atoms = Set{Sym}()
     for e in S
         n, d = numer_denom(e)

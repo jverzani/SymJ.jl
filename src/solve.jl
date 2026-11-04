@@ -259,9 +259,10 @@ end
 # one equation takes one unknown and a system a vector of unknowns: the form of the call
 # fixes the form of the result (values or Dicts)
 const _SOLVE_FORMS = "solve(eq, x) for one equation (a vector of values), solve([eqs...], [vars...]) for a system (a vector of Dicts)"
-solve(eq::Relation, x::Sym, rest...) = throw(ArgumentError("solve: give the unknowns of a system as a vector; use $_SOLVE_FORMS"))
-solve(eq::Relation, vars::Union{AbstractVector,Tuple}) = throw(ArgumentError("solve: a single equation takes a single unknown; use $_SOLVE_FORMS"))
-solve(eqs::AbstractVector{<:Relation}, x::Sym) = throw(ArgumentError("solve: a system takes a vector of unknowns; use $_SOLVE_FORMS"))
+# (keywords accepted, so a call with assume = … gets the message too; SymPy #25783)
+solve(eq::Relation, x::Sym, rest...; kws...) = throw(ArgumentError("solve: give the unknowns of a system as a vector; use $_SOLVE_FORMS"))
+solve(eq::Relation, vars::Union{AbstractVector,Tuple}; kws...) = throw(ArgumentError("solve: a single equation takes a single unknown; use $_SOLVE_FORMS"))
+solve(eqs::AbstractVector{<:Relation}, x::Sym; kws...) = throw(ArgumentError("solve: a system takes a vector of unknowns; use $_SOLVE_FORMS"))
 solve(ex::Sym, x::Sym) = throw(ArgumentError(
     "solve needs an equation, e.g. solve($ex ~ 0, $x); an expression is not taken to mean \"= 0\""))
 
@@ -435,6 +436,12 @@ function _solve_through(eq::Relation, n::Sym, x::Sym, bad::Vector{Sym})
     end
     if has(nu, x)
         _issqrt(g) && return _solve_radical(eq, nu, u, g, x)
+        # log(x) and x: x = e^y, an equation in y and e^y (1/x = 1/log(x)²: y² = e^y; #26461)
+        if g.kind == FN && g.name === :log && length(g.args) == 1 && _eq(g.args[1], x)
+            y = Sym(Symbol("_y", objectid(g)))
+            ys = _solve_eq(subs(nu, u => y, x => exp(y)) ~ 0, y)
+            return filter(r -> _satisfies(eq, x, r), Sym[exp(r) for r in ys])
+        end
         r = _solve_lambert(eq, nu, u, g, x)
         r === nothing || return r
         throw(ArgumentError("solve: $eq involves both $x and $g; not supported (it may need, e.g., Lambert W)"))
@@ -654,7 +661,11 @@ function _solve_lambert(eq::Relation, nu::Sym, u::Sym, g::Sym, x::Sym)
     c1, c0 = cs[1], length(cs) == 2 ? cs[2] : ZERO
     lin(c) = (Q = Poly{Sym}(c, [x]); degree(Q, x) <= 1 ? Q : nothing)
     L1, L0 = lin(c1), lin(c0)
-    (L1 === nothing || L0 === nothing) && return nothing
+    if L1 === nothing || L0 === nothing
+        # c1 g = -c0 with one side κ(x + β)^k, k ≥ 2: its k-th roots, x + β = ω^j (…)^(1/k)
+        # g^(1/k), each a Lambert equation (y² = e^y is y = ±e^(y/2); SymPy #26461)
+        return _solve_lambert_power(eq, c1, c0, g, x)
+    end
     if degree(L1, x) == 1 && degree(L0, x) <= 0              # (αx + β) e^(γx+δ) = -c0
         α, β, K = _lin_coeffs(c1, x)..., -c0
     elseif degree(L1, x) <= 0 && degree(L0, x) == 1          # c1 e^(γx+δ) = -(αx + β)
@@ -674,6 +685,40 @@ function _solve_lambert(eq::Relation, nu::Sym, u::Sym, g::Sym, x::Sym)
 end
 _lin_coeffs(c::Sym, x::Sym) = (α = cancel(diff(c, x)); (α, cancel(c - α * x)))
 
+function _solve_lambert_power(eq::Relation, c1::Sym, c0::Sym, g::Sym, x::Sym)
+    # κ(x + β)^k for a polynomial c of degree k ≥ 2 in x: (κ, β, k), or nothing
+    function lin_power(c)
+        has(c, x) || return nothing
+        P = try Poly{Sym}(c, [x]) catch err; err isa ArgumentError || rethrow(); return nothing end
+        k = degree(P, x)
+        k >= 2 || return nothing
+        κ = Sym(coefficients(P)[1])
+        β = cancel(coeff(expand(c), x, k - 1) / (k * κ))
+        iszero(expand(c - κ * (x + β)^k)) || return nothing
+        κ, β, k
+    end
+    b, e = g.args
+    out = Sym[]
+    if (t = lin_power(c0)) !== nothing && !has(c1, x)         # c1 g = -κ (x + β)^k
+        κ, β, k = t
+        r = (-c1 / κ)^(1 // k)
+        for j in 0:(k - 1)
+            ω = cos(2PI * j / k) + IM * sin(2PI * j / k)
+            append!(out, _solve_eq(x + β - ω * r * b^(e / k) ~ 0, x))
+        end
+    elseif (t = lin_power(c1)) !== nothing && !has(c0, x)     # κ (x + β)^k g = -c0
+        κ, β, k = t
+        r = (-c0 / κ)^(1 // k)
+        for j in 0:(k - 1)
+            ω = cos(2PI * j / k) + IM * sin(2PI * j / k)
+            append!(out, _solve_eq((x + β) * b^(e / k) - ω * r ~ 0, x))
+        end
+    else
+        return nothing
+    end
+    filter(r -> _satisfies(eq, x, r), unique(out))
+end
+
 # the assumptions of the solve in progress (abs inverts only for a real argument)
 const _SOLVE_ASSUME = ScopedValue{Any}(nothing)
 
@@ -688,6 +733,12 @@ function _invert(g::Sym, r::Sym, x::Sym)
             if A !== nothing && _isreal(t, A) === true
                 _decide(Relation(:ge, r, ZERO), A) || return Tuple{Sym,Sym}[]
                 return iszero(r) ? [(t, r)] : [(t, r), (t, -r)]
+            end
+            # |b^q| = |b|^q for b, q real: |√x| = r is |x| = r² (SymPy #25779)
+            if A !== nothing && t.kind == POW && _isreal(t.args[1], A) === true && _isreal(t.args[2], A) === true
+                b, q = t.args
+                _decide(Relation(:ge, r, ZERO), A) || return Tuple{Sym,Sym}[]
+                return [(abs(b), r^inv(q))]
             end
             throw(ArgumentError("solve: cannot invert abs($t) for $x: in the complex numbers |$t| = $r is a curve; assume $x ∈ ℝ"))
         end

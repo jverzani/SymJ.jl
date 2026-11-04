@@ -141,3 +141,65 @@ end
     @test sqrt(Sym(1001885125670250202210728125403128548905806811601)) == 51613sqrt(Sym(376096873138962280636080063132060838729))
     @test SymJ.minimal_polynomial(sqrt(Sym(1031316053)) - 1009sqrt(Sym(1013)), x) == x
 end
+
+@testset "smaller missing cases (SymPy review, round 4)" begin
+    @syms a b c u s t k01 k11 Q L
+    # constants: trigonometric identities, logarithms to one base, powers of i (#25705, #25860, #26140)
+    @test simplify(cos(Sym(2))^2 + sin(Sym(2))^2) == 1
+    @test simplify(log(Sym(10), Sym(5)) + log(Sym(10), Sym(2))) == 1
+    @test simplify(log(Sym(10), Sym(5))^2 + log(Sym(10), Sym(5)) * log(Sym(10), Sym(2)) + log(Sym(10), Sym(2))) == 1
+    @test simplify(sqrt(-IM * Sym(1)) + (IM * Sym(1))^(Sym(3) // 2)) == 0
+    # trigonometric functions of inverse ones, and integer multiples of π (#26373, #25685)
+    @test cos(asin(Sym(11) // 61)) == Sym(60) // 61
+    @test simplify(cos(2acos(Sym(3) // 5) - 4PI)) == -Sym(7) // 25
+    @test simplify(sin(2asin(Sym(11) // 61))) == Sym(1320) // 3721
+    @test sin(x + 2PI) == sin(x)
+    # a product's trigonometric factors of one argument (#26835)
+    @test simplify(2sin(a / 2) * cos(a / 2) * cos(b) * cos(c)) == sin(a) * cos(b) * cos(c)
+    # real and imaginary parts, hyperbolic functions as exponentials (#25564)
+    @test simplify(real(a) + IM * imag(a)) == a
+    w = (x + b) / u
+    @test simplify(exp(2w) / 4 + exp(-2w) / 4 - sinh(w)^2 - Sym(1) // 2) == 0
+    @test simplify((exp(k01 * t) - exp(k11 * t)) * exp(-t * (k01 + k11)) / (k01 - k11)) == (exp(-k11 * t) - exp(-k01 * t)) / (k01 - k11)
+    # radicals: cube roots with a norm that is not a cube, roots in a denominator (#26857, #25915)
+    @test simplify(cbrt(Sym(2)) * (cbrt(22 + 9sqrt(Sym(6))) - cbrt(9sqrt(Sym(6)) - 22))) == 4
+    @test simplify((sqrt(Sym(6)) + sqrt(Sym(2))) / sqrt(sqrt(Sym(3)) + 2)) == 2
+    # refine: powers, dirac, conditions given as facts (#26006, #25724, #26691, #25522)
+    @test refine((b^x)^(log(a) / log(b)); assume = (a ≫ 0, b ≫ 0, x ∈ ℝ)) == a^x
+    @test refine(3 * (-x^3)^(Sym(4) // 3) / (4x); assume = (x ≪ 0,)) == 3x^3 / 4
+    @test refine((-x)^(Sym(4) // 3); assume = (x ≪ 0,)) == (-x)^(Sym(4) // 3)
+    @test refine(SymJ.dirac(x - 1); assume = (x ≫ 2,)) == 0
+    @test refine(SymJ.piecewise(Ne(x, 1) => x - 1, true => Sym(1)); assume = (x ≶ 1,)) == x - 1
+    # |u^r| = |u|^r for real u, r: in solve and limit (#25779, #26513)
+    @test solve(abs(sqrt(x)) ~ 2, x; assume = (x ∈ ℝ,)) == [-4, 4]
+    @test limit(abs((-x / (x + 1))^x), x => Inf) == exp(-Sym(1))
+    # an impossible piece is dropped (#25930)
+    @test SymJ.piecewise((x ≦ 0, x ≫ PI) => x, (x ≧ 0, x ≦ PI) => 2x) == SymJ.piecewise((x ≧ 0, x ≦ PI) => 2x)
+    # floats: with symbols in matrices, in an inverse transform (#26271, #26517)
+    @test SymJ.LinearAlgebra.det(Sym[x-0.3 -0.06; -0.2 x-0.5]) == x^2 - 0.8x + 0.138
+    r = SymJ.inverse_laplace_transform((20000.0s^2 + 1600.0s + 30.0) / (s * (20000.0s^3 + 5600.0s^2 + 266.0s + 3.0)), s, t)
+    @test N(subs(r, t => 1000)) ≈ 9.999999770332835
+    # a call form error with keywords: the message, not a MethodError (#25783)
+    @test_throws ArgumentError solve(x ~ Q, [Q, L]; assume = (Q ≫ 0,))
+end
+
+@testset "bigger missing cases (SymPy review, round 4)" begin
+    @syms y s t Ec
+    u = SymFunction(:u)
+    # Lambert W: k-th powers (y² = e^y as y = ±e^(y/2)), log(x) with x through x = e^y (#26461)
+    @test N(solve(y^2 ~ exp(y), y)[1]) ≈ -0.7034674224983917
+    @test any(r -> (v = N(r); v isa Real && v ≈ 0.4948664145165307), solve(1 / x - 1 / log(x)^2 ~ 0, x))
+    @test N(only(solve(x * log(x) ~ 1, x))) ≈ 1.7632228343518968
+    # numeric W of a complex argument (LambertW fails on -0.5 + 0im)
+    w = N(lambertw(-Sym(1) // 2))
+    @test w * exp(w) ≈ -0.5
+    # Dirac derivatives in Laplace transforms (#26775)
+    @test SymJ.inverse_laplace_transform(s, s, t) == SymJ.dirac(t, 1)
+    @test SymJ.laplace_transform(SymJ.dirac(t - 1, 2), t, s) == s^2 * exp(-s)
+    @test SymJ.laplace_transform(t^2 * SymJ.dirac(t - 2, 1), t, s) == (4s - 4) * exp(-2s)
+    # real and imaginary parts of a quotient with real symbols (#26102)
+    @test refine(imag(x^2 / (IM * y + Ec)); assume = (x ∈ ℝ, Ec ∈ ℝ, y ∈ ℝ)) == -x^2 * y / (y^2 + Ec^2)
+    # a linear ODE that is an exact derivative, integrated once per order (#25479)
+    sol = SymJ.dsolve(diff((1 + x)^3 * diff(u(x), x, 2), x, 2) ~ 0, u(x))
+    @test iszero(simplify(diff((1 + x)^3 * diff(rhs(sol), x, 2), x, 2)))
+end

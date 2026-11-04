@@ -1005,6 +1005,9 @@ function _isnonzero(e::Sym, A::Assumptions)::Union{Nothing,Bool}
     m === nothing || return m & _ZER == 0 ? true : m == _ZER ? false : nothing
     isempty(A.subst) || (e = expand(subs(e, A.subst...)))
     _known_nonzero(e, A) && return true
+    # a fact u ≠ v with u - v = ±e (x ≠ 1 decides x - 1 ≠ 0; SymPy #25522)
+    any(f -> f isa Relation && f.op === :ne && (d = expand(f.lhs - f.rhs); _eq(d, e) || _eq(d, -e)), A.facts) &&
+        return true
     if !_hassymbol(e)
         v = try _evalc(e) catch; return nothing end
         return abs(v) > 1e-12 ? true : iszero(expand(e)) ? false : nothing

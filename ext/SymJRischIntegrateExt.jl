@@ -29,6 +29,11 @@ function RischIntegrate.integrate(ex::Sym, x::Sym; assume = nothing, kw...)
     ex = SymJ._realsyms(ex, (x,))
     Ax = SymJ._with_fact(something(A, SymJ.Assumptions()), x ∈ SymJ.ℝ)
     Ax === nothing || (ex = SymJ._split_radicals(ex, Ax))
+    # real and imaginary parts the assumptions resolve (|exp(w)|² = exp(2 re w) with
+    # re w a rational function; SymPy #26102)
+    if Ax !== nothing && SymJ._has_fn(ex, (:real, :imag, :conj, :abs))
+        ex = SymJ._refine(ex, Ax)
+    end
     SymJ._haspieces(ex, x) && return SymJ._integrate_pieces(ex, x, integ)
     try
         integ(ex)

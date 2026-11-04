@@ -132,7 +132,7 @@ function _refine_rule(e::Sym, A::Assumptions)
     if k == ADD && isfloat(e.num) && isinf(Float64(e.num)) && all(t -> _isreal(t, A) === true, e.args)
         return Sym(e.num)
     end
-    if k == FN && (haskey(_COND_RELS, e.name) || e.name in (:heaviside, :sign, :abs))
+    if k == FN && (haskey(_COND_RELS, e.name) || e.name in (:heaviside, :sign, :abs, :dirac))
         r = haskey(_COND_RELS, e.name) ? _refine_cond(e, A) : _refine_step(e, A)
         r === nothing || return r
     end
@@ -148,6 +148,29 @@ function _refine_rule(e::Sym, A::Assumptions)
         _eq(b, E) && return _refine_exp_ipi(q, A)                            # exp(2πi n) = 1
         # 0^q = 0 for Re q > 0 (z^x at z = 0, x > 0, in a definite integral; SymPy #26477)
         iszero(b) && _ispos(q, A) && return ZERO
+        # (c y^k)^q = (c (-1)^k)^q (-y)^(kq) for y < 0 and c (-1)^k > 0: (-x^3)^(4/3) = x^4
+        # for x < 0 (SymPy #25724)
+        if b.kind == MUL && length(b.args) == 1 && b.exps[1].kind == NUMBER && _isint(b.exps[1].num) &&
+           q.kind == NUMBER && isexact(q.num) && !_isint(q.num) && _signs(b.args[1], A) == _NEG
+            kk = _toint(b.exps[1].num)
+            c = Sym(b.num) * (iseven(kk) ? 1 : -1)
+            # ((-y)^q itself, for kk = 1 and c = 1, is already in this form)
+            c.kind == NUMBER && isexact(c.num) && c.num > N0 && !(kk == 1 && isone(c.num)) &&
+                return c^q * (-b.args[1])^(kk * q)
+        end
+        # b^(k log a / log b) = a^k for a, b > 0 (SymPy #26006)
+        if _ispos(b, A) && _has_fn(q, (:log,))
+            t = expand(q * log(b))
+            if t.kind == MUL
+                for (f, p) in zip(t.args, t.exps)
+                    (f.kind == FN && f.name === :log && length(f.args) == 1 && _isone(p) && !_eq(f.args[1], b) &&
+                     _ispos(f.args[1], A)) || continue
+                    kq = cancel(t / f)
+                    has(kq, log(b)) && continue
+                    return f.args[1]^kq
+                end
+            end
+        end
         if b.kind == POW                                                     # (c^p)^q
             c, p = b.args
             _eq(c, E) && _isreal(p, A) === true && return exp(expand(p * q))   # exp(u)^q
@@ -343,6 +366,14 @@ function _reim(u::Sym, A::Assumptions)
                 acc = mulp(acc, q)
             end
             return acc
+        end
+        # 1/w^n = conj(w)^n/|w|^(2n): x²/(z + i zR) with real symbols (SymPy #26102)
+        if e.kind == NUMBER && isexact(e.num) && isone(_denominator(e.num)) && -SymNumber(8) <= e.num < N0
+            q = _reim(b^Sym(-e.num), A)
+            q === nothing && return nothing
+            iszero(q[2]) && return nothing
+            m = expand(q[1]^2 + q[2]^2)
+            return (q[1] / m, -q[2] / m)
         end
         return nothing
     elseif k == FN && length(u.args) == 1
@@ -555,8 +586,12 @@ function _simplify(e::Sym, A::Assumptions)
         n = _nodes(c)
         n < size && ((best, size) = (c, n))
     end
-    for g in (simplify_rational, powers, expansion, _factor_or_nothing, simplify_trig, simplify_hyperbolic, logs, radicals, simplify_gamma,
-              simplify_rational ∘ powers, expansion ∘ simplify_rational, expansion ∘ radicals)
+    logq(x) = _hasfn2log(x) ? simplify_log(cancel(_log_quotients(x)); assume = A) : nothing
+    for g in (simplify_rational, powers, expansion, _factor_or_nothing, simplify_trig, simplify_hyperbolic, logs, radicals, simplify_gamma, logq,
+              simplify_rational ∘ powers, expansion ∘ simplify_rational, expansion ∘ radicals,
+              simplify_rational ∘ radicals,
+              x -> (c = expansion(x); c === nothing ? nothing : simplify_rational(c)),
+              x -> (c = expansion(x); c === nothing ? nothing : _pull_common_den(c)))
         consider(g)
     end
     # a sum's circular-function terms simplified apart from the rest (sin² + cos² + (x + y)³:
@@ -569,8 +604,29 @@ function _simplify(e::Sym, A::Assumptions)
             consider(_ -> _simplify(_add_many(trig), A) + rest)
         end
     end
+    # a product's circular factors of one argument simplified apart from the others
+    # (2sin(a/2)cos(a/2) cos(b)cos(c) is sin(a) cos(b)cos(c); simplify_trig of the whole
+    # turns it into sums; SymPy #26835)
+    if e.kind == MUL && _has_fn(e, _CIRCFNS)
+        fs = [(b, p) for (b, p) in zip(e.args, e.exps)]
+        groups = Dict{Sym,Vector{Int}}()
+        for (i, (b, _)) in enumerate(fs)
+            b.kind == FN && b.name in _CIRCFNS && length(b.args) == 1 && push!(get!(groups, b.args[1], Int[]), i)
+        end
+        for idx in values(groups)
+            (length(idx) >= 2 && length(idx) < length(fs)) || continue
+            part = Sym(e.num) * prod((fs[i][1]^fs[i][2] for i in idx); init = ONE)
+            rest = prod((fs[i][1]^fs[i][2] for i in eachindex(fs) if !(i in idx)); init = ONE)
+            consider(_ -> simplify_trig(part) * rest)
+        end
+    end
     # several piecewise functions (as from a definite integral with a parameter): one
     _count_fn(e, :piecewise) >= 2 && consider(x -> piecewise_fold(x; assume = A))
+    _has_fn(e, (:real,)) && _has_fn(e, (:imag,)) && consider(_reim_pairs)
+    # hyperbolic functions with exponentials of a compound argument: all as exponentials
+    # (e^(2w)/4 + e^(-2w)/4 - sinh(w)² - 1/2 is 0 for w = (x + b)/u; found in the review)
+    _has_fn(e, _HYPMODE.fns) && _has_epow(e) &&
+        consider(x -> expand(rewrite(x, (sinh, cosh, tanh, coth, sech, csch) => exp)))
     # erfc(u) = 1 - erf(u): erf(x) + erfc(x) = 1 (SymPy #28900)
     _has_fn(e, (:erfc,)) && consider(_erfc_to_erf)
     # conj(w) w = abs(w)^2
@@ -664,6 +720,110 @@ function _half_angle_radicands(e::Sym)
     end
 end
 
+_hasfn2log(e::Sym) = (e.kind == FN && e.name === :log && length(e.args) == 2) || any(_hasfn2log, e.args) ||
+    (e.kind == MUL && any(_hasfn2log, e.exps))
+
+_has_epow(e::Sym) = (e.kind == POW && e.args[1] === E) || (e.kind == MUL && any(b -> b === E, e.args)) ||
+    any(_has_epow, e.args) || (e.kind == MUL && any(_has_epow, e.exps))
+
+# a sum with a denominator factor common to every term: (Σ tᵢ D)/D (the exponentials
+# over k01 - k11 of SymPy #26329, rather than their cosh/sinh form)
+function _pull_common_den(e::Sym)
+    e.kind == ADD && iszero(e.num) || return nothing
+    ts = [Sym(c) * a for (c, a) in zip(e.coefs, e.args)]
+    dens(t) = t.kind == MUL ? Dict(b => -p for (b, p) in zip(t.args, t.exps) if p.kind == NUMBER && p.num < N0 && b.kind == ADD) :
+              t.kind == POW && t.args[2].kind == NUMBER && t.args[2].num < N0 && t.args[1].kind == ADD ? Dict(t.args[1] => -t.args[2]) :
+              Dict{Sym,Sym}()
+    common = dens(ts[1])
+    for t in ts[2:end]
+        d = dens(t)
+        common = Dict(b => (d[b].num < k.num ? d[b] : k) for (b, k) in common if haskey(d, b))
+        isempty(common) && return nothing
+    end
+    D = prod((b^k for (b, k) in common); init = ONE)
+    _add_many(t * D for t in ts) / D
+end
+
+# c real(u) + c i imag(u) = c u (SymPy #25564)
+_reim_pairs(e::Sym) = _replace_walk(e) do t
+    t.kind == ADD || return nothing
+    cs, as = Sym[Sym(c) for c in t.coefs], collect(t.args)
+    ts = [c * a for (c, a) in zip(cs, as)]
+    used, out, changed = falses(length(as)), Sym(t.num), false
+    for i in eachindex(as)
+        used[i] && continue
+        a = as[i]
+        if a.kind == FN && a.name === :real && length(a.args) == 1
+            target = cs[i] * IM * apply_function(:imag, Sym[a.args[1]])     # (i is (-1)^(1/2))
+            j = findfirst(j -> !used[j] && j != i && _eq(ts[j], target), eachindex(as))
+            if j !== nothing
+                used[i] = used[j] = true
+                out += cs[i] * a.args[1]
+                changed = true
+                continue
+            end
+        end
+        used[i] = true
+        out += ts[i]
+    end
+    changed ? out : nothing
+end
+
+# i^q, (-i)^q, (-1)^q for rational q as cos(θ) + i sin(θ) where exact: i^(3/2) + √(-i)
+# is 0 (SymPy #26140)
+function _unit_powers(e::Sym)
+    function unit(b::Sym, q::Sym)
+        (q.kind == NUMBER && isexact(q.num) && !_isint(q.num)) || return nothing
+        f = _eq(b, IM) ? 1 // 2 : _eq(b, -IM) ? -1 // 2 : _eq(b, MINUS_ONE) ? 1 // 1 : nothing
+        f === nothing && return nothing
+        θ = Rational{BigInt}(f) * _rat(q.num)
+        sn, cs = _sinpi(θ), _sinpi(θ + 1 // 2)
+        (sn === nothing || cs === nothing) ? nothing : cs + IM * sn
+    end
+    _replace_walk(e) do t
+        if t.kind == POW
+            return unit(t.args[1], t.args[2])
+        elseif t.kind == MUL && any(b -> b.kind == NUMBER, t.args)
+            ch = false
+            fs = map(zip(t.args, t.exps)) do (b, p)
+                u = unit(b, p)
+                u === nothing ? b^p : (ch = true; u)
+            end
+            return ch ? Sym(t.num) * prod(fs; init = ONE) : nothing
+        end
+        nothing
+    end
+end
+
+# log(b, a) as log(a)/log(b), so that logarithms to one base combine
+# (and the logarithm of an integer as its primes', so that log(10) = log(2) + log(5) relates
+# the bases: log(10, 5)² + log(10, 5) log(10, 2) + log(10, 2) is 1; SymPy #25860)
+function _log_quotients(x::Sym)
+    lg(u) = (u.kind == NUMBER && isexact(u.num) && _isint(u.num) && u.num > N1) ? _log_primes(_toint(u.num), u) : log(u)
+    _replace_walk(x) do t
+        t.kind == FN && t.name === :log && length(t.args) == 2 ? lg(t.args[2]) / lg(t.args[1]) : nothing
+    end
+end
+
+# log(n) as Σ k log(p) over n's prime factors (trial division below 10^6), else log(n)
+function _log_primes(n::Integer, u::Sym)
+    out, m, p = ZERO, n, 2
+    while p * p <= m && p < 10^6
+        k = 0
+        while m % p == 0
+            m ÷= p
+            k += 1
+        end
+        k > 0 && (out += k * log(Sym(p)))
+        p += p == 2 ? 1 : 2
+    end
+    if m > 1                                          # a prime left, or an unfactored part
+        p * p > m || return log(u)
+        out += log(Sym(m))
+    end
+    out
+end
+
 # a constant: powers, logarithms and radicals of numbers
 _erfc_to_erf(x::Sym) = _replace_walk(x) do t
     t.kind == FN && t.name === :erfc && length(t.args) == 1 ? 1 - apply_function(:erf, Sym[t.args[1]]) : nothing
@@ -671,8 +831,13 @@ end
 
 function _simplify_const(e::Sym, A::Assumptions)
     best = e
+    # (trigonometric and hyperbolic too: cos(2)² + sin(2)² is 1, SymPy #25705; and over
+    # a common denominator, log(5)/log(10) + log(2)/log(10) is 1, #25860)
     for g in (simplify_powers, simplify_log, simplify_radicals, (x; assume) -> simplify_gamma(x),
-              (x; assume) -> _erfc_to_erf(x))
+              (x; assume) -> _erfc_to_erf(x), (x; assume) -> simplify_trig(x),
+              (x; assume) -> simplify_hyperbolic(x), (x; assume) -> expand_trig(x),
+              (x; assume) -> _unit_powers(x), (x; assume) -> cancel(simplify_radicals(x; assume)),
+              (x; assume) -> simplify_log(cancel(_log_quotients(x)); assume))
         c = try g(e; assume = A) catch err; err isa InterruptException && rethrow(); e end
         c = try expand(c) catch; c end
         _nodes(c) < _nodes(best) && (best = c)
@@ -1362,13 +1527,14 @@ function _radicals(e::Sym, A::Assumptions)
     if e.kind == POW
         b, q = _radicals(e.args[1], A), e.args[2]
         if q.kind == NUMBER && isexact(q.num)
-            if q.num == SymNumber(1 // 2) && (d = _denest(b)) !== nothing
-                return d
+            # (and the root's powers: 1/sqrt(2 + √3) too; SymPy #25915)
+            if _denominator(q.num) == 2 && (d = _denest(b)) !== nothing
+                return expand(d^Sym(2q.num))
             end
             # the principal cube root of a positive surd
-            if q.num == SymNumber(1 // 3) && (v = _realval(b)) !== nothing && v > 0 &&
+            if _denominator(q.num) == 3 && (v = _realval(b)) !== nothing && v > 0 &&
                (d = _denest_cbrt(b)) !== nothing
-                return d
+                return expand(d^Sym(3q.num))
             end
             if isone(_denominator(q.num)) && q.num < N0 && (c = _conjugate(b)) !== nothing
                 conj, norm = c                                  # 1/b = conj/norm
@@ -1394,12 +1560,19 @@ _realval(b::Sym) = (v = try _evalc(b) catch; return nothing end; iszero(imag(v))
 # cbrt(a + b sqrt(c)) = p + q sqrt(c) with p, q rational (SymPy #27082): then
 # n = p^2 - q^2 c is the rational cube root of a^2 - b^2 c, and s = 2p a rational root of
 # s^3 - 3n s - 2a (s the sum of the cube root and its conjugate, whose product is n)
-function _denest_cbrt(u::Sym)
+function _denest_cbrt(u::Sym; recurse::Bool = true)
     t = _quadratic_surd(u)
     t === nothing && return nothing
     a, b, c = t
-    nn = cbrt(Sym(a * a - b * b * c))
-    nn.kind == NUMBER && isexact(nn.num) || return nothing
+    Nm = a * a - b * b * c
+    nn = cbrt(Sym(Nm))
+    if !(nn.kind == NUMBER && isexact(nn.num))
+        # the norm not a cube: cbrt(u) = cbrt(N u)/cbrt(N), N u of norm N³ (cbrt(22 + 9√6)
+        # = (2 + √6)/2^(1/3); SymPy #26857)
+        recurse || return nothing
+        r = _denest_cbrt(Sym(Nm) * u; recurse = false)
+        return r === nothing ? nothing : r / cbrt(Sym(Nm))
+    end
     z = Sym(:_s)
     f = try factor(z^3 - 3nn * z - 2Sym(a)) catch; return nothing end
     for g in (f.kind == MUL ? f.args : [f])

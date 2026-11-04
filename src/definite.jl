@@ -56,7 +56,12 @@ function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Boo
             catch err
                 err isa InterruptException && rethrow()
                 v = _known_definite(g, x, l, h)
-                v === nothing && (v = _gaussian_definite(g, x, l, h, A))
+                # (a Gaussian in real form once refined: |exp(w)|² with w complex; SymPy #26102)
+                if v === nothing
+                    Ax = _with_fact(A, x ∈ ℝ)
+                    gr = Ax === nothing ? g : _refine(g, Ax)
+                    v = _gaussian_definite(gr, x, l, h, A)
+                end
                 v === nothing ? rethrow() : v
             end
         end
