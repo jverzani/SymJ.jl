@@ -218,6 +218,17 @@ transforms). Of the rest, in rough order of value for calculus-level use:
    also narrow conditions: for an integer `x < 1000`, `x ≥ 999` is `x = 999`, after which
    a piecewise's piece at that point merges with the next one (SymPy #27627; the merge
    itself is done, the narrowing is not).
+9. **Asymptotic series with exponential factors** (decided 2026-11-04, for the next
+   round of feature work). At ±∞, `series(erf(x), x, Inf)` is an error for now: past
+   its 1, erf's expansion is `e^(-x²)` times a series in 1/x, exponentially small, so as
+   a power series in 1/x it would be `1 + O(x^-n)` for every n (SymPy #27109). The plan
+   is SymPy's form, `1 - e^(-x²)(1/(√π x) - 1/(2√π x³) + …)`: a `SymSeries` whose
+   terms may carry a factor `e^(g(x))`, through addition, multiplication and printing.
+   Answering `1 + O(…)` (dropping exponentially small terms) was rejected: correct but
+   empty, and a change of convention everywhere. With it come the other asymptotic
+   expansions at ∞ the reviews found missing: `erfc`, `Ei`/`expinti`, `Si` and `Ci`
+   (#26257, #26207), the modified Bessel functions `besseli`/`besselk` (#26210; also
+   their limits at ∞, #26040), and Stirling's series for `gamma` (#26096).
 
 Done since the first audit: trigonometric and logarithmic expansion, gamma and combinatorial simplification, LaTeX output (a Latexify extension), resultants and Gröbner
 bases (polynomial systems are solved), real and imaginary parts and `conj`, and
