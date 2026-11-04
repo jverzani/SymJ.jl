@@ -239,8 +239,11 @@ function _definite(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A::Assumptions, pv
     v = _definite_by_pieces(f, x, lo, hi, antider, A, pv)
     v === nothing || return v
     S = _singular_points(f, x, lo, hi)
+    F = _antiderivative(antider, f, x, A; numeric = true)
+    # F may jump where f is smooth: 2atan(√(A²-1) tan(t/2)/(A-1))/√(A²-1) for 1/(A - cos t)
+    # at t = π (#26283); split there too (a point where F is continuous changes nothing)
+    F isa Sym && (S = unique(vcat(S, _jump_points(F, x, lo, hi))))
     if isempty(S) && !_isinfpt(lo) && !_isinfpt(hi)
-        F = _antiderivative(antider, f, x, A; numeric = true)
         F isa Sym || return _numeric_difference(F, f, lo, hi)
         return _sum_values([(1, _endvalue(F, x, hi, :-, A)), (-1, _endvalue(F, x, lo, :+, A))], A)
     end
@@ -260,7 +263,6 @@ function _definite(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A::Assumptions, pv
         any(t -> _eq(t, s), inside) || _insert_sorted!(inside, s, A)
     end
     union!(sing, inside)
-    F = _antiderivative(antider, f, x, A; numeric = true)
     if !(F isa Sym)
         (_isinfpt(lo) || _isinfpt(hi)) && throw(ArgumentError(
             "integrate: the antiderivative of $f is known only numerically, which does not reach ±∞"))
@@ -507,6 +509,17 @@ function _singular_points(f::Sym, x::Sym, lo::Sym, hi::Sym)
         append!(pts, _zeros_in(z, x, lo, hi))
     end
     unique(pts)
+end
+
+# the singular points of an antiderivative F, where it may jump; none when they cannot be
+# located (F is then trusted to be continuous, as before)
+function _jump_points(F::Sym, x::Sym, lo::Sym, hi::Sym)
+    try
+        _singular_points(F, x, lo, hi)
+    catch err
+        err isa ArgumentError || rethrow()
+        Sym[]
+    end
 end
 
 function _zero_sets!(out, e::Sym, x::Sym)

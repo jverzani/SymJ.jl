@@ -333,6 +333,10 @@ function _solve_weierstrass(eq::Relation, n::Sym, x::Sym, w::Sym)
     end
     num, _ = numer_denom(cancel(nt))
     num = expand(num)
+    # x outside the trigonometric functions too (2x - 30 - 2(3 - sin x)cos x): no equation
+    # in t alone, and its "roots" in t are no roots at all (SymPy #26253)
+    has(num, x) && throw(ArgumentError(
+        "solve: $eq involves $x both inside and outside trigonometric functions; not supported"))
     # in a solve by cases, a leading coefficient that may vanish is decided: where it does,
     # the degree drops and t = ∞ (w = π) is a root (a sin x + b cos x = c, b + c = 0)
     at_pi = false
@@ -742,7 +746,10 @@ end
 # of several sample values of the parameters (complex arithmetic, principal branches):
 # a root valid for some parameters only (x = a² of sqrt(x) = a, for a ≥ 0) is kept, a
 # spurious one from squaring (SymPy #27381) is not. Kept when no sample can be evaluated.
-const _SAMPLE_VALUES = (0.37, -0.61, 1.43, -1.89, 0.0731, 2.71, -3.17, 0.83, 5.3, -0.29)
+# The samples are exact, so N evaluates d in the precision it needs: with floats,
+# 1.38e-23 in an exponent's denominator (E2 - E1 times 7·10²²) cancels to noise (#25792).
+const _SAMPLE_VALUES = (37 // 100, -61 // 100, 143 // 100, -189 // 100, 731 // 10000, 271 // 100,
+                        -317 // 100, 83 // 100, 53 // 10, -29 // 100)
 
 function _holds_somewhere(d::Sym, r::Sym)
     syms = collect(free_symbols(d))

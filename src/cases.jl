@@ -274,6 +274,10 @@ function _by_cases(run, A::Assumptions)
     leaves = _case_tree(run, A, Dict{Any,Bool}(), count)
     length(leaves) == 1 && isempty(leaves[1].first) &&
         return (v = leaves[1].second; v isa Exception ? throw(v) : v)
+    # the same answer in every case is the answer (a split on acos(A) > 0 for A > 1,
+    # complex, gave 2π/√(A² - 1) in each; SymPy #26283)
+    vs = [l.second for l in leaves]
+    !any(v -> v isa Exception, vs) && all(v -> isequal(v, vs[1]), vs) && return vs[1]
     T = typejoin(map(l -> typeof(l.second), leaves)...)
     Cases{T}([_simplify_conds(l.first, A) => l.second for l in leaves])
 end
@@ -380,6 +384,18 @@ _sameanswer(a, b) = a isa Exception || b isa Exception ? (typeof(a) == typeof(b)
 function _solve_assumed(eq::Relation, x::Sym, A::Assumptions)
     _isnamed(x) || throw(ArgumentError("solve: $x is not a symbol"))
     eq.op === :eq || return _solve_ineq_assumed(eq, x, A)
+    # floating point coefficients with parameters: the cases and solutions of the rationals
+    # they stand for, the solutions' numbers floats again. Split as floats, the case
+    # k0 = -k1 of (1.0k0 + 1.0k1)/(2.0(0.5k0 + 0.5k1)) left 0.0/0.0 (SymPy #26820).
+    ex = eq.lhs - eq.rhs
+    if !_isexactex(ex) && !_float_exponent(ex) && any(s -> !_eq(s, x), free_symbols(ex))
+        q = try _exactfloats(ex) catch err; err isa ArgumentError || rethrow(); nothing end
+        if q !== nothing && _isexactex(q)
+            fl(v) = v isa AbstractVector{Sym} ? Sym[_floatify(r) for r in v] : v
+            r = _solve_assumed(Relation(:eq, q, ZERO), x, A)
+            return r isa Cases ? _map_cases(fl, r) : fl(r)
+        end
+    end
     _by_cases(A) do B
         sub = [k => w for (k, w) in B.subst if !_eq(k, x)]
         e = try

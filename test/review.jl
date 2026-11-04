@@ -95,3 +95,22 @@ end
     @test_throws ArgumentError limit(diff(f(x), x), x => a)
     @test limit(f(2) + x, x => a) == a + f(2)
 end
+
+@testset "wrong answers (SymPy review, round 4)" begin
+    @syms y k1 k0 r G E1 E2 TT t s
+    u = SymFunction(:u)
+    # constant factors of an unknown function's transform kept (#25815)
+    @test SymJ.laplace_transform(k1 * u(t), t, s) == k1 * SymJ.apply_function(:LaplaceTransform, Sym[u(t), t, s])
+    # floor near an integer decided in BigFloat (#26368)
+    @test floor(log(2, Sym(2)^360 - 1) + 1) == 360
+    @test ceil(log(2, Sym(2)^360 - 1)) == 360
+    # a float linear system: a rounding residue is not 0 = nonzero (#26223)
+    @test N(only(solve([3.0y ~ 5, -y ~ -1.6666666666666667], [y]))[y]) ≈ 5 / 3
+    @test N(only(solve([0.1x + 0.2y ~ 0.3, x - y ~ 0], [x, y]))[x]) ≈ 1
+    # a tiny float coefficient: candidates checked at exact sample values (#25792)
+    @test length(solve(G ~ 2.7^((E2 - E1) / (1.38e-23 * TT)), E1)) == 1
+    # floats with parameters: cases of the exact equation (#26820)
+    @test solve(r ~ (1.0k0 + 1.0k1) / (2.0(0.5k0 + 0.5k1)), r) == [1.0]
+    # x outside sin and cos as well: not supported, not "no solution" (#26253)
+    @test_throws ArgumentError solve(-2(15 - x) - 2(3 - sin(x)) * cos(x) ~ 0, x)
+end

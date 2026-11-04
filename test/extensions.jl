@@ -403,4 +403,22 @@ import PolyLog as PL
         @test D(y'(x) ~ a * y(x) * (1 - y(x)), y(x)) == (y(x) ~ C1 * exp(a * x) / (C1 * exp(a * x) - 1))
         @test D(y'(x) ~ a * y(x) * (1 - y(x)), y(x), y(0) => Sym(1) / 2) == (y(x) ~ exp(a * x) / (exp(a * x) + 1))
     end
+
+    @testset "wrong answers (SymPy review, round 4)" begin
+        @syms t A
+        # the antiderivative jumps where the integrand is smooth: split there too (#26283)
+        # (RischIntegrate 1.2 on; Julia 1.10 resolves 1.0)
+        if isdefined(RischIntegrate, :clausen2)
+            @test RischIntegrate.integrate(1 / (A - cos(t)), (t, 0, 2PI); assume = (A ≫ 1,)) == 2PI / sqrt(A^2 - 1)
+            @test RischIntegrate.integrate(cos(t) / (A - cos(t)), (t, 0, 2PI); assume = (A ≫ 1,)) == 2PI * A / sqrt(A^2 - 1) - 2PI
+            @test RischIntegrate.integrate(1 / (3 - cos(t)), (t, 0, 2PI)) == PI / sqrt(Sym(2))
+        end
+        # Bessel functions of non-integer order at 0: x^ν times a series in x² (#25678)
+        @test Sym(series(SF.besselj(Sym(1) // 2, x), x, 0, 4)) == expand(sqrt(Sym(2)) / sqrt(PI) * (sqrt(x) - x^(Sym(5) // 2) / 6))
+        @test N(subs(Sym(series(SF.bessely(Sym(5) // 3, x), x, 0, 4)), x => Sym(1) // 100)) ≈ SF.bessely(5 / 3, 0.01) rtol = 1e-8
+        @test N(subs(Sym(series(SF.besselk(Sym(1) // 3, x), x, 0, 5)), x => Sym(1) // 100)) ≈ SF.besselk(1 / 3, 0.01) rtol = 1e-10
+        @test Sym(series(SF.besseli(Sym(1) // 3, 2x), x, 0, 3)) == expand(x^(Sym(1) // 3) * (1 + 3x^2 / 4) / SF.gamma(Sym(4) // 3))
+        @test Sym(series(SF.besselj(1, x), x, 0, 5)) == x / 2 - x^3 / 16
+        @test_throws ArgumentError series(SF.bessely(1, x), x, 0, 4)       # logarithmic terms
+    end
 end

@@ -178,11 +178,18 @@ end
 function _gauss_jordan(A::Matrix{C}, b::Vector{C}, vars::Vector{Sym}, ::Type{Sym}) where {C}
     m, k = size(A)
     M = hcat(A, b)
+    # floating point entries: a residue of rounding (5/3.0 - 1.6666666666666667) is zero,
+    # not 0 = nonzero (SymPy #26223); the largest pivot is taken
+    fl = C === SymNumber && any(e -> isfloat(e), M)
+    scale = fl ? maximum(e -> abs(Float64(e)), M; init = 0.0) : 0.0
+    nz(e) = !iszero(e) && !(fl && isfloat(e) && abs(Float64(e)) <= 1e-12 * scale)
     r = 1
     pivots = Tuple{Int,Int}[]
     for col in 1:k
         r > m && break
-        p = findfirst(i -> !iszero(M[i, col]), r:m)
+        p = fl ? (is = [i for i in r:m if nz(M[i, col])];
+                  isempty(is) ? nothing : is[argmax([abs(Float64(M[i, col])) for i in is])] - r + 1) :
+                 findfirst(i -> nz(M[i, col]), r:m)
         p === nothing && continue
         p += r - 1
         if p != r
@@ -192,14 +199,16 @@ function _gauss_jordan(A::Matrix{C}, b::Vector{C}, vars::Vector{Sym}, ::Type{Sym
         piv = inv(M[r, col])
         M[r, :] = [e * piv for e in M[r, :]]
         for i in 1:m
-            (i == r || iszero(M[i, col])) && continue
+            (i == r || !nz(M[i, col])) && continue
             f = M[i, col]
             M[i, :] = [M[i, j] - f * M[r, j] for j in 1:(k + 1)]
+            fl && (M[i, col] = zero(M[i, col]))
         end
+        fl && (M .= [nz(e) ? e : zero(e) for e in M])
         push!(pivots, (r, col))
         r += 1
     end
-    if any(i -> !iszero(M[i, k+1]), r:m)                       # 0 = nonzero: inconsistent
+    if any(i -> nz(M[i, k+1]), r:m)                            # 0 = nonzero: inconsistent
         C === SymNumber || foreach(i -> iszero(M[i, k+1]) || _divisor!(M[i, k+1]), r:m)
         return nothing
     end
