@@ -470,7 +470,11 @@ function rsolve(eq, yn::Sym, inits::Pair...)
     p = Sym[expand(subs(get(coefs, i, ZERO), n => n - lo)) for i in lo:hi]
     g = expand(subs(g, n => n - lo))
     # denominators cleared: polynomial coefficients
-    den = reduce((a, c) -> (q = numer_denom(c)[2]; cancel(a * q / gcd(a, q))), vcat(p, g); init = ONE)
+    # (a denominator free of n, 2^(-m) in the right side, needs no clearing: #27901)
+    den = reduce(vcat(p, g); init = ONE) do a, c
+        q = numer_denom(c)[2]
+        has(q, n) ? _lcm_den(a, q) : a
+    end
     p = [expand(cancel(c * den)) for c in p]
     g = expand(cancel(g * den))
     all(c -> _ispolyin(c, [n]), p) || throw(ArgumentError("rsolve: the coefficients are not polynomials in $n"))
@@ -649,4 +653,13 @@ function _yfactors(t::Sym, yname::Symbol)
     out = Sym[]
     _collect_fn!(out, t, yname)
     out
+end
+
+# lcm of two denominators, a product when gcd cannot take them (symbolic powers)
+function _lcm_den(a::Sym, q::Sym)
+    g = try gcd(a, q) catch err
+        err isa ArgumentError || rethrow()
+        ONE
+    end
+    cancel(a * q / g)
 end

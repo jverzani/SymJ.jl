@@ -354,6 +354,8 @@ end
 #     whole continuous. The breakpoints are real numbers, or one expression in parameters
 #     (heaviside(x - a)); others, which could not be ordered, are an error.
 function _integrate_pieces(e::Sym, x::Sym, integ)
+    # dirac inside a product with a sum: its terms apart (#27108)
+    e.kind != ADD && _hasfn(e, :dirac) && (e = expand(e))
     terms = e.kind == ADD ? [Sym(c) * t for (c, t) in zip(e.coefs, e.args)] : [e]
     e.kind == ADD && !iszero(e.num) && push!(terms, Sym(e.num))
     deltas, rest = Sym[], Sym[]
@@ -361,11 +363,38 @@ function _integrate_pieces(e::Sym, x::Sym, integ)
         r = _integrate_dirac(t, x)
         r === nothing ? push!(rest, t) : push!(deltas, r)
     end
-    g = _add_many(rest)
+    # the rest's abs, sign, max, min as pieces too; conditions of one sign everywhere
+    # settled; terms without pieces integrated apart (|sin x| + x: the pieces' part periodic)
+    g = _settle_conditions(piecewise(_add_many(rest)), x, -Inf, Inf)
     out = _add_many(deltas)
+    if g.kind == ADD && _haspieces(g, x)
+        plain = _add_many(Sym(c) * t for (c, t) in zip(g.coefs, g.args) if !_haspieces(t, x)) + Sym(g.num)
+        g = _add_many(Sym(c) * t for (c, t) in zip(g.coefs, g.args) if _haspieces(t, x))
+        iszero(plain) || (out = out + integ(plain))
+    end
     _haspieces(g, x) || return iszero(g) ? out : out + integ(g)
     bps = _breakpoints(g, x)
-    bps === nothing && throw(ArgumentError("integrate: the points where the pieces of $g change could not be found and ordered"))
+    if bps === nothing
+        # a condition quadratic in x, its roots in parameters: by the sign of the
+        # discriminant, between the roots as heaviside steps (SymPy #27358); a sum, term
+        # by term (each with one breakpoint in parameters, say)
+        g2 = _quadratic_conditions(g, x)
+        part(h) = _haspieces(h, x) ? _integrate_pieces(h, x, integ) : integ(h)
+        # x only in one linear argument k x + c, c in parameters (|cos(x + y)|, #27234):
+        # ∫ h(k x + c) dx = H(k x + c)/k, h free of the parameters
+        lin = _linear_shift(g, x)
+        if lin !== nothing
+            k, c, h = lin
+            return out + subs(part(h), x => k * x + c) / k
+        end
+        if g2 !== nothing
+            return out + piecewise((c => part(expand(v)) for (c, v) in _pieces(g2))...)
+        elseif g.kind == ADD
+            return out + _add_many(part(Sym(c) * t) for (c, t) in zip(g.coefs, g.args)) +
+                   (iszero(g.num) ? ZERO : integ(Sym(g.num)))
+        end
+        throw(ArgumentError("integrate: the points where the pieces of $g change could not be found and ordered"))
+    end
     # a point inside each interval, the integrand there, its antiderivative
     pts = Sym[]
     if length(bps) == 1 && _hassymbol(bps[1])
@@ -407,7 +436,104 @@ function _integrate_pieces(e::Sym, x::Sym, integ)
         F = simplify(Fs[i] + K)
         push!(ps, (i == length(Fs) ? true : x ≪ bps[i]) => F)
     end
+    # a periodic integrand (|sin x|): the pieces above hold for one period's breakpoints
+    # only; repeated by the period, with the integral over a period per period passed
+    if _periodic_conditions(g, x)
+        P = _trig_period(g, x)
+        R = P !== nothing && !any(_hassymbol, bps) && all(F -> F !== nothing, Fs) ?
+            _periodic_antiderivative(ps, bps, x, P) : nothing
+        R === nothing && throw(ArgumentError("integrate: the pieces of $g change at infinitely many points, and an antiderivative for all of them was not found"))
+        return out + R
+    end
     out + piecewise(ps...)
+end
+
+# (k, c, h) with g(x) = h(k x + c), k a nonzero number, c ≠ 0 in parameters and h free
+# of them, k x + c the argument of a function in g; or nothing
+function _linear_shift(g::Sym, x::Sym)
+    args = Sym[]
+    _fn_args!(args, g, x)
+    for a in args
+        k = expand(diff(a, x))
+        (k.kind == NUMBER && !iszero(k)) || continue
+        c = expand(a - k * x)
+        _hassymbol(c) || continue
+        h = expand(subs(g, x => (x - c) / k))
+        any(v -> has(h, v), free_symbols(c)) && continue
+        return k, c, h
+    end
+    nothing
+end
+
+function _fn_args!(out, e::Sym, x::Sym)
+    has(e, x) || return out
+    e.kind == FN && length(e.args) == 1 && !(e.name in _PIECEFNS) && push!(out, e.args[1])
+    foreach(a -> _fn_args!(out, a, x), e.args)
+    out
+end
+
+# does a condition of g change at infinitely many points: an argument periodic in x
+function _periodic_conditions(g::Sym, x::Sym)
+    has(g, x) || return false
+    if g.kind == FN && (haskey(_COND_RELS, g.name) || g.name === :heaviside) && has(g, x)
+        u = haskey(_COND_RELS, g.name) ? g.args[1] - g.args[2] : g.args[1]
+        _trig_period(u, x) === nothing || return true
+    end
+    any(a -> _periodic_conditions(a, x), g.args) || (g.kind == MUL && any(a -> _periodic_conditions(a, x), g.exps))
+end
+
+# F(x) = I k + F₁(x - kP) for F₁ = piecewise(ps...), continuous on [c, c + P] with c the
+# first breakpoint, k = floor((x - c)/P) and I = F₁(c + P) - F₁(c); each piece V(x - kP)
+# as V(x) - k (V(x + P) - V(x)), a constant for a periodic integrand
+function _periodic_antiderivative(ps, bps, x::Sym, P::Sym)
+    c = bps[1]
+    _isreal_const(c) === true || return nothing
+    N(bps[end]) <= N(c + P) + 1e-12 || return nothing          # more than a period of points
+    F1 = piecewise(ps...)
+    l, r = _side_value(F1, x, c + P, :-), _side_value(F1, x, c, :+)
+    (l isa Sym && r isa Sym) || return nothing
+    # singular at the breakpoints (1/|sin x|): the pieces are not joined there, so no
+    # constant per period either
+    I = _finite_value(l) && _finite_value(r) ? simplify(l - r) : ZERO
+    k = floor((x - c) / P)
+    m = iszero(c) ? mod(x, P) : mod(x - c, P) + c
+    out = Pair[]
+    top = N(c + P) - 1e-12
+    for (i, (cond, V)) in enumerate(ps)
+        i == 1 && cond != ONE && continue                       # x < c: m ≥ c never
+        D = simplify(subs(V, x => x + P) - V)
+        has(D, x) && return nothing
+        # c ≤ m < c + P: the piece reaching c + P is the last
+        last = cond == ONE || (i <= length(bps) && N(bps[i]) >= top)
+        push!(out, (last ? ONE : subs(_cond(cond), x => m)) => V - k * D)
+        last && break
+    end
+    I * k + piecewise(out...)
+end
+
+# g = piecewise(u ⋚ 0 => v₁, true => v₀) with u quadratic in x, a numeric leading
+# coefficient, as piecewise(D ≥ 0 => v₀ + (v₁ - v₀)(H(x - r₁) - H(x - r₂)), true => v₀)
+# (the roles of v₀ and v₁ swapped when the condition holds outside the roots), for the
+# discriminant D, conditions free of x and r₁ ≤ r₂ where D ≥ 0; else nothing
+function _quadratic_conditions(g::Sym, x::Sym)
+    (g.kind == FN && g.name === :piecewise && length(g.args) == 4 && g.args[3] == ONE) || return nothing
+    c, v1, _, v0 = g.args
+    (haskey(_COND_RELS, c.name) && !has(v1, x) && !has(v0, x)) || return nothing
+    r = _relation_of(c)
+    r.op in (:lt, :le, :gt, :ge) || return nothing
+    u = expand(r.lhs - r.rhs)
+    _ispolyin(u, [x]) || return nothing
+    cs = [expand(subs(diff(u, x, k), x => 0) / factorial(k)) for k in 0:2]
+    (iszero(expand(u - (cs[1] + cs[2] * x + cs[3] * x^2))) && cs[3].kind == NUMBER && !iszero(cs[3])) || return nothing
+    C, B, A = cs
+    D = expand(B^2 - 4A * C)
+    has(D, x) && return nothing
+    sq = sqrt(D)
+    lo, hi = (-B - sq) / (2A), (-B + sq) / (2A)                  # sq ≥ 0
+    r1, r2 = A.num > N0 ? (lo, hi) : (hi, lo)
+    inside = (r.op in (:lt, :le)) == (A.num > N0)          # where u ⋚ 0 holds: between the roots
+    a, b = inside ? (v0, v1) : (v1, v0)
+    piecewise((D ≧ 0) => a + (b - a) * (heaviside(x - r1) - heaviside(x - r2)), true => a)
 end
 
 # F's one-sided limit at b, or (where the limit fails, as for complex exponentials) its
