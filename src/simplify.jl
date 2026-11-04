@@ -146,6 +146,8 @@ function _refine_rule(e::Sym, A::Assumptions)
             return nothing
         end
         _eq(b, E) && return _refine_exp_ipi(q, A)                            # exp(2πi n) = 1
+        # 0^q = 0 for Re q > 0 (z^x at z = 0, x > 0, in a definite integral; SymPy #26477)
+        iszero(b) && _ispos(q, A) && return ZERO
         if b.kind == POW                                                     # (c^p)^q
             c, p = b.args
             _eq(c, E) && _isreal(p, A) === true && return exp(expand(p * q))   # exp(u)^q

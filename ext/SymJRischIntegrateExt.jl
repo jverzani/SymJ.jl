@@ -19,6 +19,12 @@ function RischIntegrate.integrate(ex::Sym, x::Sym; assume = nothing, kw...)
     if A !== nothing && _has_oracle() && !haskey(kw, :sign)
         kw = (; sign = SymJ._sign_oracle(A), kw...)
     end
+    # terms with an unknown function of x: held as ∫ f(x) dx, the rest integrated
+    rest, held = SymJ._split_opaque(ex, x)
+    if !isempty(held)
+        H = SymJ._add_many(c * SymJ._mkfn_node(:Integral, Sym[g, x]) for (c, g) in held)
+        return iszero(rest) ? H : RischIntegrate.integrate(rest, x; assume, kw...) + H
+    end
     integ = f -> RischIntegrate.risch_integrate(f, x; kw...)
     ex = SymJ._realsyms(ex, (x,))
     Ax = SymJ._with_fact(something(A, SymJ.Assumptions()), x ∈ SymJ.ℝ)
