@@ -118,10 +118,37 @@ register_function!(:piecewise;
         while length(ps) >= 2 && ps[end][1] == ONE && _eq(ps[end-1][2], ps[end][2])
             deleteat!(ps, length(ps) - 1)
         end
+        # nor is a piece at a point, x = p, whose value there is that of the piece that
+        # takes over at p (SymPy #27627)
+        for i in length(ps)-1:-1:1
+            _pw_point_redundant(ps, i) && deleteat!(ps, i)
+        end
         ps[1][1] == ONE && return ps[1][2]
         length(ps) == length(args) ÷ 2 && all(i -> _eq(ps[i][1], args[2i-1]), eachindex(ps)) && return nothing
         _pwnode(ps)
     end)
+
+# is piece i, with condition x = p, needless: the first later piece that holds at
+# x = p has the same value there
+function _pw_point_redundant(ps, i)
+    c = ps[i][1]
+    (c.kind == FN && c.name === :Eq) || return false
+    l, r = c.args
+    x, p = _isnamed(l) && !has(r, l) ? (l, r) : _isnamed(r) && !has(l, r) ? (r, l) : (nothing, nothing)
+    x === nothing && return false
+    at(e) = subs(e, x => p)
+    try
+        for j in i+1:length(ps)
+            t = _truth(at(ps[j][1]))
+            t == ZERO && continue
+            t == ONE || return false              # undecided at p
+            return _eq(at(ps[i][2]), at(ps[j][2]))
+        end
+    catch err
+        err isa DivisionByZero || rethrow()       # sin(x)/x at 0: the piece is needed
+    end
+    false
+end
 
 # numeric value: the first piece whose condition holds, the others not evaluated
 function _evalc_piecewise(e::Sym)
