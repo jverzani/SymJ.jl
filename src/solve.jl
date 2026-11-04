@@ -239,7 +239,22 @@ end
 
 function _vanishes_at(b::Sym, x::Sym, r::Sym)
     v = try subs(b, x => r) catch err; _isdivzero(err) && return true; rethrow() end
-    iszero(v) || iszero(cancel(v)) || (!_hassymbol(v) && _iszero_value(v))
+    iszero(v) && return true
+    # with parameters: nonzero at a sample of them is not identically zero, without a
+    # cancel over a cubic's radicals (minutes for Welch's equation; SymPy #25920)
+    _hassymbol(v) && _nonzero_somewhere(v) && return false
+    iszero(cancel(v)) || (!_hassymbol(v) && _iszero_value(v))
+end
+
+# is v (with parameters) clearly nonzero at some exact sample of their values?
+function _nonzero_somewhere(v::Sym)
+    syms = collect(free_symbols(v))
+    for k in 1:3
+        vals = [s => Sym(_SAMPLE_VALUES[mod1(k + 3j, length(_SAMPLE_VALUES))]) for (j, s) in enumerate(syms)]
+        w = try N(subs(v, vals...)) catch; continue end
+        w isa Number && isfinite(w) && abs(w) > 1e-6 && return true
+    end
+    false
 end
 # one equation takes one unknown and a system a vector of unknowns: the form of the call
 # fixes the form of the result (values or Dicts)
@@ -858,13 +873,21 @@ function _cardano(d, c, b, a)                                # a x³ + b x² + c
     # would divide 0 by 0 ((x - 2im*y)^3 has Δ0 = Δ1 = 0 only once expanded)
     if iszero(Δ0)
         iszero(Δ1) && return [-b / (3a)]
-        C = Δ1^(1 // 3)
+        C = _real_cbrt(Δ1)
         return [-(b + _OMEGA^k * C) / (3a) for k in 0:2]
     end
     s = sqrt(Δ1^2 - 4Δ0^3)
-    C = ((Δ1 + s) / 2)^(1 // 3)
-    _iszero_value(C) && (C = ((Δ1 - s) / 2)^(1 // 3))
+    C = _real_cbrt((Δ1 + s) / 2)
+    _iszero_value(C) && (C = _real_cbrt((Δ1 - s) / 2))
     [-(b + _OMEGA^k * C + Δ0 / (_OMEGA^k * C)) / (3a) for k in 0:2]
+end
+
+# u^(1/3), the real cube root -(-u)^(1/3) for a negative number u: the first root is then
+# real in its form, not through ω (6√78 - 53 < 0 in 4x³ - 4x² + x - 2; SymPy #26069)
+function _real_cbrt(u::Sym)
+    _hassymbol(u) && return u^(1 // 3)
+    v = try N(u) catch; return u^(1 // 3) end
+    v isa Real && v < 0 ? -(expand(-u))^(1 // 3) : u^(1 // 3)
 end
 
 function _ferrari(e, d, c, b, a)                             # a x⁴ + b x³ + c x² + d x + e

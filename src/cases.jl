@@ -505,6 +505,9 @@ function _defined_roots(rs::AbstractVector, e::Sym, x::Sym, B::Assumptions)
         for z in zs
             v = try subs(z, x => r) catch err; _isdivzero(err) && return false; rethrow() end
             _hassymbol(v) || continue
+            # through a cubic's radicals: no polynomial factors in the parameters to decide
+            # (and cancel over them took minutes; SymPy #25920)
+            _has_high_root(v) && continue
             all(f -> _decide(Relation(:ne, f, ZERO), B), _param_factors(cancel(v), (x,))) || return false
         end
         true

@@ -41,7 +41,10 @@ function (S::SymSet)(p::Pair)
     p.second in S
 end
 
-_rv(e::Sym) = (v = N(e); v isa Real ? Float64(v) : throw(ArgumentError("$e is not a real number")))
+# (a real number written with complex parts, a root through ω, has an imaginary part of
+# rounding size only)
+_rv(e::Sym) = (v = N(e); v isa Real ? Float64(v) :
+    abs(imag(v)) <= 1e-12 * max(1, abs(v)) ? Float64(real(v)) : throw(ArgumentError("$e is not a real number")))
 
 Base.isempty(S::SymSet) = isempty(S.intervals)
 Base.:(==)(A::SymSet, B::SymSet) = length(A.intervals) == length(B.intervals) &&
