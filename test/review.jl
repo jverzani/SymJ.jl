@@ -133,6 +133,8 @@ end
     # Welch's degrees of freedom for n1: seconds, not minutes (#25920)
     eq = df ~ (v1 / n1 + v2 / n2)^2 / (v1^2 / (n1^2 * (n1 - 1)) + v2^2 / (n2^2 * (n2 - 1)))
     @test @elapsed(solve(eq, n1)) < 30
+end
+
 @testset "missing cases (SymPy review, round 4)" begin
     # square factors above 1000²: 1009² and 51613² (#26903, #26317)
     @test sqrt(Sym(1009^2 * 1013)) == 1009sqrt(Sym(1013))
