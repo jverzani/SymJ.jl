@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=1b659083">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=8a0e23a8">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -2089,7 +2089,7 @@ SymJ.dsolve([u&#39;(t) ~ u(t) - v(t), v&#39;(t) ~ 5u(t) - 3v(t)], [u(t), v(t)])<
 <pre><code class="language-julia">SymJ.dsolve([u&#39;&#39;(t) + v(t) ~ 0, v&#39;(t) ~ u(t) + t], [u(t), v(t)], u(0) =&gt; 1, u&#39;(0) =&gt; 0, v(0) =&gt; 0)</code></pre>
 </div>
 <pre class="md-output md-output-text"><code class="nohighlight ansi">2-element Vector{Relation}:
- u(t) ~ -t + sqrt(3)*(sin(sqrt(3)*t/2) + sqrt(3)*cos(sqrt(3)*t/2))*exp(t/2)/3
+ u(t) ~ -t - (-2*cos(sqrt(3)*t/2) - 2*sqrt(3)*sin(sqrt(3)*t/2)/3)*exp(t/2)/2
  v(t) ~ 2*sqrt(3)*sin(sqrt(3)*t/2)*exp(t/2)/3</code></pre>
 </div>
 <h2 id="Pattern-matching" class="md-heading">Pattern matching<a href="#Pattern-matching" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
@@ -2236,6 +2236,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=1b659083"></script>
+  <script src="../assets/materialdocs.js?v=8a0e23a8"></script>
 </body>
 </html>
