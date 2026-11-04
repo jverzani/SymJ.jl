@@ -233,6 +233,14 @@ for (f, g) in ((:mod, floor), (:rem, trunc))
         eval = function (args)
             length(args) == 2 || throw(ArgumentError("$f takes two arguments"))
             a, b = args
+            if f === :mod && a.kind == ADD && _hassymbol(a) && !_hassymbol(b) && !iszero(b)
+                # mod(u + c, b) = mod(u + c - qb, b) for c/b rational, 0 ≤ c - qb < b
+                c = _add_many(Sym(k) * t for (k, t) in zip(a.coefs, a.args) if !_hassymbol(t)) + Sym(a.num)
+                r = c / b
+                (r.kind == NUMBER && isexact(r.num)) || return nothing
+                q = floor(r)
+                return iszero(q) ? nothing : mod(a - q * b, b)
+            end
             (!_hassymbol(a) && !_hassymbol(b) && !iszero(b)) || return nothing
             q = g(a / b)
             q.kind == NUMBER ? a - b * q : nothing

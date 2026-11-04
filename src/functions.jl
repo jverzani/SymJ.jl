@@ -416,6 +416,12 @@ for (f, g, jump) in ((:floor, floor, round), (:ceil, ceil, round), (:trunc, trun
             end
             v = _constant_float(a, jump)
             v === nothing || return Sym(SymNumber(g(BigInt, v)))
+            # floor(u + r) = floor(u + r - n) + n for the integer part n of a rational r, so
+            # that floor(z + 3/4) - floor(z - 1/4) is 1; ceil alike
+            if f in (:floor, :ceil) && a.kind == ADD && isexact(a.num) && !_isint(a.num)
+                n = Sym(SymNumber(floor(BigInt, _rat(a.num))))
+                iszero(n) || return apply_function(f, Sym[a - n]) + n
+            end
             # floor(-v) = -ceil(v), ceil(-v) = -floor(v); trunc and round (ties to even) are odd
             _could_extract_minus(a) || return nothing
             -apply_function(f === :floor ? :ceil : f === :ceil ? :floor : f, Sym[-a])

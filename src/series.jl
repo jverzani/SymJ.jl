@@ -12,6 +12,7 @@
 const _T = Sym(Symbol("_t"))         # the expansion variable
 const _LOGT = Sym(Symbol("_logt"))   # log(_T), kept in coefficients
 const _INF = 1 // 0                  # the order of an exact series
+const _TPOS = ScopedValue(false)     # is _T positive (a series at ±∞)
 
 # a truncated series Σ c_i t^(e_i) + O(t^o): exponents increasing, coefficients nonzero
 struct _PS
@@ -149,6 +150,21 @@ function _psapply(name::Symbol, args::Vector{Sym}, N::Rational{Int})
     i = only(i)
     a = _ser(args[i], N)
     hasneg, a0, h = _pssplit(a)
+    if hasneg && name in (:atan, :acot) && length(args) == 1
+        # an infinite argument: atan(a) = ±π/2 - atan(1/a), the sign of a's leading term
+        # (SymPy #27109); acot(a) = atan(1/a)
+        v0, c0, _ = _pslead(a)
+        w = _psinv(a, N)
+        at = _psgeom(w, k -> isodd(k) ? Sym((-1)^((k - 1) ÷ 2) // k) : ZERO, N)
+        name === :acot && return at
+        # the sign of c0 t^v0: t > 0 at ±∞ (x = ±1/t); at a point, only for an even or
+        # fractional power (atan(1/x) at 0 is ±π/2 - x by side)
+        (_TPOS[] || iseven(numerator(v0)) || denominator(v0) > 1) ||
+            throw(ArgumentError("series: $(apply_function(name, args)) has different series on the two sides of the point"))
+        sg = has(c0, _LOGT) ? nothing : _csign(c0)
+        sg === nothing && throw(ArgumentError("series: atan at the point: the sign of $c0 is not known"))
+        return _psadd(_psconst(sg * PI / 2), _psscale(at, MINUS_ONE))
+    end
     hasneg && throw(ArgumentError("series: $(apply_function(name, args)) has no series here (its argument is infinite)"))
     has(a0, _LOGT) && throw(ArgumentError("series: $name of a logarithm at the point"))
     a.o > 0 || throw(_SeriesPrecision())
@@ -275,7 +291,7 @@ function series(ex, x::Sym, x0 = 0, n::Real = 6)
     N = order
     for _ in 1:12
         ps = try
-            _ser(ext, N)
+            with(() -> _ser(ext, N), _TPOS => x0 isa Real && isinf(x0))
         catch err
             err isa _SeriesPrecision || rethrow()
             N += 2

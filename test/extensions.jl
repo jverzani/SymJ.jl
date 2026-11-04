@@ -174,6 +174,24 @@ import PolyLog as PL
         let (a1, a2, a3, t) = symbols("a1 a2 a3 t")
             @test ∫(P(x ≪ 1 => a1, x ≪ 2 => a2, x ≪ 3 => a3), (x, 0, t))(t => Sym(5) // 2) == a1 + a2 + a3 / 2
         end
+        # a condition of one sign by bounds: |…| ≥ 1 (SymPy #27283)
+        @test ∫(abs((3 + cos(3x)^5 / 2) - (1 + sin(2x)^3 / 2)), (x, 0, 2PI)) == 4PI
+        # dirac in a product with a sum, abs in the rest (SymPy #27108)
+        @test ∫((exp(-abs(x)) - 2D(x)) * exp(-abs(x)), (x, -Inf, Inf)) == -1
+        # a periodic integrand: its antiderivative for every period, not one
+        let F = ∫(abs(sin(x)), x)
+            @test subs(F, x => 3PI) - subs(F, x => 0) == 6
+            @test subs(F, x => 0) - subs(F, x => -2PI) == 4
+        end
+        @test_throws ArgumentError ∫(x * abs(sin(x)), x)              # no finite form: an error
+        # x only in x + y: integrated in y as a shift (SymPy #27234)
+        let G = ∫(abs(cos(x + y)), y; assume = (x ∈ ℝ, y ∈ ℝ))
+            @test subs(G, x => 1, y => 2PI - 1) - subs(G, x => 1, y => -1) == 4
+        end
+        @test simplify(∫(abs(cos(x + y)), (y, 0, 2PI))) == 4
+        # a condition quadratic in x with roots in y: by the discriminant (SymPy #27358)
+        @test ∫(P(((x - 5)^2 + (y - 5)^2 ≦ 1) => 1, true => 0), (x, 0, 9), (y, 0, 9)) == PI
+        @test ∫(P((x^2 ≧ y) => 1, true => 0), (x, 0, 1), (y, 0, 1)) == 1 // 3
     end
 
     @testset "RischIntegrate: definite integrals" begin

@@ -14,6 +14,43 @@
 # and a limit that does not exist or is undefined an error that calling the case throws.
 # As in GruntzLimit, the other symbols are real numbers.
 
+# does e depend on x: not through a derivative at a point whose bound variable is x (f'(3)
+# is Derivative(f(x), x, 3))
+_depends(e::Sym, x::Sym) = !has(e, x) ? false : _eq(e, x) ? true :
+    _isderivat(e) ? (has(e.args[3], x) || (!_eq(e.args[2], x) && has(e.args[1], x))) :
+    any(a -> _depends(a, x), e.args) || (e.kind == MUL && any(a -> _depends(a, x), e.exps))
+
+# an unknown function (SymFunction(:f)(x), or a derivative of one) depending on x, or nothing
+function _unknown_fn(e::Sym, x::Sym)
+    _depends(e, x) || return nothing
+    if e.kind == FN && (e.name === :Derivative ||
+                        (!haskey(FUNCTION_RULES, e.name) && !(e.name in _NO_CHAIN)))
+        return e
+    end
+    for a in e.args
+        u = _unknown_fn(a, x)
+        u === nothing || return u
+    end
+    if e.kind == MUL
+        for a in e.exps
+            u = _unknown_fn(a, x)
+            u === nothing || return u
+        end
+    end
+    nothing
+end
+
+function _unknown_consts!(out, e::Sym, x::Sym)
+    if e.kind == FN && !_depends(e, x) && (e.name === :Derivative ||
+                                      (!haskey(FUNCTION_RULES, e.name) && !(e.name in _NO_CHAIN)))
+        any(c -> _eq(c, e), out) || push!(out, e)
+        return out
+    end
+    foreach(a -> _unknown_consts!(out, a, x), e.args)
+    e.kind == MUL && foreach(a -> _unknown_consts!(out, a, x), e.exps)
+    out
+end
+
 """
     limit(f, x => x0; dir = :both, assume = nothing)
 
@@ -48,6 +85,17 @@ function limit(f, xx0::Pair; dir = :both, assume = nothing)
     dir = dir in (:+, +, "+") ? :+ : dir in (:-, -, "-") ? :- : dir in (:both, "both") ? :both :
         throw(ArgumentError("limit: dir must be :both, :+ or :-, not $(repr(dir))"))
     f = _sinc_elementary(Sym(f))
+    # an unknown function of x: its limit is not known (it need not be continuous) (#27143)
+    u = _unknown_fn(f, x)
+    u === nothing || throw(ArgumentError("limit: $u is an unknown function of $x; its limit is not known"))
+    # one free of x, f(2), is a constant: a symbol for the limit, put back after
+    cs = Sym[]
+    _unknown_consts!(cs, f, x)
+    if !isempty(cs)
+        ks = [Sym(Symbol("_lim_c", i)) for i in eachindex(cs)]
+        L = limit(subs(f, (c => k for (c, k) in zip(cs, ks))...), x => x0; dir, assume)
+        return L isa Sym ? subs(L, (k => c for (c, k) in zip(cs, ks))...) : L
+    end
     x0 = x0 isa Sym && x0.kind == NUMBER && isfloat(x0.num) && isinf(Float64(x0.num)) ? Float64(x0.num) : x0
     A = _assumptions(assume)
     signs = Pair{Sym,Symbol}[]

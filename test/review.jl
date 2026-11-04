@@ -67,4 +67,31 @@ end
     @test SymJ.piecewise(Eq(x, 1) => 0, x ≪ 0 => x, true => x - 1) == SymJ.piecewise(x ≪ 0 => x, true => x - 1)
     @test length(SymJ.piecewise(Eq(x, 2) => 5, true => 1000 - x).args) == 4
     @test length(SymJ.piecewise(Eq(x, 0) => 1, true => sin(x) / x).args) == 4     # needed at 0
+    # a k-free denominator in rsolve's right side (#27901)
+    let (n, k) = symbols("n k"), yf = SymFunction(:yf)
+        rhs = binomial(n + 1, k) * 2^(-n - 1) - binomial(n, k) * 2^(-n)
+        r = SymJ.rsolve(yf(k + 1) - yf(k) ~ rhs, yf(k))
+        res = subs(r, k => k + 1) - r - rhs
+        @test all(iszero, [subs(res, n => i, k => j) for i in 3:5 for j in 0:3])
+    end
+    # cube roots of quadratic surds denested (#27082)
+    @test simplify(cbrt(85 + 62sqrt(Sym(7)))) == 1 + 2sqrt(Sym(7))
+    @test simplify(cbrt(-85 - 62sqrt(Sym(7)))) == -1 - 2sqrt(Sym(7))
+    @test SymJ.simplify_radicals(cbrt(2 + sqrt(Sym(5)))) == (1 + sqrt(Sym(5))) / 2
+    @test simplify((26 + 15sqrt(Sym(3)))^(Sym(1) // 3)) == 2 + sqrt(Sym(3))
+    @test simplify(cbrt(1 + sqrt(Sym(2)))) == cbrt(1 + sqrt(Sym(2)))                 # none
+    # atan at ±∞ (#27109)
+    @test Sym(series(atan(x), x, Inf, 4)) == PI / 2 - 1 / x + 1 / (3x^3)
+    @test Sym(series(atan(x), x, -Inf, 4)) == -PI / 2 - 1 / x + 1 / (3x^3)
+    @test Sym(series(atan(1 / x^2), x, 0, 4)) == PI / 2 - x^2
+    @test_throws ArgumentError series(atan(1 / x), x, 0, 4)                       # by side
+    # no zeros by bounds: 1 + x^2 sin(x)^2 ≥ 1 (#27139)
+    @test isempty(SymJ._zeros_in(1 + x^2 * sin(x)^2, x, Sym(0), Sym(1)))
+    # floor and mod: integer parts of their shifts out
+    @test floor(x + Sym(7) // 4) == floor(x + Sym(3) // 4) + 1
+    @test mod(x - PI / 2, 2PI) == mod(x + 3PI / 2, 2PI)
+    # an unknown function of x: no limit; one free of x a constant (#27143)
+    @test_throws ArgumentError limit(f(x), x => a)
+    @test_throws ArgumentError limit(diff(f(x), x), x => a)
+    @test limit(f(2) + x, x => a) == a + f(2)
 end

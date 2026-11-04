@@ -536,6 +536,8 @@ end
 
 # the zeros of z in x (all of them in [lo, hi] for sin and cos of a linear argument)
 function _zeros_in(z::Sym, x::Sym, lo::Sym, hi::Sym)
+    # none, by bounds: 1 + t^2 sin(t)^2 ≥ 1 (#27139)
+    _sign_on(z, x, _num_end(lo, -Inf), _num_end(hi, Inf)) === nothing || return Sym[]
     if z.kind == FN && z.name in (:sin, :cos) && length(z.args) == 1
         u = z.args[1]
         k = expand(diff(u, x))
@@ -566,6 +568,13 @@ function _zeros_in(z::Sym, x::Sym, lo::Sym, hi::Sym)
     a, b = minmax(N(lo), N(hi))
     p = N(P)
     Sym[expand(r + n * P) for (r, v) in vs for n in (floor(Int, (a - v) / p) - 1):(ceil(Int, (b - v) / p) + 1)]
+end
+
+# a limit of integration as a Float64, or `inf` when it is symbolic
+function _num_end(e::Sym, inf::Float64)
+    _hassymbol(e) && return inf
+    v = try N(e) catch; return inf end
+    v isa Real ? Float64(v) : inf
 end
 
 # 2π/k when x enters z only through sin and cos of arguments k x + c (one k), else nothing
@@ -600,6 +609,9 @@ function _definite_by_pieces(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A, pv::B
     a, b = N(lo), N(hi)
     (a isa Real && b isa Real) || return nothing
     a, b = minmax(a, b)
+    # conditions of one sign on [a, b] by bounds (|3 + cos(3x)^5/2 - …| ≥ 1, #27283)
+    g = _settle_conditions(g, x, a, b)
+    _haspieces(g, x) || return _definite(g, x, lo, hi, antider, A, pv)
     cuts = _piece_cuts(g, x, a, b)
     cuts === nothing && return nothing
     if isempty(cuts)                         # the pieces are fixed on the interval

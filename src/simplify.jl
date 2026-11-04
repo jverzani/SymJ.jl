@@ -1363,6 +1363,11 @@ function _radicals(e::Sym, A::Assumptions)
             if q.num == SymNumber(1 // 2) && (d = _denest(b)) !== nothing
                 return d
             end
+            # the principal cube root of a positive surd
+            if q.num == SymNumber(1 // 3) && (v = _realval(b)) !== nothing && v > 0 &&
+               (d = _denest_cbrt(b)) !== nothing
+                return d
+            end
             if isone(_denominator(q.num)) && q.num < N0 && (c = _conjugate(b)) !== nothing
                 conj, norm = c                                  # 1/b = conj/norm
                 return expand((conj / norm)^Sym(-q.num))
@@ -1374,7 +1379,39 @@ function _radicals(e::Sym, A::Assumptions)
         end
         return b^q
     end
+    if e.kind == FN && e.name === :cbrt && length(e.args) == 1      # the real cube root
+        b = _radicals(e.args[1], A)
+        d = _denest_cbrt(b)
+        return d === nothing ? cbrt(b) : d
+    end
     _rebuild_node(e, Sym[_radicals(a, A) for a in e.args])
+end
+
+_realval(b::Sym) = (v = try _evalc(b) catch; return nothing end; iszero(imag(v)) ? real(v) : nothing)
+
+# cbrt(a + b sqrt(c)) = p + q sqrt(c) with p, q rational (SymPy #27082): then
+# n = p^2 - q^2 c is the rational cube root of a^2 - b^2 c, and s = 2p a rational root of
+# s^3 - 3n s - 2a (s the sum of the cube root and its conjugate, whose product is n)
+function _denest_cbrt(u::Sym)
+    t = _quadratic_surd(u)
+    t === nothing && return nothing
+    a, b, c = t
+    nn = cbrt(Sym(a * a - b * b * c))
+    nn.kind == NUMBER && isexact(nn.num) || return nothing
+    z = Sym(:_s)
+    f = try factor(z^3 - 3nn * z - 2Sym(a)) catch; return nothing end
+    for g in (f.kind == MUL ? f.args : [f])
+        g.kind == ADD || continue
+        k0, k1 = subs(g, z => 0), diff(g, z)
+        (k1.kind == NUMBER && !iszero(k1)) || continue           # linear in z
+        p = -k0 / k1 / 2
+        q2 = (p^2 - nn) / Sym(c)
+        q = sqrt(q2)
+        q.kind == NUMBER || continue
+        r = p + (b > N0 ? q : -q) * sqrt(Sym(c))
+        iszero(expand(r^3 - u)) && return r
+    end
+    nothing
 end
 
 # b = p + r sqrt(c) with rational p, r, c (c not a square): (p, r, c), or nothing
