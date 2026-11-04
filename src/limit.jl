@@ -14,34 +14,6 @@
 # and a limit that does not exist or is undefined an error that calling the case throws.
 # As in GruntzLimit, the other symbols are real numbers.
 
-"""
-    limit(f, x => x0; dir = :both, assume = nothing)
-
-The limit of `f` as `x` tends to `x0`: a number, an expression, or `±Inf`. The limit is
-two-sided unless `dir` is `:+` (from above) or `:-` (from below). Computed by Gruntz's
-algorithm ([GruntzLimit](https://github.com/jverzani/GruntzLimit.jl)), which handles
-exponentials and logarithms that cancel in ways numerical evaluation cannot follow.
-
-The other symbols are real numbers, and the answer is the generic one: a constant that
-may vanish is taken to be nonzero. Facts about them can be given with `assume` (or in
-an [`assuming`](@ref) block, see [`Assumptions`](@ref)). When the limit depends on the
-sign of something the facts leave open, the answer is a `Cases` value, one limit for each
-case, which can be called with values (`cs(a => 2)`). The limit is a `Sym`, `Sym(Inf)` or
-`Sym(-Inf)` for an infinite one. A limit that does not exist (`sin(x)` at `Inf`) throws
-a `GruntzError`.
-
-`f` may itself be a `Cases` value (as a definite integral with a variable end gives): the
-cases whose conditions on `x` hold near `x0` are kept, each with its limit (∫₁ᴹ as `M → ∞`
-takes the case `M > 1`).
-
-```julia
-limit(sin(x) / x, x => 0)                    # 1
-limit((1 + 1 / x)^x, x => Inf)               # ℯ
-limit(1 / x, x => 0; dir = :+)               # Inf
-limit(x^a, x => Inf)                         # a < 0 => 0, a == 0 => 1, a > 0 => Inf
-limit(x^a, x => Inf; assume = @assume(a > 1))   # Inf
-```
-"""
 # does e depend on x: not through a derivative at a point whose bound variable is x (f'(3)
 # is Derivative(f(x), x, 3))
 _depends(e::Sym, x::Sym) = !has(e, x) ? false : _eq(e, x) ? true :
@@ -79,6 +51,34 @@ function _unknown_consts!(out, e::Sym, x::Sym)
     out
 end
 
+"""
+    limit(f, x => x0; dir = :both, assume = nothing)
+
+The limit of `f` as `x` tends to `x0`: a number, an expression, or `±Inf`. The limit is
+two-sided unless `dir` is `:+` (from above) or `:-` (from below). Computed by Gruntz's
+algorithm ([GruntzLimit](https://github.com/jverzani/GruntzLimit.jl)), which handles
+exponentials and logarithms that cancel in ways numerical evaluation cannot follow.
+
+The other symbols are real numbers, and the answer is the generic one: a constant that
+may vanish is taken to be nonzero. Facts about them can be given with `assume` (or in
+an [`assuming`](@ref) block, see [`Assumptions`](@ref)). When the limit depends on the
+sign of something the facts leave open, the answer is a `Cases` value, one limit for each
+case, which can be called with values (`cs(a => 2)`). The limit is a `Sym`, `Sym(Inf)` or
+`Sym(-Inf)` for an infinite one. A limit that does not exist (`sin(x)` at `Inf`) throws
+a `GruntzError`.
+
+`f` may itself be a `Cases` value (as a definite integral with a variable end gives): the
+cases whose conditions on `x` hold near `x0` are kept, each with its limit (∫₁ᴹ as `M → ∞`
+takes the case `M > 1`).
+
+```julia
+limit(sin(x) / x, x => 0)                    # 1
+limit((1 + 1 / x)^x, x => Inf)               # ℯ
+limit(1 / x, x => 0; dir = :+)               # Inf
+limit(x^a, x => Inf)                         # a < 0 => 0, a == 0 => 1, a > 0 => Inf
+limit(x^a, x => Inf; assume = @assume(a > 1))   # Inf
+```
+"""
 function limit(f, xx0::Pair; dir = :both, assume = nothing)
     x, x0 = Sym(xx0.first), xx0.second
     _isnamed(x) || throw(ArgumentError("limit: $x is not a symbol"))
