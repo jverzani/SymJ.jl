@@ -16,6 +16,17 @@
         @test diff(H(x, x), x) == D(H(t, x), t, x) + D(H(x, t), t, x)
         @test string(diff(H(x, y), x)) == "Derivative(H(x, y), x)"      # symbols: as it was
         @test diff(H(x^2, t), x) == 2x * D(H(Sym(:s), t), Sym(:s), x^2)   # t is taken
+        # shown as the call that makes it, not Derivative(H(t, x), t, x^2), SymPy's
+        # order notation (#26958)
+        @test string(D(H(t, x), t, x^2)) == "Derivative(H(t, x), t)(t => x^2)"
+        @test diff(H(t, x), t)(t => x^2) == D(H(t, x), t, x^2)
+        # the derivative of one at a point: in the point and in the other arguments
+        H1, H2 = D(H(t, x), t, x^2), D(H(x^2, t), t, x)
+        H11, H22 = D(diff(H(t, x), t), t, x^2), D(diff(H(x^2, t), t), t, x)
+        H12 = D(diff(H(t, x), x), t, x^2)
+        @test diff(H1, x) == 2x * H11 + H12
+        @test diff(H2, x) == H22 + D(diff(H(x^2, t), x), t, x)
+        @test diff(D(H(t, y), t, x^2), y) == D(diff(H(t, y), y), t, x^2)
         R = sqrt(x^2 + y^2 + z^2)                                         # curl of H(r) r̂ is 0
         M, N, P = H(R) * [x, y, z] / R
         @test diff(P, y) - diff(N, z) == 0

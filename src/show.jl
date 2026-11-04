@@ -58,6 +58,11 @@ function _show(io::IO, x::Sym, p::Int)
         print(io, ")")
     elseif (d = _deriv_at(x)) !== nothing
         print(io, d[1], "'"^d[2], "(", sprint(_show, d[3], 0), ")")
+    elseif x.name === :Derivative && length(x.args) == 3
+        # the derivative in v taken at v = a, as the call that makes it: Derivative(f, v, a)
+        # read as SymPy's a-th derivative (#26958)
+        f, v, a = (sprint(_show, t, 0) for t in x.args)
+        print(io, "Derivative(", f, ", ", v, ")(", v, " => ", a, ")")
     elseif _isdefint(x)                         # as integrate takes it: Integral(f, (y, a, b))
         f, v, a, b = (sprint(_show, t, 0) for t in x.args)
         print(io, "Integral(", f, ", (", v, ", ", a, ", ", b, "))")

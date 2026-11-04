@@ -62,4 +62,9 @@ end
     end
     # A' of a Matrix{Sym} is one of Sym
     @test collect(Sym[1 x; 0 2]') isa Matrix{Sym}
+    # a piece at a point with the value there of the piece that takes over (#27627)
+    @test SymJ.piecewise(Eq(x, 999) => 1, true => 1000 - x) == 1000 - x
+    @test SymJ.piecewise(Eq(x, 1) => 0, x ≪ 0 => x, true => x - 1) == SymJ.piecewise(x ≪ 0 => x, true => x - 1)
+    @test length(SymJ.piecewise(Eq(x, 2) => 5, true => 1000 - x).args) == 4
+    @test length(SymJ.piecewise(Eq(x, 0) => 1, true => sin(x) / x).args) == 4     # needed at 0
 end

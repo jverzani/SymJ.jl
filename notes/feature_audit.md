@@ -210,7 +210,10 @@ transforms). Of the rest, in rough order of value for calculus-level use:
    `SymJ.nsimplify` (constant recognition).
 8. **Assumptions, the remaining pieces**: integer congruences, `assume` for systems of
    equations, and assumptions in `integrate`. (`@assuming refine = true` refines the
-   block's value, since construction does not read the facts.)
+   block's value, since construction does not read the facts.) Integer assumptions could
+   also narrow conditions: for an integer `x < 1000`, `x ≥ 999` is `x = 999`, after which
+   a piecewise's piece at that point merges with the next one (SymPy #27627; the merge
+   itself is done, the narrowing is not).
 
 Done since the first audit: trigonometric and logarithmic expansion, gamma and combinatorial simplification, LaTeX output (a Latexify extension), resultants and Gröbner
 bases (polynomial systems are solved), real and imaginary parts and `conj`, and

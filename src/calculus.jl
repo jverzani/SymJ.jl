@@ -186,6 +186,14 @@ function _diff(ex::Sym, x::Sym)
         da = _diff(a, x)
         iszero(da) && return ZERO
         return mul(apply_function(:Derivative, Sym[_mkfn_node(:Derivative, Sym[F, t]), t, a]), da)
+    elseif _isderivat(ex)
+        # G_t(a, x) for G = F(t, x): G_tt(a, x) a′ + G_tx(a, x), the second the derivative
+        # in t at a of ∂F/∂x (SymPy #26958)
+        F, t, a = ex.args
+        da = _diff(a, x)
+        Fx = apply_function(:Derivative, Sym[_diff(F, x), t, a])
+        iszero(da) && return Fx
+        return add(mul(apply_function(:Derivative, Sym[_mkfn_node(:Derivative, Sym[F, t]), t, a]), da), Fx)
     elseif ex.name === :piecewise                 # piece by piece
         return apply_function(:piecewise, Sym[isodd(i) ? a : _diff(a, x) for (i, a) in enumerate(ex.args)])
     else
