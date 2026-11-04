@@ -167,6 +167,16 @@ function _psapply(name::Symbol, args::Vector{Sym}, N::Rational{Int})
     end
     hasneg && throw(ArgumentError("series: $(apply_function(name, args)) has no series here (its argument is infinite)"))
     has(a0, _LOGT) && throw(ArgumentError("series: $name of a logarithm at the point"))
+    # Bessel functions at 0: J_ν and I_ν of non-integer order are x^ν times a series in
+    # x², not a Taylor series (SymPy #25678); Y_ν and K_ν from them; Y_n, K_n have logs
+    if name in (:besselj, :besseli, :bessely, :besselk) && length(args) == 2 && i == 2 && iszero(a0)
+        ν = args[1]
+        if ν.kind == NUMBER && isexact(ν.num) && !_isint(ν.num)
+            return _psbessel(name, ν, a, N)
+        elseif name in (:bessely, :besselk)
+            throw(ArgumentError("series: $(apply_function(name, args)) at 0 (logarithmic terms) is not supported"))
+        end
+    end
     a.o > 0 || throw(_SeriesPrecision())
     y = Sym(Symbol("_y"))
     fy = apply_function(name, Sym[j == i ? y : args[j] for j in eachindex(args)])
@@ -187,6 +197,25 @@ function _psapply(name::Symbol, args::Vector{Sym}, N::Rational{Int})
         k < K && (d = diff(d, y) / (k + 1))
     end
     _psgeom(h, k -> k <= K ? coef[k+1] : ZERO, N)
+end
+
+# J_ν(u) = Σ (-1)^k (u/2)^(2k+ν)/(k! Γ(k+ν+1)), I_ν alike without the signs, for u of
+# positive valuation and ν a non-integer rational; Y_ν = (J_ν cos νπ - J_{-ν})/sin νπ,
+# K_ν = π/2 (I_{-ν} - I_ν)/sin νπ
+function _psbessel(name::Symbol, ν::Sym, u::_PS, N::Rational{Int})
+    function JI(ν, alt)
+        s = _val(u) * Rational{Int}(_numerator(ν.num), _denominator(ν.num))   # of u^ν
+        g = apply_function(:gamma, Sym[ν + 1])
+        c(k) = (alt && isodd(k) ? -ONE : ONE) /
+               (Sym(factorial(big(k))) * g * prod((ν + j for j in 1:k); init = ONE))
+        w = _psscale(_psmul(u, u), Sym(1 // 4))
+        _psmul(_pspow(_psscale(u, Sym(1 // 2)), ν, N), _psgeom(w, c, N - s))
+    end
+    alt = name in (:besselj, :bessely)
+    name in (:besselj, :besseli) && return JI(ν, alt)
+    sn = sin(ν * PI)
+    name === :bessely && return _psscale(_psadd(_psscale(JI(ν, true), cos(ν * PI)), _psscale(JI(-ν, true), MINUS_ONE)), inv(sn))
+    _psscale(_psadd(JI(-ν, false), _psscale(JI(ν, false), MINUS_ONE)), PI / (2sn))
 end
 
 # a coefficient that is an unevaluated Derivative, or that does not evaluate to a

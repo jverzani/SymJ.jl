@@ -73,7 +73,8 @@ function _lap_unknown(term::Sym, t::Sym, s::Sym)
         out -= s^(n - 1 - k) * subs(d, t => ZERO)
         d = diff(d, t)
     end
-    cf * out
+    # the t-free factors too: k₁ u(t) is k₁ U(s) (#25815)
+    cf * prod((b^q for (j, (b, q)) in enumerate(fs) if j != i); init = ONE) * out
 end
 
 function _lap_term(term::Sym, t::Sym, s::Sym)

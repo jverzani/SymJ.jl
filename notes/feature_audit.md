@@ -7,7 +7,7 @@ SymPy 1.14, and every Giac command in Giac.jl's command table; SymJ's column was
 against its source and by running it. Updated 2026-10-25: series, assumptions, `limit`
 with assumptions, `refine` and `simplify`, complex parts and LaTeX output are done.
 Updated 2026-11-01: the feature gaps found in a review of SymPy issues #28909–#30902 are
-added (and on 2026-11-02 those of #27909–#28908), each with its SymPy issue numbers; the review's correctness fixes are tracked
+added (and on 2026-11-02 those of #27909–#28908), each with its SymPy issue numbers. Updated 2026-11-04: those of #26909–#27908 and #25409–#26908 are added; the review's correctness fixes are tracked
 separately. Names checked against SymPy 1.14 and Giac.jl's command table as before.
 
 **Legend:** ✅ has · ◐ partial · ❌ missing · ★ planned (all done: series, assumptions, a basic
@@ -18,12 +18,12 @@ separately. Names checked against SymPy 1.14 and Giac.jl's command table as befo
 | Capability | SymPy | Giac | SymJ |
 |:--|:--|:--|:--|
 | Exact integers and rationals of any size | `Integer`, `Rational` | built in | ✅ `SymNumber` (Int fast path, BigInt fallback) |
-| Exact radicals, π, ℯ, exact function values | `sqrt`, `pi`, `E` | built in | ✅ `sqrt(Sym(8)) == 2sqrt(2)`, `sin(π/3) == sqrt(3)/2` |
+| Exact radicals, π, ℯ, exact function values | `sqrt`, `pi`, `E` | built in | ✅ `sqrt(Sym(8)) == 2sqrt(2)`, `sin(π/3) == sqrt(3)/2`; no `τ = 2π` constant (requested, SymPy #26454) |
 | Combining and denesting radicals | `radsimp`, `sqrtdenest` | `simplify` | ✅ through `simplify`: combining (`sqrt(2)*sqrt(3) = sqrt(6)`), denesting square roots of `a + b sqrt(c)`, rationalizing denominators; ◐ no deeper denesting |
 | Complex numbers: `re`, `im`, `conj`, `arg` | `re`, `im`, `conjugate`, `arg` | `re`, `im`, `conj`, `arg` | ✅ `real`, `imag`, `conj`, `angle`, `reim` (exact for constants; identities for every complex value as built; parts under assumptions through `refine`); `adjoint` for matrices of expressions |
 | Symbolic infinity and undefined | `oo`, `zoo`, `nan` | `infinity`, `undef` | ◐ limits return `Sym(Inf)`; no symbolic infinity in expressions; no accumulation bounds (`AccumBounds`; SymPy #28576) |
 | Numeric evaluation | `evalf(n)` | `evalf` | ✅ `N` (Float64), calling with `BigFloat`, dual numbers, …; no precision tracking: Float64 cancellation is not detected (SymPy #28537, #28514) |
-| Assumptions on symbols | `symbols(positive=True)`, `ask`, `refine`, `Q` | `assume` | ✅ `Assumptions`, `@assume`, `assuming`/`@assuming`, per call or per block, not stored on symbols; used by `solve`, `limit`, `refine` and `simplify` (`sqrt(x^2) = x` for `x > 0`); ◐ not yet by `integrate`, systems of equations, or integer congruences (`mod(n, 3) == 1`); no prime predicate, no reasoning about unknown functions (congruence, SymPy #28154) |
+| Assumptions on symbols | `symbols(positive=True)`, `ask`, `refine`, `Q` | `assume` | ✅ `Assumptions`, `@assume`, `assuming`/`@assuming`, per call or per block, not stored on symbols; used by `solve`, `limit`, `refine` and `simplify` (`sqrt(x^2) = x` for `x > 0`); ◐ not yet by `integrate`, systems of equations, or integer congruences (`mod(n, 3) == 1`); no prime or composite predicate (SymPy #27446, #27441), no reasoning about unknown functions (congruence, SymPy #28154) |
 | Parameters (named constants) | — | — | ◐ implemented, hidden until the shared-name question is settled |
 
 ## Expressions
@@ -32,16 +32,16 @@ separately. Names checked against SymPy 1.14 and Giac.jl's command table as befo
 |:--|:--|:--|:--|
 | Canonical form as built, fast construction | ✅ | ✅ | ✅ (3–30x faster than SymEngine on the benchmarks) |
 | Substitution | `subs` | `subst` | ✅ `subs`, calling with pairs or keywords |
-| Compiled numeric functions | `lambdify` | — | ✅ `lambdify` (as fast as hand-written code) |
+| Compiled numeric functions | `lambdify` | — | ✅ `lambdify` (as fast as hand-written code); no `constants` keyword (substitute first; SymPy #25491) |
 | Generic term interface | — | — | ✅ TermInterface |
 | Pattern matching and rewrite rules | `Wild`, `match`, `replace` | rules | ✅ `SymJ.pattern`/`SymJ.@pattern` with `match`, `eachmatch`, `occursin`: associative-commutative, slots `~x`, `~!x`, `~~x`, `~~~x`, head slots, predicates; `SymJ.@rule`, `SymJ.rule`, `SymJ.rewrite`, `replace` (rules, or `old => new` pairs: patterns, predicates, subexpressions; SymPy's `replace`) (stages 1–4 of `notes/pattern_matching.md`: rule sets indexed by head; trig rules among `simplify`'s candidates) |
 | Collect by powers, coefficients | `collect`, `coeff` | `collect`, `coeff` | ✅ `SymJ.gather` (one variable or several, any powers, function calls), `SymJ.coeff`; `Poly` for polynomials |
 | Horner form | `horner` | `horner` | ✅ `SymJ.horner`, in one variable or recursively in several |
 | Common subexpressions | `cse` | — | ✅ `SymJ.cse` (repeated nodes, as `lambdify` shares them; not parts of larger sums) |
-| Rewriting between forms (exp ↔ trig, …) | `ex.rewrite(...)` | `exp2pow`, `pow2exp`, `halftan`, `sincos`, `tan2sincos` | ✅ `SymJ.rewrite(ex, target)` (and `fs => target`): through `exp`, `log` (inverse functions), `sin`/`cos`, `sinh`/`cosh`, half-angle `tan`/`tanh`, `gamma`, `factorial`; `simplify` also moves between exponentials and trig, whichever is smaller; ❌ special-function targets: `li` ↔ `Shi`/`Chi`, `erfi` ↔ `expint`, Airy ↔ Bessel (SymPy #30352, #30349) |
+| Rewriting between forms (exp ↔ trig, …) | `ex.rewrite(...)` | `exp2pow`, `pow2exp`, `halftan`, `sincos`, `tan2sincos` | ✅ `SymJ.rewrite(ex, target)` (and `fs => target`): through `exp`, `log` (inverse functions), `sin`/`cos`, `sinh`/`cosh`, half-angle `tan`/`tanh`, `gamma`, `factorial`; `simplify` also moves between exponentials and trig, whichever is smaller; ❌ special-function targets: `li` ↔ `Shi`/`Chi`, `erfi` ↔ `expint`, Airy ↔ Bessel (SymPy #30352, #30349); targets `abs` (`sign(x)`; #27323) and `Integral` (Si, Ci, Fresnel, Ei, `expint`; #26144, #26143, #26134); `acos(sin(x))` and the like as periodic piecewise functions (#25720, #25719) |
 | Floats to exact numbers | `nsimplify` | — | ✅ `rationalize(ex)`: the floats in an expression as rationals; `SymJ.nsimplify(ex; constants)`: floats recognized as rationals, algebraic numbers (degree ≤ 4, in radicals) and rational combinations of constants (PSLQ) |
 | EML (exp-minus-log) form | — (requested, SymPy #29688) | — | ❌ |
-| Noncommutative symbols, indexed objects, sequences | `symbols(commutative=False)`, `IndexedBase`, `SeqFormula` | — | ❌ (SymPy #28001, #28037, #28226) |
+| Noncommutative symbols, indexed objects, sequences | `symbols(commutative=False)`, `IndexedBase`, `SeqFormula` | — | ❌ (SymPy #28001, #28037, #28226); noncommutative: #27891, #27091, #26864, #26194, #26114 (free algebras), #26041, #25572; indexed objects, `KroneckerDelta`, `LeviCivita`: #27544, #27359, #26942, #26109, #25861 |
 
 ## Simplification ★
 
@@ -62,54 +62,57 @@ separately. Names checked against SymPy 1.14 and Giac.jl's command table as befo
 | Division, gcd, lcm | `div`, `rem`, `gcd`, `lcm` | `quo`, `rem`, `gcd`, `lcm` | ✅ modular gcd, Zippel chosen automatically (faster than FLINT on many benchmarks) |
 | Factor over ℚ, any number of variables | `factor`, `factor_list` | `factor` | ✅ Zassenhaus, van Hoeij, Wang's EEZ |
 | Squarefree decomposition | `sqf_list` | `sqrfree` | ✅ `factor_squarefree`, `squarefree_part` |
-| Factor over extensions, ℤ[i], ℤ/p | `factor(…; extension, gaussian, modulus)` | `cfactor`, factor mod p | ❌ also no algebraic number fields, irreducibility tests or `gcdex`/`invert` over them (SymPy #30845, #30613, #30196, #30158), and no polynomials over ℤ/p (#29715) |
+| Factor over extensions, ℤ[i], ℤ/p | `factor(…; extension, gaussian, modulus)` | `cfactor`, factor mod p | ❌ also no algebraic number fields, irreducibility tests or `gcdex`/`invert` over them (SymPy #30845, #30613, #30196, #30158), and no polynomials over ℤ/p (#29715); `AlgebraicNumber` arithmetic (#26743), `factor` with `extension` (#25592) |
 | Resultant, discriminant | `resultant`, `discriminant` | `resultant`, `discriminant` | ✅ modular or subresultant, chosen per input |
 | Gröbner bases | `groebner` | `gbasis` | ✅ Buchberger with Gebauer–Möller and sugar; lex through FGLM; `reduced` |
-| Roots: exact to degree 4, numeric beyond | `roots`, `nroots` | `solve`, `proot` | ✅ through `solve` (cubics with three real roots in trigonometric form) |
-| Real root isolation and counting | `real_roots`, `count_roots`, `sturm` | `realroot`, `sturm` | ◐ numeric roots only |
+| Roots: exact to degree 4, numeric beyond | `roots`, `nroots` | `solve`, `proot` | ✅ through `solve` (cubics with three real roots in trigonometric form); ❌ no `RootOf`/`CRootOf` objects (SymPy #26740, #25965) |
+| Real root isolation and counting | `real_roots`, `count_roots`, `sturm` | `realroot`, `sturm` | ◐ numeric roots only; ❌ counting complex roots in a region (SymPy #26202) |
 | Interpolation | `interpolate` | `lagrange` | ❌ |
-| Orthogonal and cyclotomic polynomials | `legendre`, `chebyshevt`, `hermite`, `cyclotomic_poly` | `legendre`, `tchebyshev1`, `hermite`, `cyclotomic` | ❌ |
+| Orthogonal and cyclotomic polynomials | `legendre`, `chebyshevt`, `hermite`, `cyclotomic_poly` | `legendre`, `tchebyshev1`, `hermite`, `cyclotomic` | ❌ (Legendre of symbolic degree: SymPy #27298) |
 | Minimal polynomial; composition | `minimal_polynomial`, `compose`, `decompose` | — | ✅ `SymJ.minimal_polynomial` (radicals, `im`, trig of rational multiples of π; by resultants), `SymJ.decompose` (complete functional decomposition, characteristic 0; `solve` uses it for degree > 4); composition is `subs` |
+| Vieta's formulas | `viete` | — | ◐ `expand` of the product of linear factors; no dedicated helper (SymPy #26237) |
 
 ## Equations
 
 | Capability | SymPy | Giac | SymJ |
 |:--|:--|:--|:--|
 | Polynomial equations | `solve`, `solveset` | `solve`, `csolve` | ✅ |
-| One function of the unknown, Lambert W, several logarithms | `solve` | `solve` | ✅ |
+| One function of the unknown, Lambert W, several logarithms | `solve` | `solve` | ✅; ◐ not Lambert W of `x*exp(x^2/2)` (SymPy #26105); ❌ inverting `factorial`, `gamma` (#25493) |
 | Trigonometric equations: all solutions | `solveset` (`ImageSet`, `imageset`) | `solve` | ◐ principal solutions in one period; no image sets (SymPy #29675, #29435 and its duplicates #29419, #29418, #29416) |
 | Linear systems (symbolic coefficients) | `linsolve`, `solve` | `linsolve` | ✅ |
-| Nonlinear systems | `nonlinsolve`, `solve` | `solve` | ◐ polynomial and rational systems, through a lex Gröbner basis; not transcendental ones; transcendental systems such as `2^x + 2^y ~ 10` are an error (SymPy #30849, #29315); trigonometric polynomial systems (SymPy #28804), systems with `log` (#28659, #28064), equations in `real(x)`, `imag(x)` (#28851) |
-| Inequalities: one unknown; linear systems | `solve`, `solveset` | `solve` | ✅ unions of intervals; cylindrical description for linear systems; ❌ with parameters (`reduce_inequalities`; SymPy #30688, #30598) |
+| Nonlinear systems | `nonlinsolve`, `solve` | `solve` | ◐ polynomial and rational systems, through a lex Gröbner basis; not transcendental ones; transcendental systems such as `2^x + 2^y ~ 10` are an error (SymPy #30849, #29315); trigonometric polynomial systems (SymPy #28804), systems with `log` (#28659, #28064), equations in `real(x)`, `imag(x)` (#28851); with `log` or trig (#27233, #26070); in `z` and `conj(z)` (#27382, #27191, #26301) |
+| Inequalities: one unknown; linear systems | `solve`, `solveset` | `solve` | ✅ unions of intervals; cylindrical description for linear systems; ❌ with parameters (`reduce_inequalities`; SymPy #30688, #30598, #27779, #27589); ❌ transcendental and `abs` inequalities: exponential (#27589), trigonometric (#27573, #25942), logarithmic (#25697), `abs` (#25983, #25738) |
 | Solutions under assumptions (domain, range, parameter cases) | `solveset(…, domain)`, assumptions on symbols | `assume` | ✅ `solve(…; assume)`: roots filtered by the unknown's facts; a `Cases` result when they depend on open facts. Not yet for systems |
-| Equations in several unrelated functions of the unknown | `solve` | `solve` | ◐ sin, cos, tan, cot, sec, csc of one argument, through `tan(x/2)` (`sin(x) + cos(x) ~ 1`; SymPy #29745); ❌ different arguments, `sin(4x) + sin(3x) ~ 0` (SymPy #30401) |
+| Equations in several unrelated functions of the unknown | `solve` | `solve` | ◐ sin, cos, tan, cot, sec, csc of one argument, through `tan(x/2)` (`sin(x) + cos(x) ~ 1`; SymPy #29745); ❌ different arguments, `sin(4x) + sin(3x) ~ 0` (SymPy #30401), `sin(x)*cos(x/2) ~ 1` (#25954, #25941); exponentials with trig or hyperbolic functions (#26015); several radicals, `cbrt(x^2-1)` and `cbrt(x)` (#25711, #25709) |
 | Equations with `floor`, `sign` (interval solutions) | `solve`, `nonlinsolve` | not checked | ❌ an error: cannot invert `floor` (SymPy #29026, #29007, #28970); `max`, `min` and piecewise left sides also cannot be inverted (SymPy #28331) |
-| Nonlinear inequality systems | partial | partial | ❌ |
-| Numeric root finding, any equation | `nsolve` | `fsolve` | ◐ polynomials: `SymJ.real_roots` (correctly rounded) and `SymJ.root_intervals` (exact isolation); other equations through Roots.jl or NonlinearSolve.jl, which take SymJ expressions as they are |
-| Diophantine equations | `diophantine` | `isolve` | ❌ (SymPy #29269) |
+| Congruences: equations in `mod` | `solveset` (with `Mod`), `solve_congruence` | — | ❌ cannot invert `mod` (SymPy #27562, #26632, #25883) |
+| Nonlinear inequality systems | partial | partial | ❌ (sample points of sign conditions, CAD-like: SymPy #26177) |
+| Numeric root finding, any equation | `nsolve` | `fsolve` | ◐ polynomials: `SymJ.real_roots` (correctly rounded) and `SymJ.root_intervals` (exact isolation); other equations through Roots.jl or NonlinearSolve.jl, which take SymJ expressions as they are (no `nsolve`: SymPy #27799, #25897, #25895, #25447) |
+| Diophantine equations | `diophantine` | `isolve` | ❌ (SymPy #29269, #26788, #26783, #26045, #25775) |
 | Recurrences | `rsolve` | `rsolve`, `seqsolve` | ✅ `SymJ.rsolve`: linear, polynomial coefficients, by Hyper (hypergeometric solutions, combined, A and B over algebraic numbers too), right sides that are sums of hypergeometric terms; d'Alembertian solutions by reduction of order (harmonic numbers, iterated sums), any right side; Liouvillian solutions by sections, piecewise in `mod(n, m)` (the double factorial); otherwise the recurrence itself, `DifferenceRoot`, evaluated at integers (Franel); ◐ no arithmetic on those |
-| Ordinary differential equations | `dsolve`, `classify_ode`, `checkodesol` | `desolve` | ◐ ★ `SymJ.dsolve`: first order (linear, separable, Bernoulli, exact with integrating factors, homogeneous, Riccati), linear with constant coefficients of any order (undetermined coefficients, variation of parameters), Cauchy–Euler, `y` missing, autonomous second order (`y'' = f(y, y')`); initial conditions (`y'(0) => 1`); linear systems with constant coefficients, of any order; series solutions (`series = n`: Taylor at an ordinary point, nonlinear too; Frobenius at a regular singular point); Laplace transforms for constant coefficients (chosen for `heaviside`/`dirac` right sides, or `method = :laplace`), systems too; every solution checked; several branches of `y'` give a solution each; ❌ Lie symmetries (`infinitesimals`; SymPy #30644, #30643) and equations nonlinear in y′; ❌ power-series (Frobenius, Bessel-type) methods for variable coefficients, `x^2*u + u'' ~ 0` (SymPy #28438); ❌ differential-algebraic systems (#28390) |
-| Partial differential equations | `pdsolve` | — | ❌ (canonical forms of second-order PDEs: SymPy #27980) |
+| Ordinary differential equations | `dsolve`, `classify_ode`, `checkodesol` | `desolve` | ◐ ★ `SymJ.dsolve`: first order (linear, separable, Bernoulli, exact with integrating factors, homogeneous, Riccati), linear with constant coefficients of any order (undetermined coefficients, variation of parameters), Cauchy–Euler, `y` missing, autonomous second order (`y'' = f(y, y')`); initial conditions (`y'(0) => 1`); linear systems with constant coefficients, of any order; series solutions (`series = n`: Taylor at an ordinary point, nonlinear too; Frobenius at a regular singular point); Laplace transforms for constant coefficients (chosen for `heaviside`/`dirac` right sides, or `method = :laplace`), systems too; every solution checked; several branches of `y'` give a solution each; ❌ Lie symmetries (`infinitesimals`; SymPy #30644, #30643) and equations nonlinear in y′, other nonlinear first-order classes (#25773); ❌ power-series (Frobenius, Bessel-type) methods for variable coefficients, `x^2*u + u'' ~ 0` (SymPy #28438), reductions to Bessel's equation (#26275, #25819); ❌ differential-algebraic systems (#28390, #26717) |
+| Partial differential equations | `pdsolve` | — | ❌ (canonical forms of second-order PDEs: SymPy #27980; separation of variables `pde_separate`: #27516, #26697; #25869) |
 
 ## Calculus
 
 | Capability | SymPy | Giac | SymJ |
 |:--|:--|:--|:--|
 | Derivatives, higher and mixed | `diff` | `diff` | ✅ `diff(f, x, n)`, `diff(f, x, y, …)`; ❌ of symbolic order `n` (SymPy #29389, #29102) |
-| Limits, one-sided, at ∞ | `limit` (Gruntz) | `limit` | ✅ `limit`, through GruntzLimit (66/66 of its benchmark; answers by case of a parameter, which neither offers; assumptions settle cases); ❌ multivariable (SymPy #30871) |
-| Series, Taylor, asymptotic, `O` | `series`, `fps`, `O` | `series`, `taylor` | ✅ Taylor, Laurent, Puiseux, at ∞, log terms (no `fps`, SymPy #29027; no `O` in expressions); one variable only: no multivariate (total-degree) Taylor series (SymPy #28583) |
-| Padé approximants | — | `pade` | ❌ |
+| Limits, one-sided, at ∞ | `limit` (Gruntz) | `limit` | ✅ `limit`, through GruntzLimit (66/66 of its benchmark; answers by case of a parameter, which neither offers; assumptions settle cases); ❌ multivariable (SymPy #30871); elliptic integrals, modified Bessel functions (#26250, #26040), `floor` of an argument tending to ∞ (#27773) |
+| Series, Taylor, asymptotic, `O` | `series`, `fps`, `O` | `series`, `taylor` | ✅ Taylor, Laurent, Puiseux, at ∞, log terms (no `fps`, SymPy #29027, #26824, #26626, #26039; no coefficient of `x^n` for symbolic `n`, #27723; no `O` in expressions); one variable only: no multivariate (total-degree) Taylor series (SymPy #28583); no series of unknown functions (#26858), real branches of `abs` (#25682); no asymptotic series at ∞ of Si, Ci, modified Bessel, `gamma` (Stirling) (#26257, #26207, #26210, #26096) |
+| Padé approximants | — | `pade` | ❌ (requested, SymPy #27665) |
 | Indefinite integrals | `integrate` | `integrate` | ✅ RischIntegrate (175/175 of the Apostol set, more than either); ❌ antiderivatives in special functions beyond `erf`/`erfi` and polylogarithms: hypergeometric, Fresnel, elliptic, Owen's T (SymPy #30374, #29910, #29900, #30070, #30014, #30110; RischIntegrate's) |
-| Definite and improper integrals | `integrate(f, (x, a, b))` | `integrate(f, x, a, b)` | ✅ split at the integrand's singular points, one-sided limits there and at ±∞, `±∞` or an error when divergent, `Cases` on parameters (`∫₀^∞ e^(-ax)`); assumptions pick antiderivative forms through RischIntegrate's sign oracle (needs a RischIntegrate with it); with no antiderivative, Beta integrals over [0, π/2] (∫ sinᵃx cosᵇx; SymPy #30664); ❌ other Beta forms such as ∫₀¹ xᵃ(1-x)ᵇ (#29751), and differentiation under the integral sign (#30869, #30677) |
+| Definite and improper integrals | `integrate(f, (x, a, b))` | `integrate(f, x, a, b)` | ✅ split at the integrand's singular points, one-sided limits there and at ±∞, `±∞` or an error when divergent, `Cases` on parameters (`∫₀^∞ e^(-ax)`); assumptions pick antiderivative forms through RischIntegrate's sign oracle (needs a RischIntegrate with it); with no antiderivative, Beta integrals over [0, π/2] (∫ sinᵃx cosᵇx; SymPy #30664); ❌ other Beta forms such as ∫₀¹ xᵃ(1-x)ᵇ (#29751), and differentiation under the integral sign (#30869, #30677, #26249); integral representations of special functions, digamma and ζ (#26523, #26512) |
 | Numeric integration | `Integral(...).evalf()` | `romberg`, `gaussquad` | ❌ (QuadGK on a `lambdify`'d function); no unevaluated `Integral` to evaluate numerically when there is no antiderivative (SymPy #29833) |
-| Sums of series | `summation`, `Sum` | `sum` | ✅ ★ `SymJ.summation`: Faulhaber, Gosper, partial fractions (harmonic, polygamma, `ζ(2n)`), binomial theorem, hypergeometric series, Zeilberger (definite hypergeometric sums: `Σ binomial(n,k)^2`, Vandermonde; recurrences of order up to 3 by Hyper, else d'Alembertian solutions, `Σ (-1)^(k+1) binomial(n,k)/k = H_n`, else interlaced ones, `Σ (-1)^k binomial(n,k)^3` (Dixon); bounds other than the summand's own); harmonic numbers by parts (`Σ k H_k`), generalized ones `H(n, m)` (`Σ 1/k^m`, `Σ H_k/k = (H_n² + H_n^(2))/2`; not Euler sums such as `Σ H_k/k²`); infinite sums by `limit`, convergence by cases; ◐ unevaluated `Sum` when the recurrence's solutions are not d'Alembertian (`Σ binomial(n,k)^3`) |
+| Sums of series | `summation`, `Sum` | `sum` | ✅ ★ `SymJ.summation`: Faulhaber, Gosper, partial fractions (harmonic, polygamma, `ζ(2n)`), binomial theorem, hypergeometric series, Zeilberger (definite hypergeometric sums: `Σ binomial(n,k)^2`, Vandermonde; recurrences of order up to 3 by Hyper, else d'Alembertian solutions, `Σ (-1)^(k+1) binomial(n,k)/k = H_n`, else interlaced ones, `Σ (-1)^k binomial(n,k)^3` (Dixon); bounds other than the summand's own); harmonic numbers by parts (`Σ k H_k`), generalized ones `H(n, m)` (`Σ 1/k^m`, `Σ H_k/k = (H_n² + H_n^(2))/2`; not Euler sums such as `Σ H_k/k²`); infinite sums by `limit`, convergence by cases; ◐ unevaluated `Sum` when the recurrence's solutions are not d'Alembertian (`Σ binomial(n,k)^3`); ❌ bilateral sums, from -∞ (SymPy #27786); no numeric evaluation of an unevaluated `Sum` (#27765) |
 | Products | `product`, `Product` | `product` | ❌ |
-| Laplace, Fourier, Mellin, Z transforms | `laplace_transform`, `inverse_laplace_transform`, `fourier_transform`, `mellin_transform` | `laplace`, `ilaplace`, `fourier`, `ifourier`, `ztrans`, `invztrans` | ◐ `SymJ.laplace_transform`, `SymJ.inverse_laplace_transform`: polynomials, exponentials, sines and cosines, `heaviside`/`dirac` shifts; inverse of rational functions times `e^(-cs)`. Not yet: Fourier, Mellin, Z (Z transforms: SymPy #29695, not in 1.14) |
+| Laplace, Fourier, Mellin, Z transforms | `laplace_transform`, `inverse_laplace_transform`, `fourier_transform`, `mellin_transform` | `laplace`, `ilaplace`, `fourier`, `ifourier`, `ztrans`, `invztrans` | ◐ `SymJ.laplace_transform`, `SymJ.inverse_laplace_transform`: polynomials, exponentials, sines and cosines, `heaviside`/`dirac` shifts; inverse of rational functions times `e^(-cs)`. Not yet: Fourier (SymPy #26053), Mellin, Z (Z transforms: SymPy #29695, not in 1.14); `floor` (staircase) and held transforms (#26999), a convolution-theorem helper (#26023) |
 | Fourier series | `fourier_series` | `fourier_an`, `fourier_bn`, `fourier_cn` | ❌ (SymPy #30183, #29336); also #28755, #28724 |
-| Residues | `residue` | `residue` | ❌ |
-| Vector calculus | `sympy.vector`, `Matrix.jacobian`, `hessian` | `grad`, `divergence`, `curl`, `laplacian`, `hessian` | ◐ `diff` with broadcasting; no named operators, no `jacobian`/`hessian` helpers (SymPy #30186), no coordinate systems (#29107) |
-| Range and monotonicity of a function | `function_range` (`sympy.calculus.util`), `is_increasing`, `is_strictly_increasing` | `maximize`, `minimize`, `fMax`, `fMin` | ❌ (SymPy #30505, #30499, #30386, #30293, #30582); also #28578, #28577, #28571, #28486 |
+| Residues | `residue` | `residue` | ❌ (SymPy #27156) |
+| Vector calculus | `sympy.vector`, `Matrix.jacobian`, `hessian` | `grad`, `divergence`, `curl`, `laplacian`, `hessian` | ◐ `diff` with broadcasting; no named operators, no `jacobian`/`hessian` helpers (SymPy #30186), no coordinate systems (#29107, #27427), no functions of vector arguments (#25644) |
+| Range and monotonicity of a function | `function_range` (`sympy.calculus.util`), `is_increasing`, `is_strictly_increasing` | `maximize`, `minimize`, `fMax`, `fMin` | ❌ (SymPy #30505, #30499, #30386, #30293, #30582); also #28578, #28577, #28571, #28486, #26871, #26742, #26518, #26076; stationary points (`stationary_points`, #26077), convexity (`is_convex`, #26427) |
 | Calculus of variations | `euler_equations` | `euler_lagrange` | ❌ (SymPy #29123) |
+| Memoized derivatives and integrals | — | — | ❌ no user-facing cache for `diff`, `integrate` (SymPy #27640) |
 
 ## Linear algebra
 
@@ -118,38 +121,39 @@ separately. Names checked against SymPy 1.14 and Giac.jl's command table as befo
 | Matrices of expressions: products | `Matrix` | built in | ✅ Julia arrays of `Sym` |
 | Matrix functions | `Matrix.exp`, `analytic_func` | `exp` (matrix), `matpow` | ✅ `exp`, `sin`, `cos`, `sqrt`, `log`, `A^n` (symbolic `n`) and `A^p` (non-integer `p`) through the Jordan form |
 | Determinant, inverse, solving | `Matrix` methods `det`, `inv`, `LUsolve` | `det`, `inverse`, `linsolve` | ✅ `det` (Bareiss for polynomials), `inv` (adjugate or Gauss–Jordan over rational functions), `A \ b`, exactly with first-nonzero pivoting |
-| Row reduction, null space, rank | `Matrix` methods `rref`, `nullspace`, `rank` | `rref`, `ker`, `rank` | ✅ `SymJ.rref`, `nullspace`, `rank` (generic: symbolic pivots nonzero) |
+| Row reduction, null space, rank | `Matrix` methods `rref`, `nullspace`, `rank` | `rref`, `ker`, `rank` | ✅ `SymJ.rref`, `nullspace`, `rank` (generic: symbolic pivots nonzero); no right-hand-side option reducing only the coefficient columns (SymPy #25661) |
+| Linear equations to matrix form | `linear_eq_to_matrix` | — | ❌ (SymPy #25423) |
 | Eigenvalues, eigenvectors, Jordan form | `Matrix` methods `eigenvals`, `eigenvects`, `jordan_form` | `eigenvals`, `eigenvects`, `jordan` | ✅ `eigvals` (with multiplicity), `eigvecs`, `eigen` (diagonalizable), `SymJ.charpoly`, `SymJ.jordan_form` |
 | LU, QR, SVD | `Matrix` methods `LUdecomposition`, `QRdecomposition` | `lu`, `qr`, `svd` | ✅ `lu` (a `LinearAlgebra.LU`), `qr` (exact Gram–Schmidt), `svd` and `svdvals` (a `LinearAlgebra.SVD`; squared singular values of degree at most 2 over the rationals) |
-| Smith normal form | `smith_normal_form`, `smith_normal_decomp` (`sympy.matrices.normalforms`) | `smith`, `ismith` | ❌ (SymPy #29139); Hermite normal form (`hermite_normal_form`) too (SymPy #28601) |
+| Smith normal form | `smith_normal_form`, `smith_normal_decomp` (`sympy.matrices.normalforms`) | `smith`, `ismith` | ❌ (SymPy #29139); Hermite normal form (`hermite_normal_form`) too (SymPy #28601); unimodular transforms (#25759) |
 | Pseudoinverse | `Matrix.pinv` | — | ✅ `pinv` from the rank factorization (generic rank, as for `rref`) (SymPy #30759) |
 | Schur, Cholesky decompositions (symbolic) | `Matrix.cholesky`, `LDLdecomposition` | `cholesky` | ❌ `schur` of a `Sym` matrix is a MethodError (SymPy #28255); no symbolic Cholesky (#28477) |
 | Permanent | `Matrix.per` | `permanent` | ❌ (SymPy #28539) |
 | Rank conditions with parameters | — | — | ❌ `rank` is generic; no cases where it drops (SymPy #28232) |
-| Matrix expressions: `MatrixSymbol`, block matrices, matrix calculus, array expressions | `MatrixSymbol`, `BlockMatrix`, `sympy.tensor.array.expressions` | — | ❌ explicit matrices of `Sym` only (SymPy #30900, #30902, #30860, #30527, #30387, #30278, #30272, #30271, #30270, #30269, #30268, #29837, #29758, #29355, #29292, #28916); round 2: SymPy #28838, #28834, #28823, #28799, #28767, #28766, #28721, #28708, #28641, #28640, #28634, #28633, #28632, #28622, #28620, #28618, #28617, #28615, #28523, #28277, #28264, #28225 (block diagonal) |
+| Matrix expressions: `MatrixSymbol`, block matrices, matrix calculus, array expressions | `MatrixSymbol`, `BlockMatrix`, `sympy.tensor.array.expressions` | — | ❌ explicit matrices of `Sym` only (SymPy #30900, #30902, #30860, #30527, #30387, #30278, #30272, #30271, #30270, #30269, #30268, #29837, #29758, #29355, #29292, #28916); round 2: SymPy #28838, #28834, #28823, #28799, #28767, #28766, #28721, #28708, #28641, #28640, #28634, #28633, #28632, #28622, #28620, #28618, #28617, #28615, #28523, #28277, #28264, #28225 (block diagonal); rounds 3–4: SymPy #27854, #27406, #26950, #26946, #26585, #26561, #26527, #26491, #26479, #26288, #26229, #25602, #25554 |
 
 ## Functions
 
 | Capability | SymPy | Giac | SymJ |
 |:--|:--|:--|:--|
 | Elementary functions with exact values and rules | ✅ | ✅ | ✅ (Base's mathematical functions) |
-| Special functions | `gamma`, `zeta`, `besselj`, `erf`, `polylog`, `hyper`, `meijerg`, … | many | ✅ through SpecialFunctions, HypergeometricFunctions, PolyLog (dependencies); ❌ Meijer G; ❌ Fresnel integrals (`fresnels`, `fresnelc`), associated Legendre (`assoc_legendre`), `hyperexpand`, `besselsimp`, Owen's T (not in SymPy 1.14) (SymPy #30064, #29645, #30708, #29905, #30345; Bessel naming #29706) |
-| Piecewise, Heaviside, Dirac delta | `Piecewise`, `Heaviside`, `DiracDelta` | `piecewise`, `Heaviside`, `Dirac` | ✅ `SymJ.piecewise`, `SymJ.heaviside`, `SymJ.dirac`: substitution, `diff`, `limit` by side, `refine`, `lambdify`, integration interval by interval (continuous) and of `dirac`; rewriting `abs`, `sign`, `max`, `min`; from `Cases`; ◐ no simplification across pieces (sums of piecewise functions are not combined), breakpoints with several parameters not ordered |
+| Special functions | `gamma`, `zeta`, `besselj`, `erf`, `polylog`, `hyper`, `meijerg`, … | many | ✅ through SpecialFunctions, HypergeometricFunctions, PolyLog (dependencies); ❌ Meijer G; ❌ Fresnel integrals (`fresnels`, `fresnelc`), associated Legendre (`assoc_legendre`), `hyperexpand`, `besselsimp`, Owen's T (not in SymPy 1.14) (SymPy #30064, #29645, #30708, #29905, #30345; Bessel naming #29706); also Lerch Φ `lerchphi` and `expand_func` (#27276), spherical harmonics `Ynm`, `Znm` (#26906), `hyperexpand` of Meijer G (#26525), Fresnel (#26306), `Shi`, `Chi` (#26208), generalized `expint(ν, z)` (#25845) |
+| Piecewise, Heaviside, Dirac delta | `Piecewise`, `Heaviside`, `DiracDelta` | `piecewise`, `Heaviside`, `Dirac` | ✅ `SymJ.piecewise`, `SymJ.heaviside`, `SymJ.dirac`: substitution, `diff`, `limit` by side, `refine`, `lambdify`, integration interval by interval (continuous) and of `dirac`; rewriting `abs`, `sign`, `max`, `min`; from `Cases`; ◐ no simplification across pieces (sums of piecewise functions are not combined), breakpoints with several parameters not ordered; ❌ `SingularityFunction` (SymPy #26700) |
 | Combinatorial functions | `factorial`, `binomial`, `fibonacci`, `harmonic`, `bell`, … | `factorial`, `comb`, … | ◐ `factorial`, `binomial` (a polynomial for an integer `k`) |
 
 ## Number theory
 
 | Capability | SymPy | Giac | SymJ |
 |:--|:--|:--|:--|
-| Integer factorization, primality, next prime, prime counting | `factorint`, `isprime`, `nextprime`, `primepi` | `ifactor`, `isprime`, `nextprime` | ❌ (Primes.jl does this in Julia) (prime counting: SymPy #29125) |
-| Totient, modular inverse, CRT, continued fractions | `totient`, `mod_inverse`, `continued_fraction` | `euler`, `iegcd`, `ichinrem`, `dfc` | ❌ |
+| Integer factorization, primality, next prime, prime counting | `factorint`, `isprime`, `nextprime`, `primepi` | `ifactor`, `isprime`, `nextprime` | ❌ (Primes.jl does this in Julia) (prime counting: SymPy #29125; `factorint`: #27509, #27424; `perfect_power`, squarefree tests: #27238, #27271) |
+| Totient, modular inverse, CRT, continued fractions | `totient`, `mod_inverse`, `continued_fraction` | `euler`, `iegcd`, `ichinrem`, `dfc` | ❌ (discrete logarithm `discrete_log`: SymPy #27612, #26490) |
 
 ## Sets, logic, output
 
 | Capability | SymPy | Giac | SymJ |
 |:--|:--|:--|:--|
-| Solution sets: intervals, unions | `Interval`, `FiniteSet`, `ImageSet` | sets | ◐ `SymSet`, `CylindricalSet` from `solve` (not exported); no image sets (SymPy #29675, #29435) |
-| Boolean logic, satisfiability | `sympy.logic`, `satisfiable` | — | ❌ (SymPy #30861, #30729, #30719, #30714); normal forms `to_dnf`/`to_cnf`, `Xor`, `simplify_logic` with don't-cares: #28393, #28369 |
+| Solution sets: intervals, unions | `Interval`, `FiniteSet`, `ImageSet` | sets | ◐ `SymSet`, `CylindricalSet` from `solve` (not exported); no image sets (SymPy #29675, #29435); no interval arithmetic (`SetExpr`, `Interval**oo`; #27743) |
+| Boolean logic, satisfiability | `sympy.logic`, `satisfiable` | — | ❌ (SymPy #30861, #30729, #30719, #30714); normal forms `to_dnf`/`to_cnf`, `Xor`, `simplify_logic` with don't-cares: #28393, #28369; #27820, #27310, #27309, #27273, #26985 (`to_anf`), #26418, #25873, #25827 (`Xor`), #25451 |
 | Text output | ✅ | ✅ | ✅ |
 | LaTeX output | `latex` | `latex` | ✅ with Latexify loaded: `latexify`, and typeset display of results (notebooks, the documentation) |
 | Code generation (C, Fortran, …) | `sympy.codegen` | — | ❌ (`lambdify` covers Julia) |
@@ -163,8 +167,8 @@ statistics and probability (`sympy.stats`; Giac's `mean`, `stddev`, `normald`), 
 permutation groups (`sympy.combinatorics`), tensors and differential geometry
 (`sympy.tensor`, `sympy.diffgeom`), graph theory (Giac), holonomic functions
 (`sympy.holonomic`), linear programming (SymPy's `linprog`, Giac's `lpsolve` and
-`simplex_reduce`; SymPy #29382, #29368, #28747, #28104, #28089), quaternions (`Quaternion`; #30560, #28556),
-finite fields (polynomials and matrices over GF(p): SymPy #28156, #28121), discrete
+`simplex_reduce`; SymPy #29382, #29368, #28747, #28104, #28089), quaternions (`Quaternion`; #30560, #28556, #27393; octonions #25637),
+finite fields (polynomials and matrices over GF(p): SymPy #28156, #28121, #27663, #25445), discrete
 transforms (`fft`; #28169).
 
 ## Gaps worth considering

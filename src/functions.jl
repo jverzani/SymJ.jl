@@ -391,7 +391,17 @@ function _constant_float(a::Sym, avoid)
     catch
         return nothing
     end
-    v isa Real && abs(v - avoid(v)) > 1e-10 * max(1, abs(v)) ? v : nothing
+    v isa Real || return nothing
+    abs(v - avoid(v)) > 1e-10 * max(1, abs(v)) && return v
+    # too near a jump for Float64: log(2, 2^360 - 1) + 1 is 361 - 1.4e-109, 361.0 in
+    # Float64 (SymPy #26368); decided in BigFloat when the precision separates them
+    for p in (256, 1024, 4096)
+        w = _bigvalue(a, p)
+        (w === nothing || !iszero(imag(w))) && return nothing
+        r = real(w)
+        abs(r - avoid(r)) > big(2.0)^(32 - p) * max(1, abs(r)) && return r
+    end
+    nothing
 end
 
 register_function!(:sign; julia = sign,
