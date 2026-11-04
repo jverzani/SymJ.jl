@@ -109,7 +109,7 @@ register_function!(:piecewise;
         ps = Tuple{Sym,Sym}[]
         for i in 1:2:length(args)
             c, v = _truth(args[i]), args[i+1]
-            c == ZERO && continue
+            (c == ZERO || _infeasible_and(c)) && continue
             push!(ps, (c, v))
             c == ONE && break
         end
@@ -127,6 +127,16 @@ register_function!(:piecewise;
         length(ps) == length(args) ÷ 2 && all(i -> _eq(ps[i][1], args[2i-1]), eachindex(ps)) && return nothing
         _pwnode(ps)
     end)
+
+# an And of relations that cannot all hold (x ≤ 0 and x > π; SymPy #25930)
+function _infeasible_and(c::Sym)
+    (c.kind == FN && c.name === :And && all(a -> a.kind == FN && haskey(_COND_RELS, a.name), c.args)) || return false
+    B = try _build(_flatten!(Any[], (Any[], Any[_relation_of(a) for a in c.args]))) catch err
+        err isa ArgumentError || rethrow()
+        return false
+    end
+    B === nothing
+end
 
 # is piece i, with condition x = p, needless: the first later piece that holds at
 # x = p has the same value there
@@ -270,10 +280,17 @@ end
 
 # the sign of a heaviside's, sign's or abs's argument, where the assumptions decide it
 function _refine_step(e::Sym, A::Assumptions)
-    e.name in (:heaviside, :sign, :abs) || return nothing
+    e.name in (:heaviside, :sign, :abs, :dirac) || return nothing
     u = e.args[1]
+    # |u^r| = |u|^r for u and r real (|√x| = √|x|, |(-n/(n+1))^n|; SymPy #25779, #26513)
+    if e.name === :abs && u.kind == POW && _isreal(u.args[1], A) === true && _isreal(u.args[2], A) === true &&
+       !(u.args[2].kind == NUMBER && _isint(u.args[2].num))
+        return abs(u.args[1])^u.args[2]
+    end
     m = _signs(u, A)
     m === nothing && return nothing
+    # dirac(u) = 0 where u ≠ 0 (SymPy #26691)
+    e.name === :dirac && return m & _ZER == 0 ? ZERO : nothing
     if m == _POS
         return e.name === :abs ? u : ONE
     elseif m == _NEG

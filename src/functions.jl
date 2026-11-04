@@ -186,11 +186,36 @@ end
 
 ## elementary functions
 
+# u - kπ for an integer k ≠ 0 among u's terms: (u - kπ, k), or nothing (sin, cos and tan
+# of a sum with such a shift: SymPy #26373, cos(2acos(3/5) - 4π))
+function _pi_shift(a::Sym)
+    a.kind == ADD || return nothing
+    i = findfirst(t -> t === PI, a.args)
+    i === nothing && return nothing
+    c = a.coefs[i]
+    (isexact(c) && _isint(c) && !iszero(c)) || return nothing
+    a - Sym(c) * PI, _toint(c)
+end
+
+# sin, cos, tan of asin, acos, atan: algebraic (principal branches; SymPy #25685)
+function _trig_of_inverse(f::Symbol, a::Sym)
+    a.kind == FN && length(a.args) == 1 && a.name in (:asin, :acos, :atan) || return nothing
+    u, g = a.args[1], a.name
+    ((f === :sin && g === :asin) || (f === :cos && g === :acos) || (f === :tan && g === :atan)) && return u
+    g === :asin && return f === :cos ? sqrt(1 - u^2) : f === :tan ? u / sqrt(1 - u^2) : nothing
+    g === :acos && return f === :sin ? sqrt(1 - u^2) : f === :tan ? sqrt(1 - u^2) / u : nothing
+    f === :sin ? u / sqrt(1 + u^2) : f === :cos ? inv(sqrt(1 + u^2)) : nothing
+end
+
 register_function!(:sin; julia = sin,
     eval = _unary(a -> begin
         r = _pi_multiple(a)
         r !== nothing && (v = _sinpi(r); v === nothing || return v)
         _isfn(a, :asin) && return a.args[1]
+        v = _trig_of_inverse(:sin, a)
+        v === nothing || return v
+        sh = _pi_shift(a)
+        sh === nothing || return iseven(sh[2]) ? sin(sh[1]) : -sin(sh[1])
         _odd(:sin, a)
     end),
     diff = (args, i) -> cos(args[1]))
@@ -200,6 +225,10 @@ register_function!(:cos; julia = cos,
         r = _pi_multiple(a)
         r !== nothing && (v = _sinpi(r + 1 // 2); v === nothing || return v)
         _isfn(a, :acos) && return a.args[1]
+        v = _trig_of_inverse(:cos, a)
+        v === nothing || return v
+        sh = _pi_shift(a)
+        sh === nothing || return iseven(sh[2]) ? cos(sh[1]) : -cos(sh[1])
         _even(:cos, a)
     end),
     diff = (args, i) -> -sin(args[1]))
@@ -215,6 +244,10 @@ register_function!(:tan; julia = tan,
             end
         end
         _isfn(a, :atan) && return a.args[1]
+        v = _trig_of_inverse(:tan, a)
+        v === nothing || return v
+        sh = _pi_shift(a)
+        sh === nothing || return tan(sh[1])
         _odd(:tan, a)
     end),
     diff = (args, i) -> 1 + tan(args[1])^2)

@@ -438,4 +438,11 @@ import PolyLog as PL
         @test diff(RischIntegrate.integrate(F(r) + r, r), r) == F(r) + r
         @test RischIntegrate.integrate(R * F(R), (R, b, r)) == SymJ._mkfn_node(:Integral, Sym[R * F(R), R, b, r])
     end
+
+    @testset "bigger missing cases (SymPy review, round 4)" begin
+        @syms z zR
+        # |exp(w)|² for complex w refined to a real Gaussian (#26102)
+        v = RischIntegrate.integrate(abs(exp(-IM / 2 * x^2 / (IM * zR + z)))^2, (x, -Inf, Inf); assume = (zR ≫ 0, z ∈ ℝ))
+        @test N(subs(v, zR => 2, z => 1)) ≈ sqrt(π) * sqrt(5) / sqrt(2)
+    end
 end

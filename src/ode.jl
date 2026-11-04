@@ -452,7 +452,7 @@ function _ode_linear(P::_ODE, Cs)
     # Cauchy–Euler: aₖ = cₖ xᵏ (up to a common factor), through x = eᵗ
     n = P.n
     cs = Sym[_ode_tidy(a[k + 1] * x^(n - k) / a[n + 1]) for k in 0:n]
-    any(c -> has(c, x), cs) && return nothing
+    any(c -> has(c, x), cs) && return _ode_exact_linear(P, a, g, Cs)
     t = Sym(:_ode_t)
     # x^k y⁽ᵏ⁾ = θ(θ - 1)…(θ - k + 1) y, θ = d/dt: the coefficients of the polynomial in θ
     r = Sym(:_ode_r)
@@ -464,6 +464,23 @@ function _ode_linear(P::_ODE, Cs)
 end
 
 _ode_coeff(q::Sym, r::Sym, k::Int) = (d = diff(q, r, k); subs(d, r => ZERO) / factorial(big(k)))
+
+# Σ aₖ y⁽ᵏ⁾ = g an exact derivative, d/dx Σ bₖ y⁽ᵏ⁾ (Σ (-1)ᵏ aₖ⁽ᵏ⁾ = 0): once integrated,
+# Σ bₖ y⁽ᵏ⁾ = ∫g + C, with b_{n-1} = aₙ and b_{k-1} = aₖ - bₖ', of order n - 1 (the beam
+# equation (E I(x) u'')'' = 0, I a cubic in x; SymPy #25479). nothing when not exact.
+function _ode_exact_linear(P::_ODE, a::Vector{Sym}, g::Sym, Cs)
+    n, x = P.n, P.x
+    n >= 2 || return nothing
+    iszero(_ode_tidy(sum((-1)^k * diff(a[k + 1], x, k) for k in 0:n))) || return nothing
+    b = Vector{Sym}(undef, n)                      # b[k + 1] = bₖ, k = 0 … n-1
+    b[n] = a[n + 1]
+    for k in (n - 1):-1:1
+        b[k] = _ode_tidy(a[k + 1] - diff(b[k + 1], x))
+    end
+    G = _integrate(g, x) + Cs[end]
+    F2 = sum(b[k + 1] * P.ys[k + 1] for k in 0:(n - 1)) - G
+    _ode_solve(_ODE(F2, P.ys[1:n], x, P.yx, n - 1), Cs[1:(end - 1)])
+end
 
 # Σ aₖ y⁽ᵏ⁾ = g with constant aₖ: the homogeneous solutions from the characteristic roots
 # (e^(αx) cos βx and e^(αx) sin βx for a conjugate pair), times x^j for a multiple root,

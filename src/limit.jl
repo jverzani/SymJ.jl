@@ -14,6 +14,14 @@
 # and a limit that does not exist or is undefined an error that calling the case throws.
 # As in GruntzLimit, the other symbols are real numbers.
 
+# |u^r| as |u|^r for u and r real (here: free of i)
+_abs_of_powers(e::Sym) = _replace_walk(e) do t
+    t.kind == FN && t.name === :abs && length(t.args) == 1 && t.args[1].kind == POW || return nothing
+    b, r = t.args[1].args
+    (has(b, IM) || has(r, IM)) && return nothing
+    abs(_abs_of_powers(b))^r
+end
+
 # does e depend on x: not through a derivative at a point whose bound variable is x (f'(3)
 # is Derivative(f(x), x, 3))
 _depends(e::Sym, x::Sym) = !has(e, x) ? false : _eq(e, x) ? true :
@@ -85,6 +93,8 @@ function limit(f, xx0::Pair; dir = :both, assume = nothing)
     dir = dir in (:+, +, "+") ? :+ : dir in (:-, -, "-") ? :- : dir in (:both, "both") ? :both :
         throw(ArgumentError("limit: dir must be :both, :+ or :-, not $(repr(dir))"))
     f = _sinc_elementary(Sym(f))
+    # |u^r| = |u|^r, the symbols real: |(-n/(n+1))^n| = (n/(n+1))^n (SymPy #26513)
+    f = _abs_of_powers(f)
     # an unknown function of x: its limit is not known (it need not be continuous) (#27143)
     u = _unknown_fn(f, x)
     u === nothing || throw(ArgumentError("limit: $u is an unknown function of $x; its limit is not known"))

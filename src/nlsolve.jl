@@ -356,12 +356,16 @@ _isexactex(e::Sym) = e.kind == NUMBER ? isexact(e.num) :
 _exactnum(n::SymNumber) = isexact(n) ? Sym(n) :
     (v = N(Sym(n)); v isa Real ? Sym(SymNumber(Rational{BigInt}(v))) :
      throw(ArgumentError("solve: complex floating point coefficients in a nonlinear system are not supported")))
-function _exactfloats(e::Sym)
+# (short = true: the shortest rational within rounding, 0.3 as 3/10, not 5404319552844595/2^54)
+function _exactfloats(e::Sym; short::Bool = false)
     k = e.kind
-    k == NUMBER && return _exactnum(e.num)
-    k == ADD && return _exactnum(e.num) + _add_many(_exactnum(c) * _exactfloats(a) for (c, a) in zip(e.coefs, e.args))
-    k == MUL && return _exactnum(e.num) * prod((_exactfloats(a)^_exactfloats(x) for (a, x) in zip(e.args, e.exps)); init = ONE)
-    k == POW && return _exactfloats(e.args[1])^_exactfloats(e.args[2])
-    k == FN && return apply_function(e.name, Sym[_exactfloats(a) for a in e.args])
+    q(c) = short && !isexact(c) && (v = N(Sym(c)); v isa Real && isfinite(v)) ? Sym(SymNumber(Rational{BigInt}(rationalize(BigInt, Float64(v))))) :
+        _exactnum(c)
+    r(a) = _exactfloats(a; short)
+    k == NUMBER && return q(e.num)
+    k == ADD && return q(e.num) + _add_many(q(c) * r(a) for (c, a) in zip(e.coefs, e.args))
+    k == MUL && return q(e.num) * prod((r(a)^r(x) for (a, x) in zip(e.args, e.exps)); init = ONE)
+    k == POW && return r(e.args[1])^r(e.args[2])
+    k == FN && return apply_function(e.name, Sym[r(a) for a in e.args])
     e
 end

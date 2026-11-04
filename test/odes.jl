@@ -184,7 +184,7 @@ end
         @test iszero(simplify(IL(L(f)) - f))
     end
     @test_throws ArgumentError L(log(t))
-    @test_throws ArgumentError IL(s^2)
+    @test IL(s^2) == SymJ.dirac(t, 2)                                  # δ''(t) (SymPy #26775)
     # dsolve: chosen for a right side with heaviside or dirac, or with method = :laplace
     D = SymJ.dsolve
     @test D(y''(t) + y(t) ~ H(t - 1), y(t), y(0) => 0, y'(0) => 0).rhs == (1 - cos(t - 1)) * H(t - 1)

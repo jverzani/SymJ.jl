@@ -81,6 +81,20 @@ function _lap_term(term::Sym, t::Sym, s::Sym)
     r = _lap_unknown(term, t, s)
     r === nothing || return r
     fs, cf = _lap_factors(term)
+    # δ⁽ᵏ⁾(d(t - a)): L{f δ⁽ᵏ⁾(t - a)} = (-1)ᵏ dᵏ/dtᵏ [f e^(-st)] at t = a, over dᵏ|d| (SymPy #26775)
+    for (i, (b, p)) in enumerate(fs)
+        (b.kind == FN && b.name === :dirac && length(b.args) == 2 && _eq(p, ONE) &&
+         b.args[2].kind == NUMBER && _isint(b.args[2].num)) || continue
+        k = _toint(b.args[2].num)
+        u = b.args[1]
+        d = diff(u, t)
+        (has(d, t) || iszero(d)) && continue
+        a = _ode_tidy(-subs(u, t => ZERO) / d)
+        a.kind == NUMBER && a.num < N0 && return ZERO
+        rest = cf * prod((bb^pp for (j, (bb, pp)) in enumerate(fs) if j != i); init = ONE)
+        v = subs(diff(rest * exp(-s * t), t, k), t => a)
+        return expand((-1)^k * v / (d^k * abs(d)))
+    end
     for (i, (b, p)) in enumerate(fs)
         b.kind == FN && b.name in (:dirac, :heaviside) && length(b.args) == 1 && _eq(p, ONE) || continue
         u = b.args[1]
@@ -180,6 +194,12 @@ SymJ.inverse_laplace_transform(exp(-2s) / s^2, s, t)         # (t - 2)*heaviside
 function inverse_laplace_transform(F, s::Sym, t::Sym)
     (_isnamed(t) && _isnamed(s)) || throw(ArgumentError("inverse_laplace_transform: s and t are symbols"))
     F = Sym(F)
+    # floating point coefficients: the transform of the rationals they stand for, its
+    # numbers floats again (apart needs exact coefficients; SymPy #26517)
+    if !_isexactex(F) && !_float_exponent(F)
+        X = _exactfloats(F)
+        _isexactex(X) && return _floatify(inverse_laplace_transform(X, s, t))
+    end
     # held transforms of unknown functions: U(s) = LaplaceTransform(u(t), t, s) back to u(t)
     held = _held_transforms(F, s)
     if !isempty(held)
@@ -228,8 +248,8 @@ end
 function _ilap_rational(R::Sym, s::Sym, t::Sym)
     R = cancel(R)
     n, d = numer_denom(R)
-    has(d, s) || (has(n, s) ? throw(ArgumentError("inverse_laplace_transform: $R is a polynomial in $s, not a transform")) :
-                  return R * dirac(t))
+    # a polynomial in s: Σ cₖ sᵏ is Σ cₖ δ⁽ᵏ⁾(t) (SymPy #26775)
+    has(d, s) || return _ilap_poly(R, s, t)
     A = apart(R, s)
     terms = A.kind == ADD ? [Sym(c) * a for (c, a) in zip(A.coefs, A.args)] : [A]
     A.kind == ADD && !iszero(A.num) && push!(terms, Sym(A.num))
@@ -237,13 +257,21 @@ function _ilap_rational(R::Sym, s::Sym, t::Sym)
     for term in terms
         tn, td = numer_denom(term)
         if !has(td, s)
-            has(tn, s) && throw(ArgumentError("inverse_laplace_transform: $R is not proper in $s"))
-            out += term * dirac(t)
+            out += _ilap_poly(term, s, t)
             continue
         end
         out += _ilap_part(tn, td, s, t)
     end
     _lap_neat(expand(_ode_cis(expand(out))))
+end
+
+function _ilap_poly(P::Sym, s::Sym, t::Sym)
+    Q = Poly{Sym}(expand(P), [s])
+    out = ZERO
+    for (ev, c) in zip(exponent_vectors(Q), coefficients(Q))
+        out += Sym(c) * (ev[1] == 0 ? dirac(t) : apply_function(:dirac, Sym[t, Sym(ev[1])]))
+    end
+    out
 end
 
 # a sum of tᵏ e^(αt) cos/sin terms: grouped by exponential, without simplify's
