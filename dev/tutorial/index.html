@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=7f17a736">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=3180a366">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -1717,6 +1717,22 @@ expand(h(c₀) + diff(h, x)(c₀) * (x - c₀))</code></pre>
 \[\left( 1 + \log\left( x \right) \cdot x + \frac{\left( \log\left( x \right) \right)^{2} \cdot x^{2}}{2} + O\left( x^{3} \right), \; x + \frac{1}{2} - \frac{1}{8 \cdot x} + \frac{1}{16 \cdot x^{2}} + O\left( \frac{1}{x^{3}} \right) \right)\]
 </div>
 </div>
+<p>At <code class="md-code-inline">±Inf</code> an expansion may need a factor that is not a power of <code class="md-code-inline">x</code>: terms <code class="md-code-inline">exp(g)*(series)</code>, <code class="md-code-inline">cos(h)*(series)</code> and <code class="md-code-inline">sin(h)*(series)</code>, from <code class="md-code-inline">exp</code>, <code class="md-code-inline">sin</code> and <code class="md-code-inline">cos</code> of growing arguments and from the asymptotic expansions of SpecialFunctions&#39; <code class="md-code-inline">erf</code>, <code class="md-code-inline">erfc</code>, <code class="md-code-inline">erfi</code>, <code class="md-code-inline">erfcx</code>, <code class="md-code-inline">expinti</code>, <code class="md-code-inline">expint</code>, <code class="md-code-inline">sinint</code>, <code class="md-code-inline">cosint</code>, the Bessel functions and <code class="md-code-inline">gamma</code> (Stirling&#39;s series). Factors that cancel do cancel:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">series(sin(x) / x + exp(-x) * (1 + 1/x), x, Inf, 4)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\sin\left( x \right) \cdot \left( \frac{1}{x} + O\left( \frac{1}{x^{4}} \right) \right) + \frac{1}{e^{x}} \cdot \left( 1 + \frac{1}{x} + O\left( \frac{1}{x^{4}} \right) \right) + O\left( \frac{1}{x^{4}} \right)\]
+</div>
+</div>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">series(erf(x), x, Inf, 4)      # 1 + exp(-x^2)*(-1/(sqrt(π)*x) + 1/(2*sqrt(π)*x^3) + O(1/x^4))
+series(exp(x^2) * erfc(x), x, Inf, 4)   # 1/(sqrt(π)*x) - 1/(2*sqrt(π)*x^3) + O(1/x^4)</code></pre>
+</div>
+<p>Exponentially small terms are kept: <code class="md-code-inline">erf(x)</code> at <code class="md-code-inline">Inf</code> is not just <code class="md-code-inline">1</code>.</p>
 <p>A series is an object that keeps its error term. Series about the same point can be added, multiplied and divided, with the order tracked, and <code class="md-code-inline">Sym</code> drops the <code class="md-code-inline">O</code> term:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -2236,6 +2252,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=7f17a736"></script>
+  <script src="../assets/materialdocs.js?v=3180a366"></script>
 </body>
 </html>

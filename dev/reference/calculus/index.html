@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Calculus — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=e96fc795">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=773d1475">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Calculus — SymJ.jl">
   <meta property="og:title" content="Calculus — SymJ.jl">
@@ -74,7 +74,7 @@
 <div class="md-docstring" id="SymJ.limit-Tuple{Any, Pair}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.limit</code> — <span class="md-docstring-sig">Tuple{Any, Pair}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/b38b739ab0edf7e442286729aec4cacc5de0230a/src/limit.jl#L62-L89" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/d35c006d7d854cd4260ade7d3412af207e562a01/src/limit.jl#L62-L89" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -97,7 +97,7 @@ limit(x^a, x =&gt; Inf; assume = @assume(a &gt; 1))   # Inf</code></pre>
 <div class="md-docstring" id="SymJ.subs-Tuple{SymJ.Cases, Vararg{Pair}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.subs</code> — <span class="md-docstring-sig">Tuple{SymJ.Cases, Vararg{Pair}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/b38b739ab0edf7e442286729aec4cacc5de0230a/src/limit.jl#L314-L320" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/d35c006d7d854cd4260ade7d3412af207e562a01/src/limit.jl#L315-L321" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -110,7 +110,7 @@ limit(x^a, x =&gt; Inf; assume = @assume(a &gt; 1))   # Inf</code></pre>
 <div class="md-docstring" id="Base.diff">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>Base.diff</code> — <span class="md-docstring-sig">Union{Tuple{Sym, Sym}, Tuple{Sym, Sym, Integer}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/b38b739ab0edf7e442286729aec4cacc5de0230a/src/calculus.jl#L1-L19" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/d35c006d7d854cd4260ade7d3412af207e562a01/src/calculus.jl#L1-L19" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -131,33 +131,20 @@ diff(sin(x * y), x, y)       # -x*y*sin(x*y) + cos(x*y)</code></pre>
 <div class="md-docstring" id="SymJ.SymSeries">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymSeries</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/b38b739ab0edf7e442286729aec4cacc5de0230a/src/series.jl#L276-L284" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/d35c006d7d854cd4260ade7d3412af207e562a01/src/series.jl#L549-L558" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">SymSeries</code></pre>
 </div>
-<p>A truncated series in <code class="md-code-inline">x</code> about <code class="md-code-inline">x0</code>: <code class="md-code-inline">Σ cᵢ (x - x0)^eᵢ + O((x - x0)^n)</code>, or in <code class="md-code-inline">1/x</code> at <code class="md-code-inline">x0 = ±Inf</code>. Returned by <a href="../../reference/calculus/#SymJ.series"><code class="md-code-inline">series</code></a>. <code class="md-code-inline">Sym(s)</code> is the truncated expression (the <code class="md-code-inline">O</code> term dropped); calling <code class="md-code-inline">s</code> calls that expression. Series about the same point add, subtract, multiply, divide and take powers, with the order of the error tracked, and <code class="md-code-inline">diff(s, x)</code> differentiates term by term. Not exported.</p>
-</div>
-</div>
-<div class="md-docstring" id="Base.diff-Tuple{SymJ.SymSeries, Sym}">
-<div class="md-docstring-header">
-<h4 class="md-docstring-binding"><code>Base.diff</code> — <span class="md-docstring-sig">Tuple{SymJ.SymSeries, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/b38b739ab0edf7e442286729aec4cacc5de0230a/src/series.jl#L407-L411" title="View source">source</a>
-</div>
-<div class="md-docstring-content">
-<div class="md-code-block">
-<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">diff(s::SymSeries, x)</code></pre>
-</div>
-<p>The series of the derivative, term by term; its order is one less (at a finite point).</p>
+<p>A truncated series in <code class="md-code-inline">x</code> about <code class="md-code-inline">x0</code>: <code class="md-code-inline">Σ cᵢ (x - x0)^eᵢ + O((x - x0)^n)</code>, or in <code class="md-code-inline">1/x</code> at <code class="md-code-inline">x0 = ±Inf</code>. At <code class="md-code-inline">±Inf</code> it may also have terms with a factor <code class="md-code-inline">exp(g)</code>, <code class="md-code-inline">exp(g) cos(h)</code> or <code class="md-code-inline">exp(g) sin(h)</code>, each times its own series in <code class="md-code-inline">1/x</code>, as in <code class="md-code-inline">erf(x) = 1 - exp(-x^2)*(…)</code>. Returned by <a href="../../reference/calculus/#SymJ.series"><code class="md-code-inline">series</code></a>. <code class="md-code-inline">Sym(s)</code> is the truncated expression (the <code class="md-code-inline">O</code> term dropped); calling <code class="md-code-inline">s</code> calls that expression. Series about the same point add, subtract, multiply, divide and take powers, with the order of the error tracked, and <code class="md-code-inline">diff(s, x)</code> differentiates term by term. Not exported.</p>
 </div>
 </div>
 <div class="md-docstring" id="SymJ.series">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.series</code> — <span class="md-docstring-sig">Union{Tuple{Any, Sym}, Tuple{Any, Sym, Any}, Tuple{Any, Sym, Any, Real}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/b38b739ab0edf7e442286729aec4cacc5de0230a/src/series.jl#L292-L313" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/d35c006d7d854cd4260ade7d3412af207e562a01/src/series.jl#L568-L600" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -165,6 +152,7 @@ diff(sin(x * y), x, y)       # -x*y*sin(x*y) + cos(x*y)</code></pre>
 <pre><code class="language-julia">series(ex, x, x0 = 0, n = 6)</code></pre>
 </div>
 <p>The series of <code class="md-code-inline">ex</code> in <code class="md-code-inline">x</code> about <code class="md-code-inline">x0</code>, with the error <code class="md-code-inline">O((x - x0)^n)</code>: the terms of order below <code class="md-code-inline">n</code> are exact. At <code class="md-code-inline">x0 = Inf</code> (or <code class="md-code-inline">-Inf</code>) it is a series in <code class="md-code-inline">1/x</code>, with error <code class="md-code-inline">O((1/x)^n)</code>. Laurent series (negative powers), Puiseux series (fractional powers) and logarithmic terms (<code class="md-code-inline">log(x)</code> in the coefficients, as for <code class="md-code-inline">x^x</code> at 0) are included.</p>
+<p>At <code class="md-code-inline">±Inf</code>, an expansion may need an exponential or oscillating factor: terms <code class="md-code-inline">exp(g)*(series)</code>, <code class="md-code-inline">cos(h)*(series)</code> and <code class="md-code-inline">sin(h)*(series)</code> with <code class="md-code-inline">g</code>, <code class="md-code-inline">h</code> growing at the point. These come from <code class="md-code-inline">exp</code>, <code class="md-code-inline">sin</code> and <code class="md-code-inline">cos</code> of growing arguments and from the asymptotic expansions of <code class="md-code-inline">erf</code>, <code class="md-code-inline">erfc</code>, <code class="md-code-inline">erfi</code>, <code class="md-code-inline">erfcx</code>, <code class="md-code-inline">expinti</code>, <code class="md-code-inline">expint</code>, <code class="md-code-inline">sinint</code>, <code class="md-code-inline">cosint</code>, <code class="md-code-inline">besselj</code>, <code class="md-code-inline">bessely</code>, <code class="md-code-inline">besseli</code>, <code class="md-code-inline">besselk</code> and <code class="md-code-inline">gamma</code> (Stirling&#39;s series; <code class="md-code-inline">loggamma</code>&#39;s is an ordinary series). Such a term is not dropped even when it is exponentially small: <code class="md-code-inline">erf(x)</code> at <code class="md-code-inline">Inf</code> is <code class="md-code-inline">1 - exp(-x^2)*(1/(√π x) - …)</code>, not <code class="md-code-inline">1</code>. For <code class="md-code-inline">besseli</code> the term of relative size <code class="md-code-inline">exp(-2x)</code> is left out, as is usual for real arguments.</p>
 <p>The result is a <a href="../../reference/calculus/#SymJ.SymSeries"><code class="md-code-inline">SymSeries</code></a>; <code class="md-code-inline">Sym(s)</code> gives the truncated expression.</p>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -173,15 +161,16 @@ series(1/sin(x), x, 0, 3)      # 1/x + x/6 + O(x^3)
 series(sqrt(x + x^2), x, 0, 3) # sqrt(x) + x^(3/2)/2 - x^(5/2)/8 + O(x^3)
 series(exp(x), x, 1, 3)        # ℯ + ℯ*(x - 1) + ℯ*(x - 1)^2/2 + O((x - 1)^3)
 series(sqrt(x^2 + x), x, Inf, 3)   # x + 1/2 - 1/(8x) + 1/(16x^2) + O(1/x^3)
-series(x^x, x, 0, 2)           # 1 + log(x)*x + O(x^2)</code></pre>
+series(x^x, x, 0, 2)           # 1 + log(x)*x + O(x^2)
+series(erf(x), x, Inf, 4)      # 1 + exp(-x^2)*(-1/(sqrt(π)*x) + 1/(2*sqrt(π)*x^3) + O(1/x^4))</code></pre>
 </div>
-<p>An expression with no series at the point (an essential singularity such as <code class="md-code-inline">exp(1/x)</code> at 0, or a function without a derivative rule) gives an <code class="md-code-inline">ArgumentError</code>.</p>
+<p>An expression with no series at the point (an essential singularity such as <code class="md-code-inline">exp(1/x)</code> at 0, or a function without a derivative rule) gives an <code class="md-code-inline">ArgumentError</code>, as does a reciprocal of a sum with such factors, as <code class="md-code-inline">1/(1 + exp(x))</code> at <code class="md-code-inline">Inf</code>.</p>
 </div>
 </div>
 <div class="md-docstring" id="SymJ.inverse_laplace_transform-Tuple{Any, Sym, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.inverse_laplace_transform</code> — <span class="md-docstring-sig">Tuple{Any, Sym, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/b38b739ab0edf7e442286729aec4cacc5de0230a/src/laplace.jl#L179-L193" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/d35c006d7d854cd4260ade7d3412af207e562a01/src/laplace.jl#L179-L193" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -200,7 +189,7 @@ SymJ.inverse_laplace_transform(exp(-2s) / s^2, s, t)         # (t - 2)*heaviside
 <div class="md-docstring" id="SymJ.laplace_transform-Tuple{Any, Sym, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.laplace_transform</code> — <span class="md-docstring-sig">Tuple{Any, Sym, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/b38b739ab0edf7e442286729aec4cacc5de0230a/src/laplace.jl#L14-L28" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/d35c006d7d854cd4260ade7d3412af207e562a01/src/laplace.jl#L14-L28" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -234,6 +223,6 @@ SymJ.laplace_transform(SymJ.heaviside(t - 1), t, s)   # exp(-s)/s</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=e96fc795"></script>
+  <script src="../../assets/materialdocs.js?v=773d1475"></script>
 </body>
 </html>
