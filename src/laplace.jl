@@ -250,11 +250,20 @@ end
 # rewriting of sin(2t)/2 as sin(t) cos(t)
 function _lap_neat(e::Sym)
     e = _explog(e)
+    # roots of a cubic or quartic (cube roots of radicals): cancel over all those
+    # generators did not finish in minutes (SymPy #26560, #25796); left as they are
+    _has_high_root(e) && return e
     for c in (cancel(e), simplify_hyperbolic(e))
         _nodes(c) < _nodes(e) && (e = c)
     end
     e
 end
+
+# a power with an exponent whose denominator is 3 or more (u^(1/3), u^(2/3))
+_has_high_root(e::Sym) =
+    (e.kind == POW && e.args[2].kind == NUMBER && isexact(e.args[2].num) && _denominator(e.args[2].num) >= 3) ||
+    (e.kind == MUL && any(p -> p.kind == NUMBER && isexact(p.num) && _denominator(p.num) >= 3, e.exps)) ||
+    any(_has_high_root, e.args) || (e.kind == MUL && any(_has_high_root, e.exps))
 
 # N/D, D = lead qᵏ with q irreducible: Σ over the roots ρ of q of the residue of
 # N e^(st)/D, (1/(k-1)!) d^(k-1)/ds^(k-1) [N e^(st) / (lead Π_(σ≠ρ) (s - σ))ᵏ] at ρ

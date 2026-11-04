@@ -114,3 +114,23 @@ end
     # x outside sin and cos as well: not supported, not "no solution" (#26253)
     @test_throws ArgumentError solve(-2(15 - x) - 2(3 - sin(x)) * cos(x) ~ 0, x)
 end
+
+@testset "crashes and hangs (SymPy review, round 4)" begin
+    @syms a s t df v1 v2 n1 n2
+    # one real root with a negative Cardano radicand: the real cube root (#26069)
+    S = solve(4x^3 - 4x^2 + x - 2 ≦ 0, x)
+    @test S(1) == true
+    @test S(Sym(6) // 5) == false
+    @test solve(x^3 + 3x^2 + 3x - 1 ≧ 0, x) == solve(x ≧ cbrt(Sym(2)) - 1, x)
+    @test N(solve(4x^3 - 4x^2 + x - 2 ~ 0, x)[1]) isa Real
+    # Poly of zero (#25899)
+    @test iszero(Poly(a - a))
+    # inverse transforms through a cubic's roots: no cancel over its radicals (#26560, #25796)
+    r = SymJ.inverse_laplace_transform((2s + 1) / (s * (s^3 + s^2 + 3s + 1)), s, t)
+    @test real(N(subs(r, t => Sym(1) // 2))) ≈ 0.21788881804270455
+    r = SymJ.inverse_laplace_transform(5 / ((s^3 + Sym(9) // 2 * s^2 + Sym(13) // 2 * s + 8) * s), s, t)
+    @test real(N(subs(r, t => 1))) ≈ 0.27649212810980195
+    # Welch's degrees of freedom for n1: seconds, not minutes (#25920)
+    eq = df ~ (v1 / n1 + v2 / n2)^2 / (v1^2 / (n1^2 * (n1 - 1)) + v2^2 / (n2^2 * (n2 - 1)))
+    @test @elapsed(solve(eq, n1)) < 30
+end
