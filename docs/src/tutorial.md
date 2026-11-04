@@ -1100,6 +1100,23 @@ series(cot(x), x, 0, 4), series(sqrt(x + x^2), x, 0, 3)
 series(x^x, x, 0, 3), series(sqrt(x^2 + x), x, Inf, 3)
 ```
 
+At `±Inf` an expansion may need a factor that is not a power of `x`: terms
+`exp(g)*(series)`, `cos(h)*(series)` and `sin(h)*(series)`, from `exp`, `sin` and `cos`
+of growing arguments and from the asymptotic expansions of SpecialFunctions' `erf`,
+`erfc`, `erfi`, `erfcx`, `expinti`, `expint`, `sinint`, `cosint`, the Bessel functions
+and `gamma` (Stirling's series). Factors that cancel do cancel:
+
+```@example tut
+series(sin(x) / x + exp(-x) * (1 + 1/x), x, Inf, 4)
+```
+
+```julia
+series(erf(x), x, Inf, 4)      # 1 + exp(-x^2)*(-1/(sqrt(π)*x) + 1/(2*sqrt(π)*x^3) + O(1/x^4))
+series(exp(x^2) * erfc(x), x, Inf, 4)   # 1/(sqrt(π)*x) - 1/(2*sqrt(π)*x^3) + O(1/x^4)
+```
+
+Exponentially small terms are kept: `erf(x)` at `Inf` is not just `1`.
+
 A series is an object that keeps its error term. Series about the same point can be
 added, multiplied and divided, with the order tracked, and `Sym` drops the `O` term:
 
