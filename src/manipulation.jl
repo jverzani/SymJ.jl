@@ -739,7 +739,9 @@ function _bigvalue(ex::Sym, p::Int)
     setprecision(BigFloat, p) do
         for F in (BigFloat, Complex{BigFloat})
             try
-                return Complex{BigFloat}(_ev(ex, _Named(NamedTuple()), F, Ref{Union{Nothing,Sym}}(nothing)))
+                w = Complex{BigFloat}(_ev(ex, _Named(NamedTuple()), F, Ref{Union{Nothing,Sym}}(nothing)))
+                isfinite(w) || (w = exp(_evlog(ex)))
+                return w
             catch err
                 err isa DomainError && F === BigFloat && continue
                 err isa Union{DomainError,MethodError,ArgumentError,InexactError,OverflowError} && return nothing
@@ -748,6 +750,32 @@ function _bigvalue(ex::Sym, p::Int)
         end
         nothing
     end
+end
+
+# log of ex's value in Complex{BigFloat}, a product's factors summed: a product of a
+# factor past MPFR's exponent range and one below it (32 bits on Windows, where
+# (1/10^9)^(10^9) is 0 and its partner Inf) still has a value. A base is opened up
+# only under an integer exponent, where any branch of its log gives the same power.
+function _evlog(ex::Sym)
+    C = Complex{BigFloat}
+    if ex.kind == MUL
+        s = log(C(_leaf(ex.num, BigFloat)))
+        for i in eachindex(ex.args)
+            s += _evlog_pow(ex.args[i], ex.exps[i])
+        end
+        return s
+    elseif ex.kind == POW
+        return _evlog_pow(ex.args[1], ex.args[2])
+    end
+    log(C(_ev(ex, _Named(NamedTuple()), C, Ref{Union{Nothing,Sym}}(nothing))))
+end
+
+function _evlog_pow(b::Sym, e::Sym)
+    C = Complex{BigFloat}
+    ev = C(_ev(e, _Named(NamedTuple()), C, Ref{Union{Nothing,Sym}}(nothing)))
+    b === E && return ev
+    e.kind == NUMBER && isexact(e.num) && _isint(e.num) && return ev * _evlog(b)
+    ev * log(C(_ev(b, _Named(NamedTuple()), C, Ref{Union{Nothing,Sym}}(nothing))))
 end
 
 function _evalc(ex::Sym)::ComplexF64
