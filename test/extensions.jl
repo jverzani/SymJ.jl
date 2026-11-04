@@ -445,4 +445,44 @@ import PolyLog as PL
         v = RischIntegrate.integrate(abs(exp(-IM / 2 * x^2 / (IM * zR + z)))^2, (x, -Inf, Inf); assume = (zR ≫ 0, z ∈ ℝ))
         @test N(subs(v, zR => 2, z => 1)) ≈ sqrt(π) * sqrt(5) / sqrt(2)
     end
+
+    @testset "asymptotic series at ±∞: exponential and oscillating factors" begin
+        @syms y
+        S(f, x0, n) = Sym(series(f, x, x0, n))
+        rp = 1 / sqrt(PI)
+        same(a, b) = iszero(expand(a - b))
+        # erf, erfc: exponentially small terms are kept (SymPy #27109)
+        @test same(S(SF.erf(x), Inf, 4), 1 - exp(-x^2) * (rp / x - rp / (2x^3)))
+        @test same(S(SF.erfc(x), Inf, 4), exp(-x^2) * (rp / x - rp / (2x^3)))
+        @test same(S(SF.erf(x), -Inf, 2), -1 - exp(-x^2) * rp / x)
+        @test string(series(SF.erfc(x), x, Inf, 2)) == "1/exp(x^2)*(1/(x*sqrt(π)) + O(1/x^2))"
+        # factors cancel: e^(x²) erfc(x) is a power series; so is erfcx
+        @test same(S(exp(x^2) * SF.erfc(x), Inf, 4), rp / x - rp / (2x^3))
+        @test same(S(SF.erfcx(x), Inf, 4), rp / x - rp / (2x^3))
+        @test S(sin(x)^2 + cos(x)^2, Inf, 3) == 1
+        # exponential integrals, Si and Ci (SymPy #26257, #26207)
+        @test same(S(SF.expinti(x), Inf, 4), exp(x) * (1 / x + 1 / x^2 + 2 / x^3))
+        @test same(S(SF.expint(x), Inf, 4), exp(-x) * (1 / x - 1 / x^2 + 2 / x^3))
+        @test same(S(SF.sinint(x), Inf, 4), PI / 2 - cos(x) * (1 / x - 2 / x^3) - sin(x) / x^2)
+        @test same(S(SF.cosint(x), Inf, 4), sin(x) * (1 / x - 2 / x^3) - cos(x) / x^2)
+        # numerically, at moderate x
+        for (f, x0, xv, n, tol) in ((SF.sinint(x), -Inf, -20.0, 6, 1e-5), (SF.erf(x), -Inf, -3.0, 6, 1e-6),
+                                    (SF.besselj(0, x), Inf, 30.0, 6, 1e-8), (SF.bessely(1, x), Inf, 30.0, 6, 1e-8),
+                                    (SF.besseli(1, x), Inf, 30.0, 6, 1e-8), (SF.besselk(1, x), Inf, 30.0, 6, 1e-8),
+                                    (SF.expinti(x), -Inf, -30.0, 6, 1e-4), (SF.gamma(x), Inf, 10.0, 5, 1e-7))
+            v = N(subs(S(f, x0, n), x => xv))
+            @test abs(v / N(subs(f, x => xv)) - 1) < tol
+        end
+        # modified Bessel functions (SymPy #26210); K of half-integer order terminates
+        @test N(subs(S(SF.besselk(Sym(1) // 2, x), Inf, 3), x => 3)) ≈ SF.besselk(0.5, 3.0) rtol = 1e-14
+        # Stirling's series (SymPy #26096): Γ(x) ≈ √(2π) x^(x-1/2) e^(-x) (1 + 1/(12x))
+        @test same(S(SF.loggamma(x), Inf, 4), (x - Sym(1) // 2) * log(x) - x + log(2PI) / 2 + 1 / (12x) - 1 / (360x^3))
+        @test N(subs(S(SF.gamma(x), Inf, 2), x => 20)) ≈ sqrt(2π) * 20.0^19.5 * exp(-20.0) * (1 + 1 / 240) rtol = 1e-12
+        # derivatives and sums of series with factors
+        @test Sym(diff(series(SF.erf(x), x, Inf, 6), x)) == 2rp * exp(-x^2)
+        @test Sym(series(SF.erf(x), x, Inf, 4) + series(SF.erfc(x), x, Inf, 4)) == 1
+        # not supported: a reciprocal of a sum with such factors; finite points as before
+        @test_throws ArgumentError series(1 / (1 + exp(x)), x, Inf, 3)
+        @test_throws ArgumentError series(exp(1 / x), x, 0, 3)
+    end
 end

@@ -165,6 +165,12 @@ function _psapply(name::Symbol, args::Vector{Sym}, N::Rational{Int})
         sg === nothing && throw(ArgumentError("series: atan at the point: the sign of $c0 is not known"))
         return _psadd(_psconst(sg * PI / 2), _psscale(at, MINUS_ONE))
     end
+    if hasneg && name === :loggamma && length(args) == 1         # Stirling's series
+        _, c0, _ = _pslead(a)
+        (_TPOS[] && !has(c0, _LOGT) && _csign(c0) == 1) ||
+            throw(ArgumentError("series: $(apply_function(name, args)): only for an argument tending to +∞"))
+        return _psloggamma(a, N)
+    end
     hasneg && throw(ArgumentError("series: $(apply_function(name, args)) has no series here (its argument is infinite)"))
     has(a0, _LOGT) && throw(ArgumentError("series: $name of a logarithm at the point"))
     # Bessel functions at 0: J_ν and I_ν of non-integer order are x^ν times a series in
@@ -271,13 +277,281 @@ function _serpow(b::Sym, e::Sym, N::Rational{Int})
     _pspow(_ser(b, N), e, N)
 end
 
+## asymptotic expansions at ±∞: terms with a factor e^G, e^G cos H or e^G sin H
+#
+# At ±∞ an expression may have no power series in t: erf(x) = 1 - e^(-x²)(1/(√π x) - …)
+# is 1 plus an exponentially small part, and sin(x) oscillates. Such an expansion is a sum
+# of pieces e^G trig(H) p: G and H exact sums of negative powers of t (the parts of an
+# exponent or of an argument that are infinite at the point), trig one of 1, cos and sin,
+# and p a series. The piece with no factor is the ordinary series. Pieces multiply by
+# adding the G's and by the product formulas for cos and sin, so exp(x²) erfc(x) is a
+# power series again and cos(x)² + sin(x)² is 1. (SymPy #27109, #26257, #26207, #26210,
+# #26096)
+
+struct _Piece
+    G::_PS          # exact, negative exponents; empty: no exponential factor
+    k::Symbol       # :one, :cos or :sin
+    H::_PS          # exact, negative exponents; empty for :one
+    p::_PS
+end
+
+struct _AS
+    plain::_PS
+    pcs::Vector{_Piece}
+end
+
+const _PS0 = _PS(Rational{Int}[], Sym[], _INF)
+_asplain(p::_PS) = _AS(p, _Piece[])
+_asconst(c) = _asplain(_psconst(Sym(c)))
+_isexact0(p::_PS) = isempty(p.e) && p.o == _INF
+_pseq(a::_PS, b::_PS) = a.e == b.e && a.o == b.o && all(_eq.(a.c, b.c))
+_allpieces(a::_AS) = vcat([(_PS0, :one, _PS0, a.plain)], [(q.G, q.k, q.H, q.p) for q in a.pcs])
+
+# collect pieces, normalized: cos 0 = 1, sin 0 = 0, cos(-H) = cos H, sin(-H) = -sin H
+# (H's leading coefficient made positive when its sign is known), equal factors merged
+function _asbuild(f)
+    plain = Ref(_PS0)
+    pcs = _Piece[]
+    function add(G::_PS, k::Symbol, H::_PS, p::_PS)
+        _isexact0(p) && return
+        if k !== :one && isempty(H.e)
+            k === :sin && return
+            k = :one
+        end
+        if k !== :one && _csign(H.c[1]) == -1
+            H = _psscale(H, MINUS_ONE)
+            k === :sin && (p = _psscale(p, MINUS_ONE))
+        end
+        k === :one && (H = _PS0)
+        if k === :one && isempty(G.e)
+            plain[] = _psadd(plain[], p)
+            return
+        end
+        for (i, q) in pairs(pcs)
+            if q.k === k && _pseq(q.G, G) && _pseq(q.H, H)
+                pcs[i] = _Piece(G, k, H, _psadd(q.p, p))
+                return
+            end
+        end
+        push!(pcs, _Piece(G, k, H, p))
+    end
+    f(add)
+    _AS(plain[], filter(q -> !_isexact0(q.p), pcs))
+end
+
+_asadd(a::_AS, b::_AS) = _asbuild(add -> foreach(t -> add(t...), vcat(_allpieces(a), _allpieces(b))))
+_asscale(a::_AS, c::Sym) = _asbuild(add -> foreach(((G, k, H, p),) -> add(G, k, H, _psscale(p, c)), _allpieces(a)))
+
+function _asmul(a::_AS, b::_AS)
+    _asbuild() do add
+        for (G1, k1, H1, p1) in _allpieces(a), (G2, k2, H2, p2) in _allpieces(b)
+            (_isexact0(p1) || _isexact0(p2)) && continue
+            p, G = _psmul(p1, p2), _psadd(G1, G2)
+            if k1 === :one
+                add(G, k2, H2, p)
+            elseif k2 === :one
+                add(G, k1, H1, p)
+            else
+                h, mh = _psscale(p, Sym(1 // 2)), _psscale(p, Sym(-1 // 2))
+                D, S = _psadd(H1, _psscale(H2, MINUS_ONE)), _psadd(H1, H2)
+                if k1 === :cos && k2 === :cos          # cos A cos B = (cos(A-B) + cos(A+B))/2
+                    add(G, :cos, D, h); add(G, :cos, S, h)
+                elseif k1 === :sin && k2 === :sin      # sin A sin B = (cos(A-B) - cos(A+B))/2
+                    add(G, :cos, D, h); add(G, :cos, S, mh)
+                elseif k1 === :sin                     # sin A cos B = (sin(A+B) + sin(A-B))/2
+                    add(G, :sin, S, h); add(G, :sin, D, h)
+                else                                   # cos A sin B = (sin(A+B) - sin(A-B))/2
+                    add(G, :sin, S, h); add(G, :sin, D, mh)
+                end
+            end
+        end
+    end
+end
+
+function _asinv(a::_AS, N::Rational{Int})
+    isempty(a.pcs) && return _asplain(_psinv(a.plain, N))
+    (length(a.pcs) == 1 && _isexact0(a.plain) && a.pcs[1].k === :one) ||
+        throw(ArgumentError("series: the reciprocal of a sum with exponential or oscillating factors is not supported"))
+    q = a.pcs[1]
+    _AS(_PS0, [_Piece(_psscale(q.G, MINUS_ONE), :one, _PS0, _psinv(q.p, N))])
+end
+
+function _aspowk(a::_AS, k::Integer, N::Rational{Int})
+    k == 0 && return _asconst(ONE)
+    b = k > 0 ? a : _asinv(a, N)
+    out = b
+    for _ in 2:abs(k)
+        out = _asmul(out, b)
+    end
+    out
+end
+
+# e^L: the negative powers of L stay in the factor e^G, the rest is a series
+function _asexp(L::_PS, N::Rational{Int})
+    neg = findall(<(0), L.e)
+    isempty(neg) && return _asplain(_psexp(L, N))
+    L.o > 0 || throw(_SeriesPrecision())
+    rest = setdiff(eachindex(L.e), neg)
+    G = _PS(L.e[neg], L.c[neg], _INF)
+    _AS(_PS0, [_Piece(G, :one, _PS0, _psexp(_PS(L.e[rest], L.c[rest], L.o), N))])
+end
+
+# cos(u), sin(u) for u = H + r0 + h: cos(H + R) = cos H cos R - sin H sin R and so on
+function _astrig(name::Symbol, u::_PS, N::Rational{Int})
+    u.o > 0 || throw(_SeriesPrecision())
+    neg = findall(<(0), u.e)
+    H = _PS(u.e[neg], u.c[neg], _INF)
+    _, r0, h = _pssplit(u)
+    has(r0, _LOGT) && throw(ArgumentError("series: $name of a logarithm at the point"))
+    fac(k) = Sym(factorial(big(k)))
+    C = _psgeom(h, k -> iseven(k) ? (isodd(k ÷ 2) ? -ONE : ONE) / fac(k) : ZERO, N)
+    S = _psgeom(h, k -> isodd(k) ? (isodd((k - 1) ÷ 2) ? -ONE : ONE) / fac(k) : ZERO, N)
+    cR = _psadd(_psscale(C, cos(r0)), _psscale(S, -sin(r0)))
+    sR = _psadd(_psscale(C, sin(r0)), _psscale(S, cos(r0)))
+    _asbuild() do add
+        if name === :cos
+            add(_PS0, :cos, H, cR); add(_PS0, :sin, H, _psscale(sR, MINUS_ONE))
+        else
+            add(_PS0, :sin, H, cR); add(_PS0, :cos, H, sR)
+        end
+    end
+end
+
+# Stirling's series: log Γ(u) = (u - 1/2) log u - u + log(2π)/2 + Σ B_2k/(2k(2k-1)) u^(1-2k)
+function _psloggamma(u::_PS, N::Rational{Int})
+    w = _psinv(u, N)
+    L = _psadd(_psmul(_psadd(u, _psconst(Sym(-1 // 2))), _pslog(u, N)), _psscale(u, MINUS_ONE))
+    tail = _psgeom(w, k -> isodd(k) ? (m = (k + 1) ÷ 2; Sym(SymNumber(_bernoulli(2m))) / (2m * (2m - 1))) : ZERO, N)
+    _psadd(_psadd(L, _psconst(log(2PI) / 2)), tail)
+end
+
+# the series in e^G … pieces of ex at ±∞ (t > 0), to order N where possible
+function _aser(ex::Sym, N::Rational{Int})
+    has(ex, _T) || return _asconst(ex)
+    err0 = try
+        return _asplain(_ser(ex, N))
+    catch err
+        err isa ArgumentError || rethrow()
+        err
+    end
+    k = ex.kind
+    if k == ADD
+        acc = _asconst(Sym(ex.num))
+        for i in eachindex(ex.args)
+            acc = _asadd(acc, _asscale(_aser(ex.args[i], N), Sym(ex.coefs[i])))
+        end
+        return acc
+    elseif k == MUL
+        acc = _asconst(Sym(ex.num))
+        for i in eachindex(ex.args)
+            acc = _asmul(acc, _aspow(ex.args[i], ex.exps[i], N))
+        end
+        return acc
+    elseif k == POW
+        return _aspow(ex.args[1], ex.args[2], N)
+    elseif k == FN
+        ex.name in (:sin, :cos) && length(ex.args) == 1 && return _astrig(ex.name, _ser(only(ex.args), N), N)
+        r = _asfn(ex.name, ex.args, N)
+        r === nothing || return r
+    end
+    throw(err0)
+end
+
+function _aspow(b::Sym, e::Sym, N::Rational{Int})
+    try
+        return _asplain(_serpow(b, e, N))
+    catch err
+        err isa ArgumentError || rethrow()
+        if _eq(b, E)
+            return _asexp(_ser(e, N), N)
+        elseif has(e, _T)
+            return _asexp(_psmul(_ser(e, N), _pslog(_ser(b, N), N)), N)
+        elseif e.kind == NUMBER && isexact(e.num) && _isint(e.num)
+            return _aspowk(_aser(b, N), _toint(e.num), N)
+        end
+        rethrow()
+    end
+end
+
+# special functions of an argument u → ±∞ (nothing: not handled here)
+function _asfn(name::Symbol, args::Vector{Sym}, N::Rational{Int})
+    name in (:erf, :erfc, :erfi, :erfcx, :expinti, :expint, :sinint, :cosint,
+             :besselj, :bessely, :besseli, :besselk, :gamma) || return nothing
+    any(a -> has(a, _T), args[1:end-1]) && return nothing
+    name === :gamma && length(args) != 1 && return nothing
+    u = _ser(args[end], N)
+    any(<(0), u.e) || return nothing                 # finite at the point
+    _, c0, _ = _pslead(u)
+    sg = has(c0, _LOGT) ? nothing : _csign(c0)
+    sg === nothing && throw(ArgumentError("series: $(apply_function(name, args)) at the point: the sign of $c0 is not known"))
+    w = _psinv(u, N)                                 # 1/u, of positive order
+    W(coef) = _psgeom(w, coef, N)
+    fac(k) = Sym(factorial(big(k)))
+    dfac(k) = Sym(prod(big(j) for j in k:-2:1; init = big(1)))      # k!!, (-1)!! = 1
+    sgn(j) = isodd(j) ? -ONE : ONE
+    # √π e^(u²) erfc(u) for u → +∞: Σ (-1)^j (2j-1)!!/2^j u^(-2j-1); without the signs for erfi
+    A(alt) = W(k -> isodd(k) ? (j = (k - 1) ÷ 2; (alt ? sgn(j) : ONE) * dfac(2j - 1) / Sym(big(2)^j) / sqrt(PI)) : ZERO)
+    E2(s) = _asexp(_psscale(_psmul(u, u), Sym(s)), N)                # e^(±u²)
+    if name in (:erf, :erfc)
+        # erfc(u) = (1 - sg) + e^(-u²) A(u) on either side (A is odd); erf = 1 - erfc
+        ec = _asmul(E2(-1), _asplain(A(true)))
+        name === :erfc && return _asadd(_asconst(1 - sg), ec)
+        return _asadd(_asconst(sg), _asscale(ec, MINUS_ONE))
+    elseif name === :erfi
+        return _asmul(E2(1), _asplain(A(false)))     # u real: no constant term
+    elseif name === :erfcx                           # e^(u²) erfc(u)
+        sg > 0 && return _asplain(A(true))
+        return _asadd(_asscale(E2(1), Sym(2)), _asplain(A(true)))
+    elseif name === :expinti                         # Ei(u) = e^u Σ_{k≥1} (k-1)!/u^k, u → ±∞
+        return _asmul(_asexp(u, N), _asplain(W(k -> k >= 1 ? fac(k - 1) : ZERO)))
+    elseif name === :expint                          # E_ν(u) = e^(-u) Σ_{k≥1} (-1)^(k-1) (ν)_(k-1)/u^k
+        sg > 0 || return nothing
+        ν = length(args) == 2 ? args[1] : ONE
+        poch(m) = (p = ONE; for j in 0:(m - 1); p = p * (ν + j); end; expand(p))
+        return _asmul(_asexp(_psscale(u, MINUS_ONE), N), _asplain(W(k -> k >= 1 ? sgn(k - 1) * poch(k - 1) : ZERO)))
+    elseif name in (:sinint, :cosint)
+        name === :cosint && sg < 0 && return nothing  # Ci at -∞ is complex
+        f = W(k -> isodd(k) ? sgn((k - 1) ÷ 2) * fac(k - 1) : ZERO)              # Σ (-1)^j (2j)!/u^(2j+1)
+        g = W(k -> iseven(k) && k >= 2 ? sgn((k - 2) ÷ 2) * fac(k - 1) : ZERO)   # Σ (-1)^j (2j+1)!/u^(2j+2)
+        cu, su = _astrig(:cos, u, N), _astrig(:sin, u, N)
+        name === :sinint &&                           # Si(u) = ±π/2 - cos(u) f - sin(u) g
+            return _asadd(_asconst(sg * PI / 2), _asscale(_asadd(_asmul(cu, _asplain(f)), _asmul(su, _asplain(g))), MINUS_ONE))
+        return _asadd(_asmul(su, _asplain(f)), _asscale(_asmul(cu, _asplain(g)), MINUS_ONE))   # Ci = sin(u) f - cos(u) g
+    elseif name in (:besselj, :bessely, :besseli, :besselk)
+        sg > 0 || return nothing
+        ν = args[1]
+        # a_k(ν) = (4ν² - 1)(4ν² - 9)⋯(4ν² - (2k-1)²)/(k! 8^k)
+        a(k) = (p = ONE; for j in 1:k; p = p * (4ν^2 - (2j - 1)^2); end; expand(p / (fac(k) * Sym(big(8)^k))))
+        r = _pspow(u, Sym(-1 // 2), N)               # u^(-1/2)
+        if name === :besseli                         # e^u/√(2πu) Σ (-1)^k a_k/u^k
+            return _asmul(_asexp(u, N), _asplain(_psscale(_psmul(r, W(k -> sgn(k) * a(k))), ONE / (sqrt(Sym(2)) * sqrt(PI)))))
+        elseif name === :besselk                     # √(π/(2u)) e^(-u) Σ a_k/u^k
+            return _asmul(_asexp(_psscale(u, MINUS_ONE), N), _asplain(_psscale(_psmul(r, W(a)), sqrt(PI) / sqrt(Sym(2)))))
+        end
+        # √(2/(πu)) (cos ω P - sin ω Q) for J, (sin ω P + cos ω Q) for Y, ω = u - νπ/2 - π/4
+        P = _asplain(W(k -> iseven(k) ? sgn(k ÷ 2) * a(k) : ZERO))
+        Q = _asplain(W(k -> isodd(k) ? sgn((k - 1) ÷ 2) * a(k) : ZERO))
+        ω = _psadd(u, _psconst(-ν * PI / 2 - PI / 4))
+        cω, sω = _astrig(:cos, ω, N), _astrig(:sin, ω, N)
+        body = name === :besselj ? _asadd(_asmul(cω, P), _asscale(_asmul(sω, Q), MINUS_ONE)) :
+                                   _asadd(_asmul(sω, P), _asmul(cω, Q))
+        return _asmul(_asplain(_psscale(r, sqrt(Sym(2)) / sqrt(PI))), body)
+    elseif name === :gamma                           # Stirling's series
+        sg > 0 || return nothing
+        g = _asexp(_psadd(_psloggamma(u, N), _psconst(-log(2PI) / 2)), N)
+        return _asscale(g, sqrt(2PI))
+    end
+    nothing
+end
+
 ## the user-facing series
 
 """
     SymSeries
 
 A truncated series in `x` about `x0`: `Σ cᵢ (x - x0)^eᵢ + O((x - x0)^n)`, or in `1/x` at
-`x0 = ±Inf`. Returned by [`series`](@ref). `Sym(s)` is the truncated expression (the
+`x0 = ±Inf`. At `±Inf` it may also have terms with a factor `exp(g)`, `exp(g) cos(h)` or
+`exp(g) sin(h)`, each times its own series in `1/x`, as in `erf(x) = 1 - exp(-x^2)*(…)`. Returned by [`series`](@ref). `Sym(s)` is the truncated expression (the
 `O` term dropped); calling `s` calls that expression. Series about the same point add,
 subtract, multiply, divide and take powers, with the order of the error tracked, and
 `diff(s, x)` differentiates term by term. Not exported.
@@ -287,7 +561,9 @@ struct SymSeries
     x0::Any                  # a Sym, or ±Inf
     ps::_PS                  # in t (x = x0 + t, x = 1/t or x = -1/t), log(t) as _LOGT
     n::Rational{Int}         # the order asked for (bounds the terms of an exact series)
+    pcs::Vector{_Piece}      # at ±∞: terms with a factor e^g, e^g cos h or e^g sin h
 end
+SymSeries(x, x0, ps::_PS, n) = SymSeries(x, x0, ps, n, _Piece[])
 
 """
     series(ex, x, x0 = 0, n = 6)
@@ -296,6 +572,15 @@ The series of `ex` in `x` about `x0`, with the error `O((x - x0)^n)`: the terms 
 below `n` are exact. At `x0 = Inf` (or `-Inf`) it is a series in `1/x`, with error
 `O((1/x)^n)`. Laurent series (negative powers), Puiseux series (fractional powers) and
 logarithmic terms (`log(x)` in the coefficients, as for `x^x` at 0) are included.
+
+At `±Inf`, an expansion may need an exponential or oscillating factor: terms
+`exp(g)*(series)`, `cos(h)*(series)` and `sin(h)*(series)` with `g`, `h` growing at the
+point. These come from `exp`, `sin` and `cos` of growing arguments and from the asymptotic
+expansions of `erf`, `erfc`, `erfi`, `erfcx`, `expinti`, `expint`, `sinint`, `cosint`,
+`besselj`, `bessely`, `besseli`, `besselk` and `gamma` (Stirling's series; `loggamma`'s is
+an ordinary series). Such a term is not dropped even when it is exponentially small:
+`erf(x)` at `Inf` is `1 - exp(-x^2)*(1/(√π x) - …)`, not `1`. For `besseli` the term of
+relative size `exp(-2x)` is left out, as is usual for real arguments.
 
 The result is a [`SymSeries`](@ref); `Sym(s)` gives the truncated expression.
 
@@ -306,10 +591,12 @@ series(sqrt(x + x^2), x, 0, 3) # sqrt(x) + x^(3/2)/2 - x^(5/2)/8 + O(x^3)
 series(exp(x), x, 1, 3)        # ℯ + ℯ*(x - 1) + ℯ*(x - 1)^2/2 + O((x - 1)^3)
 series(sqrt(x^2 + x), x, Inf, 3)   # x + 1/2 - 1/(8x) + 1/(16x^2) + O(1/x^3)
 series(x^x, x, 0, 2)           # 1 + log(x)*x + O(x^2)
+series(erf(x), x, Inf, 4)      # 1 + exp(-x^2)*(-1/(sqrt(π)*x) + 1/(2*sqrt(π)*x^3) + O(1/x^4))
 ```
 
 An expression with no series at the point (an essential singularity such as `exp(1/x)`
-at 0, or a function without a derivative rule) gives an `ArgumentError`.
+at 0, or a function without a derivative rule) gives an `ArgumentError`, as does a
+reciprocal of a sum with such factors, as `1/(1 + exp(x))` at `Inf`.
 """
 function series(ex, x::Sym, x0 = 0, n::Real = 6)
     _isnamed(x) || throw(ArgumentError("series: $x is not a symbol"))
@@ -317,22 +604,33 @@ function series(ex, x::Sym, x0 = 0, n::Real = 6)
     sub = x0 isa Real && isinf(x0) ? (x0 > 0 ? inv(_T) : -inv(_T)) : Sym(x0) + _T
     ext = subs(ex, x => sub)
     order = Rational{Int}(rationalize(n))
+    atinf = x0 isa Real && isinf(x0)
     N = order
+    # the terms below the order; exact (a polynomial, say) if nothing was cut off
+    trim(p) = (keep = findall(<(order), p.e);
+        _PS(p.e[keep], p.c[keep], p.o == _INF && length(keep) == length(p.e) ? _INF : order))
     for _ in 1:12
-        ps = try
-            with(() -> _ser(ext, N), _TPOS => x0 isa Real && isinf(x0))
+        r = try
+            with(() -> atinf ? _aser(ext, N) : _asplain(_ser(ext, N)), _TPOS => atinf)
         catch err
             err isa _SeriesPrecision || rethrow()
             N += 2
             continue
         end
-        if ps.o >= order
-            keep = findall(<(order), ps.e)
-            # exact (a polynomial, say) if nothing was cut off
-            o = ps.o == _INF && length(keep) == length(ps.e) ? _INF : order
-            return SymSeries(x, x0 isa Real && isinf(x0) ? x0 : Sym(x0), _PS(ps.e[keep], ps.c[keep], o), order)
+        o = minimum(p.o for p in vcat([r.plain], [q.p for q in r.pcs]))
+        if o >= order
+            plain, pcs = trim(r.plain), _Piece[]
+            for q in r.pcs
+                p = trim(q.p)
+                if isempty(p.e) && isempty(q.G.e)    # cos(h) O(…) is in O(…): |cos h| ≤ 1
+                    plain = _PS(plain.e, plain.c, min(plain.o, p.o))
+                else
+                    push!(pcs, _Piece(q.G, q.k, q.H, p))
+                end
+            end
+            return SymSeries(x, atinf ? x0 : Sym(x0), plain, order, pcs)
         end
-        N += max(order - ps.o, 1 // 1) + 1
+        N += max(order - o, 1 // 1) + 1
     end
     throw(ArgumentError("series: could not determine the series of $ex to order $n (too much cancellation)"))
 end
@@ -347,7 +645,15 @@ _logt(s::SymSeries) = s.x0 isa Real && isinf(s.x0) ? -log(s.x0 > 0 ? s.x : -s.x)
 _coef(s::SymSeries, c::Sym) = subs(c, _LOGT => _logt(s))
 _term(s::SymSeries, e::Rational{Int}, c::Sym) = _coef(s, c) * _tvar(s)^Sym(SymNumber(e))
 
-Sym(s::SymSeries) = _add_many(_term(s, e, c) for (e, c) in zip(s.ps.e, s.ps.c))
+_psexpr(s::SymSeries, p::_PS) = _add_many(_term(s, e, c) for (e, c) in zip(p.e, p.c))
+# the factor exp(g), exp(g) cos(h) or exp(g) sin(h) of a piece, in x
+function _pfactor(s::SymSeries, q::_Piece)
+    f = isempty(q.G.e) ? ONE : exp(_psexpr(s, q.G))
+    q.k === :one && return f
+    h = _psexpr(s, q.H)
+    f * (q.k === :cos ? cos(h) : sin(h))
+end
+Sym(s::SymSeries) = _add_many(vcat([_psexpr(s, s.ps)], [_pfactor(s, q) * _psexpr(s, q.p) for q in s.pcs]))
 (s::SymSeries)(args...; kws...) = Sym(s)(args...; kws...)
 
 # a term as printed: the coefficient, then the power of (x - x0), not multiplied out
@@ -364,9 +670,9 @@ function _termstring(s::SymSeries, e::Rational{Int}, c::Sym)
     (k.kind == ADD) ? "(" * ks * ")*" * ps : ks * "*" * ps
 end
 
-function Base.show(io::IO, s::SymSeries)
+function _psstring(s::SymSeries, p::_PS)
     parts = String[]
-    for (k, (e, c)) in enumerate(zip(s.ps.e, s.ps.c))
+    for (k, (e, c)) in enumerate(zip(p.e, p.c))
         str = _termstring(s, e, c)
         if k == 1
             push!(parts, str)
@@ -377,11 +683,26 @@ function Base.show(io::IO, s::SymSeries)
         end
     end
     isempty(parts) && push!(parts, "0")
-    if s.ps.o != _INF                                # at ±∞, in powers of 1/x either way
-        ot = s.x0 isa Real && isinf(s.x0) ? inv(s.x) : _tvar(s)
-        push!(parts, " + O(" * (s.ps.o == 1 && ot.kind == ADD ? "(" * string(ot) * ")" : string(ot^Sym(SymNumber(s.ps.o)))) * ")")
+    p.o != _INF && push!(parts, " + " * _ostring(s, p.o))
+    join(parts)
+end
+function _ostring(s::SymSeries, o)                   # at ±∞, in powers of 1/x either way
+    ot = s.x0 isa Real && isinf(s.x0) ? inv(s.x) : _tvar(s)
+    "O(" * (o == 1 && ot.kind == ADD ? "(" * string(ot) * ")" : string(ot^Sym(SymNumber(o)))) * ")"
+end
+
+function Base.show(io::IO, s::SymSeries)
+    # with pieces, a plain part that is only O(…) goes last
+    onlyo = !isempty(s.pcs) && isempty(s.ps.e)
+    str = isempty(s.pcs) || !onlyo ? _psstring(s, s.ps) : ""
+    for q in s.pcs
+        piece = length(q.p.e) == 1 && q.p.o == _INF ? string(_pfactor(s, q) * _psexpr(s, q.p)) :
+                isempty(q.p.e) ? string(_pfactor(s, q)) * "*" * _ostring(s, q.p.o) :
+                string(_pfactor(s, q)) * "*(" * _psstring(s, q.p) * ")"
+        str = isempty(str) ? piece : startswith(piece, "-") ? str * " - " * piece[2:end] : str * " + " * piece
     end
-    print(io, join(parts))
+    onlyo && s.ps.o != _INF && (str *= " + " * _ostring(s, s.ps.o))
+    print(io, str)
 end
 Base.show(io::IO, ::MIME"text/plain", s::SymSeries) = show(io, s)
 
@@ -390,30 +711,52 @@ _same(a::SymSeries, b::SymSeries) = (_eq(a.x, b.x) && (a.x0 isa Sym && b.x0 isa 
     throw(ArgumentError("series about different points or in different variables"))
 _lift(s::SymSeries, c) = (c = Sym(c); has(c, s.x) && throw(ArgumentError("add a series, not an expression in $(s.x)")); _psconst(c))
 _with(a::SymSeries, ps::_PS, n = a.n) = SymSeries(a.x, a.x0, ps, n)
-Base.:+(a::SymSeries, b::SymSeries) = (_same(a, b); _with(a, _psadd(a.ps, b.ps), min(a.n, b.n)))
-Base.:*(a::SymSeries, b::SymSeries) = (_same(a, b); _with(a, _psmul(a.ps, b.ps), min(a.n, b.n)))
-Base.:-(a::SymSeries) = _with(a, _psscale(a.ps, -ONE))
+_with(a::SymSeries, r::_AS, n = a.n) = SymSeries(a.x, a.x0, r.plain, n, r.pcs)
+_as(s::SymSeries) = _AS(s.ps, s.pcs)
+Base.:+(a::SymSeries, b::SymSeries) = (_same(a, b); _with(a, _asadd(_as(a), _as(b)), min(a.n, b.n)))
+Base.:*(a::SymSeries, b::SymSeries) = (_same(a, b); _with(a, _asmul(_as(a), _as(b)), min(a.n, b.n)))
+Base.:-(a::SymSeries) = _with(a, _asscale(_as(a), -ONE))
 Base.:-(a::SymSeries, b::SymSeries) = a + (-b)
-Base.inv(a::SymSeries) = _with(a, _psinv(a.ps, a.n))
+Base.inv(a::SymSeries) = _with(a, _asinv(_as(a), a.n))
 Base.:/(a::SymSeries, b::SymSeries) = a * inv(b)
-Base.:^(a::SymSeries, r::Union{Integer,Rational}) = _with(a, _pspow(a.ps, Sym(r), a.n))
+Base.:^(a::SymSeries, k::Integer) = _with(a, _aspowk(_as(a), k, a.n))
+function Base.:^(a::SymSeries, r::Rational)
+    isempty(a.pcs) || throw(ArgumentError("series: a fractional power of a series with exponential or oscillating factors is not supported"))
+    _with(a, _pspow(a.ps, Sym(r), a.n))
+end
 for op in (:+, :*, :-, :/)
     @eval Base.$op(a::SymSeries, c::Union{Number,Sym}) = $op(a, _with(a, _lift(a, c)))
     @eval Base.$op(c::Union{Number,Sym}, a::SymSeries) = $op(_with(a, _lift(a, c)), a)
 end
-Base.:(==)(a::SymSeries, b::SymSeries) = _eq(a.x, b.x) && isequal(a.x0, b.x0) && a.ps.e == b.ps.e &&
-    a.ps.o == b.ps.o && all(_eq.(a.ps.c, b.ps.c))
+Base.:(==)(a::SymSeries, b::SymSeries) = _eq(a.x, b.x) && isequal(a.x0, b.x0) && _pseq(a.ps, b.ps) &&
+    length(a.pcs) == length(b.pcs) &&
+    all(any(q.k === r.k && _pseq(q.G, r.G) && _pseq(q.H, r.H) && _pseq(q.p, r.p) for r in b.pcs) for q in a.pcs)
 
 """
     diff(s::SymSeries, x)
 
 The series of the derivative, term by term; its order is one less (at a finite point).
 """
+# d/dt (c t^e) = (e c + dc/dlog t) t^(e-1)
+_psderiv(p::_PS) = _ps(p.e .- 1, [Sym(SymNumber(e)) * c + diff(c, _LOGT) for (e, c) in zip(p.e, p.c)], p.o - 1)
+
+# the derivative of Σ e^G trig(H) p, D the derivative of a series: e^G (trig(H) (DG p + Dp) + trig'(H) DH p)
+function _asdiff(r::_AS, D)
+    _asbuild() do add
+        add(_PS0, :one, _PS0, D(r.plain))
+        for q in r.pcs
+            add(q.G, q.k, q.H, _psadd(_psmul(D(q.G), q.p), D(q.p)))
+            q.k === :one && continue
+            hp = _psmul(D(q.H), q.p)
+            q.k === :cos ? add(q.G, :sin, q.H, _psscale(hp, MINUS_ONE)) : add(q.G, :cos, q.H, hp)
+        end
+    end
+end
+
 function Base.diff(s::SymSeries, x::Sym)
-    _eq(x, s.x) || return _with(s, _ps(s.ps.e, [diff(c, x) for c in s.ps.c], s.ps.o))
-    # d/dt (c t^e) = (e c + dc/dlog t) t^(e-1)
-    d = _ps(s.ps.e .- 1, [Sym(SymNumber(e)) * c + diff(c, _LOGT) for (e, c) in zip(s.ps.e, s.ps.c)], s.ps.o - 1)
+    _eq(x, s.x) || return _with(s, _asdiff(_as(s), p -> _ps(p.e, [diff(c, x) for c in p.c], p.o)))
+    d = _asdiff(_as(s), _psderiv)
     s.x0 isa Real && isinf(s.x0) || return _with(s, d, s.n - 1)
     # dt/dx: t = 1/x gives -t^2, t = -1/x gives t^2
-    _with(s, _psscale(_psshift(d, 2 // 1), s.x0 > 0 ? -ONE : ONE), s.n + 1)
+    _with(s, _asmul(_asplain(_PS([2 // 1], [s.x0 > 0 ? -ONE : ONE], _INF)), d), s.n + 1)
 end

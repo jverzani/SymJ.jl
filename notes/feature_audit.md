@@ -99,7 +99,7 @@ separately. Names checked against SymPy 1.14 and Giac.jl's command table as befo
 |:--|:--|:--|:--|
 | Derivatives, higher and mixed | `diff` | `diff` | ✅ `diff(f, x, n)`, `diff(f, x, y, …)`; ❌ of symbolic order `n` (SymPy #29389, #29102) |
 | Limits, one-sided, at ∞ | `limit` (Gruntz) | `limit` | ✅ `limit`, through GruntzLimit (66/66 of its benchmark; answers by case of a parameter, which neither offers; assumptions settle cases); ❌ multivariable (SymPy #30871); elliptic integrals, modified Bessel functions (#26250, #26040), `floor` of an argument tending to ∞ (#27773) |
-| Series, Taylor, asymptotic, `O` | `series`, `fps`, `O` | `series`, `taylor` | ✅ Taylor, Laurent, Puiseux, at ∞, log terms (no `fps`, SymPy #29027, #26824, #26626, #26039; no coefficient of `x^n` for symbolic `n`, #27723; no `O` in expressions); one variable only: no multivariate (total-degree) Taylor series (SymPy #28583); no series of unknown functions (#26858), real branches of `abs` (#25682); no asymptotic series at ∞ of Si, Ci, modified Bessel, `gamma` (Stirling) (#26257, #26207, #26210, #26096) |
+| Series, Taylor, asymptotic, `O` | `series`, `fps`, `O` | `series`, `taylor` | ✅ Taylor, Laurent, Puiseux, at ∞, log terms (no `fps`, SymPy #29027, #26824, #26626, #26039; no coefficient of `x^n` for symbolic `n`, #27723; no `O` in expressions); one variable only: no multivariate (total-degree) Taylor series (SymPy #28583); no series of unknown functions (#26858), real branches of `abs` (#25682); asymptotic series at ±∞ with `e^g`, `cos h`, `sin h` factors (erf, Ei, Si, Ci, Bessel, Stirling; #27109, #26257, #26207, #26210, #26096) |
 | Padé approximants | — | `pade` | ❌ (requested, SymPy #27665) |
 | Indefinite integrals | `integrate` | `integrate` | ✅ RischIntegrate (175/175 of the Apostol set, more than either); ❌ antiderivatives in special functions beyond `erf`/`erfi` and polylogarithms: hypergeometric, Fresnel, elliptic, Owen's T (SymPy #30374, #29910, #29900, #30070, #30014, #30110; RischIntegrate's) |
 | Definite and improper integrals | `integrate(f, (x, a, b))` | `integrate(f, x, a, b)` | ✅ split at the integrand's singular points, one-sided limits there and at ±∞, `±∞` or an error when divergent, `Cases` on parameters (`∫₀^∞ e^(-ax)`); assumptions pick antiderivative forms through RischIntegrate's sign oracle (needs a RischIntegrate with it); with no antiderivative, Beta integrals over [0, π/2] (∫ sinᵃx cosᵇx; SymPy #30664); ❌ other Beta forms such as ∫₀¹ xᵃ(1-x)ᵇ (#29751), and differentiation under the integral sign (#30869, #30677, #26249); integral representations of special functions, digamma and ζ (#26523, #26512) |
@@ -218,7 +218,14 @@ transforms). Of the rest, in rough order of value for calculus-level use:
    also narrow conditions: for an integer `x < 1000`, `x ≥ 999` is `x = 999`, after which
    a piecewise's piece at that point merges with the next one (SymPy #27627; the merge
    itself is done, the narrowing is not).
-9. **Asymptotic series with exponential factors** (decided 2026-11-04, for the next
+9. **Asymptotic series with exponential factors** — done (2026-11-04, branch
+   asymptotic-series): a `SymSeries` at ±∞ carries pieces `e^g·(series)`,
+   `e^g cos(h)·(series)` and `e^g sin(h)·(series)`; `exp`, `sin`, `cos` of growing
+   arguments, `erf`, `erfc`, `erfi`, `erfcx`, `expinti`, `expint`, `sinint`, `cosint`,
+   the four Bessel functions and Stirling's series for `gamma` (`loggamma` as an ordinary
+   series). Not yet: a reciprocal of a sum with such factors (`1/(1 + e^x)`), limits
+   through these series (#26040), and finite points (essential singularities stay errors).
+   The original note: (decided 2026-11-04, for the next
    round of feature work). At ±∞, `series(erf(x), x, Inf)` is an error for now: past
    its 1, erf's expansion is `e^(-x²)` times a series in 1/x, exponentially small, so as
    a power series in 1/x it would be `1 + O(x^-n)` for every n (SymPy #27109). The plan
