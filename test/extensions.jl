@@ -421,4 +421,21 @@ import PolyLog as PL
         @test Sym(series(SF.besselj(1, x), x, 0, 5)) == x / 2 - x^3 / 16
         @test_throws ArgumentError series(SF.bessely(1, x), x, 0, 4)       # logarithmic terms
     end
+
+    @testset "missing cases (SymPy review, round 4)" begin
+        @syms z a b r R n tf
+        F = SymFunction(:F)
+        # ₂F₁ antiderivatives at the ends: continuity, Gauss's sum at 1 (#26477)
+        if isdefined(RischIntegrate, :clausen2)
+            v = RischIntegrate.integrate(z^(a - 1) * (1 - z)^(b - 1), (z, 0, 1); assume = (a ≫ 0, b ≫ 0))
+            @test N(subs(v, a => Sym(3) // 2, b => Sym(5) // 2)) ≈ SF.beta(1.5, 2.5)
+            v = RischIntegrate.integrate(z^(a - Sym(1) // 2) * sqrt(1 - z), (z, 0, 1); assume = (a ≫ 0,))
+            @test N(subs(v, a => 2)) ≈ SF.beta(2.5, 1.5)
+        end
+        # unknown functions of x: their integrals held, the rest integrated (#25457, #26249, #26116)
+        @test RischIntegrate.integrate(F(r) + r, r) == r^2 / 2 + SymJ._mkfn_node(:Integral, Sym[F(r), r])
+        @test RischIntegrate.integrate(3F(r) * sin(a), r) == 3sin(a) * SymJ._mkfn_node(:Integral, Sym[F(r), r])
+        @test diff(RischIntegrate.integrate(F(r) + r, r), r) == F(r) + r
+        @test RischIntegrate.integrate(R * F(R), (R, b, r)) == SymJ._mkfn_node(:Integral, Sym[R * F(R), R, b, r])
+    end
 end

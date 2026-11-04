@@ -306,6 +306,26 @@ function _extract_power(n::Integer, q::Int)
             c *= oftype(n, p)^(k % q)
         end
     end
+    # beyond: odd divisors up to 2^17 while d^q fits, so 1009^2 in 1009^2 * 1013 and
+    # 51613^2 come out (SymPy #26903, #26317); with the primes below 1000 gone, a
+    # divisor found is prime
+    if m > 1 && _perfect_root(m, q) === nothing
+        d, dmax = 1001, min(131071, Int(min(_iroot(m, q), 131071)))
+        while d <= dmax
+            if m % d == 0
+                k = 0
+                while m % d == 0
+                    m ÷= d
+                    k += 1
+                end
+                a *= oftype(n, d)^(k ÷ q)
+                c *= oftype(n, d)^(k % q)
+                (m == 1 || _perfect_root(m, q) !== nothing) && break
+                dmax = min(dmax, Int(min(_iroot(m, q), 131071)))
+            end
+            d += 2
+        end
+    end
     if m > 1
         r = _perfect_root(m, q)
         r === nothing ? (c *= m) : (a *= r)

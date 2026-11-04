@@ -20,6 +20,14 @@ function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Boo
     length(xab) == 3 || throw(ArgumentError("integrate: give the limits as (x, a, b)"))
     x, lo, hi = Sym(xab[1]), _endpoint(xab[2]), _endpoint(xab[3])
     _isnamed(x) || throw(ArgumentError("integrate: $x is not a symbol"))
+    # terms with an unknown function of x are held, ∫ₐᵇ f(x) dx, the rest integrated
+    rest, held = _split_opaque(Sym(f), x)
+    if !isempty(held)
+        H = _add_many(c * _mkfn_node(:Integral, Sym[g, x, Sym(xab[2]), Sym(xab[3])]) for (c, g) in held)
+        iszero(rest) && return H
+        v = _definite_integral(rest, xab, assume, antider; principal_value)
+        return v isa Cases ? _map_cases(w -> w + H, v) : v + H
+    end
     A0 = _assumptions(assume)
     A0 === nothing && (A0 = Assumptions())
     # the other symbols are real, as for limit, and x too: conj(x) is x
@@ -362,13 +370,53 @@ end
 
 # F at p from the side dir: its value, or its one-sided limit where that is needed
 function _endvalue(F::Sym, x::Sym, p::Sym, dir::Symbol, A, singular::Bool = false)
+    G = _hyp_endpoint(F, x, p, dir, A)            # ₂F₁ terms by their values at p
+    G === nothing || (F = G)
     if !singular && !_isinfpt(p)
         v = try subs(F, x => p) catch err; _isdivzero(err) || rethrow(); nothing end
-        # (a piecewise F at a parametric end, as ∫|x| at a/b, its case decided if A can)
-        v !== nothing && _hasfn(v, :piecewise) && (v = refine(v; assume = A))
-        v !== nothing && _finite_value(v) && return v
+        # (a piecewise F at a parametric end, as ∫|x| at a/b, its case decided if A can;
+        # 0^x with x > 0 is 0)
+        v !== nothing && (_hasfn(v, :piecewise) || _has_zero_power(v)) && (v = refine(v; assume = A))
+        v !== nothing && !_has_zero_power(v) && _finite_value(v) && return v
     end
     _onesided(F, x, p, dir, A)
+end
+
+_has_zero_power(e::Sym) = (e.kind == POW && iszero(e.args[1])) ||
+    (e.kind == MUL && any(iszero, e.args)) || any(_has_zero_power, e.args) ||
+    (e.kind == MUL && any(_has_zero_power, e.exps))
+
+# F with each ₂F₁(a, b; c; u) whose argument tends to u₀ at p (from the side dir)
+# replaced by its value there: by continuity for |u₀| < 1, and by Gauss's sum
+# Γ(c)Γ(c-a-b)/(Γ(c-a)Γ(c-b)) for u₀ = 1 when c - a - b > 0 (Abel's theorem). The limit
+# code does not know ₂F₁, which made ∫₀¹ z^(x-1)(1-z)^(y-1) dz "divergent" (SymPy
+# #26477, #26068). Only valid at p; nothing when F has no such term to replace.
+function _hyp_endpoint(F::Sym, x::Sym, p::Sym, dir::Symbol, A)
+    _hasfn(F, :_₂F₁) || return nothing
+    x0 = _isinfpt(p) ? Float64(p.num) : p
+    changed = Ref(false)
+    G = _replace_walk(F) do t
+        (t.kind == FN && t.name === :_₂F₁ && length(t.args) == 4 && has(t.args[4], x)) || return nothing
+        a, b, c, u = t.args
+        any(q -> has(q, x), (a, b, c)) && return nothing
+        u0 = _limit_or(u, x, x0, dir, A)
+        u0 isa Sym && !_isinfpt(u0) || return nothing
+        if iszero(u0)
+            changed[] = true
+            return ONE
+        elseif iszero(expand(u0 - 1))
+            d = expand(c - a - b)
+            _decide(Relation(:gt, d, ZERO), A) || return nothing
+            changed[] = true
+            Γ(w) = apply_function(:gamma, Sym[w])
+            return Γ(c) * Γ(d) / (Γ(expand(c - a)) * Γ(expand(c - b)))
+        end
+        w = _hassymbol(u0) ? nothing : (try N(u0) catch; nothing end)
+        (w isa Number && abs(w) < 1) || return nothing
+        changed[] = true
+        apply_function(:_₂F₁, Sym[a, b, c, u0])
+    end
+    changed[] ? G : nothing
 end
 
 function _finite_value(v::Sym)
@@ -379,7 +427,8 @@ end
 
 function _onesided(F::Sym, x::Sym, p::Sym, dir::Symbol, A)
     x0 = _isinfpt(p) ? Float64(p.num) : p
-    L = _limit_or(F, x, x0, dir, A)
+    fail = Ref{Any}(nothing)
+    L = _limit_or(F, x, x0, dir, A, fail)
     if L === nothing
         Gc = _neglogs(F, x, p, dir)          # log(u) with u < 0 near p: log(-u) + iπ
         if Gc !== nothing
@@ -393,15 +442,24 @@ function _onesided(F::Sym, x::Sym, p::Sym, dir::Symbol, A)
             end
         end
     end
-    L === nothing && throw(ArgumentError("integrate: the integral does not converge: the antiderivative $F has no limit at $x = $p"))
+    if L === nothing
+        # a limit the limit code could not take (an unsupported function) is no proof
+        # of divergence
+        e = fail[]
+        e isa GruntzError && occursin("unsupported", sprint(showerror, e)) && throw(ArgumentError(
+            "integrate: cannot find the limit of the antiderivative $F at $x = $p ($(sprint(showerror, e)))"))
+        throw(ArgumentError("integrate: the integral does not converge: the antiderivative $F has no limit at $x = $p"))
+    end
     L
 end
 
-function _limit_or(F, x, x0, dir, A)
+# the limit, or nothing (the error, if one was the cause, left in fail[])
+function _limit_or(F, x, x0, dir, A, fail = Ref{Any}(nothing))
     L = try
         limit(F, x => x0; dir = dir === :+ ? :+ : :-, assume = A)
     catch err
         err isa Union{GruntzError,ArgumentError,DomainError} || rethrow()
+        fail[] = err
         return nothing
     end
     L isa Cases || return L
@@ -510,6 +568,33 @@ function _singular_points(f::Sym, x::Sym, lo::Sym, hi::Sym)
     end
     unique(pts)
 end
+
+# f = rest + Σ cᵢ gᵢ, the gᵢ the terms with an unknown function of x (f(x), a derivative
+# of one, a held Sum or Integral), cᵢ their factors free of x: the integrator does not
+# take those (RischNotImplemented on SymFunction; SymPy #25457, #26116, #26249), so
+# their integrals are held and the rest integrated
+function _split_opaque(f::Sym, x::Sym)
+    held = Tuple{Sym,Sym}[]
+    _has_opaque(f, x) || return f, held
+    terms = f.kind == ADD ? [Sym(c) * a for (c, a) in zip(f.coefs, f.args)] : [f]
+    rest = f.kind == ADD ? Sym(f.num) : ZERO
+    for t in terms
+        if !_has_opaque(t, x)
+            rest += t
+        elseif t.kind == MUL
+            c = Sym(t.num) * prod((b^p for (b, p) in zip(t.args, t.exps) if !has(b, x) && !has(p, x)); init = ONE)
+            push!(held, (c, cancel(t / c)))
+        else
+            push!(held, (ONE, t))
+        end
+    end
+    rest, held
+end
+
+_has_opaque(e::Sym, x::Sym) = has(e, x) &&
+    ((e.kind == FN && (e.name in (:Derivative, :Integral, :Sum, :Product) ||
+                       (!haskey(FUNCTION_RULES, e.name) && !(e.name in _NO_CHAIN)))) ||
+     any(a -> _has_opaque(a, x), e.args) || (e.kind == MUL && any(a -> _has_opaque(a, x), e.exps)))
 
 # the singular points of an antiderivative F, where it may jump; none when they cannot be
 # located (F is then trusted to be continuous, as before)
