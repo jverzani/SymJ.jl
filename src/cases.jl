@@ -554,6 +554,32 @@ function _solve_abs_split(e::Relation, x::Sym, B::Assumptions)
     _sort_roots!(out)
 end
 
+# Σ cᵢ uᵢ^(2kᵢ) = 0 with cᵢ > 0 and the uᵢ real (x real): every uᵢ = 0. The roots of one
+# that can be solved, kept where the others vanish too ((x - 5)² + (sin x - sin 5)² = 0
+# is x = 5; SymPy #24207). nothing when e is not such a sum.
+function _solve_sum_of_squares(e::Relation, x::Sym, B::Assumptions)
+    _ismarkedreal(B, x) || return nothing
+    g = e.lhs - e.rhs
+    g.kind == ADD && iszero(g.num) && length(g.args) >= 2 || return nothing
+    us = Sym[]
+    for (c, t) in zip(g.coefs, g.args)
+        c > N0 || return nothing
+        (t.kind == POW && t.args[2].kind == NUMBER && _isint(t.args[2].num) && iseven(_toint(t.args[2].num)) &&
+         t.args[2].num > N0) || return nothing
+        u = t.args[1]
+        has(u, x) && _isreal(u, B) === true || return nothing
+        push!(us, u)
+    end
+    # the most solvable first: polynomials, then the rest
+    sort!(us; by = u -> (_ispoly_in(u, x) ? 0 : 1, _nodes(u)))
+    for (i, u) in enumerate(us)
+        rs = try _solve_case(Relation(:eq, u, ZERO), x, B) catch err; err isa ArgumentError || rethrow(); continue end
+        rs isa AbstractVector || continue
+        return [r for r in rs if all(j -> j == i || _vanishes(subs(us[j], x => r)), eachindex(us))]
+    end
+    nothing
+end
+
 # the one atom of n (a function call, power) that involves x, when there is one
 function _single_x_atom(n::Sym, x::Sym)
     atoms = Set{Sym}()
@@ -567,6 +593,8 @@ function _solve_case(e::Relation, x::Sym, B::Assumptions)
         r = _solve_abs_split(e, x, B)
         r === nothing || return r
     end
+    r = _solve_sum_of_squares(e, x, B)
+    r === nothing || return r
     n, d = numer_denom(cancel(e.lhs - e.rhs))
     for f in _param_factors(d, (x,))
         _decide(Relation(:ne, f, ZERO), B) || return Sym[]

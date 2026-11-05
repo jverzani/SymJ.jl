@@ -211,6 +211,14 @@ import PolyLog as PL
         Inf_ = Sym(Inf)
         # an answer whose only non-elementary part is a ₂F₁ term: an expression, so limit
         # and the rest take it (SymPy #24879)
+        # Bose–Einstein and Fermi–Dirac integrals (SymPy #24431)
+        @test ∫(x^2 / (exp(x) - 1), (x, 0, Inf_)) == 2SF.zeta(Sym(3))
+        @test ∫(x^2 / (exp(x) + 1), (x, 0, Inf_)) == 3SF.zeta(Sym(3)) / 2
+        # a definite integral refined under the assumptions (n integer: sin(nπ) = 0)
+        let n = Sym(:n)
+            cs = ∫(cos(n * x) * cos(x), (x, -PI, PI); assume = (n ∈ ℤ, n ≧ 0))
+            @test last(cs.cases).second == 0
+        end
         # (₂F₁ answers and the larger radicals are in RischIntegrate 1.2 on)
         isdefined(RischIntegrate, :HypTerm) && @test ∫(1 / sqrt(1 + x^3), x) isa Sym
         # simplify of an answer by cases (SymPy #23909 extra)

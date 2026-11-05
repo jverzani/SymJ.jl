@@ -41,7 +41,9 @@ function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Boo
     v = _by_cases(A0) do A
         sub = collect(A.subst)
         g, l, h = isempty(sub) ? (Sym(f), lo, hi) : (subs(Sym(f), sub...), subs(lo, sub...), subs(hi, sub...))
-        _definite_degenerate(g, x, l, h, A) do g, l, h
+        # the value refined under the case's assumptions (sin(nπ) = 0 for an integer n;
+        # found in the review of SymPy #24000s)
+        r = _definite_degenerate(g, x, l, h, A) do g, l, h
             # failing that, once more with f simplified (cos² + sin² in a denominator, a 0);
             # failing both, a known definite integral (no antiderivative needed)
             try
@@ -56,6 +58,7 @@ function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Boo
             catch err
                 err isa InterruptException && rethrow()
                 v = _known_definite(g, x, l, h)
+                v === nothing && (v = _bose_fermi_definite(g, x, l, h, A))
                 # (a Gaussian in real form once refined: |exp(w)|² with w complex; SymPy #26102)
                 if v === nothing
                     Ax = _with_fact(A, x ∈ ℝ)
@@ -65,6 +68,7 @@ function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Boo
                 v === nothing ? rethrow() : v
             end
         end
+        r isa Sym && _hassymbol(r) ? _refine(r, A) : r
     end
     _tidy_constant(v)
 end
@@ -114,6 +118,41 @@ function _known_definite(f::Sym, x::Sym, lo::Sym, hi::Sym)
     p, q = Sym((a + N1) / SymNumber(2)), Sym((b + N1) / SymNumber(2))
     gs = (_gamma_exact(p), _gamma_exact(q), _gamma_exact(p + q))
     c * gs[1] * gs[2] / (2gs[3])
+end
+
+# ∫₀^∞ c xᵖ/(e^(ax) ∓ 1) dx, a > 0 (decided): Γ(p+1) ζ(p+1)/a^(p+1) for -1 (Bose–Einstein,
+# p > 0), (1 - 2^(-p)) Γ(p+1) ζ(p+1)/a^(p+1) for +1 (Fermi–Dirac, p > -1; log(2)/a at
+# p = 0). SymPy #24431, where the residue criterion rightly finds no antiderivative.
+function _bose_fermi_definite(f::Sym, x::Sym, lo::Sym, hi::Sym, A::Assumptions)
+    (iszero(lo) && _isinfpt(hi) && _infsign(hi) > 0) || return nothing
+    fs = f.kind == MUL ? [(u, q) for (u, q) in zip(f.args, f.exps)] : f.kind == POW ? [(f.args[1], f.args[2])] : [(f, ONE)]
+    c = f.kind == MUL ? Sym(f.num) : ONE
+    p, a, σ = ZERO, nothing, nothing
+    for (u, q) in fs
+        if !has(u, x) && !has(q, x)
+            c *= u^q
+        elseif _eq(u, x) && q.kind == NUMBER && isexact(q.num)
+            p += q
+        elseif a === nothing && q.kind == NUMBER && _isN1(-q.num) && u.kind == ADD && length(u.args) == 1 &&
+               _isN1(u.coefs[1]) && abs(u.num) == N1 && u.args[1].kind == POW && u.args[1].args[1] === E
+            w = u.args[1].args[2]
+            a = cancel(w / x)
+            has(a, x) && return nothing
+            σ = u.num
+        else
+            return nothing
+        end
+    end
+    a === nothing && return nothing
+    _decide(Relation(:gt, a, ZERO), A) || return nothing
+    s1 = p + 1
+    if σ < N0
+        p.num > N0 || return nothing
+        return c * apply_function(:gamma, Sym[s1]) * apply_function(:zeta, Sym[s1]) / a^s1
+    end
+    p.num > SymNumber(-1) || return nothing
+    iszero(p) && return c * log(Sym(2)) / a
+    c * (1 - Sym(2)^(-p)) * apply_function(:gamma, Sym[s1]) * apply_function(:zeta, Sym[s1]) / a^s1
 end
 
 # Gaussian integrals, for a > 0 (decided by cases): ∫ℝ e^(-ax² + bx + c) dx =

@@ -338,6 +338,12 @@ function pow(b::Sym, e::Sym)
             bk == MUL && return _mulpow_int(b, e)
             bk == POW && return pow(b.args[1], mul(b.args[2], e))
         elseif isexact(en)
+            # (b^p)^q = b^(p q) for b > 0 (a number or e, π) and p real: (3^(1/3))^(1/4)
+            # is 3^(1/12)
+            if bk == POW && b.args[2].kind == NUMBER && isexact(b.args[2].num) &&
+               ((b.args[1].kind == NUMBER && isexact(b.args[1].num) && b.args[1].num > N0) || b.args[1].kind == CONSTANT)
+                return pow(b.args[1], mul(b.args[2], e))
+            end
             # a positive constant factor comes out: (c m)^e = c^e m^e for c > 0 on the
             # principal branch (scaling by c > 0 leaves the argument unchanged), so
             # sqrt(4a) = 2 sqrt(a) and sqrt(2a + 2b) = sqrt(2) sqrt(a + b)
@@ -348,10 +354,55 @@ function pow(b::Sym, e::Sym)
     end
     if bk == NUMBER
         _isN1(b.num) && return ONE
+        # n^(u p/q) with n a perfect q-th power: 256^(x/2) = 16^x (SymPy #24090)
+        if e.kind == MUL && isexact(e.num) && !_isint(e.num) && isexact(b.num) && _isint(b.num) && b.num > N1
+            q = _denominator(e.num)
+            r = _int_root(big(_numerator(b.num)), q)
+            r === nothing || return pow(Sym(SymNumber(r)), mul(Sym(SymNumber(q)), e))
+        end
     elseif b === E && e.kind == FN && e.name === :log && length(e.args) == 1
         return e.args[1]                        # exp(log(z)) == z
+    elseif b === E
+        # exp(iπ r), r rational: r reduced into (-1, 1]; exp(10iπ) = 1, exp(12iπ/5) =
+        # exp(2iπ/5) (SymPy #24082)
+        r = _ipi_coeff(e)
+        if r !== nothing
+            q = Rational{BigInt}(_numerator(r), _denominator(r))
+            q2 = q - 2 * floor((q + 1) / 2)              # in [-1, 1)
+            q2 == -1 && (q2 = 1 // 1)
+            iszero(q2) && return ONE
+            isone(q2) && return MINUS_ONE
+            q2 == 1 // 2 && return IM
+            q2 == -1 // 2 && return mul(MINUS_ONE, IM)
+            q2 == q || return pow(E, mul(mul(Sym(SymNumber(q2)), IM), PI))
+        end
     end
     _mkpow_node(b, e)
+end
+
+# the integer r with r^q == n (n > 1), or nothing
+function _int_root(n::BigInt, q::Integer)
+    q <= 1 && return nothing
+    q > 64 * ndigits(n) && return nothing
+    r = round(BigInt, BigFloat(n; precision = 4 * ndigits(n, base = 2) + 64)^(1 / BigFloat(q; precision = 4 * ndigits(n, base = 2) + 64)))
+    for c in (r - 1, r, r + 1)
+        c > 1 && c^q == n && return c
+    end
+    nothing
+end
+
+# r for e = r i π, r an exact rational; else nothing
+function _ipi_coeff(e::Sym)
+    e.kind == MUL && isexact(e.num) && length(e.args) == 2 || return nothing
+    hasi = hasp = false
+    for (a, p) in zip(e.args, e.exps)
+        if a.kind == NUMBER && _isN1(-a.num) && p.kind == NUMBER && p.num == SymNumber(1 // 2)
+            hasi = true
+        elseif a === PI && p.kind == NUMBER && _isN1(p.num)
+            hasp = true
+        end
+    end
+    hasi && hasp ? e.num : nothing
 end
 
 # a constant to a floating point power, evaluated as _numpow does a number's (exp(0.5),

@@ -283,3 +283,72 @@ end
     V, λ = LA.eigvecs(A), LA.eigvals(A)
     @test maximum(abs.(N.(A * V[:, 1] - λ[1] * V[:, 1]))) < 1e-12
 end
+
+@testset "missing cases (SymPy review, round 5)" begin
+    @syms a b c k n s t z L
+    LA = SymJ.LinearAlgebra
+    # powers of positive constants merged; perfect-power bases reduced (#24090)
+    @test (Sym(3)^(Sym(1) // 3))^(Sym(1) // 4) == Sym(3)^(Sym(1) // 12)
+    @test refine(sqrt(Sym(256)^x); assume = (x ∈ ℝ,)) == Sym(16)^x
+    # exp(iπr) reduced (#24082)
+    @test exp(10 * IM * PI) == 1
+    @test exp(2 * PI * IM / 5)^6 == exp(2 * PI * IM / 5)
+    # max and min: common factors and terms out (#24578)
+    @test simplify(max(2a, 2b)) == 2max(a, b)
+    @test simplify(max(a + c, b + c)) == c + max(a, b)
+    @test simplify(max(-a, -b)) == -min(a, b)
+    # floats in apart (#24481)
+    @test N(subs(apart((37s + 300) / ((s + 2) * (s^2 + 5.9999s + 5)), s) - (37s + 300) / ((s + 2) * (s^2 + 5.9999s + 5)), s => 3)) ≈ 0 atol = 1e-12
+    # constant factors of factor's result combined (#24998)
+    @test factor(x - x * exp(Sym(-10))) == (1 - exp(Sym(-10))) * x
+    # exp kept in floating point inverse transforms
+    @test !occursin("2.718", string(SymJ.inverse_laplace_transform((2.5e3 * s + 1.0e6) / (s * (s^2 + 1.2e3 * s + 4.0e6)), s, t)))
+    # Laplace transforms of sin(√t), cos(√t)/√t and integrals (#24309, #24545)
+    @test SymJ.laplace_transform(sin(sqrt(t)), t, s) == sqrt(PI) / (2 * s^(Sym(3) // 2)) * exp(-1 / (4s))
+    @test SymJ.laplace_transform(cos(2sqrt(t)) / sqrt(t), t, s) == sqrt(PI / s) * exp(-1 / s)
+    u = SymFunction(:u)
+    @test SymJ.laplace_transform(SymJ.apply_function(:Integral, Sym[u(t), t]), t, s) == SymJ.apply_function(:LaplaceTransform, Sym[u(t), t, s]) / s
+    # derivatives of real, imag, angle in a real variable (#24318)
+    @test diff(real(x^2), x) == real(2x)
+    @test simplify(refine(diff(angle(IM * x), x); assume = (x ∈ ℝ,))) == 0
+    # a vanishing base with a positive exponent (#24067)
+    @test limit(x^n, x => 0; assume = (n ∈ ℤ, n ≫ 0)) == 0
+    # a piecewise limit at a point whose sign the assumptions give (#24042)
+    @test limit(x * SymJ.heaviside(x), x => L; assume = (L ≫ 0,)) == L
+    # x ≠ 0 in a tuple is the Bool true: an error that says so (#24183)
+    @test_throws ArgumentError refine(x^2 ≫ 0; assume = (x ∈ ℝ, x ≠ 0))
+    @test refine(x^2 ≫ 0; assume = (x ∈ ℝ, x ≶ 0)) == true
+    # inverse trig constants equal to a rational multiple of π; simplify idempotent (#24948)
+    @test simplify(acos(2sqrt(Sym(5)) / 5) - acos(-3sqrt(Sym(10)) / 10) + 3PI / 4) == 0
+    @test simplify(cos(acos(2sqrt(Sym(5)) / 5) - acos(-3sqrt(Sym(10)) / 10) + 3PI / 4)) == 1
+    # cyclotomic factors: roots as cos + i sin (#25192)
+    rs = solve(x^7 + 1 ~ 0, x)
+    @test !any(r -> occursin(".", string(r)), rs)
+    @test maximum(abs(N(r^7 + 1)) for r in rs) < 1e-12
+    # sums of squares of real expressions (#24207)
+    @test solve((x - 5)^2 + (sin(x) - sin(Sym(5)))^2 ~ 0, x; assume = (x ∈ ℝ,)) == [5]
+    # a complex constant in polar form (#24522)
+    @test SymJ.rewrite((1 + IM * sqrt(Sym(3))) / 2, exp) == exp(IM * PI / 3)
+    # series at branch points (#25175)
+    @test Sym(series(acosh(1 + z), z, 0, 3)) == sqrt(Sym(2)) * sqrt(z) - sqrt(Sym(2)) * z^(Sym(3) // 2) / 12 + 3sqrt(Sym(2)) * z^(Sym(5) // 2) / 160
+    # rank with cases (#24613)
+    @test LA.rank(Sym[2 -1 7; 1 2 2; 0 5 -3; 5 0 5+k]) == 3
+    cs = LA.rank(Sym[2 -1 7; 1 2 2; 0 5 -3; 5 0 5+k]; generic = false)
+    @test first(cs.cases) == (Any[k ~ 11] => 2)
+    # exponentials with a common ratio (#24138)
+    @test solve(Sym(4)^x + Sym(6)^x ~ Sym(9)^x, x) == [log((1 + sqrt(Sym(5))) / 2) / log(Sym(3) / 2)]
+    # floor: an interval (#25001)
+    @test string(solve(floor(x / 2 - Sym(1) // 2) + 1 ~ 0, x)) == "[-1, 1)"
+    # x through s² + x² only (#24418)
+    @test length(solve(-5t^2 - 5x^2 + 5log(t^2 + x^2) + 7 ~ 0, t)) == 4
+    # abs and square roots in systems (#24189, #24868)
+    @test solve([abs(x) + abs(y) ~ 2, x - y ~ 1], [x, y]) == [Dict(x => Sym(3) / 2, y => Sym(1) / 2), Dict(x => -Sym(1) / 2, y => -Sym(3) / 2)]
+    f = sqrt((x + 1)^2 + (y - 1)^2 + (z + 1)^2)
+    g = x^2 + y^2 + z^2 - 9
+    @syms l
+    @test length(solve([diff(f, x) ~ l * diff(g, x), diff(f, y) ~ l * diff(g, y), diff(f, z) ~ l * diff(g, z), g ~ 0], [x, y, z, l])) == 2
+    # Jordan form with Cardano's trigonometric roots (#24942)
+    @test LA.isdiag(SymJ.jordan_form(Sym[-3 1 2; 1 -1 0; 1 0 -2])[2])
+    # exp of a scalar multiple: no sqrt(s^2)
+    @test !occursin("sqrt(s^2)", string(exp(-Sym[-2 1; 1 -1] * s)))
+end

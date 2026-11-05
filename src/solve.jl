@@ -29,7 +29,8 @@ differentiation; other derivatives of it are held as they are.
 An equation through `sin` or `cos` gives the solutions for its argument in `[0, 2π]`,
 each once: `cos(x) ~ 0` gives `[π/2, 3π/2]`, `sin(x) ~ -1//2` gives `[7π/6, 11π/6]`, and
 `cos(x) ~ 1` gives `[0, 2π]` (with the interval closed, 0 brings 2π). `tan(u) = r` gives
-`atan(r)`.
+`atan(r)`. An equation `c*floor(u) + d ~ 0` (or `ceil`) holds on intervals: its solution
+is a set, as for an inequality (`floor(x) ~ 2` gives `[2, 3)`).
 
 ```julia
 solve(x^2 - 2 ~ 0, x)          # [-sqrt(2), sqrt(2)]
@@ -76,6 +77,9 @@ solve(x^2 ~ a, x; assume = (x ≫ 0,), drop_empty = true)   # [√a] (for a > 0)
 ```
 """
 function solve(eq::Relation, x::Sym; assume = nothing, drop_empty::Bool = false)
+    # c floor(u) + d = 0 (or ceil) holds on intervals of u: its solution set, as for an
+    # inequality (SymPy #25001)
+    eq.op === :eq && _isnamed(x) && (S = _solve_floor(eq, x, assume); S !== nothing) && return S
     A = something(_assumptions(assume), Assumptions())
     r = if !_isnamed(x)
         with(_NOT_PARAMS => _named(x)) do
@@ -85,6 +89,35 @@ function solve(eq::Relation, x::Sym; assume = nothing, drop_empty::Bool = false)
         _solve_assumed(eq, x, A)
     end
     drop_empty ? _drop_empty(r) : r
+end
+
+# floor(u) = n ⇔ n ≤ u < n + 1 and ceil(u) = n ⇔ n - 1 < u ≤ n, n an integer (no
+# solutions otherwise), for an equation c floor(u) + d = 0 with c, d constants
+function _solve_floor(eq::Relation, x::Sym, assume)
+    g = expand(eq.lhs - eq.rhs)
+    F = nothing
+    _replace_walk(g) do t
+        t.kind == FN && t.name in (:floor, :ceil) && length(t.args) == 1 && has(t.args[1], x) &&
+            (F === nothing || _eq(F, t)) && (F = t)
+        nothing
+    end
+    F === nothing && return nothing
+    u = Sym(Symbol("_floor_u"))
+    h = expand(subs(g, F => u))
+    has(h, x) && return nothing
+    P = try Poly{Sym}(h, [u]) catch; return nothing end
+    degree(P, u) == 1 || return nothing
+    c, d = coeff(h, u, 1), coeff(h, u, 0)
+    (_hassymbol(c) || _hassymbol(d)) && return nothing
+    n = -d / c
+    (n.kind == NUMBER && isexact(n.num)) || return nothing
+    _isint(n.num) || return SymSet(SymInterval[])
+    w = F.args[1]
+    lo, hi = F.name === :floor ? (Relation(:ge, w, n), Relation(:lt, w, n + 1)) :
+                                  (Relation(:gt, w, n - 1), Relation(:le, w, n))
+    S1, S2 = solve(lo, x; assume), solve(hi, x; assume)
+    (S1 isa SymSet && S2 isa SymSet) || return nothing
+    S1 ∩ S2
 end
 
 # the generic solutions, coefficients with parameters taken to be nonzero (what internal
@@ -217,9 +250,11 @@ function _floatify(e::Sym)
         return Sym(f(e.num)) + _add_many((_isN1(abs(c)) ? Sym(c) : Sym(f(c))) * _floatify(a) for (c, a) in zip(e.coefs, e.args))
     elseif k == MUL
         c = _isN1(abs(e.num)) ? Sym(e.num) : Sym(f(e.num))
-        return c * prod((_floatify(a)^x for (a, x) in zip(e.args, e.exps)); init = ONE)
+        # (exp(-600t) stays exp, not 2.718281828459045^(-600t))
+        fb(a) = a === E ? E : _floatify(a)
+        return c * prod((fb(a)^x for (a, x) in zip(e.args, e.exps)); init = ONE)
     elseif k == POW
-        return _floatify(e.args[1])^e.args[2]
+        return (e.args[1] === E ? E : _floatify(e.args[1]))^e.args[2]
     elseif k == FN
         return apply_function(e.name, Sym[_floatify(a) for a in e.args])
     end
@@ -414,6 +449,8 @@ function _solve_through(eq::Relation, n::Sym, x::Sym, bad::Vector{Sym})
             r === nothing || return r
             r = _solve_exp_bases(eq, x)
             r === nothing || return r
+            r = _solve_exp_sum(eq, n, x)
+            r === nothing || return r
             # several radicals: one squared away at a time (the rest in the recursion)
             if all(_issqrt, bad) && length(bad) <= 4
                 R = first(bad)
@@ -443,6 +480,8 @@ function _solve_through(eq::Relation, n::Sym, x::Sym, bad::Vector{Sym})
             return filter(r -> _satisfies(eq, x, r), Sym[exp(r) for r in ys])
         end
         r = _solve_lambert(eq, nu, u, g, x)
+        r === nothing || return r
+        r = _solve_inner_generator(eq, n, x, g)
         r === nothing || return r
         throw(ArgumentError("solve: $eq involves both $x and $g; not supported (it may need, e.g., Lambert W)"))
     end
@@ -521,6 +560,117 @@ function _solve_exp_bases(eq::Relation, x::Sym)
     cands = try _solve_eq(expand(L - R) ~ 0, x) catch err; err isa ArgumentError || rethrow(); return nothing end
     cands isa AbstractVector || return nothing
     filter(r -> _satisfies(eq, x, r), cands)
+end
+
+# Σ cᵢ Π b^(α x + β), b positive rationals, α, β rational: each term's x part is r^(kᵢ x)
+# for one r when the bases' prime exponents lie on a line (4^x + 6^x = 9^x: with t =
+# (3/2)^x, 1 + t = t²; SymPy #24138). A polynomial in t = r^x, its positive roots giving
+# x = log(t)/log(r). nothing if not of this form.
+function _solve_exp_sum(eq::Relation, n::Sym, x::Sym)
+    n = expand(n)
+    n.kind == ADD || return nothing
+    ts = [Sym(c) * a for (c, a) in zip(n.coefs, n.args)]
+    iszero(n.num) || push!(ts, Sym(n.num))
+    terms = Tuple{Sym,Dict{BigInt,Rational{BigInt}}}[]
+    for t in ts
+        fs = t.kind == MUL ? collect(zip(t.args, t.exps)) : t.kind == POW ? [(t.args[1], t.args[2])] : [(t, ONE)]
+        c = t.kind == MUL ? Sym(t.num) : ONE
+        v = Dict{BigInt,Rational{BigInt}}()
+        for (b, p) in fs
+            if !has(b, x) && !has(p, x)
+                c *= b^p
+                continue
+            end
+            (b.kind == NUMBER && isexact(b.num) && b.num > N0 && !has(b, x)) || return nothing
+            P = try Poly{Sym}(expand(p), [x]) catch; return nothing end
+            degree(P, x) == 1 || return nothing
+            α, β = coeff(expand(p), x, 1), coeff(expand(p), x, 0)
+            (α.kind == NUMBER && isexact(α.num) && !_hassymbol(β)) || return nothing
+            c *= b^β
+            a = Rational{BigInt}(_numerator(α.num), _denominator(α.num))
+            for (q, k) in _prime_exponents(b.num)
+                v[q] = get(v, q, 0 // 1) + a * k
+            end
+        end
+        _hassymbol(c) && has(c, x) && return nothing
+        push!(terms, (c, v))
+    end
+    length(terms) >= 2 || return nothing
+    ps = sort!(unique(reduce(vcat, [collect(keys(v)) for (_, v) in terms])))
+    vec(v) = [get(v, q, 0 // 1) for q in ps]
+    v1 = vec(terms[1][2])
+    ds = [vec(v) - v1 for (_, v) in terms]
+    j = findfirst(d -> any(!iszero, d), ds)
+    j === nothing && return nothing
+    w = ds[j]
+    ks = Rational{BigInt}[]
+    for d in ds
+        i = findfirst(!iszero, w)
+        k = d[i] / w[i]
+        d == k .* w || return nothing                    # not on one line
+        push!(ks, k)
+    end
+    L = reduce(lcm, (denominator(k) for k in ks); init = big(1))
+    ki = [Int(numerator(k * L)) for k in ks]
+    m = minimum(ki)
+    r = prod((Sym(SymNumber(q))^Sym(SymNumber(wq / L)) for (q, wq) in zip(ps, w)); init = ONE)
+    T = Sym(Symbol("_expsum_t"))
+    poly = _add_many(c * T^(k - m) for ((c, _), k) in zip(terms, ki))
+    roots = try _solve_eq(poly ~ 0, T) catch err; err isa ArgumentError || rethrow(); return nothing end
+    roots isa AbstractVector || return nothing
+    out = Sym[]
+    for τ in roots
+        _vanishes(τ) && continue
+        v = try N(τ) catch; continue end
+        (v isa Real && v > 0) || continue                # real x: t = r^x > 0
+        cand = simplify(log(τ) / log(r))
+        _satisfies(eq, x, cand) && !any(o -> _eq(o, cand), out) && push!(out, cand)
+    end
+    out
+end
+
+# (prime, exponent) pairs of a positive rational
+function _prime_exponents(c::SymNumber)
+    out = Pair{BigInt,Int}[]
+    for (m, sgn) in ((big(_numerator(c)), 1), (big(_denominator(c)), -1))
+        p = big(2)
+        while p * p <= m && p <= 10^6                # (a large cofactor kept as one "prime")
+            k = 0
+            while iszero(m % p)
+                m ÷= p
+                k += 1
+            end
+            k > 0 && push!(out, p => sgn * k)
+            p += p == 2 ? 1 : 2
+        end
+        m > 1 && push!(out, m => sgn)
+    end
+    out
+end
+
+# x only through h, the argument of g, elsewhere too (-5s² + 5log(s² + x²) - 5x² + 7: in
+# v = s² + x², -5v + 5log(v) + 7): the equation in v, then h = v for each value (SymPy
+# #24418). nothing when x does not go away with h = v.
+function _solve_inner_generator(eq::Relation, n::Sym, x::Sym, g::Sym)
+    (g.kind == FN && length(g.args) == 1 && has(g.args[1], x) && !_eq(g.args[1], x)) || return nothing
+    h = g.args[1]
+    v = Sym(Symbol("_v", objectid(h)))
+    rs = try _solve_eq(h ~ v, x) catch err; err isa ArgumentError || rethrow(); return nothing end
+    (rs isa AbstractVector && !isempty(rs)) || return nothing
+    m = try simplify(subs(n, x => rs[1])) catch; return nothing end
+    has(m, x) && return nothing
+    has(m, v) || return nothing
+    vs = try _solve_eq(m ~ 0, v) catch err; err isa ArgumentError || rethrow(); return nothing end
+    vs isa AbstractVector || return nothing
+    out = Sym[]
+    for v0 in vs
+        xs = try _solve_eq(h ~ v0, x) catch err; err isa ArgumentError || rethrow(); continue end
+        for r in xs
+            ok = try _satisfies(eq, x, r) catch err; err isa ArgumentError || rethrow(); true end
+            ok && !any(o -> _eq(o, r), out) && push!(out, r)
+        end
+    end
+    out
 end
 
 _ispositive_const(b::Sym) = (v = try N(b) catch; return false end; v isa Real && v > 0)
@@ -869,6 +1019,10 @@ function _solve_irreducible(c::Vector{Sym}, f)
         r = (-c[1] / c[end])^(1 // d)
         return [r * pow(MINUS_ONE, Sym(SymNumber(2k // d))) for k in 0:(d - 1)]
     end
+    # a cyclotomic polynomial Φ_N: the primitive N-th roots of unity as cos + i sin of
+    # rational multiples of π, not radicals or floats (x^7 + 1; SymPy #25192)
+    N = _cyclotomic_index(c)
+    N === nothing || return Sym[cos(Sym(2k // N) * PI) + IM * sin(Sym(2k // N) * PI) for k in 1:N if gcd(k, N) == 1]
     d == 3 && return _cardano(c...)
     d == 4 && return _ferrari(c...)
     r = _solve_decomposed(c)
@@ -876,6 +1030,46 @@ function _solve_irreducible(c::Vector{Sym}, f)
     all(ci -> !_hassymbol(ci), c) || throw(ArgumentError(
         "solve: an irreducible factor of degree $d with symbolic coefficients"))
     _numeric_roots(c)
+end
+
+# N when the polynomial with coefficients c (low to high) is a multiple of Φ_N, else nothing
+function _cyclotomic_index(c::Vector{Sym})
+    all(ci -> ci.kind == NUMBER && isexact(ci.num), c) || return nothing
+    d = length(c) - 1
+    lc = c[end].num
+    q = [Rational{BigInt}(_numerator(ci.num / lc), _denominator(ci.num / lc)) for ci in c]
+    all(isinteger, q) || return nothing
+    for N in 3:(2d^2 + 2)
+        _totient(N) == d || continue
+        _cyclotomic(N) == q && return N
+    end
+    nothing
+end
+_totient(n::Int) = count(k -> gcd(k, n) == 1, 1:n)
+const _CYCLOTOMIC = Dict{Int,Vector{Rational{BigInt}}}()
+# Φ_N's coefficients, low to high: (x^N - 1) / Π_{d | N, d < N} Φ_d
+function _cyclotomic(N::Int)
+    get!(_CYCLOTOMIC, N) do
+        p = zeros(Rational{BigInt}, N + 1)
+        p[1], p[end] = -1, 1
+        for d in 1:(N - 1)
+            N % d == 0 || continue
+            p = _udiv_exact(p, d == 1 ? Rational{BigInt}[-1, 1] : _cyclotomic(d))
+        end
+        p
+    end
+end
+function _udiv_exact(a::Vector{Rational{BigInt}}, b::Vector{Rational{BigInt}})
+    a = copy(a)
+    db, da = length(b) - 1, length(a) - 1
+    q = zeros(Rational{BigInt}, da - db + 1)
+    for i in (da - db):-1:0
+        q[i + 1] = a[i + db + 1] / b[end]
+        for j in 0:db
+            a[i + j + 1] -= q[i + 1] * b[j + 1]
+        end
+    end
+    q
 end
 
 # f = g₁ ∘ ⋯ ∘ gₖ with every gᵢ of degree at most 4: the roots of g₁, then for each value

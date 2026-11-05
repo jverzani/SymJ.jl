@@ -65,7 +65,20 @@ function _factor_sym(ex::Sym; gcd_method::Symbol = :auto)
     # would distribute 6 into 2n + 1); a sign still goes into the first factor, x - a
     # rather than -(a - x)
     c = num[1] / den[1]
-    Sym(abs(c)) * (_sqf_sym(c < N0 ? NM1 : N1, num[2]) / _sqf_sym(N1, den[2]))
+    r = Sym(abs(c)) * (_sqf_sym(c < N0 ? NM1 : N1, num[2]) / _sqf_sym(N1, den[2]))
+    # a constant atom among the generators (e from exp(-10)): the factors free of the
+    # symbols are a constant, one factor expanded (x*(1 - exp(-10)), not cyclotomic
+    # polynomials in e over e^10; SymPy #24998)
+    if any(g -> !_hassymbol(g), gs) && r.kind == MUL
+        fs = collect(zip(r.args, r.exps))
+        k = [i for i in eachindex(fs) if !_hassymbol(fs[i][1])]
+        if length(k) >= 2 || (length(k) == 1 && fs[k[1]][1].kind == ADD && !_eq(fs[k[1]][2], ONE))
+            cst = expand(prod((fs[i][1]^fs[i][2] for i in k); init = ONE))
+            rest = prod((fs[i][1]^fs[i][2] for i in eachindex(fs) if !(i in k)); init = ONE)
+            r = Sym(r.num) * cst * rest
+        end
+    end
+    r
 end
 factor(x::Number; gcd_method::Symbol = :auto) = Sym(x)
 
