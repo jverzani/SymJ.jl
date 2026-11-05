@@ -5,7 +5,8 @@
 # conditions themselves nodes: a relation, Lt(a, b) and its kin (Le, Gt, Ge, Eq, Ne),
 # a conjunction And(c, d, …), or 1 (true) and 0 (false), to which a relation between
 # constants evaluates. So a substitution picks the piece, and arithmetic, `diff`, `N`
-# and `lambdify` take a piecewise as they take any function.
+# and `lambdify` take a piecewise as they take any function. Its derivative is taken
+# piece by piece, a jump J at a breakpoint p adding J dirac(x - p), as for heaviside.
 #
 # As built, the pieces whose condition is false are dropped, a true condition ends the
 # list, and a piece with the value of the true one after it is dropped. With no piece
@@ -86,9 +87,13 @@ condition is a relation (`x ≪ 0`), a tuple of them that all hold (`(0 ≦ x, x
 With one expression, writes its `heaviside`, `sign`, `abs`, `max` and `min` as piecewise
 functions (taking their arguments to be real); with cases, makes them one expression.
 
+The derivative is taken piece by piece; where the function jumps by `J` at `p`, it has
+the term `J*dirac(x - p)`, as `heaviside` does.
+
 ```julia
 f = SymJ.piecewise(x ≪ 0 => -x, true => x^2)
 f(x => -2), diff(f, x)          # 2, piecewise(x ≪ 0 => -1, true => 2x)
+diff(SymJ.piecewise(x ≪ 0 => 0, true => 1), x)   # dirac(x)
 ```
 """
 function piecewise(pairs::Pair...)
@@ -561,6 +566,24 @@ function _side_value(F::Sym, x::Sym, b::Sym, dir::Symbol)
     l isa Sym && return l
     v = try subs(F, x => b) catch err; _isdivzero(err) || rethrow(); return nothing end
     _defined_at(F, x, b) && _finite_value(v) ? v : nothing
+end
+
+# Σ J dirac(x - p) over the breakpoints p of the piecewise function e where its values
+# from the left and right differ by J ≠ 0; zero when the breakpoints are not all known
+# numbers or expressions in parameters, or repeat with a period
+function _pw_jumps(e::Sym, x::Sym)
+    any(i -> has(e.args[i], x), 1:2:length(e.args)) || return ZERO
+    _periodic_conditions(e, x) && return ZERO
+    bps = _breakpoints(e, x)
+    bps === nothing && return ZERO
+    out = ZERO
+    for b in bps
+        l, r = _side_value(e, x, b, :-), _side_value(e, x, b, :+)
+        (l isa Sym && r isa Sym && _finite_value(l) && _finite_value(r)) || continue
+        J = simplify(r - l)
+        iszero(J) || (out = add(out, mul(J, dirac(x - b))))
+    end
+    out
 end
 
 function _integrate_dirac(t::Sym, x::Sym)

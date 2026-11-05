@@ -441,7 +441,9 @@ function _param_factors(c::Sym, unknowns)
             _hassymbol(b) && !any(u -> has(b, u), unknowns) && !any(u -> has(b, u), _NOT_PARAMS[]) || continue
             atoms = Set{Sym}()
             _poly_atoms!(atoms, b)
-            all(_isnamed, atoms) || continue      # a polynomial in the parameters
+            # a polynomial in the parameters, its coefficients constants such as √3
+            # (a - √3 b; SymPy #24344)
+            all(a -> _isnamed(a) || !_hassymbol(a), atoms) || continue
             b = _content_free(b)
             any(o -> (q = cancel(o / b); q.kind == NUMBER), out) || push!(out, b)
         end

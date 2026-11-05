@@ -97,9 +97,14 @@ end
 """
     has(ex, x)
 
-Does `x` occur as a subexpression of `ex`? (Matches whole nodes only.)
+Does `x` occur as a subexpression of `ex`? (Matches whole nodes only, and the powers
+`b^e` that a product holds as factors, so `has(-im, im)` and `has(x*sqrt(y), sqrt(y))`.)
 """
-has(ex::Sym, x::Sym) = _eq(ex, x) || any(a -> has(a, x), ex.args) || any(a -> has(a, x), ex.exps)
+has(ex::Sym, x::Sym) = _eq(ex, x) || _hasfactor(ex, x) || any(a -> has(a, x), ex.args) || any(a -> has(a, x), ex.exps)
+
+# a product stores b^e as the pair (b, e): a power x is one of its factors
+_hasfactor(ex::Sym, x::Sym) = ex.kind == MUL && x.kind == POW &&
+    any(i -> _eq(ex.args[i], x.args[1]) && _eq(ex.exps[i], x.args[2]), eachindex(ex.args))
 
 ## substitution and calling
 

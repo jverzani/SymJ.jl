@@ -50,6 +50,10 @@ function gamma_value(args)
     elseif ishalfint(a) && a.num > SymNumber(0)
         n = _toint(a.num - SymNumber(1 // 2))
         return Sym(factorial(big(2n)) // (big(4)^n * factorial(big(n)))) * SQRTPI
+    elseif ishalfint(a) && a.num > SymNumber(-200)
+        # Γ(1/2 - n) = (-4)^n n! / (2n)! √π
+        n = _toint(SymNumber(1 // 2) - a.num)
+        return Sym(big(-4)^n * factorial(big(n)) // factorial(big(2n))) * SQRTPI
     end
     nothing
 end
@@ -59,6 +63,8 @@ const ZETA_EVEN = Dict(2 => PI^2 / 6, 4 => PI^4 / 90, 6 => PI^6 / 945, 8 => PI^8
 function zeta_value(args)
     length(args) == 1 && isint(args[1]) || return nothing
     n = _toint(args[1].num)
+    # ζ(-n) = -B_(n+1)/(n + 1) for n ≥ 1: 0 for even n
+    -200 <= n < 0 && return Sym(SymNumber(-SymJ._bernoulli(1 - n) // (1 - n)))
     n == 0 ? Sym(-1 // 2) : get(ZETA_EVEN, n, nothing)
 end
 

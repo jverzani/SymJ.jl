@@ -242,6 +242,12 @@ for (f, g) in ((:mod, floor), (:rem, trunc))
                 return iszero(q) ? nothing : mod(a - q * b, b)
             end
             (!_hassymbol(a) && !_hassymbol(b) && !iszero(b)) || return nothing
+            # an infinite modulus is a float (Sym(Inf)): the float value, as for a number
+            # (mod(3, Inf) is 3.0); a - b q would be NaN
+            if any(c -> c.kind == NUMBER && isinf(c), args)
+                v = try (getfield(Base, f))(Float64(N(a)), Float64(N(b))) catch; return nothing end
+                return Sym(v)
+            end
             q = g(a / b)
             q.kind == NUMBER ? a - b * q : nothing
         end)

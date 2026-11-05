@@ -183,7 +183,9 @@ The function of `t ≥ 0` whose Laplace transform is `F`: for `F` a sum of ratio
 functions of `s` times factors `exp(-c s)` (giving [`SymJ.heaviside`](@ref)`(t - c)`
 shifts). A rational function is split into partial fractions and each inverted by
 residues at the roots of its denominator, so the roots must be found; a constant term
-gives [`SymJ.dirac`](@ref)`(t)`. Throws an `ArgumentError` otherwise. Not exported.
+gives [`SymJ.dirac`](@ref)`(t)`. A factor `exp(c s)` with `c > 0` (or `exp(a s)`, a
+symbol taken to be positive) is a shift to `t < 0`, the transform of no function of
+`t ≥ 0`. Throws an `ArgumentError` otherwise. Not exported.
 
 ```julia
 @syms t s
@@ -229,10 +231,24 @@ function inverse_laplace_transform(F, s::Sym, t::Sym)
     end
     out = ZERO
     for (c, R) in _lap_shifts(F, s)
+        # e^(-cs) with c < 0 is the transform of no function of t ≥ 0 (SymPy #24595); a
+        # symbol c is taken to be ≥ 0, as in laplace_transform, so -a is refused too
+        _ilap_negshift(c) && throw(ArgumentError("inverse_laplace_transform: exp($(-c)*s) is a shift to t < 0; no inverse for t ≥ 0"))
         g = _ilap_rational(R, s, t)
         out += iszero(c) ? g : heaviside(t - c) * subs(g, t => t - c)
     end
     out
+end
+
+function _ilap_negshift(c::Sym)
+    iszero(c) && return false
+    A = _ASSUMING[]
+    if A !== nothing
+        _nonneg(c, A) && return false
+        _nonpos(c, A) && return true
+    end
+    _hassymbol(c) || return _isreal_const(c) === true && N(c) < 0
+    _isneg(c)
 end
 
 function _held_transforms(F::Sym, s::Sym)

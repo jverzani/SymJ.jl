@@ -203,3 +203,32 @@ end
     sol = SymJ.dsolve(diff((1 + x)^3 * diff(u(x), x, 2), x, 2) ~ 0, u(x))
     @test iszero(simplify(diff((1 + x)^3 * diff(rhs(sol), x, 2), x, 2)))
 end
+
+@testset "wrong answers (SymPy review, round 5)" begin
+    @syms a b s t
+    # has sees the powers a product holds as factors (-im is a product; #25162)
+    @test has(-IM, IM)
+    @test has(x * sqrt(y), sqrt(y))
+    sv = SymJ.LinearAlgebra.svdvals(Sym[0 IM; -IM IM])
+    @test iszero(simplify(sv[1] - (1 + sqrt(Sym(5))) / 2))
+    @test iszero(simplify(sv[2] - (sqrt(Sym(5)) - 1) / 2))
+    # a float matrix: LAPACK's eigenvectors (inexact roots left empty null spaces; #24057)
+    A = Sym[0.0 0 0; 0.92 0.86 0; 0 0.08 0.8]
+    @test size(SymJ.LinearAlgebra.eigvecs(A), 2) == 3
+    F = SymJ.LinearAlgebra.eigen(Sym.([0.0 0 0 0.45; 0.92 0.86 0 0; 0 0.08 0.8 0.83; 0 0.02 0.19 0]))
+    @test N.(F.values) ≈ [-0.15445857152658957, -0.002629910195547378, 0.807969994528574, 1.009118487193563]
+    # exp(c s) with c > 0 shifts to t < 0: no inverse (#24595)
+    @test_throws ArgumentError SymJ.inverse_laplace_transform(exp(2s), s, t)
+    @test_throws ArgumentError SymJ.inverse_laplace_transform(exp(a * s), s, t)
+    @test SymJ.inverse_laplace_transform(exp(-2s) / s, s, t) == SymJ.heaviside(t - 2)
+    # an infinite modulus with a constant: its float value, not sqrt(2) + NaN
+    @test mod(sqrt(Sym(2)), Sym(Inf)) == Sym(sqrt(2))
+    # a jump in a piecewise function is a dirac in its derivative, as for heaviside (#24127)
+    @test diff(SymJ.piecewise(x ≪ 0 => 0, true => 1), x) == SymJ.dirac(x)
+    @test diff(SymJ.piecewise(x ≪ 1 => x^2, true => 2x + 3), x) == 4SymJ.dirac(x - 1) + SymJ.piecewise(x ≪ 1 => 2x, true => 2)
+    @test diff(SymJ.piecewise(x ≪ 0 => -x, true => x), x) == SymJ.piecewise(x ≪ 0 => -1, true => 1)
+    # a vanishing coefficient with an irrational constant is a case (#24344)
+    cs = solve((a - sqrt(Sym(3)) * b) * x^2 + x + 1 ~ 0, x)
+    @test first(cs.cases).second == [-1]
+    @test first(cs.cases).first == Any[a ~ sqrt(Sym(3)) * b]
+end
