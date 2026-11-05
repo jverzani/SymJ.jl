@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Rational functions — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=fa65fa4b">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=acbf96ec">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Rational functions — SymJ.jl">
   <meta property="og:title" content="Rational functions — SymJ.jl">
@@ -74,7 +74,7 @@
 <div class="md-docstring" id="SymJ.cancel-Tuple{Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.cancel</code> — <span class="md-docstring-sig">Tuple{Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/031040c4b422c9abfe9cefc2f404477cbfb3dd35/src/rational.jl#L92-L113" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/43bd427f56916f034248dac2c1752e21e23dccf3/src/rational.jl#L92-L113" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -94,7 +94,7 @@ cancel((sin(x)^2 - 1)/(sin(x) + 1))        # sin(x) - 1</code></pre>
 <div class="md-docstring" id="SymJ.numer_denom-Tuple{Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.numer_denom</code> — <span class="md-docstring-sig">Tuple{Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/031040c4b422c9abfe9cefc2f404477cbfb3dd35/src/rational.jl#L3-L14" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/43bd427f56916f034248dac2c1752e21e23dccf3/src/rational.jl#L3-L14" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -112,7 +112,7 @@ numer_denom(3x/4)          # (3*x, 4)</code></pre>
 <div class="md-docstring" id="SymJ.apart-Tuple{Sym, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.apart</code> — <span class="md-docstring-sig">Tuple{Sym, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/031040c4b422c9abfe9cefc2f404477cbfb3dd35/src/apart.jl#L9-L26" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/43bd427f56916f034248dac2c1752e21e23dccf3/src/apart.jl#L9-L26" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -120,7 +120,7 @@ numer_denom(3x/4)          # (3*x, 4)</code></pre>
 <pre><code class="language-julia">apart(ex, x; gcd_method = :auto)
 apart(ex; gcd_method = :auto)</code></pre>
 </div>
-<p>Partial fraction decomposition of a rational function of <code class="md-code-inline">x</code> with exact coefficients: a polynomial plus terms <code class="md-code-inline">c(x)/p(x)^j</code>, <code class="md-code-inline">p</code> irreducible and <code class="md-code-inline">deg c &lt; deg p</code>. Coefficients may involve other symbols (and, as in <a href="../../reference/rational/#SymJ.cancel-Tuple{Sym}"><code class="md-code-inline">cancel</code></a>, function applications): the decomposition is then over the field of rational functions in them, <code class="md-code-inline">ℚ(a, b, ...)</code>. With no <code class="md-code-inline">x</code>, <code class="md-code-inline">ex</code> must have one free variable. <code class="md-code-inline">gcd_method</code> (<code class="md-code-inline">:auto</code>, <code class="md-code-inline">:dense</code> or <code class="md-code-inline">:zippel</code>; see <a href="../../reference/polynomials/#Base.gcd-Tuple{Sym, Sym}"><code class="md-code-inline">gcd</code></a>) chooses the gcd method in the initial <a href="../../reference/rational/#SymJ.cancel-Tuple{Sym}"><code class="md-code-inline">cancel</code></a> and in factoring the denominator.</p>
+<p>Partial fraction decomposition of a rational function of <code class="md-code-inline">x</code>: a polynomial plus terms <code class="md-code-inline">c(x)/p(x)^j</code>, <code class="md-code-inline">p</code> irreducible and <code class="md-code-inline">deg c &lt; deg p</code>. Coefficients may involve other symbols (and, as in <a href="../../reference/rational/#SymJ.cancel-Tuple{Sym}"><code class="md-code-inline">cancel</code></a>, function applications): the decomposition is then over the field of rational functions in them, <code class="md-code-inline">ℚ(a, b, ...)</code>. With no <code class="md-code-inline">x</code>, <code class="md-code-inline">ex</code> must have one free variable. Floating point coefficients are taken as the rationals they stand for, and the result&#39;s numbers are floats again. <code class="md-code-inline">gcd_method</code> (<code class="md-code-inline">:auto</code>, <code class="md-code-inline">:dense</code> or <code class="md-code-inline">:zippel</code>; see <a href="../../reference/polynomials/#Base.gcd-Tuple{Sym, Sym}"><code class="md-code-inline">gcd</code></a>) chooses the gcd method in the initial <a href="../../reference/rational/#SymJ.cancel-Tuple{Sym}"><code class="md-code-inline">cancel</code></a> and in factoring the denominator.</p>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">apart(1/(x^2 - 1))              # 1/(2*(x - 1)) - 1/(2*(x + 1))
@@ -146,6 +146,6 @@ apart(1/((x - a)*(x - b)), x)   # 1/((a - b)*(x - a)) - 1/((a - b)*(x - b))</cod
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=fa65fa4b"></script>
+  <script src="../../assets/materialdocs.js?v=acbf96ec"></script>
 </body>
 </html>
