@@ -194,6 +194,18 @@ function _diff(ex::Sym, x::Sym)
         Fx = apply_function(:Derivative, Sym[_diff(F, x), t, a])
         iszero(da) && return Fx
         return add(mul(apply_function(:Derivative, Sym[_mkfn_node(:Derivative, Sym[F, t]), t, a]), da), Fx)
+    elseif ex.name in (:real, :imag, :conj) && length(ex.args) == 1
+        # in a real variable: the part of the derivative (not holomorphic, so not through
+        # a derivative rule; SymPy #24318)
+        du = _diff(ex.args[1], x)
+        return iszero(du) ? ZERO : apply_function(ex.name, Sym[du])
+    elseif ex.name === :angle && length(ex.args) == 1
+        # angle(u) = atan(Im u, Re u): (Re u Im u' - Im u Re u') / |u|²
+        u = ex.args[1]
+        du = _diff(u, x)
+        iszero(du) && return ZERO
+        ru, iu = real(u), imag(u)
+        return (ru * imag(du) - iu * real(du)) / (ru^2 + iu^2)
     elseif ex.name === :piecewise
         # piece by piece, and a jump J at a breakpoint p is J dirac(x - p), as for
         # heaviside (SymPy #24127)

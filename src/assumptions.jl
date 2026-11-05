@@ -1299,6 +1299,12 @@ end
 function _assumptions(assume)
     cur = _ASSUMING[]
     (assume === nothing || (assume isa Union{Tuple,AbstractVector} && isempty(assume))) && return cur
+    # a fact that is the Bool true says nothing, and is most often x ≠ 0 or x != 0, which
+    # in Julia compares the expressions (SymPy #24183)
+    if (assume === true || (assume isa Union{Tuple,AbstractVector} && any(f -> f === true, assume)))
+        throw(ArgumentError("one of the assumptions is the Bool `true`: `x ≠ 0` (or `!=`) compares the " *
+            "expressions and is true; write `x ≶ 0` (\\lessgtr), or `x ≠ 0` inside @assume(…)"))
+    end
     cur === nothing && return assume isa Assumptions ? assume : Assumptions(assume)
     Assumptions(cur, assume)
 end

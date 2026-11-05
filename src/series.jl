@@ -193,6 +193,25 @@ function _psapply(name::Symbol, args::Vector{Sym}, N::Rational{Int})
             throw(ArgumentError("series: $(apply_function(name, args)) at its branch point 1 with a symbolic order"))
         return _pspolylog(o, a, N)
     end
+    # inverse functions at their branch points ±1: through square roots, whose series
+    # have half-integer powers (acosh(1 + z) = √(2z)(1 - z/12 + …); SymPy #25175)
+    if length(args) == 1 && (_eq(a0, ONE) || _eq(a0, MINUS_ONE))
+        w = args[1]
+        r = if name === :acos
+            _eq(a0, ONE) ? 2asin(sqrt((1 - w) / 2)) : PI - 2asin(sqrt((1 + w) / 2))
+        elseif name === :asin
+            _eq(a0, ONE) ? PI / 2 - 2asin(sqrt((1 - w) / 2)) : -PI / 2 + 2asin(sqrt((1 + w) / 2))
+        elseif name === :acosh && _eq(a0, ONE)
+            2asinh(sqrt((w - 1) / 2))
+        elseif name === :atanh
+            (log(1 + w) - log(1 - w)) / 2
+        elseif name === :acoth
+            (log(w + 1) - log(w - 1)) / 2
+        else
+            nothing
+        end
+        r === nothing || return _ser(r, N)
+    end
     a.o > 0 || throw(_SeriesPrecision())
     y = Sym(Symbol("_y"))
     fy = apply_function(name, Sym[j == i ? y : args[j] for j in eachindex(args)])

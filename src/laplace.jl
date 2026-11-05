@@ -17,7 +17,10 @@
 The Laplace transform `∫₀^∞ e^(-st) f(t) dt` of `f`: for sums of products of powers of
 `t`, exponentials, sines, cosines, `sinh`, `cosh`, and their shifts by
 [`SymJ.heaviside`](@ref)`(t - a)`, and [`SymJ.dirac`](@ref)`(t - a)` (`a ≥ 0`; a symbol `a`
-is taken to be). Throws an `ArgumentError` for other terms. Not exported.
+is taken to be); `sin(a√t)`, `sin(a√t)/√t`, `cos(a√t)/√t`; unknown functions `u(t)` and
+their derivatives (held as `LaplaceTransform(u(t), t, s)`), and integrals `∫₀ᵗ`, of
+which a held `∫ u(t) dt` is taken to be one. Throws an `ArgumentError` for other terms.
+Not exported.
 
 ```julia
 @syms t s
@@ -48,7 +51,11 @@ function _lap(f::Sym, t::Sym, s::Sym)
 end
 
 # exponentials of s kept apart, the rest cancelled
-_lap_tidy(F::Sym, s::Sym) = sum((_ode_tidy(cancel(R)) * exp(-c * s) for (c, R) in _lap_shifts(F, s)); init = ZERO)
+# (an exponential not linear in s, exp(-1/(4s)) from sin(√t): the whole tidied as it is)
+function _lap_tidy(F::Sym, s::Sym)
+    sh = try _lap_shifts(F, s) catch err; err isa ArgumentError || rethrow(); return _ode_tidy(F) end
+    sum((_ode_tidy(cancel(R)) * exp(-c * s) for (c, R) in sh); init = ZERO)
+end
 
 # an unknown function u(t) and its derivatives: L{u⁽ⁿ⁾(t)} = sⁿ U(s) - Σ sⁿ⁻¹⁻ᵏ u⁽ᵏ⁾(0),
 # U(s) the held LaplaceTransform(u(t), t, s) (SymPy #28720)
@@ -61,6 +68,17 @@ function _lap_unknown(term::Sym, t::Sym, s::Sym)
     any(j -> j != i && (has(fs[j][1], t) || has(fs[j][2], t)), eachindex(fs)) && return nothing
     g, p = fs[i]
     _eq(p, ONE) || return nothing
+    # ∫₀ᵗ h: H(s)/s; a held ∫ h(t) dt is taken from 0 (the antiderivative vanishing
+    # there, as for initial values; SymPy #24545)
+    if g.kind == FN && g.name === :Integral
+        rest = cf * prod((b^q for (j, (b, q)) in enumerate(fs) if j != i); init = ONE)
+        if length(g.args) == 2 && _eq(g.args[2], t)
+            return rest * _lap(g.args[1], t, s) / s
+        elseif length(g.args) == 4 && iszero(g.args[3]) && _eq(g.args[4], t) && !_eq(g.args[2], t)
+            return rest * _lap(subs(g.args[1], g.args[2] => t), t, s) / s
+        end
+        return nothing
+    end
     n = 0
     while g.kind == FN && g.name === :Derivative && length(g.args) == 2 && _eq(g.args[2], t)
         g, n = g.args[1], n + 1
@@ -113,6 +131,9 @@ function _lap_term(term::Sym, t::Sym, s::Sym)
         neg && return _lap(rest, t, s)                 # H(t - a) = 1 on t ≥ 0
         return exp(-a * s) * _lap(subs(rest, t => t + a), t, s)
     end
+    # sin(a√t), sin(a√t)/√t and cos(a√t)/√t (SymPy #24309)
+    r = _lap_sqrt_trig(fs, cf, t, s)
+    r === nothing || return r
     # tᵏ e^(αt) terms, sin and cos as exponentials
     e = expand(_ode_toexp(term))
     terms = e.kind == ADD ? [(Sym(c), x) for (c, x) in zip(e.coefs, e.args)] : [(ONE, e)]
@@ -121,6 +142,24 @@ function _lap_term(term::Sym, t::Sym, s::Sym)
         out += c * _lap_expoly(x, t, s)
     end
     _ode_tidy(expand(out))
+end
+
+function _lap_sqrt_trig(fs, cf::Sym, t::Sym, s::Sym)
+    i = findfirst(((b, p),) -> b.kind == FN && b.name in (:sin, :cos) && _eq(p, ONE) && has(b, t), fs)
+    i === nothing && return nothing
+    g = fs[i][1]
+    a = cancel(g.args[1] / sqrt(t))
+    has(a, t) && return nothing
+    rest = cf * prod((b^p for (j, (b, p)) in enumerate(fs) if j != i); init = ONE)
+    k = cancel(rest * sqrt(t))                          # rest = k/√t?
+    q = exp(-a^2 / (4s))
+    if g.name === :sin && !has(rest, t)
+        return rest * a * sqrt(PI) / (2 * s^(Sym(3) // 2)) * q
+    elseif !has(k, t)
+        g.name === :cos && return k * sqrt(PI / s) * q
+        return k * PI * apply_function(:erf, Sym[a / (2sqrt(s))])
+    end
+    nothing
 end
 
 # a term's factors as (base, exponent), and its coefficient

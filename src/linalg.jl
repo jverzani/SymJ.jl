@@ -476,12 +476,69 @@ SymJ.rref(Sym[1 2 3; 4 5 6; 7 8 9])     # [1 0 -1; 0 1 2; 0 0 0]
 rref(A::AbstractMatrix) = _rref_field(A)[1]
 
 """
-    rank(A::AbstractMatrix{Sym})
+    rank(A::AbstractMatrix{Sym}; generic = true)
 
-The rank of a matrix of expressions: its number of pivots in exact elimination (for
-symbolic entries, the generic rank).
+The rank of a matrix of expressions: its number of pivots in exact elimination. For
+symbolic entries this is the generic rank, that for all but special values of the
+symbols. With `generic = false`, the rank is a [`SymJ.Cases`](@ref) value when it drops
+for special values: the rank r holds where the r × r minors do not all vanish, and where
+they do the matrix with those values has a smaller rank.
+
+```julia
+rank(Sym[1 2; 3 k])                    # 2
+rank(Sym[1 2; 3 k]; generic = false)   # k == 6 => 1, k != 6 => 2
+```
 """
-LinearAlgebra.rank(A::AbstractMatrix{Sym}) = length(_rref_field(A)[2])
+function LinearAlgebra.rank(A::AbstractMatrix{Sym}; generic::Bool = true)
+    (generic || !any(_hassymbol, A)) && return length(_rref_field(A)[2])
+    _by_cases(Assumptions()) do B
+        _rank_case(Sym[Sym(a) for a in A], B)
+    end
+end
+
+# the rank in the case B: generic r where the gcd of the r × r minors is nonzero, else
+# the rank with the vanishing factor's value substituted (SymPy #24613)
+function _rank_case(A::Matrix{Sym}, B)
+    sub = [k => v for (k, v) in B.subst]
+    S = isempty(sub) ? A : Sym[cancel(subs(a, sub...)) for a in A]
+    r = length(_rref_field(S)[2])
+    (r == 0 || !any(_hassymbol, S)) && return r
+    m, n = size(S)
+    rows, cols = collect(Iterators.take(_combinations(m, r), 200)), collect(Iterators.take(_combinations(n, r), 200))
+    G = ZERO
+    for I in rows, J in cols
+        d = cancel(LinearAlgebra.det(S[I, J]))
+        iszero(d) && continue
+        nd = numer_denom(d)[1]
+        # (minors that are not polynomials: one minor's factors, extra cases giving r)
+        G = iszero(G) ? nd : (try gcd(G, nd) catch err; err isa ArgumentError || rethrow(); G end)
+        _hassymbol(G) || return r
+    end
+    ps = _degenerate_subst([G], B, Sym[])
+    ps === nothing && return r
+    _alternatives(ps) do p
+        _rank_case(Sym[cancel(subs(a, p)) for a in S], B)
+    end
+end
+
+# the r-subsets of 1:n, in order
+function _combinations(n::Int, r::Int)
+    out = Vector{Int}[]
+    c = collect(1:r)
+    r > n && return out
+    while true
+        push!(out, copy(c))
+        i = r
+        while i >= 1 && c[i] == n - r + i
+            i -= 1
+        end
+        i == 0 && return out
+        c[i] += 1
+        for j in (i + 1):r
+            c[j] = c[j - 1] + 1
+        end
+    end
+end
 
 """
     nullspace(A::AbstractMatrix{Sym})
@@ -671,13 +728,14 @@ function LinearAlgebra.eigvecs(A::AbstractMatrix{Sym})
 end
 
 # An eigenvector for a simple eigenvalue v of a constant matrix that is a root through
-# cube roots or higher (Cardano's, Ferrari's): a nonzero column of adj(A - tI) at t = v. A - vI has rank n - 1, so
+# cube roots or higher (Cardano's, Ferrari's), or in trigonometric form: a nonzero column of adj(A - tI) at t = v. A - vI has rank n - 1, so
 # its adjugate's columns are multiples of the eigenvector; and the cofactors are
 # polynomials in t, with v put in at the end. The null space of A - vI, its entries
 # nested radicals (Ferrari's), took minutes (SymPy #24057). nothing otherwise.
 function _eigvec_adjugate(A::AbstractMatrix, v::Sym, m::Int)
     # (square roots alone, as for a quadratic's roots, are fine through the null space)
-    (m == 1 && v.kind != NUMBER && !_hassymbol(v) && _has_high_root(v)) || return nothing
+    (m == 1 && v.kind != NUMBER && !_hassymbol(v) && (_has_high_root(v) || _hasfn(v, :cos) || _hasfn(v, :acos))) ||
+        return nothing
     S = Sym[Sym(a) for a in A]
     any(_hassymbol, S) && return nothing
     n = size(S, 1)
@@ -907,6 +965,14 @@ function jordan_form(A::AbstractMatrix)
     blocks = Tuple{Sym,Int}[]
     cols = Vector{Sym}[]
     for (λ, m) in _eigen_mult(S)
+        # a simple root in radicals or cos/acos (Cardano's trigonometric form): its
+        # eigenvector from the adjugate (the null space did not finish; SymPy #24942)
+        u = _eigvec_adjugate(S, λ, m)
+        if u !== nothing
+            push!(cols, u)
+            push!(blocks, (λ, 1))
+            continue
+        end
         B = S - λ * Id
         # kernels of B^k until their dimension is the multiplicity
         Bk, kers = Id, Matrix{Sym}[zeros(Sym, n, 0)]
@@ -956,9 +1022,25 @@ end
 
 # f(A) through the Jordan form: on a block for λ of size k, f(J) has f^(j)(λ)/j! on its
 # j-th superdiagonal
+# (a, B) with A = a B, B constant and a the symbolic factor of A's first nonzero entry
+# when every entry is a constant multiple of it; (1, A) otherwise
+function _scalar_multiple(A::AbstractMatrix{Sym})
+    S = Sym[Sym(e) for e in A]
+    any(_hassymbol, S) || return ONE, S
+    i = findfirst(!iszero, S)
+    i === nothing && return ONE, S
+    e = S[i]
+    a = e.kind == MUL ? e / Sym(e.num) : e
+    B = Sym[cancel(x / a) for x in S]
+    any(_hassymbol, B) ? (ONE, S) : (a, B)
+end
+
 function _matfun(f, A::AbstractMatrix{Sym})
     n = _square(A)
-    P, J = jordan_form(A)
+    # a multiple a B of a constant matrix: through B's Jordan form, f(a J) block by block,
+    # so the eigenvalues are a λ (not sqrt(5 s^2) for exp(-s B); review of SymPy #24057)
+    a, B = _scalar_multiple(A)
+    P, J = jordan_form(B)
     t = Sym(Symbol("_matfun_t"))
     F = zeros(Sym, n, n)
     i = 1
@@ -970,7 +1052,7 @@ function _matfun(f, A::AbstractMatrix{Sym})
         end
         d = f(t)
         for j in 0:(k - 1)
-            v = subs(d, t => λ) / factorial(j)
+            v = subs(d, t => a * λ) * a^j / factorial(j)
             for r in i:(i + k - 1 - j)
                 F[r, r + j] = v
             end

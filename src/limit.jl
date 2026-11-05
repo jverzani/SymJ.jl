@@ -148,6 +148,12 @@ function limit(f, xx0::Pair; dir = :both, assume = nothing)
             f = _pieces_near(f, x, x0g, dir, assume)
         end
     end
+    # c b^e, e free of x and positive by the assumptions, b → 0: 0 (x^n at 0 for an integer
+    # n > 0 from either side, where Gruntz takes log(x); SymPy #24067)
+    if A !== nothing
+        r = _zero_base_power(f, x, x0, dir, assume, A)
+        r === nothing || return r
+    end
     # the generic answer, as gruntz_limit gives it (a constant that may vanish taken to be
     # nonzero, where the expression is defined); by cases only when the limit depends on a
     # sign that is not decided
@@ -360,4 +366,21 @@ function _decided(c)
         return r isa Bool ? r != c.negated : nothing
     end
     nothing
+end
+
+function _zero_base_power(f::Sym, x::Sym, x0, dir, assume, A)
+    b, e, c = if f.kind == POW
+        f.args[1], f.args[2], ONE
+    elseif f.kind == MUL
+        i = [j for j in eachindex(f.args) if has(f.args[j], x) || has(f.exps[j], x)]
+        length(i) == 1 || return nothing
+        j = only(i)
+        f.args[j], f.exps[j], f / (f.args[j]^f.exps[j])
+    else
+        return nothing
+    end
+    (has(b, x) && !has(e, x) && _hassymbol(e) && !has(c, x)) || return nothing
+    _ispos(e, A) || return nothing
+    Lb = try limit(b, x => x0; dir, assume) catch err; err isa InterruptException && rethrow(); return nothing end
+    Lb isa Sym && iszero(Lb) ? ZERO : nothing
 end

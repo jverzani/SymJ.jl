@@ -121,7 +121,8 @@ With `fs => target` (`fs` a function or a tuple of them), only those functions a
 rewritten. The targets:
 
 - `exp`: trigonometric and hyperbolic functions, `sin(x) = (exp(im*x) - exp(-im*x))/(2im)`,
-  `cosh(x) = (exp(x) + exp(-x))/2`;
+  `cosh(x) = (exp(x) + exp(-x))/2`; and a complex constant whose argument is a rational
+  multiple of π in polar form, `(1 + im*sqrt(3))/2` as `exp(im*π/3)`;
 - `log`: inverse trigonometric and hyperbolic functions (principal branches),
   `asinh(x) = log(x + sqrt(x^2 + 1))`, `atan(x) = im*(log(1 - im*x) - log(1 + im*x))/2`;
 - `sin` or `cos`: `tan`, `cot`, `sec`, `csc` through `sin` and `cos`, and exponentials
@@ -144,7 +145,25 @@ SymJ.rewrite(binomial(n, k), factorial)   # factorial(n)/(factorial(k)*factorial
 SymJ.rewrite(sin(x) + cos(x), sin => exp) # only sin rewritten
 ```
 """
-rewrite(ex, target::Function) = _rewrite_to(Sym(ex), _rewrite_table(target), nothing)
+function rewrite(ex, target::Function)
+    e = Sym(ex)
+    # a complex constant in polar form, when its argument is a rational multiple of π:
+    # (1 + im*sqrt(3))/2 is exp(im*π/3) (SymPy #24522)
+    if target === exp && !_hassymbol(e) && has(e, IM)
+        r = _polar_exp(e)
+        r === nothing || return r
+    end
+    _rewrite_to(e, _rewrite_table(target), nothing)
+end
+
+function _polar_exp(e::Sym)
+    θ = try simplify(angle(e)) catch; return nothing end
+    q = simplify(θ / PI)
+    (q.kind == NUMBER && isexact(q.num) && !_isint(q.num)) || return nothing
+    ρ = simplify(abs(e))
+    _hasfn(ρ, :abs) && return nothing
+    ρ * pow(E, IM * θ)
+end
 function rewrite(ex, p::Pair)
     fs = p.first isa Union{Tuple,AbstractVector} ? p.first : (p.first,)
     all(f -> f isa Function && !(f isa Sym), fs) ||

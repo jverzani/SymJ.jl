@@ -10,12 +10,12 @@
     apart(ex, x; gcd_method = :auto)
     apart(ex; gcd_method = :auto)
 
-Partial fraction decomposition of a rational function of `x` with exact
-coefficients: a polynomial plus terms `c(x)/p(x)^j`, `p` irreducible and
+Partial fraction decomposition of a rational function of `x`: a polynomial plus terms `c(x)/p(x)^j`, `p` irreducible and
 `deg c < deg p`. Coefficients may involve other symbols (and, as in
 [`cancel`](@ref), function applications): the decomposition is then over the field
 of rational functions in them, `ℚ(a, b, ...)`. With no `x`, `ex` must have one free
-variable. `gcd_method` (`:auto`, `:dense` or `:zippel`; see [`gcd`](@ref)) chooses the gcd method in the
+variable. Floating point coefficients are taken as the rationals they stand for, and
+the result's numbers are floats again. `gcd_method` (`:auto`, `:dense` or `:zippel`; see [`gcd`](@ref)) chooses the gcd method in the
 initial [`cancel`](@ref) and in factoring the denominator.
 
 ```julia
@@ -24,7 +24,15 @@ apart((x^3 + 1)/(x^2 - 1))      # x + 1/(x - 1)
 apart(1/((x - a)*(x - b)), x)   # 1/((a - b)*(x - a)) - 1/((a - b)*(x - b))
 ```
 """
-apart(ex::Sym, x::Sym; gcd_method::Symbol = :auto) = _with_widening(_apart, ex, x; gcd_method)
+function apart(ex::Sym, x::Sym; gcd_method::Symbol = :auto)
+    # floating point coefficients: the decomposition for the rationals they stand for, its
+    # numbers floats again (SymPy #24481)
+    if !_isexactex(ex) && !_float_exponent(ex)
+        X = _exactfloats(ex)
+        _isexactex(X) && return _floatify(_monic_terms(_with_widening(_apart, X, x; gcd_method), x))
+    end
+    _with_widening(_apart, ex, x; gcd_method)
+end
 function _apart(ex::Sym, x::Sym; gcd_method::Symbol = :auto)
     _isnamed(x) || throw(ArgumentError("apart: $x is not a symbol"))
     n, d = numer_denom(_cancel(ex; gcd_method))
@@ -113,4 +121,20 @@ function _qinvmod(a::Poly{C}, m::Poly{C}) where {C}
     end
     r0.monos[1] == 0 || throw(ArgumentError("not coprime"))
     _scale(t0, inv(r0.coefs[1]))          # r0 is a nonzero constant
+end
+
+# each term c(x)/p(x)^j with p monic (for floats: 1.0x + 2.0 rather than 2.8e14x + …)
+function _monic_terms(e::Sym, x::Sym)
+    ts = e.kind == ADD ? [Sym(c) * a for (c, a) in zip(e.coefs, e.args)] : [e]
+    e.kind == ADD && !iszero(e.num) && push!(ts, Sym(e.num))
+    _add_many(map(ts) do t
+        n, d = numer_denom(t)
+        has(d, x) || return t
+        f = d.kind == POW ? d.args[1] : d
+        j = d.kind == POW ? d.args[2] : ONE
+        P = try Poly{Sym}(expand(f), [x]) catch; return t end
+        lc = coeff(expand(f), x, degree(P, x))
+        (lc.kind == NUMBER && !isone(lc.num)) || return t
+        expand(n / lc^j) / expand(f / lc)^j
+    end)
 end

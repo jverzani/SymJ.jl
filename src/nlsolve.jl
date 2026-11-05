@@ -14,6 +14,10 @@
 # rationals they stand for and the solutions converted back to floating point.
 
 function _solve_nonlinear(eqs::Vector{<:Relation}, vars::Vector{Sym})
+    r = _solve_abs_system(eqs, vars)
+    r === nothing || return r
+    r = _solve_radical_system(eqs, vars)
+    r === nothing || return r
     try
         return _solve_polynomial_system(eqs, vars)
     catch err
@@ -21,6 +25,87 @@ function _solve_nonlinear(eqs::Vector{<:Relation}, vars::Vector{Sym})
         sols = _solve_triangular(eqs, vars)
         sols === nothing ? rethrow() : return sols
     end
+end
+
+# |u| in the equations, u with unknowns: the unknowns taken to be real (|u| of complex
+# unknowns gives no finite set of solutions), the system with |u| = u where u ≥ 0 and
+# |u| = -u where u ≤ 0, the real solutions kept that fall in their case (|x| + |y| = 2,
+# x - y = 1; SymPy #24189). nothing when there is no such |u|.
+function _solve_abs_system(eqs::Vector{<:Relation}, vars::Vector{Sym})
+    a = nothing
+    for eq in eqs
+        _replace_walk(eq.lhs - eq.rhs) do t
+            a === nothing && t.kind == FN && t.name === :abs && length(t.args) == 1 &&
+                any(v -> has(t.args[1], v), vars) && (a = t)
+            nothing
+        end
+        a === nothing || break
+    end
+    a === nothing && return nothing
+    u = a.args[1]
+    out = Dict{Sym,Sym}[]
+    for (w, op) in ((u, :ge), (-u, :le))
+        es = Relation[Relation(:eq, subs(e.lhs, a => w), subs(e.rhs, a => w)) for e in eqs]
+        sols = _solve_generic(es, vars)
+        for sol in sols
+            all(v -> !_hassymbol(sol[v]) || _eq(sol[v], v), vars) || continue
+            any(v -> _eq(sol[v], v), vars) && continue          # a free unknown: not decided here
+            vals = [N(sol[v]) for v in vars]
+            all(v -> isreal(v), vals) || continue
+            uv = N(subs(u, (v => sol[v] for v in vars)...))
+            (isreal(uv) && (op === :ge ? real(uv) >= -1e-12 : real(uv) <= 1e-12)) || continue
+            any(o -> all(v -> _eq(o[v], sol[v]), vars), out) || push!(out, sol)
+        end
+    end
+    out
+end
+
+# square roots √R of polynomials R in the unknowns: each a new unknown w with w² = R, the
+# polynomial system solved, and the solutions kept where w is the principal root
+# (Lagrange multipliers with a distance √((x+1)² + …); SymPy #24868, #24269). nothing
+# when there is no such root.
+function _solve_radical_system(eqs::Vector{<:Relation}, vars::Vector{Sym})
+    roots = Sym[]
+    for eq in eqs
+        _replace_walk(eq.lhs - eq.rhs) do t
+            if t.kind == POW && t.args[2].kind == NUMBER && abs(t.args[2].num) == SymNumber(1 // 2) &&
+               any(v -> has(t.args[1], v), vars)
+                R = t.args[1]
+                any(o -> _eq(o, R), roots) || push!(roots, R)
+            end
+            nothing
+        end
+    end
+    isempty(roots) && return nothing
+    length(roots) <= 3 || return nothing
+    atoms = Set{Sym}()
+    all(R -> _poly_atoms!(atoms, R), roots) || return nothing
+    any(a -> !any(v -> _eq(a, v), vars) && any(v -> has(a, v), vars), atoms) && return nothing
+    ws = [Sym(Symbol("_w", i)) for i in eachindex(roots)]
+    # R^(k/2) as w^k
+    sub(e) = _replace_walk(e) do t
+        t.kind == POW && t.args[2].kind == NUMBER && _isint(2 * t.args[2].num) || return nothing
+        i = findfirst(R -> _eq(R, t.args[1]), roots)
+        i === nothing ? nothing : ws[i]^_toint(2 * t.args[2].num)
+    end
+    es = Relation[Relation(:eq, sub(e.lhs), sub(e.rhs)) for e in eqs]
+    any(e -> any(R -> any(v -> has(e.lhs - e.rhs, v), vars) && has(e.lhs - e.rhs, sqrt(R)), roots), es) && return nothing
+    append!(es, [Relation(:eq, w^2, R) for (R, w) in zip(roots, ws)])
+    sols = try _solve_generic(es, [vars; ws]) catch err; err isa ArgumentError || rethrow(); return nothing end
+    out = Dict{Sym,Sym}[]
+    for sol in sols
+        ok = all(zip(roots, ws)) do (R, w)
+            wv = sol[w]
+            _hassymbol(wv) && return true                   # undecided: kept
+            pr = sqrt(subs(R, (v => sol[v] for v in vars)...))
+            z = try N(wv - pr) catch; return true end
+            abs(z) <= 1e-9 * max(1, abs(N(wv)))
+        end
+        ok || continue
+        d = Dict{Sym,Sym}(v => sol[v] for v in vars)
+        any(o -> all(v -> _eq(o[v], d[v]), vars), out) || push!(out, d)
+    end
+    out
 end
 
 # a system that is not polynomial, solved an equation in one unknown at a time: that

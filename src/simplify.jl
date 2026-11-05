@@ -574,7 +574,16 @@ end
 
 function _simplify(e::Sym, A::Assumptions)
     e = _exact_int_exponents(e)
-    _hassymbol(e) || e.kind == NUMBER || return _simplify_const(e, A)
+    if !_hassymbol(e) && e.kind != NUMBER
+        # until it stops shrinking (a product of square roots that a step leaves, √10√2√5,
+        # merges in the next; found in the review of SymPy #24948)
+        for _ in 1:3
+            c = _simplify_const(e, A)
+            (c.kind == NUMBER || _nodes(c) >= _nodes(e)) && return c
+            e = c
+        end
+        return e
+    end
     # function arguments first
     e = _map_fn_args(a -> _simplify(a, A), e)
     best, size = e, _nodes(e)
@@ -635,6 +644,10 @@ function _simplify(e::Sym, A::Assumptions)
     # (e^(2w)/4 + e^(-2w)/4 - sinh(w)² - 1/2 is 0 for w = (x + b)/u; found in the review)
     _has_fn(e, _HYPMODE.fns) && _has_epow(e) &&
         consider(x -> expand(rewrite(x, (sinh, cosh, tanh, coth, sech, csch) => exp)))
+    # max and min: a common positive factor, a common term, and a common sign out
+    # (max(2a, 2b) = 2max(a, b), max(a + c, b + c) = c + max(a, b), max(-a, -b) =
+    # -min(a, b); SymPy #24578)
+    _has_fn(e, (:max, :min)) && consider(_extreme_common)
     # erfc(u) = 1 - erf(u): erf(x) + erfc(x) = 1 (SymPy #28900)
     _has_fn(e, (:erfc,)) && consider(_erfc_to_erf)
     # conj(w) w = abs(w)^2
@@ -856,7 +869,53 @@ function _simplify_const(e::Sym, A::Assumptions)
         c = try expand(c) catch; c end
         _nodes(c) < _nodes(best) && (best = c)
     end
-    best
+    _has_fn(best, _INVTRIG_FNS) || return best
+    r = _invtrig_multiple_of_pi(best, A)
+    r === nothing ? best : r
+end
+
+const _INVTRIG_FNS = (:acos, :asin, :atan, :acot, :asec, :acsc)
+
+# a constant with inverse trig functions whose value is q π, q rational with a small
+# denominator: e - qπ is a multiple of 2π when cos(e - qπ) is 1 exactly, and so 0, its
+# value being tiny (acos(2√5/5) - acos(-3√10/10) + 3π/4 is 0; SymPy #24948)
+const _IN_INVTRIG_PI = ScopedValue(false)
+function _invtrig_multiple_of_pi(e::Sym, A::Assumptions)
+    _IN_INVTRIG_PI[] && return nothing
+    v = try N(e) catch; return nothing end
+    v isa Real || return nothing
+    q = rationalize(v / π; tol = 1e-12)
+    (denominator(q) <= 12 && abs(v - q * π) < 1e-10) || return nothing
+    qπ = Sym(q) * PI
+    c = with(_IN_INVTRIG_PI => true) do
+        try simplify(simplify(cos(e - qπ))) catch; nothing end
+    end
+    isone(c) ? qπ : nothing
+end
+
+function _extreme_common(e::Sym)
+    _replace_walk(e) do t
+        (t.kind == FN && t.name in (:max, :min) && length(t.args) >= 2) || return nothing
+        args = t.args
+        other = t.name === :max ? :min : :max
+        # a common term (same coefficient) in sums
+        if all(a -> a.kind == ADD, args)
+            common = [(c, u) for (c, u) in zip(args[1].coefs, args[1].args)
+                      if all(a -> any(i -> _eq(a.args[i], u) && a.coefs[i] == c, eachindex(a.args)), args[2:end])]
+            if !isempty(common)
+                ct = _add_many(Sym(c) * u for (c, u) in common)
+                return ct + apply_function(t.name, Sym[expand(a - ct) for a in args])
+            end
+        end
+        # a common numeric factor: its absolute value out, and max ↔ min for a negative one
+        cs = [a.kind == MUL ? a.num : a.kind == NUMBER ? a.num : N1 for a in args]
+        all(isexact, cs) || return nothing
+        allneg = all(c -> c < N0, cs)
+        g = reduce(gcd, (Rational{BigInt}(_numerator(c), _denominator(c)) for c in cs))
+        (isone(g) && !allneg) && return nothing
+        k = Sym(SymNumber(allneg ? -g : g))
+        apply_function(allneg ? other : t.name, Sym[expand(a / k) for a in args]) * k
+    end
 end
 
 # about how many terms e has expanded, numerator and denominator together (saturating)

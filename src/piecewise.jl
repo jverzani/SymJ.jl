@@ -360,7 +360,15 @@ function _side_sign(g::Sym, x::Sym, x0, side, assume)
         L = limit(g / t^j, x => x0; dir = side, assume)
         L isa Sym || break
         s = _csign(L)
-        s === nothing && break
+        # a limit with parameters: its sign by the assumptions (x heaviside(x) at L > 0;
+        # SymPy #24042)
+        if s === nothing
+            A = _assumptions(assume)
+            A === nothing && (A = _ASSUMING[])
+            A === nothing && break
+            s = _ispos(L, A) ? 1 : _ispos(-L, A) ? -1 : nothing
+            s === nothing && break
+        end
         s != 0 && return s
     end
     throw(ArgumentError("limit: cannot tell the sign of $g as $x → $x0 ($side)"))
