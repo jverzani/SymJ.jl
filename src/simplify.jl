@@ -472,6 +472,9 @@ function simplify(ex; assume = nothing)
     A === nothing && (A = Assumptions())
     _simplify(_refine(Sym(ex), A), A)
 end
+# each case's value (an integral by cases; SymPy #23909 extra)
+simplify(cs::Cases; assume = nothing) =
+    _map_cases(v -> v isa AbstractArray ? map(w -> simplify(w; assume), v) : simplify(v; assume), cs)
 function simplify(r::Relation; assume = nothing)
     v = refine(r; assume)
     v isa Bool && return v
@@ -578,7 +581,12 @@ function _simplify(e::Sym, A::Assumptions)
     powers(x) = simplify_powers(x; assume = A)
     logs(x) = simplify_log(x; assume = A)
     radicals(x) = simplify_radicals(x; assume = A)
-    expansion(x) = _bigpower(x) ? nothing : expand(x)   # (x + y)^30 expanded never wins
+    # an expression whose expansion would have millions of terms (powers of sums with
+    # radicals, as antiderivatives through Euler substitutions have; SymPy #23967): not
+    # expanded, nor put over a common denominator
+    huge = _expansion_estimate(e) > _EXPANSION_MAX
+    expansion(x) = _bigpower(x) || huge ? nothing : expand(x)   # (x + y)^30 expanded never wins
+    simplify_rational(x) = huge ? nothing : SymJ.simplify_rational(x)
     function consider(g)
         c = try g(e) catch err; err isa InterruptException && rethrow(); nothing end
         c isa Sym || return
@@ -830,6 +838,12 @@ _erfc_to_erf(x::Sym) = _replace_walk(x) do t
 end
 
 function _simplify_const(e::Sym, A::Assumptions)
+    # large powers of sums of radicals expanded first: expand reduces √2² = 2 as it goes,
+    # the rest (cancel over √2 as a generator) would not, at degree 2012 (SymPy #25109)
+    if _bigpower(e)
+        x = try expand(e) catch err; err isa InterruptException && rethrow(); e end
+        _nodes(x) < _nodes(e) && (e = x)
+    end
     best = e
     # (trigonometric and hyperbolic too: cos(2)² + sin(2)² is 1, SymPy #25705; and over
     # a common denominator, log(5)/log(10) + log(2)/log(10) is 1, #25860)
@@ -844,6 +858,24 @@ function _simplify_const(e::Sym, A::Assumptions)
     end
     best
 end
+
+# about how many terms e has expanded, numerator and denominator together (saturating)
+const _EXPANSION_MAX = 50_000.0
+function _expansion_estimate(e::Sym)::Float64
+    k = e.kind
+    k == ADD && return min(1e15, sum(_expansion_estimate, e.args; init = iszero(e.num) ? 0.0 : 1.0))
+    k == MUL && return min(1e15, prod((_power_estimate(b, p) for (b, p) in zip(e.args, e.exps)); init = 1.0))
+    k == POW && return _power_estimate(e.args[1], e.args[2])
+    1.0
+end
+function _power_estimate(b::Sym, p::Sym)
+    (p.kind == NUMBER && _isint(p.num)) || return 1.0       # a radical or symbolic power: an atom
+    n = abs(Float64(p.num))
+    t = _expansion_estimate(b)
+    t <= 1 && return 1.0
+    min(1e15, t^n, exp(_lgamma_est(t + n) - _lgamma_est(t) - _lgamma_est(n + 1)))  # C(t+n-1, n)
+end
+_lgamma_est(x::Float64) = x < 1 ? 0.0 : (x - 0.5) * log(x) - x + 0.919   # Stirling, rough
 
 _bigpower(e::Sym) = (e.kind == POW && e.args[1].kind == ADD && e.args[2].kind == NUMBER && abs(e.args[2].num) > SymNumber(10)) ||
     (e.kind == MUL && any(i -> e.args[i].kind == ADD && e.exps[i].kind == NUMBER && abs(e.exps[i].num) > SymNumber(10), eachindex(e.args))) ||

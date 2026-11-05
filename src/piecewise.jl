@@ -879,8 +879,10 @@ function _show_cond(io::IO, c::Sym)
         print(io, "(")
         join(io, (sprint(_show_cond, a) for a in c.args), ", ")
         print(io, ")")
-    else
+    elseif c.kind == FN && haskey(_COND_RELS, c.name)
         show(io, _relation_of(c))
+    else
+        show(io, c)                 # not a condition (a pattern's slot; SymPy #25328)
     end
 end
 function _show_piecewise(io::IO, e::Sym)

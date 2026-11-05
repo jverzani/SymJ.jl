@@ -14,7 +14,11 @@ using PrecompileTools: @setup_workload, @compile_workload
 # (assume = …, or an @assuming block) decide the signs of parameter expressions the
 # answer's form depends on, through the integrator's sign oracle, when the installed
 # RischIntegrate has one; signs they leave open take its default.
-function RischIntegrate.integrate(ex::Sym, x::Sym; assume = nothing, kw...)
+RischIntegrate.integrate(ex::Sym, x::Sym; assume = nothing, kw...) = _unwrap(_indefinite(ex, x; assume, kw...))
+
+# (the definite integrals take the answer as it is: a ₂F₁ term holds only where its
+# radicand is positive, which they check numerically)
+function _indefinite(ex::Sym, x::Sym; assume = nothing, kw...)
     A = SymJ._assumptions(assume)
     if A !== nothing && _has_oracle() && !haskey(kw, :sign)
         kw = (; sign = SymJ._sign_oracle(A), kw...)
@@ -45,6 +49,24 @@ function RischIntegrate.integrate(ex::Sym, x::Sym; assume = nothing, kw...)
     end
 end
 
+# an answer with no root sums is its elementary part, an expression like any other
+# (x*₂F₁(…) for 1/sqrt(1 + x^3), whose limit failed on the wrapper; SymPy #24879)
+# A ₂F₁ term (HypTerm, c α^q x^(m+1)/(m+1) ₂F₁(-q, (m+1)/n; (m+1)/n + 1; -βxⁿ/α)) is
+# such an expression too.
+function _unwrap(r)
+    r isa RischIntegrate.IntegralWithRootSums || return r
+    isdefined(RischIntegrate, :HypTerm) || return r                      # (RischIntegrate 1.0)
+    (r.elementary isa Union{Sym,Number} && all(t -> t isa RischIntegrate.HypTerm, r.rootsums)) || return r
+    Sym(r.elementary) + SymJ._add_many(_hypterm(h) for h in r.rootsums)
+end
+function _hypterm(h)
+    q(v) = Sym(SymJ.SymNumber(v))
+    x = Sym(Symbol(h.var))
+    a = q(h.m + 1) / h.n
+    q(h.c) * q(h.α)^q(h.q) * x^(h.m + 1) / (h.m + 1) *
+        SymJ.apply_function(:_₂F₁, Sym[-q(h.q), a, a + 1, -q(h.β) / q(h.α) * x^h.n])
+end
+
 # does risch_integrate take a sign oracle (RischIntegrate with PR #70)?
 const _ORACLE = Ref{Union{Nothing,Bool}}(nothing)
 function _has_oracle()
@@ -60,7 +82,7 @@ end
 # general formula when its value is the formula's limit there (SymJ._drop_removable).
 function RischIntegrate.integrate(ex::Union{Sym,SymJ.Cases}, xab::Tuple, more::Tuple...; assume = nothing,
                                   principal_value::Bool = false, drop_removable_singularities::Bool = false, kw...)
-    antider = (f, x, A) -> RischIntegrate.integrate(f, x; assume = A, kw...)
+    antider = (f, x, A) -> _indefinite(f, x; assume = A, kw...)
     v = SymJ._definite_integral(ex, xab, assume, antider; principal_value)
     for t in more
         v = SymJ._definite_integral(v, t, assume, antider; principal_value)

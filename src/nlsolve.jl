@@ -194,6 +194,18 @@ const _COMPONENTS = ScopedValue{Union{Nothing,Set{Vector{Sym}}}}(nothing)
 
 function _solve_groebner(nums::Vector{Sym}, vars::Vector{Sym})
     _COMPONENTS[] === nothing && return with(() -> _solve_groebner(nums, vars), _COMPONENTS => Set{Vector{Sym}}())
+    # an equation that is a product, x (x - 1) (…) = 0: the system for each factor, whose
+    # bases are smaller (one basis of the product took minutes; SymPy #24500)
+    for (i, n) in enumerate(nums)
+        fs = _unknown_factors([n], vars)
+        length(fs) >= 2 || continue
+        rest = Sym[nums[j] for j in eachindex(nums) if j != i]
+        out = Dict{Sym,Sym}[]
+        for f in fs
+            append!(out, _solve_groebner([rest; f], vars))
+        end
+        return _uniquesols(out)
+    end
     G = groebner(nums, vars...)
     G == [ONE] && return Dict{Sym,Sym}[]
     seen = _COMPONENTS[]

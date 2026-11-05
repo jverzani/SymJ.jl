@@ -74,7 +74,7 @@ function _from_ratfun(r::RatFun)
 end
 
 # all entries polynomials with numeric denominators: the polynomial matrix, else nothing
-function _poly_matrix(A::AbstractMatrix)
+function _poly_matrix(A::AbstractMatrix; algebraic::Bool = false)
     S = Sym[Sym(a) for a in A]
     atoms = Set{Sym}()
     for e in S
@@ -82,7 +82,9 @@ function _poly_matrix(A::AbstractMatrix)
         _poly_atoms!(atoms, e) || return nothing
     end
     isempty(atoms) && return nothing
-    any(_isalgebraic_atom, atoms) && return nothing        # sqrt(2)^2 is not an atom squared
+    # sqrt(2)^2 is not an atom squared: only for polynomial identities (determinants),
+    # with the atoms' relations applied when they are turned back into expressions
+    algebraic || any(_isalgebraic_atom, atoms) && return nothing
     gens = sort!(collect(atoms); lt = _lt)
     map(e -> Poly{SymNumber}(e, gens), S)
 end
@@ -192,9 +194,14 @@ Base.inv(A::StridedMatrix{Sym}) = _inv(A)       # (more specific than LinearAlge
 Base.inv(A::AbstractMatrix{Sym}) = _inv(A)
 function _inv(A::AbstractMatrix{Sym})
     n = _square(A)
-    if n <= 6                 # polynomial entries: the adjugate, cofactors fraction-free
+    if n <= _CRAMER_MAX       # polynomial entries: the adjugate, cofactors fraction-free
         R = _with_widening(B -> (P = _poly_matrix(B); P === nothing ? nothing : _adjugate_inv(P)), A)
         R === nothing || return R
+    end
+    # rational entries: A \ I, its rows cleared of denominators
+    if n <= _CRAMER_MAX && any(e -> _hassymbol(numer_denom(Sym(e))[2]), A)
+        r = _cramer_sym(hcat(A, Matrix{Sym}(LinearAlgebra.I(n))), n)
+        r === nothing || return r[1]
     end
     _inv_field(A)
 end
@@ -206,14 +213,106 @@ function _adjugate_inv(P::Matrix)
     iszero(D) && throw(LinearAlgebra.SingularException(n))
     Ds = Sym(D)
     n == 1 && return Sym[1 / Ds;;]
+    red = _QuotientReducer(D)
     R = Matrix{Sym}(undef, n, n)
     for i in 1:n, j in 1:n
         minor = P[setdiff(1:n, j), setdiff(1:n, i)]           # cofactor (j, i): the transpose
         c = n == 2 ? minor[1, 1] : _bareiss_det(minor)
-        R[i, j] = _cancel_sign(isodd(i + j) ? -Sym(c) : Sym(c), Ds)
+        R[i, j] = red(isodd(i + j) ? -c : c)
     end
     R
 end
+const _CRAMER_MAX = 8
+
+# M with each row times the lcm of the denominators in it (M itself when none, or when
+# a denominator is not a polynomial with numeric coefficients)
+function _rows_cleared(M::AbstractMatrix)
+    S = Sym[Sym(a) for a in M]
+    any(e -> _hassymbol(numer_denom(e)[2]), S) || return S
+    for i in axes(S, 1)
+        L = ONE
+        for e in S[i, :]
+            d = numer_denom(e)[2]
+            _hassymbol(d) || continue
+            L = try lcm(L, d) catch err; err isa ArgumentError || rethrow(); return S end
+        end
+        isone(L) || (S[i, :] = Sym[cancel(e * L) for e in S[i, :]])
+    end
+    S
+end
+
+# (A \ B, det A) for M = [A B] of expressions, A n × n, by Cramer's rule: its rows
+# cleared of denominators, then the entries as polynomials in their atoms. Algebraic
+# atoms (√2, im) are generators too: determinants are polynomial identities, true with
+# the atoms' values put back, provided det A is not 0 with them. nothing when A is
+# singular, or the entries are not polynomials in atoms.
+function _cramer_sym(M::AbstractMatrix, n::Int)
+    _with_widening(_rows_cleared(M)) do B
+        P = _poly_matrix(B; algebraic = true)
+        P === nothing && return nothing
+        D = n == 1 ? P[1, 1] : _bareiss_det(P[:, 1:n])
+        Ds = expand(Sym(D))
+        iszero(Ds) && return nothing
+        (_cramer(P, n, D), Ds)
+    end
+end
+
+# A \ B for P = [A B] polynomials, A n × n: entry (i, j) is det(A with column i
+# replaced by B[:, j]) / det(A)
+function _cramer(P::Matrix, n::Int, D = n == 1 ? P[1, 1] : _bareiss_det(P[:, 1:n]))
+    iszero(D) && throw(LinearAlgebra.SingularException(n))
+    red = _QuotientReducer(D)
+    k = size(P, 2) - n
+    X = Matrix{Sym}(undef, n, k)
+    for j in 1:k, i in 1:n
+        Q = P[:, 1:n]
+        Q[:, i] = P[:, n + j]
+        X[i, j] = red(n == 1 ? Q[1, 1] : _bareiss_det(Q))
+    end
+    X
+end
+
+# N/D in lowest terms for a fixed denominator D. Tiny ones through cancel, as are those
+# whose gcd with D is a monomial (found quickly); for others with a larger common
+# factor, a gcd of many-variable polynomials could take minutes, so D is factored once
+# and N divided by its factors in turn.
+mutable struct _QuotientReducer{P}
+    D::P
+    Ds::Sym
+    factors::Union{Nothing,Vector}
+end
+_QuotientReducer(D) = _QuotientReducer(D, Sym(D), nothing)
+const _CANCEL_MAX_WORK = 400            # terms of N times terms of D
+
+function (r::_QuotientReducer)(N)
+    iszero(N) && return ZERO
+    length(N.monos) * length(r.D.monos) <= _CANCEL_MAX_WORK && return _cancel_sign(Sym(N), r.Ds)
+    a, b = _primitive(_integer_scaled(N)), _primitive(_integer_scaled(r.D))
+    _gcd_monomial(a, b) === nothing || return _cancel_sign(Sym(N), r.Ds)
+    if r.factors === nothing
+        _, fs = factor(r.D)
+        r.factors = [f => m for (f, m) in fs if !_isconstpoly(f)]
+    end
+    D = r.D
+    for (f, m) in r.factors
+        for _ in 1:m
+            _may_divide(N, f) || break
+            ok, q = divides(N, f)
+            ok || break
+            N, D = q, divexact(D, f)
+        end
+    end
+    g = _rat_content(N, D)
+    n, d = Sym(N) / g, Sym(D) / g
+    _from_ratfun_sym(expand(n), expand(d))
+end
+_isconstpoly(f) = all(m -> m == 0, f.monos)
+# the gcd of the coefficients of N and D, as a Sym number
+function _rat_content(N, D)
+    cs = Rational{BigInt}[Rational{BigInt}(_numerator(c), _denominator(c)) for c in [N.coefs; D.coefs]]
+    Sym(SymNumber(reduce(gcd, cs)))
+end
+
 _cancel_sign(n::Sym, d::Sym) = (q = cancel(n / d); nd = numer_denom(q); _from_ratfun_sym(nd[1], nd[2]))
 function _from_ratfun_sym(n::Sym, d::Sym)
     if d.kind == ADD && !isempty(d.coefs) && d.coefs[1] < N0
@@ -300,6 +399,14 @@ end
 # comparing magnitudes)
 function Base.:\(A::AbstractMatrix{Sym}, b::AbstractVecOrMat)
     size(A, 1) == size(A, 2) || throw(ArgumentError("\\ for a non-square matrix of expressions is not supported"))
+    # polynomial entries: Cramer's rule, the determinants fraction-free (Bareiss); the
+    # rational functions of Gauss–Jordan took a gcd at every step (SymPy #25302, #24679)
+    # (rational entries: each row of [A b] times the lcm of its denominators first, which
+    # leaves the solution as it is; SymPy #25009)
+    if size(A, 1) <= _CRAMER_MAX
+        r = _cramer_sym(hcat(A, b), size(A, 1))
+        r === nothing || return b isa AbstractVector ? vec(r[1]) : r[1]
+    end
     M, back = _field_matrix(hcat(A, b))
     n = size(A, 1)
     k = size(M, 2) - n
@@ -552,13 +659,38 @@ function LinearAlgebra.eigvecs(A::AbstractMatrix{Sym})
     F === nothing || return F.vectors
     n = _square(A)
     cols = Vector{Sym}[]
-    for (v, _) in _eigen_mult(A)
+    for (v, m) in _eigen_mult(A)
+        u = _eigvec_adjugate(A, v, m)
+        u === nothing || (push!(cols, u); continue)
         N = LinearAlgebra.nullspace(Sym[Sym(a) for a in A] - v * LinearAlgebra.I(n))
         for k in 1:size(N, 2)
             push!(cols, N[:, k])
         end
     end
     isempty(cols) ? zeros(Sym, n, 0) : reduce(hcat, cols)
+end
+
+# An eigenvector for a simple eigenvalue v of a constant matrix that is a root through
+# cube roots or higher (Cardano's, Ferrari's): a nonzero column of adj(A - tI) at t = v. A - vI has rank n - 1, so
+# its adjugate's columns are multiples of the eigenvector; and the cofactors are
+# polynomials in t, with v put in at the end. The null space of A - vI, its entries
+# nested radicals (Ferrari's), took minutes (SymPy #24057). nothing otherwise.
+function _eigvec_adjugate(A::AbstractMatrix, v::Sym, m::Int)
+    # (square roots alone, as for a quadratic's roots, are fine through the null space)
+    (m == 1 && v.kind != NUMBER && !_hassymbol(v) && _has_high_root(v)) || return nothing
+    S = Sym[Sym(a) for a in A]
+    any(_hassymbol, S) && return nothing
+    n = size(S, 1)
+    n >= 2 || return nothing
+    t = Sym(Symbol("_eigt"))
+    B = S - t * LinearAlgebra.I(n)
+    for j in 1:n
+        col = Sym[(isodd(i + j) ? -1 : 1) * LinearAlgebra.det(B[setdiff(1:n, j), setdiff(1:n, i)]) for i in 1:n]
+        u = Sym[expand(subs(c, t => v)) for c in col]
+        all(c -> abs(_evalc(c)) < 1e-9 * max(1, abs(_evalc(v)))^n, u) && continue
+        return u
+    end
+    nothing
 end
 
 """
@@ -575,6 +707,12 @@ function LinearAlgebra.eigen(A::AbstractMatrix{Sym})
     n = _square(A)
     vals, vecs = Sym[], Vector{Sym}[]
     for (v, m) in _eigen_mult(A)
+        u = _eigvec_adjugate(A, v, m)
+        if u !== nothing
+            push!(vals, v)
+            push!(vecs, u)
+            continue
+        end
         N = LinearAlgebra.nullspace(Sym[Sym(a) for a in A] - v * LinearAlgebra.I(n))
         size(N, 2) == m || throw(ArgumentError("the matrix is not diagonalizable: the eigenvalue $v has multiplicity $m but $(size(N, 2)) eigenvector$(size(N, 2) == 1 ? "" : "s"); use eigvals and eigvecs"))
         for k in 1:m
@@ -915,6 +1053,11 @@ pinv(Sym[1 2; 2 4])          # [1/25 2/25; 2/25 4/25]
 ```
 """
 function LinearAlgebra.pinv(A::AbstractMatrix{Sym})
+    # an invertible square matrix: its inverse (the determinant fraction-free, where
+    # row reduction over rational functions took minutes; SymPy #25032)
+    if size(A, 1) == size(A, 2) && size(A, 1) <= _CRAMER_MAX && !iszero(LinearAlgebra.det(A))
+        return inv(A)
+    end
     R, pivots = _rref_field(A)
     r = length(pivots)
     r == 0 && return zeros(Sym, size(A, 2), size(A, 1))

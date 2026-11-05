@@ -105,7 +105,7 @@ function _lap_term(term::Sym, t::Sym, s::Sym)
         neg = a.kind == NUMBER && a.num < N0
         if b.name === :dirac                           # δ(d(t - a)) = δ(t - a)/|d|
             neg && return ZERO
-            return subs(rest, t => a) * exp(-a * s) / abs(d)
+            return _lap_value_at(rest, t, a) * exp(-a * s) / abs(d)
         end
         if d.kind == NUMBER && d.num < N0              # H(-(t - a)) = 1 - H(t - a)
             return _lap(rest, t, s) - _lap(rest * heaviside(t - a), t, s)
@@ -238,6 +238,16 @@ function inverse_laplace_transform(F, s::Sym, t::Sym)
         out += iszero(c) ? g : heaviside(t - c) * subs(g, t => t - c)
     end
     out
+end
+
+# g(a), or its limit there for a removable singularity (sin(4π(t - 1))/(t - 1) at 1;
+# SymPy #25293)
+function _lap_value_at(g::Sym, t::Sym, a::Sym)
+    v = try subs(g, t => a) catch err; _isdivzero(err) || rethrow(); nothing end
+    v === nothing || !_finite_value(v) || return v
+    l = limit(g, t => a)
+    (l isa Sym && _finite_value(l)) || throw(ArgumentError("laplace_transform: $g is singular at the dirac's point $a"))
+    l
 end
 
 function _ilap_negshift(c::Sym)

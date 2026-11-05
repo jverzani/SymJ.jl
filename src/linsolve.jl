@@ -137,6 +137,17 @@ end
 
 function _solve_linear(eqs, vars::Vector{Sym})
     A, b = _linear_system(eqs, vars)
+    # square, with parameters: Cramer's rule, whose one divisor is det A (the pivots of
+    # Gauss–Jordan are divisors too, each a case to decide, and its rational functions
+    # took a gcd at every step: hours for a circuit in 13 parameters; SymPy #24135)
+    if size(A, 1) == size(A, 2) <= _CRAMER_MAX && any(_hassymbol, A)
+        r = _cramer_sym(hcat(A, b), size(A, 1))
+        if r !== nothing
+            X, D = r
+            _divisor!(D)
+            return Dict{Sym,Sym}(v => X[i, 1] for (i, v) in enumerate(vars))
+        end
+    end
     if all(e -> e.kind == NUMBER, Iterators.flatten((A, b)))
         _gauss_jordan(map(e -> e.num, A), map(e -> e.num, b), vars, Sym)
     else

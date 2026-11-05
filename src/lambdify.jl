@@ -183,7 +183,9 @@ end
 const _SQRT = GlobalRef(SymJ, :_cg_sqrt)
 const _RPOW = GlobalRef(SymJ, :_cg_pow)
 @inline _cg_sqrt(b) = b isa Real && b < 0 ? sqrt(complex(b)) : sqrt(b)
-@inline _cg_pow(b, e) = b isa Real && e isa Real && b < 0 && !isinteger(e) ? complex(b)^e : b^e
+# (an integer to a negative integer power as a float, as for a literal power: 365^-20)
+@inline _cg_pow(b, e) = b isa Real && e isa Real && b < 0 && !isinteger(e) ? complex(b)^e :
+    b isa Integer && e isa Integer && e < 0 ? float(b)^e : b^e
 
 function _powcode(cg::_Codegen, b::Sym, e::Sym)
     _isone(e) && return _gen(cg, b)
@@ -201,7 +203,8 @@ function _powcode(cg::_Codegen, b::Sym, e::Sym)
         ec = _gen(cg, e)
     end
     # a positive constant base needs no complex branch
-    positive = (b.kind == NUMBER && sign(b.num) > 0) || b.kind == CONSTANT
+    # (an integer base, though, may get a negative integer exponent)
+    positive = (b.kind == NUMBER && sign(b.num) > 0 && !_isint(b.num)) || b.kind == CONSTANT
     positive ? :($bc^$ec) : :($_RPOW($bc, $ec))
 end
 
