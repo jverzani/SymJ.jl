@@ -194,8 +194,11 @@ function _diff(ex::Sym, x::Sym)
         Fx = apply_function(:Derivative, Sym[_diff(F, x), t, a])
         iszero(da) && return Fx
         return add(mul(apply_function(:Derivative, Sym[_mkfn_node(:Derivative, Sym[F, t]), t, a]), da), Fx)
-    elseif ex.name === :piecewise                 # piece by piece
-        return apply_function(:piecewise, Sym[isodd(i) ? a : _diff(a, x) for (i, a) in enumerate(ex.args)])
+    elseif ex.name === :piecewise
+        # piece by piece, and a jump J at a breakpoint p is J dirac(x - p), as for
+        # heaviside (SymPy #24127)
+        d = apply_function(:piecewise, Sym[isodd(i) ? a : _diff(a, x) for (i, a) in enumerate(ex.args)])
+        return add(d, _pw_jumps(ex, x))
     else
         rule = get(FUNCTION_RULES, ex.name, nothing)
         if rule === nothing && length(ex.args) == 1 && ex.args[1].kind != SYMBOL

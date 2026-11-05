@@ -119,6 +119,15 @@ import PolyLog as PL
         @test PL.li(3, x)(0.3) ≈ PL.li(3, 0.3) && PL.reli(3, x)(0.3) ≈ PL.reli(3, 0.3)
         @test diff(PL.li(n, x), x) == PL.li(n - 1, x) / x
         @test diff(PL.li3(x), x) == PL.li2(x) / x
+        # series at 0, and at the branch point z = 1 (not a Taylor series; SymPy #25159)
+        @test Sym(series(PL.li2(x), x, 0, 4)) == x + x^2 / 4 + x^3 / 9
+        @test Sym(series(PL.li(Sym(3) / 2, exp(-x)), x, 0, 2)) == SF.zeta(Sym(3) / 2) - 2sqrt(PI) * sqrt(x) - SF.zeta(Sym(1) / 2) * x
+        @test Sym(series(PL.li1(1 - x), x, 0, 3)) == -log(x)
+        @test Sym(series(PL.li(Sym(-1), exp(-x)), x, 0, 3)) == x^-2 - Sym(1) / 12 + x^2 / 240
+        @test N(subs(Sym(series(PL.li(Sym(3) / 2, exp(-x)), x, 0, 5)), x => Sym(1) / 10)) ≈ sum(exp(-0.1k) / k^1.5 for k in 1:2000)
+        @test N(subs(Sym(series(PL.li3(exp(-x)), x, 0, 5)), x => Sym(1) / 10)) ≈ PL.li3(exp(-0.1))
+        @test SF.zeta(Sym(-3)) == Sym(1) / 120
+        @test SF.gamma(Sym(-3) / 2) == 4sqrt(PI) / 3
     end
 
     # (the special functions are in RischIntegrate 1.2 on; Julia 1.10 resolves 1.0)

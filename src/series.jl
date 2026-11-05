@@ -183,6 +183,16 @@ function _psapply(name::Symbol, args::Vector{Sym}, N::Rational{Int})
             throw(ArgumentError("series: $(apply_function(name, args)) at 0 (logarithmic terms) is not supported"))
         end
     end
+    # polylogarithms: Σ zᵏ/kˢ at 0 (the derivative rule divides by z), and at their branch
+    # point z = 1 not a Taylor series (SymPy #25159)
+    if (iszero(a0) || _eq(a0, ONE)) && (name === :li && length(args) == 2 && i == 2 ||
+                        length(args) == 1 && name in (:li0, :li1, :li2, :li3, :li4, :li5, :li6))
+        o = name === :li ? args[1] : Sym(parse(Int, string(name)[3:end]))
+        iszero(a0) && return _psgeom(a, k -> k == 0 ? ZERO : inv(Sym(k)^o), N)
+        (o.kind == NUMBER && isexact(o.num)) ||
+            throw(ArgumentError("series: $(apply_function(name, args)) at its branch point 1 with a symbolic order"))
+        return _pspolylog(o, a, N)
+    end
     a.o > 0 || throw(_SeriesPrecision())
     y = Sym(Symbol("_y"))
     fy = apply_function(name, Sym[j == i ? y : args[j] for j in eachindex(args)])
@@ -203,6 +213,25 @@ function _psapply(name::Symbol, args::Vector{Sym}, N::Rational{Int})
         k < K && (d = diff(d, y) / (k + 1))
     end
     _psgeom(h, k -> k <= K ? coef[k+1] : ZERO, N)
+end
+
+# Li_s(a) for a → 1, with μ = -log a → 0: Γ(1 - s) μ^(s-1) + Σ ζ(s - k) (-μ)^k/k! for s
+# not a positive integer; for s = n ≥ 1 the terms k = n - 1 are instead
+# (-μ)^(n-1)/(n-1)! (H_(n-1) - log μ)
+function _pspolylog(s::Sym, a::_PS, N::Rational{Int})
+    μ = _psscale(_pslog(a, N), MINUS_ONE)
+    _val(μ) > 0 || throw(_SeriesPrecision())
+    m = _psscale(μ, MINUS_ONE)
+    fact(k) = Sym(factorial(big(k)))
+    if _isint(s.num) && s.num > N0
+        n = _toint(s.num)
+        H = _add_many(Sym(1 // j) for j in 1:(n - 1))
+        reg = _psgeom(m, k -> (k == n - 1 ? H : apply_function(:zeta, Sym[s - k])) / fact(k), N)
+        lg = _psscale(_psmul(_pspow(m, Sym(n - 1), N), _pslog(μ, N)), -inv(fact(n - 1)))
+        return _psadd(reg, lg)
+    end
+    sing = _psscale(_pspow(μ, s - 1, N), apply_function(:gamma, Sym[1 - s]))
+    _psadd(sing, _psgeom(m, k -> apply_function(:zeta, Sym[s - k]) / fact(k), N))
 end
 
 # J_ν(u) = Σ (-1)^k (u/2)^(2k+ν)/(k! Γ(k+ν+1)), I_ν alike without the signs, for u of

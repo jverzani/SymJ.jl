@@ -510,14 +510,35 @@ end
     eigvals(A::AbstractMatrix{Sym})
 
 The eigenvalues of a matrix of expressions, each repeated by its algebraic multiplicity:
-the roots of the characteristic polynomial, exact where `solve` finds them exactly.
+the roots of the characteristic polynomial, exact where `solve` finds them exactly. A
+matrix of numbers with a float among them is numeric: its eigenvalues (and, for
+`eigvecs` and `eigen`, normalized eigenvectors) are LAPACK's, as floats.
 
 ```julia
 eigvals(Sym[2 1; 1 2])       # [1, 3]
 eigvals([a b; b a])          # [a - b, a + b]
 ```
 """
-LinearAlgebra.eigvals(A::AbstractMatrix{Sym}) = Sym[v for (v, m) in _eigen_mult(A) for _ in 1:m]
+function LinearAlgebra.eigvals(A::AbstractMatrix{Sym})
+    F = _float_eigen(A)
+    F === nothing || return F.values
+    Sym[v for (v, m) in _eigen_mult(A) for _ in 1:m]
+end
+
+# a matrix of numbers with a float among them: its values are floats, so its
+# eigenvalues and eigenvectors are LAPACK's, in the order of the exact ones (by real
+# part, then imaginary). Exactly, the roots of the characteristic polynomial come out
+# inexact and A - λI has no null space (SymPy #24057).
+function _float_eigen(A::AbstractMatrix{Sym})
+    _square(A)
+    es = [Sym(a) for a in A]
+    (all(e -> !_hassymbol(e), es) && any(e -> e.kind == NUMBER && isfloat(e.num), es)) || return nothing
+    vs = try [_evalc(e) for e in es] catch; return nothing end
+    M = all(v -> isreal(v), vs) ? Float64.(real.(vs)) : ComplexF64.(vs)
+    F = LinearAlgebra.eigen(M; sortby = λ -> (real(λ), imag(λ)))
+    real0(v) = Sym(isreal(v) ? real(v) : v)
+    LinearAlgebra.Eigen(Sym[real0(v) for v in F.values], Sym[real0(v) for v in F.vectors])
+end
 
 """
     eigvecs(A::AbstractMatrix{Sym})
@@ -527,6 +548,8 @@ eigenspace, the null space of `A - v*I`, eigenvalue by eigenvalue (in the order 
 `eigvals`). A defective matrix has fewer columns than rows.
 """
 function LinearAlgebra.eigvecs(A::AbstractMatrix{Sym})
+    F = _float_eigen(A)
+    F === nothing || return F.vectors
     n = _square(A)
     cols = Vector{Sym}[]
     for (v, _) in _eigen_mult(A)
@@ -547,6 +570,8 @@ Diagonal(F.values)`). A defective matrix (too few eigenvectors) is an `ArgumentE
 `eigvals` and `eigvecs` still apply.
 """
 function LinearAlgebra.eigen(A::AbstractMatrix{Sym})
+    F = _float_eigen(A)
+    F === nothing || return F
     n = _square(A)
     vals, vecs = Sym[], Vector{Sym}[]
     for (v, m) in _eigen_mult(A)
