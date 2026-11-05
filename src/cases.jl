@@ -464,16 +464,27 @@ end
 # parameter p (the assumptions substitute a = 0 or a = b themselves; this covers
 # a*b = 1), one for each root otherwise (a^2 + b^2 = 0: a = ±i b)
 function _degenerate_subst(D, B::Assumptions, unknowns)
+    # the smallest factor first, solved for the parameter that gives the smallest value:
+    # a large one substituted makes the system's coefficients large (a circuit's
+    # determinant solved for one of its 13 parameters took hours; SymPy #24135)
+    fs = Sym[]
     for g in D, f in _param_factors(g, unknowns)
+        any(o -> _eq(o, f), fs) || push!(fs, f)
+    end
+    sort!(fs; by = f -> (_nodes(f), string(f)))
+    for f in fs
         _decide(Relation(:ne, f, ZERO), B) && continue
         ps = _named(f)
+        best = nothing
         for p in ps
             P = try Poly{Sym}(expand(f), [p]) catch; continue end
             degree(P, p) == 1 || continue
             c1, c0 = coeff(f, p, 1), coeff(f, p, 0)
             all(h -> _decide(Relation(:ne, h, ZERO), B), _param_factors(c1, unknowns)) || continue
-            return f => [p => cancel(-c0 / c1)]
+            v = cancel(-c0 / c1)
+            (best === nothing || (_nodes(v), string(p)) < (_nodes(best[2]), string(best[1]))) && (best = (p, v))
         end
+        best === nothing || return f => [best[1] => best[2]]
         rs = isempty(ps) ? Sym[] : (try _solve_generic(f ~ 0, ps[1]) catch err; err isa ArgumentError || rethrow(); Sym[] end)
         isempty(rs) || return f => [ps[1] => r for r in rs]
         throw(ArgumentError("solve: the case $f = 0 is not supported"))

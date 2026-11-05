@@ -232,3 +232,54 @@ end
     @test first(cs.cases).second == [-1]
     @test first(cs.cases).first == Any[a ~ sqrt(Sym(3)) * b]
 end
+
+@testset "crashes and hangs (SymPy review, round 5)" begin
+    @syms a b k n s t w L1 L2 L3 C1 C2 C3 M23 RL U I1 I2 I3 I4
+    LA = SymJ.LinearAlgebra
+    # 0^(n - k) summed the other way (#23952)
+    @test SymJ.summation(Sym(0)^(n - k), k, 0, n) == 1 - Sym(0)^(n + 1)
+    # factorial at a float through Γ; an integer to a negative power (#24246)
+    @test lambdify(factorial(x))(2.5) ≈ 3.3233509704478426
+    @test lambdify(Sym(2)^x)(-3) == 0.125
+    # a removable singularity at a dirac's point: the limit there (#25293)
+    @test SymJ.laplace_transform(sin(4PI * (t - 1)) / (t - 1) * SymJ.dirac(t - 1), t, s) == 4PI * exp(-s)
+    # a pattern's slot in a piecewise condition is shown, not decided (#25328)
+    pw = SymJ.piecewise(x ≫ 7 => 15 - x, true => 7 - x)
+    @test replace(pw, :(piecewise(~a, ~b, ~c, ~d)) => :(piecewise(~a, ~b, ~c, ~d))) == pw
+    # sin of a number about 2^762451794: an error, not hours (#24279)
+    @test_throws SymJ.HugeArgumentError N(sin(sin(exp(exp(exp(Sym(3))))) + 3))
+    # large powers of sums of radicals expanded first (#25109)
+    @test simplify(((-3 + 2sqrt(Sym(2)))^2012) * ((3 + 2sqrt(Sym(2)))^2011)) == 3 - 2sqrt(Sym(2))
+    # a system of products split by factor (#24500)
+    @syms c1 c3 g1
+    sols = solve([x * (x - 1) * (c1 - y) ~ 0, y * (y - 1) * (c3 + g1 * x) ~ 0], [x, y])
+    @test length(last(sols.cases).second) == 5
+    # linear systems by Cramer's rule: a generic 4 × 4 (#24679), a circuit with im (#24135)
+    M = Sym[Sym(Symbol(:m, i, j)) for i in 1:4, j in 1:4]
+    bb = Sym[Sym(Symbol(:b, i)) for i in 1:4]
+    X = M \ bb
+    ps = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71)
+    vals = [e => Sym(ps[i]) for (i, e) in enumerate([vec(M); bb])]
+    ev(e) = N(subs(e, vals...))
+    @test maximum(abs.(ev.(M) * ev.(X) - ev.(bb))) < 1e-10
+    eqs = [I1 * (IM * L1 * w - IM / (C1 * w)) + I2 * IM / (C1 * w) ~ U,
+           I2 * (IM * L2 * w - IM / (C2 * w) - IM / (C1 * w)) + I3 * (IM * M23 * w + IM / (C2 * w)) + I1 * IM / (C1 * w) ~ 0,
+           I2 * (IM * M23 * w + IM / (C2 * w)) + I3 * (IM * L3 * w - IM / (C3 * w) - IM / (C2 * w)) + I4 * IM / (C3 * w) ~ 0,
+           I4 * RL + I3 * IM / (C3 * w) - I4 * IM / (C3 * w) ~ 0]
+    sol = only(last(solve(eqs, [I1, I2, I3, I4]).cases).second)
+    pv = [L1 => 1, L2 => 2, L3 => 3, C1 => 5, C2 => 7, C3 => 11, M23 => 13, RL => 17, U => 19, w => 23]
+    @test maximum(abs(N(subs(subs(e.lhs - e.rhs, sol...), pv...))) for e in eqs) < 1e-10
+    # rational entries: the rows cleared of denominators (#25009)
+    R = Sym[1/a 1; 1 1/b]
+    @test simplify.(R * inv(R)) == Sym[1 0; 0 1]
+    # a tower of radicals shown in linear time (#24565)
+    r = sqrt(Sym(2))
+    for _ in 1:12
+        r = sqrt(r + sqrt(r^2 + 1) + 2)
+    end
+    @test length(string(r)) > 0
+    # exact eigenvectors for quartic roots through the adjugate (#24057)
+    A = Matrix(Sym.(rationalize.([0.0 0 0 0.45; 0.92 0.86 0 0; 0 0.08 0.8 0.83; 0 0.02 0.19 0]))')
+    V, λ = LA.eigvecs(A), LA.eigvals(A)
+    @test maximum(abs.(N.(A * V[:, 1] - λ[1] * V[:, 1]))) < 1e-12
+end

@@ -5,6 +5,7 @@ module PolyLogSupport
 
 import PolyLog as PL
 using ..SymJ
+import SpecialFunctions as SF
 using ..SymJ: Sym, apply_function, register_function!, _symbolic_signatures, _unary, ZERO, PI
 
 const ONEARG = (:li0, :li1, :li2, :li3, :li4, :li5, :li6, :reli1, :reli2, :reli3, :reli4)
@@ -32,10 +33,46 @@ function __init__()
         diff = (args, i) -> PL.li1(args[1]) / args[1])
     for f in (:li, :reli)
         g = getfield(PL, f)
-        register_function!(f; julia = g,
+        register_function!(f; julia = f === :li ? _num_li : (n, z) -> g(_intorder(n), z),
             eval = args -> iszero(args[2]) ? ZERO : nothing,
             diff = (args, i) -> i == 2 ? g(args[1] - 1, args[2]) / args[2] : nothing)
     end
+end
+
+# PolyLog's li and reli take an integer order; numerically one may come as a float
+_intorder(n) = isinteger(n) ? Int(n) : throw(DomainError(n, "reli: the order must be an integer"))
+
+# Li_s(z) for a real order s, numerically (SymPy #25159): PolyLog for an integer s; else
+# Σ zᵏ/kˢ for |z| ≤ 1/2, and near 1, with μ = -log z (|μ| < 2π),
+# Γ(1 - s) μ^(s-1) + Σ ζ(s - k) (-μ)^k/k!. Li_s(1) = ζ(s) for s > 1, ∞ otherwise.
+function _num_li(s, z)
+    isinteger(s) && return PL.li(Int(s), z)
+    s isa Real || throw(DomainError(s, "li: a complex order is not supported"))
+    s, w = float(s), z isa Real ? float(z) : complex(float(z))
+    T = typeof(real(w))
+    if abs(w) <= 0.5
+        acc, p = zero(w), one(w)
+        for k in 1:200
+            p *= w
+            t = p / T(k)^s
+            acc += t
+            abs(t) <= eps(T) * abs(acc) && break
+        end
+        return acc
+    end
+    isone(w) && return s > 1 ? SF.zeta(s) : T(Inf)
+    μ = -log(complex(w))
+    abs(μ) < 4 || throw(DomainError(z, "li: a non-integer order with |log z| ≥ 4 is not supported"))
+    acc = SF.gamma(1 - s) * μ^(s - 1)
+    p = one(μ)
+    for k in 0:400
+        k > 0 && (p *= -μ / k)
+        t = SF.zeta(s - k) * p
+        acc += t
+        k > 10 && abs(t) <= eps(T) * abs(acc) && break
+    end
+    # a real z < 1 has a real value (z > 1 is on the branch cut: the principal value)
+    w isa Real && w < 1 ? real(acc) : acc
 end
 
 end

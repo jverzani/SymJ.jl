@@ -2,7 +2,17 @@
 
 const P_ADD, P_MUL, P_POW, P_ATOM = 1, 2, 3, 4
 
-Base.show(io::IO, x::Sym) = _show(io, x, 0)
+Base.show(io::IO, x::Sym) = _SHOW_MEMO[] === nothing ?
+    with(() -> _show(io, x, 0), _SHOW_MEMO => (IdDict{Sym,String}(), IdDict{Sym,Float64}())) : _show(io, x, 0)
+
+# within one show: the subexpressions' strings and degrees that order terms, each found
+# once (sorting a sum's terms printed each subexpression again at every level above it:
+# exponential for a deep tower of radicals; SymPy #24565)
+const _SHOW_MEMO = ScopedValue{Union{Nothing,Tuple{IdDict{Sym,String},IdDict{Sym,Float64}}}}(nothing)
+function _memo_str(x::Sym)
+    m = _SHOW_MEMO[]
+    m === nothing ? sprint(_show, x, 0) : get!(() -> sprint(_show, x, 0), m[1], x)
+end
 Base.show(io::IO, ::MIME"text/plain", x::Sym) = show(io, x)
 
 # (_isneg, from patterns.jl: false for NaN, whose sign is not an integer)
@@ -160,6 +170,10 @@ end
 ## display order: higher degree first, then by printed form
 
 function _degree(x::Sym)::Float64
+    m = _SHOW_MEMO[]
+    m === nothing ? _degree_raw(x) : get!(() -> _degree_raw(x), m[2], x)
+end
+function _degree_raw(x::Sym)::Float64
     k = x.kind
     k == SYMBOL && return 1.0
     k == PARAMETER && return 0.0      # order terms by the variables: a*x^2 + b*x + c
@@ -178,13 +192,13 @@ function _display_sort(xs::Vector{Sym})
 end
 
 function _display_sort_pairs(bases::Vector{Sym}, exps::Vector{Sym})
-    keys = [(bases[i].kind == NUMBER ? 0 : 1, sprint(_show, bases[i], 0)) for i in eachindex(bases)]
+    keys = [(bases[i].kind == NUMBER ? 0 : 1, _memo_str(bases[i])) for i in eachindex(bases)]
     p = sortperm(keys)
     zip(bases[p], exps[p])
 end
 
 # sort key that ignores a leading coefficient, so `2x` sorts with `x`
 function _sortstring(x::Sym)
-    x.kind == MUL || return sprint(_show, x, 0)
+    x.kind == MUL || return _memo_str(x)
     sprint(_show_mul, N1, x.args, x.exps)
 end

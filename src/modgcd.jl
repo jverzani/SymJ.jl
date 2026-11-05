@@ -585,6 +585,97 @@ end
 
 _symmetric(r::Integer, m::Integer) = r > m >> 1 ? r - m : r
 
+# Is the gcd of a and b (integer polynomials) a monomial times their content? Their
+# monomial contents x^μa, x^μb divided out, for each variable x_i the others are
+# evaluated at a random point mod a prime: the gcd of the univariate images has at least
+# the degree in x_i of the true gcd when neither leading coefficient in x_i vanishes
+# there (checked). All of degree 0: the gcd is x^min(μa, μb). A quick, certain answer
+# for such inputs with many variables, where interpolating the gcd took minutes (a
+# Cramer quotient in 19 symbols; SymPy #25302). The exponents of that monomial, or
+# nothing when unsure.
+function _gcd_monomial(a::Poly{SymNumber}, b::Poly{SymNumber})
+    n = length(a.gens)
+    n >= 2 || return nothing
+    p = 2147483647
+    ea = [[_exponent(m, a.layout, n, j) for j in 1:n] for m in a.monos]
+    eb = [[_exponent(m, b.layout, n, j) for j in 1:n] for m in b.monos]
+    μa = [minimum(e[j] for e in ea) for j in 1:n]
+    μb = [minimum(e[j] for e in eb) for j in 1:n]
+    foreach(e -> (e .-= μa), ea)
+    foreach(e -> (e .-= μb), eb)
+    da = [maximum(e[j] for e in ea) for j in 1:n]
+    db = [maximum(e[j] for e in eb) for j in 1:n]
+    ca = [Int(mod(big(_numerator(c)), p)) for c in a.coefs]
+    cb = [Int(mod(big(_numerator(c)), p)) for c in b.coefs]
+    function image(es, cs, d, i, r)
+        u = zeros(Int, d + 1)
+        for (e, c) in zip(es, cs)
+            v = c
+            for j in 1:n
+                j == i || e[j] == 0 || (v = _mulmod(v, powermod(r[j], e[j], p), p))
+            end
+            u[e[i] + 1] = _addmod(u[e[i] + 1], v, p)
+        end
+        u
+    end
+    st = Ref(UInt64(0x9E3779B97F4A7C15))           # a local xorshift: the global RNG untouched
+    nextr() = (x = st[]; x ⊻= x << 13; x ⊻= x >> 7; x ⊻= x << 17; st[] = x; Int(x % UInt64(p - 1)) + 1)
+    for i in 1:n
+        (da[i] == 0 || db[i] == 0) && continue
+        ok = false
+        for _ in 1:3
+            r = [nextr() for _ in 1:n]
+            ua, ub = image(ea, ca, da[i], i, r), image(eb, cb, db[i], i, r)
+            (ua[end] != 0 && ub[end] != 0) || continue          # a leading coefficient vanished
+            length(_ugcd(_utrim!(ua), _utrim!(ub), p)) == 1 || return nothing
+            ok = true
+            break
+        end
+        ok || return nothing
+    end
+    min.(μa, μb)
+end
+
+# Can q divide p? q | p gives q(x_i, r) | p(x_i, r) for any values r of the other
+# variables, modulo a prime: false when that fails at two random points (then q does
+# not divide p), true otherwise (perhaps). A full division where q does not divide p
+# runs on through a large remainder.
+function _may_divide(p::Poly{SymNumber}, q::Poly{SymNumber})
+    p, q = _unify(_integer_scaled(p), _integer_scaled(q))
+    n = length(p.gens)
+    dq = _maxdegs(q)
+    i = findfirst(>(0), dq)
+    i === nothing && return true
+    P = 2147483647
+    ep = [[_exponent(m, p.layout, n, j) for j in 1:n] for m in p.monos]
+    eq = [[_exponent(m, q.layout, n, j) for j in 1:n] for m in q.monos]
+    cp = [Int(mod(big(_numerator(c)), P)) for c in p.coefs]
+    cq = [Int(mod(big(_numerator(c)), P)) for c in q.coefs]
+    dp = maximum(e[i] for e in ep)
+    dp < dq[i] && return false
+    function image(es, cs, d, r)
+        u = zeros(Int, d + 1)
+        for (e, c) in zip(es, cs)
+            v = c
+            for j in 1:n
+                j == i || e[j] == 0 || (v = _mulmod(v, powermod(r[j], e[j], P), P))
+            end
+            u[e[i] + 1] = _addmod(u[e[i] + 1], v, P)
+        end
+        _utrim!(u)
+    end
+    st = Ref(UInt64(0x2545F4914F6CDD1D))
+    nextr() = (x = st[]; x ⊻= x << 13; x ⊻= x >> 7; x ⊻= x << 17; st[] = x; Int(x % UInt64(P - 1)) + 1)
+    for _ in 1:2
+        r = [nextr() for _ in 1:n]
+        uq = image(eq, cq, dq[i], r)
+        isempty(uq) && continue
+        up = image(ep, cp, dp, r)
+        isempty(_udivrem(up, uq, P)[2]) || return false
+    end
+    true
+end
+
 function _gcd_modular(a::Poly{SymNumber}, b::Poly{SymNumber}; sparse::Bool = false)
     iszero(a) && return _positive(b)
     iszero(b) && return _positive(a)
@@ -594,6 +685,14 @@ function _gcd_modular(a::Poly{SymNumber}, b::Poly{SymNumber}; sparse::Bool = fal
     constant = _constpoly(SymNumber, gs, L, c, W)
     a, b = _primitive(a), _primitive(b)
     (a.monos[1] == 0 || b.monos[1] == 0) && return constant
+    mon = _gcd_monomial(a, b)
+    if mon !== nothing
+        m = zero(W)
+        for i in 1:n
+            m |= W(mon[i]) << _shift(L, n, i)
+        end
+        return Poly{SymNumber,W}(gs, L, W[m], SymNumber[c])
+    end
     lca, lcb = big(_numerator(a.coefs[1])), big(_numerator(b.coefs[1]))
     γ = gcd(lca, lcb)
 

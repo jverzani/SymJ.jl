@@ -556,8 +556,31 @@ function _ev(ex::Sym, a, F, var)
     rule = get(FUNCTION_RULES, ex.name, nothing)
     (rule === nothing || rule.julia === nothing) &&
         throw(ArgumentError("$(ex.name) has no numeric method; register one with `register_function!`"))
-    rule.julia(map(x -> _intarg(x) ? _toint(x.num) : _ev(x, a, F, var), ex.args)...)
+    vs = map(x -> _intarg(x) ? _toint(x.num) : _ev(x, a, F, var), ex.args)
+    ex.name in _HUGE_ARG_FNS && length(vs) == 1 && _huge_bigfloat(vs[1]) &&
+        throw(HugeArgumentError(ex.name, vs[1]))
+    rule.julia(vs...)
 end
+
+# sin of a BigFloat with millions of digits before the point: MPFR reduces it modulo 2π
+# exactly, with as many digits of π, and that takes hours (SymPy #24279)
+const _HUGE_ARG_FNS = (:sin, :cos, :tan, :cot, :sec, :csc, :sinpi, :cospi, :tanpi, :cis, :sincos)
+const _HUGE_EXPONENT = 1 << 20                 # bits before the point
+_huge_bigfloat(v) = v isa BigFloat ? (isfinite(v) && exponent(v) > _HUGE_EXPONENT) :
+                    v isa Complex{BigFloat} ? (_huge_bigfloat(real(v)) || _huge_bigfloat(imag(v))) : false
+
+"""
+    HugeArgumentError
+
+`N` of a periodic function (sin, cos, …) whose argument is a number with more than about
+300 000 digits before the point: its value would need that many digits of the argument.
+"""
+struct HugeArgumentError <: Exception
+    name::Symbol
+    v::Any
+end
+Base.showerror(io::IO, e::HugeArgumentError) = print(io, "HugeArgumentError: ", e.name,
+    " of a number about 2^", exponent(real(e.v)), ": its value needs that many bits of the argument, too many to compute")
 
 function _evpow(b::Sym, e::Sym, a, F, var)
     b === E && return exp(_ev(e, a, F, var))      # exp(x) is stored as ℯ^x

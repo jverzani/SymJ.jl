@@ -126,6 +126,9 @@ import PolyLog as PL
         @test Sym(series(PL.li(Sym(-1), exp(-x)), x, 0, 3)) == x^-2 - Sym(1) / 12 + x^2 / 240
         @test N(subs(Sym(series(PL.li(Sym(3) / 2, exp(-x)), x, 0, 5)), x => Sym(1) / 10)) ≈ sum(exp(-0.1k) / k^1.5 for k in 1:2000)
         @test N(subs(Sym(series(PL.li3(exp(-x)), x, 0, 5)), x => Sym(1) / 10)) ≈ PL.li3(exp(-0.1))
+        # a non-integer order numerically: the series near 0, the expansion near 1
+        @test N(PL.li(Sym(1) // 2, Sym(1) // 3)) ≈ sum((1 / 3)^k / sqrt(k) for k in 1:100)
+        @test N(PL.li(Sym(1) // 2, Sym(9) // 10)) ≈ sum(0.9^k / sqrt(k) for k in 1:3000)
         @test SF.zeta(Sym(-3)) == Sym(1) / 120
         @test SF.gamma(Sym(-3) / 2) == 4sqrt(PI) / 3
     end
@@ -206,6 +209,19 @@ import PolyLog as PL
     @testset "RischIntegrate: definite integrals" begin
         ∫ = RischIntegrate.integrate
         Inf_ = Sym(Inf)
+        # an answer whose only non-elementary part is a ₂F₁ term: an expression, so limit
+        # and the rest take it (SymPy #24879)
+        # (₂F₁ answers and the larger radicals are in RischIntegrate 1.2 on)
+        isdefined(RischIntegrate, :HypTerm) && @test ∫(1 / sqrt(1 + x^3), x) isa Sym
+        # simplify of an answer by cases (SymPy #23909 extra)
+        let a = Sym(:a), b = Sym(:b), t = Sym(:t)
+            @test simplify(∫(exp((b - a) * x - b * t), (x, 0, t))) isa SymJ.Cases
+        end
+        # a large antiderivative is not expanded by simplify (#23967)
+        isdefined(RischIntegrate, :HypTerm) && let s = Sym(:s), n1 = Sym(:n1)
+            f = (sqrt(4s^2 + 1) / 2 + Sym(3) / 2) / (sqrt(4s^2 + 1) / 2 + Sym(1) / 2)^(Sym(3) // 2)
+            @test N(subs(∫(f, (s, 0, n1)), n1 => 1)) ≈ sum(N(subs(f, s => (k - Sym(1) // 2) / 2000)) for k in 1:2000) / 2000 rtol = 1e-6
+        end
         # exact with the RischIntegrate Julia 1.12 gets; the older one gives approximate constants
         same(v, w) = VERSION >= v"1.12" ? v == w : N(v) ≈ N(w)
         @test ∫(x^2, (x, 0, 3)) == 9

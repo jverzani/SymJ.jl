@@ -287,7 +287,13 @@ register_function!(:min; julia = min, eval = _extreme_rule(:min, (v, w) -> v < w
 
 ## factorial and binomial
 
-register_function!(:factorial; julia = factorial,
+# numerically, for integers Julia's own, else through Γ (factorial(2.5), lambdify at a
+# float; SymPy #24246)
+_num_factorial(x) = x isa Integer ? factorial(x) : SpecialFunctionsSupport.SF.gamma(x + 1)
+_num_binomial(n, k) = n isa Integer && k isa Integer ? binomial(n, k) :
+    (G = SpecialFunctionsSupport.SF.gamma; G(n + 1) / (G(k + 1) * G(n - k + 1)))
+
+register_function!(:factorial; julia = _num_factorial,
     eval = _unary(function (a)
         (a.kind == NUMBER && _isint(a.num) && 0 <= sign(a.num)) || return nothing
         n = _toint(a.num)
@@ -296,7 +302,7 @@ register_function!(:factorial; julia = factorial,
 Base.factorial(x::Sym) = apply_function(:factorial, Sym[x])
 
 # binomial(n, k) for an integer k >= 0 is the polynomial n(n-1)...(n-k+1)/k!
-register_function!(:binomial; julia = binomial,
+register_function!(:binomial; julia = _num_binomial,
     eval = function (args)
         length(args) == 2 || throw(ArgumentError("binomial takes two arguments"))
         n, k = args

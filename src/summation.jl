@@ -67,6 +67,9 @@ _sum_parts(u, v) = (u isa Cases || v isa Cases) ? _sum_cases(Any[u, v]) : u + v
 # b === nothing: an infinite sum
 function _summation(f::Sym, k::Sym, a::Sym, b, assume)
     iszero(f) && return ZERO
+    # 0^(c - k): its ratio has 0 in the denominator; summed in the other direction,
+    # k => a + b - k, it is 0^(k + ...) (SymPy #23952)
+    b === nothing || !_zero_pow_down(f, k) || return _summation(subs(f, k => a + b - k), k, a, b, assume)
     # numeric bounds, few terms: add them
     if b !== nothing && a.kind == NUMBER && b.kind == NUMBER && _isint(a.num) && _isint(b.num) &&
        abs(_toint(b.num) - _toint(a.num)) <= _DIRECT_TERMS
@@ -107,6 +110,18 @@ function _summation(f::Sym, k::Sym, a::Sym, b, assume)
     r = _rational_sum(f, k, a, b)
     r === nothing || return r
     _summation_unevaluated(f, k, a, b)
+end
+
+function _zero_pow_down(f::Sym, k::Sym)
+    found = false
+    _replace_walk(f) do e
+        if e.kind == POW && iszero(e.args[1]) && has(e.args[2], k)
+            c = try coeff(expand(e.args[2]), k, 1) catch; ZERO end
+            c.kind == NUMBER && c.num < N0 && (found = true)
+        end
+        nothing
+    end
+    found
 end
 
 _summation_unevaluated(f, k, a, b) = apply_function(:Sum, Sym[f, k, a, b === nothing ? Sym(Inf) : b])
