@@ -93,6 +93,15 @@ function limit(f, xx0::Pair; dir = :both, assume = nothing)
     dir = dir in (:+, +, "+") ? :+ : dir in (:-, -, "-") ? :- : dir in (:both, "both") ? :both :
         throw(ArgumentError("limit: dir must be :both, :+ or :-, not $(repr(dir))"))
     f = _sinc_elementary(Sym(f))
+    # ₂F₁ of an argument in x, which Gruntz does not take: by its expansion where the
+    # argument tends (SymPy #24879)
+    if _hasfn(f, :_₂F₁) && _HYP_DEPTH[] == 0
+        # (through an inference barrier: inferring limit within its own call recursed
+        # until the stack overflowed during precompilation)
+        h = Base.inferencebarrier(_hyp2f1_limit)
+        L = with(() -> h(f, x, x0, dir, assume), _HYP_DEPTH => 1)
+        L === nothing || return L
+    end
     # |u^r| = |u|^r, the symbols real: |(-n/(n+1))^n| = (n/(n+1))^n (SymPy #26513)
     f = _abs_of_powers(f)
     # an unknown function of x: its limit is not known (it need not be continuous) (#27143)
@@ -383,4 +392,70 @@ function _zero_base_power(f::Sym, x::Sym, x0, dir, assume, A)
     _ispos(e, A) || return nothing
     Lb = try limit(b, x => x0; dir, assume) catch err; err isa InterruptException && rethrow(); return nothing end
     Lb isa Sym && iszero(Lb) ? ZERO : nothing
+end
+
+# ₂F₁(a, b; c; z(x)) replaced by K terms of its expansion where z tends: Taylor at a
+# finite z₀ ≠ 1 (₂F₁' = ab/c ₂F₁(a+1, b+1; c+1; z)); at z₀ = 1, for c - a - b not an
+# integer, A ₂F₁(a, b; a+b-c+1; 1-z) + B (1-z)^(c-a-b) ₂F₁(c-a, c-b; c-a-b+1; 1-z); at
+# z → -∞, for a - b not an integer, the 1/z connection formula. The limit is accepted
+# when K + 2 terms give the same one; nothing otherwise.
+const _HYP_DEPTH = ScopedValue(0)
+function _hyp2f1_limit(f::Sym, x::Sym, x0, dir, assume)
+    hs = Sym[]
+    _replace_walk(f) do t
+        t.kind == FN && t.name === :_₂F₁ && length(t.args) == 4 && has(t.args[4], x) &&
+            !any(a -> has(a, x), t.args[1:3]) && !any(h -> _eq(h, t), hs) && push!(hs, t)
+        nothing
+    end
+    isempty(hs) && return nothing
+    G = SpecialFunctionsSupport.SF.gamma
+    poch(a, k) = prod((a + i for i in 0:(k - 1)); init = ONE)
+    ser(a, b, c, w, K) = _add_many(poch(a, k) * poch(b, k) / (poch(c, k) * factorial(k)) * w^k for k in 0:(K - 1))
+    isint(v) = (v = simplify(v); v.kind == NUMBER && isexact(v.num) && _isint(v.num))
+    function expansion(h, K)
+        a, b, c, z = h.args
+        z0 = try limit(z, x => x0; dir, assume) catch err; err isa InterruptException && rethrow(); return nothing end
+        z0 isa Sym || return nothing
+        if z0.kind == NUMBER && isinf(z0)
+            z0.num < N0 || return nothing                     # z → +∞: on the branch cut
+            isint(a - b) && return nothing
+            w = 1 / z
+            return G(c) * G(b - a) / (G(b) * G(c - a)) * (-z)^(-a) * ser(a, a - c + 1, a - b + 1, w, K) +
+                   G(c) * G(a - b) / (G(a) * G(c - b)) * (-z)^(-b) * ser(b, b - c + 1, b - a + 1, w, K)
+        end
+        _hassymbol(z0) && return nothing
+        if iszero(simplify(z0 - 1))
+            isint(c - a - b) && return nothing
+            u = 1 - z
+            return G(c) * G(c - a - b) / (G(c - a) * G(c - b)) * ser(a, b, a + b - c + 1, u, K) +
+                   G(c) * G(a + b - c) / (G(a) * G(b)) * u^(c - a - b) * ser(c - a, c - b, c - a - b + 1, u, K)
+        end
+        # Taylor at z₀: the k-th derivative (a)ₖ(b)ₖ/(c)ₖ ₂F₁(a+k, b+k; c+k; z₀)
+        _add_many(poch(a, k) * poch(b, k) / (poch(c, k) * factorial(k)) *
+                  apply_function(:_₂F₁, Sym[a + k, b + k, c + k, z0]) * (z - z0)^k for k in 0:(K - 1))
+    end
+    prev = nothing
+    for K in (3, 5, 7, 9)
+        subsd = Pair{Sym,Sym}[]
+        for h in hs
+            e = expansion(h, K)
+            e === nothing && return nothing
+            push!(subsd, h => e)
+        end
+        g = subs(f, subsd...)
+        # the constant values ₂F₁(…; z₀) as symbols for Gruntz, put back after
+        consts = Sym[]
+        _replace_walk(g) do t
+            t.kind == FN && t.name === :_₂F₁ && !has(t, x) && !any(c -> _eq(c, t), consts) && push!(consts, t)
+            nothing
+        end
+        ks = [Sym(Symbol("_hypc", i)) for i in eachindex(consts)]
+        isempty(consts) || (g = subs(g, (c => k for (c, k) in zip(consts, ks))...))
+        L = try limit(g, x => x0; dir, assume) catch err; err isa InterruptException && rethrow(); return nothing end
+        L isa Sym || return nothing
+        isempty(consts) || (L = subs(L, (k => c for (c, k) in zip(consts, ks))...))
+        prev !== nothing && _eq(simplify(L), simplify(prev)) && return prev
+        prev = L
+    end
+    nothing
 end

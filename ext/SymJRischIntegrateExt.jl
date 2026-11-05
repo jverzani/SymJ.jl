@@ -67,6 +67,26 @@ function _hypterm(h)
         SymJ.apply_function(:_₂F₁, Sym[-q(h.q), a, a + 1, -q(h.β) / q(h.α) * x^h.n])
 end
 
+# the ₂F₁ form of an answer on (lo, hi), where each term's radicand α + βxⁿ is positive
+# (no real root inside, positive in the middle); nothing otherwise
+function _symbolic_on(F, x::Sym, lo::Sym, hi::Sym)
+    (F isa RischIntegrate.IntegralWithRootSums && isdefined(RischIntegrate, :HypTerm)) || return nothing
+    (all(t -> t isa RischIntegrate.HypTerm, F.rootsums) && !isempty(F.rootsums)) || return nothing
+    (SymJ._hassymbol(lo) || SymJ._hassymbol(hi)) && return nothing
+    l, h = Float64(N(lo)), Float64(N(hi))
+    for t in F.rootsums
+        α, β, n = Float64(t.α), Float64(t.β), t.n
+        r(v) = α + β * v^n
+        # the real roots of α + β xⁿ
+        q = -α / β
+        roots = isodd(n) ? [sign(q) * abs(q)^(1 / n)] : q > 0 ? [q^(1 / n), -q^(1 / n)] : Float64[]
+        any(z -> l < z < h, roots) && return nothing
+        m = isfinite(l) && isfinite(h) ? (l + h) / 2 : isfinite(l) ? l + 1 : isfinite(h) ? h - 1 : 0.0
+        r(m) > 0 || return nothing
+    end
+    _unwrap(F)
+end
+
 # does risch_integrate take a sign oracle (RischIntegrate with PR #70)?
 const _ORACLE = Ref{Union{Nothing,Bool}}(nothing)
 function _has_oracle()
@@ -128,6 +148,7 @@ function _dpolylog(re::Bool)
 end
 
 function __init__()
+    SymJ._SYMBOLIC_ON[] = _symbolic_on
     reg(name; kw...) = _hasri(name) && SymJ.register_function!(name; julia = getfield(RischIntegrate, name), kw...)
     reg(:clausen2; diff = (args, i) -> _cl1(args[1]))
     reg(:clausen; diff = _dclausen)

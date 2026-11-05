@@ -115,6 +115,13 @@ cancel(ex::Sym; gcd_method::Symbol = :auto) = _with_widening(_cancel, ex; gcd_me
 function _cancel(ex::Sym; gcd_method::Symbol = :auto)
     _check_gcd_method(gcd_method)
     n, d = numer_denom(ex)
+    # nested fractions whose common numerator would expand to millions of terms (a
+    # circuit's transfer function: 16M; SymPy #24537): over the lcm of the denominators,
+    # level by level, the denominators kept factored
+    if _expansion_estimate(n) > 1e5
+        r = _together_lcm(ex)
+        r === nothing || ((n, d) = r)
+    end
     atoms = Set{Sym}()
     (_poly_atoms!(atoms, n) && _poly_atoms!(atoms, d)) || return ex
     # square roots of rationals last: the leading coefficient, and so the sign
@@ -201,3 +208,63 @@ function _conj_cancel(R::Poly{SymNumber}, S::Poly{SymNumber}, gs::Vector{Sym}, r
 end
 _isrationalsqrt(a::Sym) = a.kind == POW && a.args[2] == HALF && a.args[1].kind == NUMBER &&
     isexact(a.args[1].num) && a.args[1].num > N0
+
+# e as (N, D): N expanded, D the product of the irreducible factors of the denominators,
+# each to the largest power a term needs (the lcm of a sum's denominators, not their
+# product); nothing when a denominator cannot be factored
+function _together_lcm(e::Sym)
+    r = _tog(e)
+    r === nothing && return nothing
+    N, D = r
+    N, prod((f^m for (f, m) in D); init = ONE)
+end
+function _tog(e::Sym)
+    k = e.kind
+    if k == ADD
+        parts = Tuple{Sym,Dict{Sym,Int}}[]
+        for (c, a) in zip(e.coefs, e.args)
+            t = _tog(Sym(c) * a)
+            t === nothing && return nothing
+            push!(parts, t)
+        end
+        iszero(e.num) || push!(parts, (Sym(e.num), Dict{Sym,Int}()))
+        L = Dict{Sym,Int}()
+        for (_, d) in parts, (f, m) in d
+            L[f] = max(get(L, f, 0), m)
+        end
+        N = _add_many(expand(n * prod((f^(L[f] - get(d, f, 0)) for f in keys(L)); init = ONE)) for (n, d) in parts)
+        return (expand(N), L)
+    elseif k == MUL
+        N, D = Sym(e.num), Dict{Sym,Int}()
+        for (b, p) in zip(e.args, e.exps)
+            t = _tog(b^p)
+            t === nothing && return nothing
+            N = expand(N * t[1])
+            for (f, m) in t[2]
+                D[f] = get(D, f, 0) + m
+            end
+        end
+        return (N, D)
+    elseif k == POW && e.args[2].kind == NUMBER && isexact(e.args[2].num) && _isint(e.args[2].num)
+        q = _toint(e.args[2].num)
+        t = _tog(e.args[1])
+        t === nothing && return nothing
+        nb, db = t
+        q >= 0 && return (expand(nb^q), Dict{Sym,Int}(f => m * q for (f, m) in db))
+        # 1/(nb/db)^|q|: db^|q| over nb^|q|, nb factored
+        fb = try factor(nb) catch err; err isa ArgumentError || rethrow(); return nothing end
+        c = fb.kind == MUL ? Sym(fb.num) : ONE
+        fs = fb.kind == MUL ? collect(zip(fb.args, fb.exps)) : fb.kind == POW ? [(fb.args[1], fb.args[2])] : [(fb, ONE)]
+        D = Dict{Sym,Int}()
+        for (f, m) in fs
+            if f.kind == NUMBER
+                c *= f^m
+            else
+                (m.kind == NUMBER && _isint(m.num)) || return nothing
+                D[f] = get(D, f, 0) + _toint(m.num) * (-q)
+            end
+        end
+        return (expand(prod((f^(m * (-q)) for (f, m) in db); init = ONE) / c^(-q)), D)
+    end
+    (e, Dict{Sym,Int}())
+end

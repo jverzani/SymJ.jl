@@ -238,6 +238,11 @@ function inverse_laplace_transform(F, s::Sym, t::Sym)
     # floating point coefficients: the transform of the rationals they stand for, its
     # numbers floats again (apart needs exact coefficients; SymPy #26517)
     if !_isexactex(F) && !_float_exponent(F)
+        # floats and no parameters: partial fractions numerically, simple poles only
+        # (exactly, a cubic's roots in Cardano's form over 50-digit rationals took a
+        # minute; SymPy #25352)
+        r = _ilap_float(F, s, t)
+        r === nothing || return r
         X = _exactfloats(F)
         _isexactex(X) && return _floatify(inverse_laplace_transform(X, s, t))
     end
@@ -275,6 +280,34 @@ function inverse_laplace_transform(F, s::Sym, t::Sym)
         _ilap_negshift(c) && throw(ArgumentError("inverse_laplace_transform: exp($(-c)*s) is a shift to t < 0; no inverse for t ≥ 0"))
         g = _ilap_rational(R, s, t)
         out += iszero(c) ? g : heaviside(t - c) * subs(g, t => t - c)
+    end
+    out
+end
+
+function _ilap_float(F::Sym, s::Sym, t::Sym)
+    all(v -> _eq(v, s), free_symbols(F)) || return nothing
+    _has_epow(F) && return nothing
+    n, d = numer_denom(cancel(F))
+    P = try (Poly{SymNumber}(_exactfloats(n), [s]), Poly{SymNumber}(_exactfloats(d), [s])) catch; return nothing end
+    nc = [ComplexF64(_evalc(c)) for c in _xcoeffs(P[1])]
+    dc = [ComplexF64(_evalc(c)) for c in _xcoeffs(P[2])]
+    (length(dc) >= 2 && length(nc) < length(dc)) || return nothing
+    ps = [ComplexF64(_evalc(r)) for r in _numeric_roots(Sym[Sym(real(c)) for c in dc])]
+    scale = maximum(abs, ps; init = 1.0)
+    for i in eachindex(ps), j in (i + 1):length(ps)
+        abs(ps[i] - ps[j]) > 1e-6 * scale || return nothing            # a repeated pole
+    end
+    ev(c, z) = foldr((a, acc) -> acc * z + a, c; init = zero(ComplexF64))
+    dd = [k * dc[k + 1] for k in 1:(length(dc) - 1)]
+    out = ZERO
+    for p in ps
+        imag(p) < -1e-12 * scale && continue                             # its conjugate's term has it
+        r = ev(nc, p) / ev(dd, p)
+        if abs(imag(p)) <= 1e-12 * scale
+            out += Sym(real(r)) * exp(Sym(real(p)) * t)
+        else
+            out += exp(Sym(real(p)) * t) * (Sym(2real(r)) * cos(Sym(imag(p)) * t) - Sym(2imag(r)) * sin(Sym(imag(p)) * t))
+        end
     end
     out
 end

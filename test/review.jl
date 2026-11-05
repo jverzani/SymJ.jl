@@ -352,3 +352,36 @@ end
     # exp of a scalar multiple: no sqrt(s^2)
     @test !occursin("sqrt(s^2)", string(exp(-Sym[-2 1; 1 -1] * s)))
 end
+
+@testset "remaining cases (SymPy review, round 5)" begin
+    @syms Ω ζ ω ω1 r σ ϵ y s
+    LA = SymJ.LinearAlgebra
+    # a sum of squares in real parameters vanishes on its real components (#24518)
+    A = SymJ.Assumptions(Ω ∈ ℝ, ζ ∈ ℝ, ω ∈ ℝ, ω1 ∈ ℝ)
+    zs = SymJ._nonneg_zero_set(ζ^2 * ω^2 + Ω^2 - 2Ω * ω1 + ω1^2, [Ω, ζ, ω, ω1], A)
+    @test all(d -> haskey(d, ω1) ? d[ω1] == Ω : d[Ω] == ω1, zs)
+    @test any(d -> get(d, ζ, nothing) == 0, zs)
+    # the DFT matrices' eigenvalues exactly (#24082)
+    @test LA.eigvals(Sym[exp(2PI * IM / 5)^(i * j) for i in 0:4, j in 0:4]) == [-sqrt(Sym(5)), -IM * sqrt(Sym(5)), IM * sqrt(Sym(5)), sqrt(Sym(5)), sqrt(Sym(5))]
+    @test LA.eigvals(Sym[exp(2PI * IM / 3)^(i * j) for i in 0:2, j in 0:2]) == [-sqrt(Sym(3)), IM * sqrt(Sym(3)), sqrt(Sym(3))]
+    # nested fractions over the lcm of their denominators (#24537)
+    cs = [Sym(Symbol(:c, i)) for i in 1:6]
+    inner = sum(1 / (1 + c * s) for c in cs)
+    e = inner^3 / (1 + inner^2)
+    @test SymJ._expansion_estimate(SymJ.numer_denom(e)[1]) > 1e5
+    t = @elapsed ce = cancel(e)
+    @test t < 60
+    vals = [s => Sym(3) // 7; [c => Sym(i) // 5 for (i, c) in enumerate(cs)]]
+    @test N(subs(ce, vals...)) ≈ N(subs(e, vals...))
+    # a float inverse transform by numeric partial fractions: fast, the same values (#25352)
+    @syms tt
+    F = (1 / s) * (2.25214078181399s + 1.0) / (0.0935725677320455s^3 + 1.00201771101894s^2 + 2.27274666658392s + 1.0)
+    tl = @elapsed f = SymJ.inverse_laplace_transform(F, s, tt)
+    @test tl < 20
+    @test N(subs(f, tt => 1)) ≈ 1.057626488214003
+    # floats with parameters: the floats as constants, no unsupported cases (#24193)
+    sol = solve([y ~ σ * 2^(1 / 6), ϵ * ((y / r)^12 - 2 * (y / r)^6) ~ s * 4 * ϵ * (-σ^6 / r^6 + σ^12 / r^12)], [y, s])
+    @test !any(c -> c.second isa Exception, sol.cases)
+    g = only(last(sol.cases).second)
+    @test N(subs(g[s], r => 2, σ => 1)) ≈ 1
+end

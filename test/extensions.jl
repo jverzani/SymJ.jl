@@ -211,6 +211,10 @@ import PolyLog as PL
         Inf_ = Sym(Inf)
         # an answer whose only non-elementary part is a ₂F₁ term: an expression, so limit
         # and the rest take it (SymPy #24879)
+        # ₂F₁ antiderivatives where their radicand is positive, limits through the
+        # connection formulas (SymPy #24879)
+        isdefined(RischIntegrate, :HypTerm) && @test N(∫(1 / sqrt(1 + x^3), (x, -1, Inf_))) ≈ N(SF.gamma(Sym(1) // 3) * sqrt(PI) / SF.gamma(Sym(5) // 6))
+        isdefined(RischIntegrate, :HypTerm) && @test_throws ArgumentError ∫(x / sqrt(1 - x^3), (x, 0, 2))
         # Bose–Einstein and Fermi–Dirac integrals (SymPy #24431)
         @test ∫(x^2 / (exp(x) - 1), (x, 0, Inf_)) == 2SF.zeta(Sym(3))
         @test ∫(x^2 / (exp(x) + 1), (x, 0, Inf_)) == 3SF.zeta(Sym(3)) / 2

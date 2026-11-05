@@ -177,7 +177,9 @@ function _solve_polynomial_system(eqs::Vector{<:Relation}, vars::Vector{Sym})
     # drop solutions at a pole
     filter!(s -> all(d -> !_vanishes(subs(d, s...)), dens), sols)
     if inexact
-        sols = [Dict{Sym,Sym}(k => (_hassymbol(v) ? v : Sym(N(v))) for (k, v) in s) for s in sols]
+        # (with parameters too: their numbers floats again, not the 53-bit rationals the
+        # floats were taken as; SymPy #24193)
+        sols = [Dict{Sym,Sym}(k => (_hassymbol(v) ? _floatify(v) : Sym(N(v))) for (k, v) in s) for s in sols]
     end
     _uniquesols([_polish(s, nums, vars) for s in sols])
 end

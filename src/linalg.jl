@@ -626,7 +626,11 @@ function _eigen_mult(A::AbstractMatrix)
     for (f, k) in fs
         has(f, λ) || continue
         m = Int(_numerator(k.num))
-        for r in _eig_roots(f, λ)
+        for r in _eig_roots_unity(f, λ)
+            # an exact matrix with numeric roots (its charpoly's coefficients radicals, as
+            # for the DFT matrix): a root r with r or r² a small rational, verified exactly
+            # (√5, i√5; SymPy #24082)
+            r = _exact_eig_guess(f, λ, r)
             i = findfirst(q -> iszero(expand(q.first - r)), out)
             i === nothing ? push!(out, r => m) : (out[i] = r => out[i].second + m)
         end
@@ -638,6 +642,92 @@ function _eigen_mult(A::AbstractMatrix)
         sort!(out; by = key)
     end
     out
+end
+
+# with roots of unity in f's coefficients (a DFT matrix), its numeric roots guessed exactly
+# when every one of them is verified; else the roots by radicals (Cardano's with
+# exp(2πi/3) in the coefficients is exact but unreadable)
+function _eig_roots_unity(f::Sym, λ::Sym)
+    has_unity = Ref(false)
+    _replace_walk(f) do t
+        t.kind == POW && t.args[1] === E && _ipi_coeff(t.args[2]) !== nothing && (has_unity[] = true)
+        nothing
+    end
+    has_unity[] || return _eig_roots(f, λ)
+    P = try Poly{Sym}(expand(f), [λ]) catch; return _eig_roots(f, λ) end
+    d = degree(P, λ)
+    cs = [coeff(expand(f), λ, k) for k in 0:d]
+    any(_hassymbol, cs) && return _eig_roots(f, λ)
+    rs = _numeric_roots(cs)
+    out = Sym[]
+    for r in rs
+        g = _exact_eig_guess(f, λ, r)
+        _isexactex(g) || return _eig_roots(f, λ)
+        push!(out, g)
+    end
+    out
+end
+
+function _exact_eig_guess(f::Sym, λ::Sym, r::Sym)
+    (r.kind == NUMBER || has(r, IM)) || return r
+    _isexactex(r) && return r
+    _isexactex(f) || return r
+    v = try ComplexF64(_evalc(r)) catch; return r end
+    cands = Sym[]
+    for (w, k) in ((v, 1), (v^2, 2))
+        abs(imag(w)) < 1e-6 * max(1, abs(w)) || continue
+        q = rationalize(real(w); tol = 1e-5)              # (verified exactly below)
+        denominator(q) <= 1000 || continue
+        if k == 1
+            push!(cands, Sym(q))
+        else
+            s = sqrt(Sym(abs(q)))
+            push!(cands, q >= 0 ? (real(v) >= 0 ? s : -s) : (imag(v) >= 0 ? IM * s : -IM * s))
+        end
+    end
+    for c in cands
+        abs(ComplexF64(_evalc(c)) - v) < 1e-4 * max(1, abs(v)) || continue
+        d = try expand(subs(f, λ => c)) catch; continue end
+        (iszero(d) || iszero(_unity_reduce(d)) || iszero(_unity_radicals(d))) && return c
+    end
+    r
+end
+
+# e with its roots of unity exp(iπr) as cos(πr) + i sin(πr), in radicals for small
+# denominators (exp(2πi/3) = -1/2 + i√3/2), expanded
+_unity_radicals(e::Sym) = expand(_replace_walk(e) do t
+    t.kind == POW && t.args[1] === E || return nothing
+    r = _ipi_coeff(t.args[2])
+    r === nothing ? nothing : cos(Sym(r) * PI) + IM * sin(Sym(r) * PI)
+end)
+
+# e with its roots of unity exp(iπr) as powers of w = exp(2πi/N), reduced modulo Φ_N(w)
+# (1 + ω + ω² + ω³ + ω⁴ = 0 for ω = exp(2πi/5)); e itself when it has none
+function _unity_reduce(e::Sym)
+    rs = Rational{BigInt}[]
+    _replace_walk(e) do t
+        t.kind == POW && t.args[1] === E && (r = _ipi_coeff(t.args[2]); r === nothing ||
+            push!(rs, Rational{BigInt}(_numerator(r), _denominator(r))))
+        nothing
+    end
+    isempty(rs) && return e
+    N = Int(reduce(lcm, (denominator(r / 2) for r in rs)))
+    N <= 60 || return e
+    w = Sym(Symbol("_unity_w"))
+    g = expand(_replace_walk(e) do t
+        t.kind == POW && t.args[1] === E || return nothing
+        r = _ipi_coeff(t.args[2])
+        # (w^N = 1: exponents mod N, so w⁻¹ is w^(N-1))
+        r === nothing ? nothing : w^mod(Int(Rational{BigInt}(_numerator(r), _denominator(r)) * N / 2), N)
+    end)
+    has(g, w) || return g
+    atoms = Set{Sym}()
+    _poly_atoms!(atoms, g) || return e
+    gens = [w; sort!([a for a in atoms if !_eq(a, w)]; lt = _lt)]
+    P = try Poly{SymNumber}(g, gens) catch; return e end
+    Φ = _add_many(Sym(SymNumber(c)) * w^(i - 1) for (i, c) in enumerate(_cyclotomic(N)))
+    _, R = divrem(P, Poly{SymNumber}(expand(Φ), gens))
+    Sym(R)
 end
 
 # the roots of a factor of the characteristic polynomial; a quadratic whose

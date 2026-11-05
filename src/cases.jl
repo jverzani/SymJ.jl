@@ -304,6 +304,9 @@ end
 function _case_tree(run, A::Assumptions, decided::Dict{Any,Bool}, count::Ref{Int})
     need = try
         v = with(() -> run(A), _DECIDED => decided)
+        # an answer by cases of its own (one for each root of a degenerate factor): its
+        # cases as leaves here
+        v isa Cases && return [c.first => c.second for c in v.cases]
         return [Any[] => v]
     catch err
         err isa _NeedDecision || (err isa ArgumentError ? (return [Any[] => err]) : rethrow())
@@ -375,6 +378,13 @@ function _merge_cases(kids)
     out
 end
 _samecase(p, q) = p.first == q.first && _sameanswer(p.second, q.second)
+# equal answers, Cases compared case by case
+_same_result(a, b) = a isa Cases && b isa Cases ?
+    (length(a.cases) == length(b.cases) &&
+     all(((p, q),) -> (isequal(p.first, q.first) || string(p.first) == string(q.first)) &&
+                      _same_result(p.second, q.second), zip(a.cases, b.cases))) :
+    _sameanswer(a, b)
+
 _sameanswer(a, b) = a isa Exception || b isa Exception ? (typeof(a) == typeof(b) && sprint(showerror, a) == sprint(showerror, b)) :
     isequal(a, b)
 
@@ -475,6 +485,11 @@ function _degenerate_subst(D, B::Assumptions, unknowns)
     for f in fs
         _decide(Relation(:ne, f, ZERO), B) && continue
         ps = _named(f)
+        # f ≥ 0 in real parameters (a sum of squares, ζ²ω² + (Ω - ω₁)²): it vanishes where
+        # its gradient does too; the real solutions of that system, each a substitution
+        # (solved for one parameter, it had complex roots; SymPy #24518)
+        sos = _nonneg_zero_set(f, ps, B)
+        sos === nothing || return f => sos
         best = nothing
         for p in ps
             P = try Poly{Sym}(expand(f), [p]) catch; continue end
@@ -492,6 +507,38 @@ function _degenerate_subst(D, B::Assumptions, unknowns)
     nothing
 end
 
+function _nonneg_zero_set(f::Sym, ps::Vector{Sym}, B::Assumptions)
+    length(ps) >= 2 || return nothing
+    all(p -> _isreal(p, B) === true, ps) || return nothing
+    _ispoly_in(f, ps[1]) || return nothing
+    all(p -> (P = try Poly{Sym}(expand(f), [p]) catch; nothing end; P !== nothing && degree(P, p) >= 2), ps) || return nothing
+    (_nonneg(f, B) || _nonneg_quadratic(expand(f), ps, B, 2)) || return nothing
+    eqs = Relation[Relation(:eq, f, ZERO); [Relation(:eq, diff(f, p), ZERO) for p in ps]]
+    sols = try _solve_generic(eqs, ps) catch err; err isa ArgumentError || rethrow(); return nothing end
+    out = Dict{Sym,Sym}[]
+    for s in sols
+        d = Dict{Sym,Sym}(p => v for (p, v) in s if !_eq(p, v))
+        (isempty(d) || any(v -> has(v, IM), values(d))) && continue
+        push!(out, d)
+    end
+    isempty(out) ? nothing : out
+end
+
+# a c p² + b p + c₀ ≥ 0 for real p when a > 0 and 4a c₀ - b² ≥ 0 (decided, or in turn
+# such a quadratic in another parameter, to depth d)
+function _nonneg_quadratic(f::Sym, ps::Vector{Sym}, B::Assumptions, d::Int)
+    _nonneg(f, B) && return true
+    d == 0 && return false
+    for p in ps
+        P = try Poly{Sym}(f, [p]) catch; continue end
+        degree(P, p) == 2 || continue
+        a, b, c = coeff(f, p, 2), coeff(f, p, 1), coeff(f, p, 0)
+        _ispos(a, B) || continue
+        _nonneg_quadratic(expand(4a * c - b^2), [q for q in ps if !_eq(q, p)], B, d - 1) && return true
+    end
+    false
+end
+
 # the answers under each alternative substitution for f = 0: one, or all of them when
 # they are all empty (none has solutions); different answers depend on which root holds
 function _alternatives(run, (f, ps))
@@ -503,7 +550,15 @@ function _alternatives(run, (f, ps))
     end
     length(rs) == 1 && return rs[1]
     all(r -> r isa AbstractVector && isempty(r), rs) && return rs[1]
-    throw(ArgumentError("solve: the case $f = 0 is not supported"))
+    # the same answer under every alternative (the components ζ = 0 and ω = 0 of a sum of
+    # squares ζ²ω² + (Ω - ω₁)²; SymPy #24518)
+    all(r -> _same_result(r, rs[1]), rs) && return rs[1]
+    # different answers for different roots (r² + rσ + σ² = 0 at r = σ(-1 ± i√3)/2): a
+    # case for each, its condition the root
+    conds = [p isa Pair ? Any[Relation(:eq, p.first, p.second)] :
+             p isa AbstractDict ? Any[Relation(:eq, k, v) for (k, v) in p] : nothing for p in ps]
+    any(isnothing, conds) && throw(ArgumentError("solve: the case $f = 0 is not supported"))
+    Cases{Any}([c => r for (c, r) in zip(conds, rs)])
 end
 
 # the roots at which e stays defined in this case: an expression that must not vanish
