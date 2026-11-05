@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=5839ca4e">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=582729be">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -941,7 +941,7 @@ SymJ.simplify_gamma(factorial(n + 2) / factorial(n)), SymJ.simplify_gamma(binomi
 <pre><code class="language-julia">solve([a * x + y ~ 1, x - y ~ b], [x, y])</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\begin{cases} \left[ \begin{array}{l} \left\{ x = b + 1, \; y = 1 \right\} \end{array} \right] &amp; a = 0 \\ \left[ \begin{array}{l} \left\{ x = y - 1, \; y = y \right\} \end{array} \right] &amp; a = -1 \land b = -1 \\ \left[ \; \right] &amp; a = -1 \land b \neq -1 \\ \left[ \begin{array}{l} \left\{ x = \frac{b + 1}{a + 1}, \; y = \frac{ - a \cdot b + 1}{a + 1} \right\} \end{array} \right] &amp; a \neq 0 \land a \neq -1 \end{cases}\]
+\[\begin{cases} \left[ \begin{array}{l} \left\{ x = y - 1, \; y = y \right\} \end{array} \right] &amp; a = -1 \land b = -1 \\ \left[ \; \right] &amp; a = -1 \land b \neq -1 \\ \left[ \begin{array}{l} \left\{ x = \frac{b + 1}{a + 1}, \; y = \frac{ - a \cdot b + 1}{a + 1} \right\} \end{array} \right] &amp; a \neq -1 \end{cases}\]
 </div>
 </div>
 <p>Polynomial systems are solved through a lex Gröbner basis, which is triangular:</p>
@@ -2252,6 +2252,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=5839ca4e"></script>
+  <script src="../assets/materialdocs.js?v=582729be"></script>
 </body>
 </html>
