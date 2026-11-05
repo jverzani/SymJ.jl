@@ -292,6 +292,13 @@ function _definite(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A::Assumptions, pv
     v === nothing || return v
     S = _singular_points(f, x, lo, hi)
     F = _antiderivative(antider, f, x, A; numeric = true)
+    # an antiderivative known only numerically that has an expression valid on the
+    # interval (RischIntegrate's ₂F₁ terms, where their radicand is positive): that, so
+    # the ends may be infinite (SymPy #24879)
+    if !(F isa Sym) && _SYMBOLIC_ON[] !== nothing
+        G = _SYMBOLIC_ON[](F, x, lo, hi)
+        G isa Sym && (F = G)
+    end
     # F may jump where f is smooth: 2atan(√(A²-1) tan(t/2)/(A-1))/√(A²-1) for 1/(A - cos t)
     # at t = π (#26283); split there too (a point where F is continuous changes nothing)
     F isa Sym && (S = unique(vcat(S, _jump_points(F, x, lo, hi))))
@@ -403,6 +410,10 @@ function _antiderivative(antider, f::Sym, x::Sym, A; numeric::Bool = false)
     (F isa Sym && !_hasfn(F, :Integral)) || throw(ArgumentError("integrate: no antiderivative found for $f"))
     _hassymbol(F - x) ? simplify(F; assume = A) : F
 end
+
+# set by the RischIntegrate extension: (F, x, lo, hi) -> an expression for the numeric
+# antiderivative F valid on (lo, hi), or nothing
+const _SYMBOLIC_ON = Ref{Any}(nothing)
 
 # F(hi) - F(lo), a float, for an antiderivative F known only numerically and continuous on
 # [lo, hi] (no singular points there); the ends must be numbers

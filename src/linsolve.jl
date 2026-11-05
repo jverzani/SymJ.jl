@@ -47,9 +47,78 @@ function solve(eqs::AbstractVector{<:Relation}, vars::Union{AbstractVector,Tuple
         _solve_for_calls((es, vs, _) -> solve(es, vs), collect(Relation, eqs), vars)
     end
     all(e -> e.op === :eq, eqs) || return _solve_ineq_system(eqs, vars)
+    r = _solve_float_constants(eqs, vars)
+    r === nothing || return r
     _by_cases(Assumptions()) do B
         _solve_system_case(collect(Relation, eqs), vars, B)
     end
+end
+
+# floats among parameters: each float an opaque constant c, the system solved exactly in
+# the c's, then the floats put back: conditions of the c's alone decided by their
+# values, and the answer's numbers floats. (Exactly, a float such as 2^(1/6) became a
+# 53-bit rational whose powers nearly cancelled, and cases split on that; SymPy #24193.)
+# nothing when there are no such floats.
+function _solve_float_constants(eqs, vars::Vector{Sym})
+    exprs = Sym[e.lhs - e.rhs for e in eqs]
+    any(e -> !_isexactex(e), exprs) || return nothing
+    any(e -> any(p -> !any(v -> _eq(p, v), vars), _named(e)), exprs) || return nothing   # no parameters
+    floats = SymNumber[]
+    for e in exprs
+        _replace_walk(e) do t
+            # (by absolute value: -1.12 and 1.12 are one constant and its negative)
+            cs0 = t.kind == NUMBER ? [t.num] : t.kind == ADD ? [t.num; t.coefs] : t.kind == MUL ? [t.num] : SymNumber[]
+            for c in cs0
+                isfloat(c) && !iszero(c) && !isone(abs(c)) && !any(f -> f == abs(c), floats) && push!(floats, abs(c))
+            end
+            nothing
+        end
+    end
+    isempty(floats) && return nothing
+    length(floats) <= 4 || return nothing
+    cs = [Sym(Symbol("_fc", i)) for i in eachindex(floats)]
+    sw(c::SymNumber) = (i = isfloat(c) ? findfirst(f -> f == abs(c), floats) : nothing;
+                        i === nothing ? Sym(c) : (c < N0 ? -cs[i] : cs[i]))
+    swap(e) = _replace_walk(e) do t
+        if t.kind == NUMBER && isfloat(t.num)
+            return sw(t.num)
+        elseif t.kind == ADD && (any(isfloat, t.coefs) || isfloat(t.num))
+            return sw(t.num) + _add_many(sw(c) * a for (c, a) in zip(t.coefs, t.args))
+        elseif t.kind == MUL && isfloat(t.num)
+            return sw(t.num) * (t / Sym(t.num))
+        end
+        nothing
+    end
+    es = Relation[Relation(:eq, swap(e.lhs), swap(e.rhs)) for e in eqs]
+    any(e -> !_isexactex(e.lhs - e.rhs), es) && return nothing
+    r = _by_cases(Assumptions()) do B
+        _solve_system_case(es, vars, B)
+    end
+    back = [c => Sym(f) for (c, f) in zip(cs, floats)]
+    putback(v) = v isa Sym ? _floatify(subs(v, back...)) :
+                 v isa AbstractDict ? Dict{Sym,Sym}(k => putback(w) for (k, w) in v) :
+                 v isa AbstractVector ? map(putback, v) : v
+    r isa Cases || return putback(r)
+    out = Pair{Vector{Any},Any}[]
+    for (conds, v) in r.cases
+        keep = true
+        cs2 = Any[]
+        for c in conds
+            c isa Relation || (push!(cs2, c); continue)
+            cr = Relation(c.op, subs(c.lhs, back...), subs(c.rhs, back...))
+            d = expand(cr.lhs - cr.rhs)
+            if !_hassymbol(d)
+                holds = _REL_INFO[cr.op][2](_csign(d) === nothing ? sign(real(N(d))) : _csign(d), 0)
+                holds || (keep = false; break)
+            else
+                push!(cs2, cr)
+            end
+        end
+        keep && push!(out, cs2 => putback(v))
+    end
+    isempty(out) && return Dict{Sym,Sym}[]
+    length(out) == 1 && isempty(out[1].first) && return out[1].second
+    Cases{Any}(out)
 end
 
 # the divisions the generic solution made (pivots, Gröbner coefficients), collected
