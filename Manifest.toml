@@ -52,10 +52,10 @@ version = "1.2.0"
 
 [[deps.GruntzLimit]]
 deps = ["ScopedValues", "SpecialFunctions", "TermInterface"]
-git-tree-sha1 = "72602705b14ed4a677428613dee9f7433259a96b"
+git-tree-sha1 = "6be2cb384be114f467af0d326d38fd6b1a8c051e"
 registries = "General"
 uuid = "549ac5eb-4437-4bd1-88f1-51d4e2fa49c9"
-version = "1.2.1"
+version = "1.3.0"
 
 [[deps.HashArrayMappedTries]]
 git-tree-sha1 = "2eaa69a7cab70a52b9687c8bf950a5a93ec895ae"
