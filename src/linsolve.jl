@@ -224,6 +224,12 @@ function _solve_linear(eqs, vars::Vector{Sym})
         all(e -> _poly_atoms!(atoms, numer_denom(e)[1]) && _poly_atoms!(atoms, numer_denom(e)[2]),
             Iterators.flatten((A, b))) ||
             throw(ArgumentError("solve: inexact coefficients together with symbols are not supported"))
+        # radicals among the coefficients: over the field they generate, its elements
+        # normalized (√6√11 and √2√33 are one number; as independent generators a zero
+        # pivot looked nonzero and the solutions were 0/0; SymPy #22852)
+        if any(_isalgebraic_atom, atoms)
+            return _gauss_jordan(map(e -> _AlgF(_algnorm(e)), A), map(e -> _AlgF(_algnorm(e)), b), vars, Sym)
+        end
         gens = sort!(collect(atoms); lt = _lt)
         function rf(e)
             n, d = numer_denom(e)

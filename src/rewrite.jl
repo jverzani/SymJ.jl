@@ -134,7 +134,10 @@ rewritten. The targets:
 - `gamma` (from SpecialFunctions) and `factorial`: factorials, binomials and `beta` through
   `gamma`, and gamma, binomials and `beta` through factorials.
 
-The result is not simplified. Not exported.
+The result is not simplified. The rewritten forms are identities off the functions'
+branch cuts; on a cut, a real argument beyond the domain, the value may be the other
+side's: `rewrite(asin(x), log)` at 2 is `π/2 - i acosh(2)`, while `N(asin(Sym(2)))`
+follows Julia's floating point, `π/2 + i acosh(2)` (SymPy #23760). Not exported.
 
 ```julia
 SymJ.rewrite(sin(x), exp)                 # -im*(exp(im*x) - exp(-im*x))/2

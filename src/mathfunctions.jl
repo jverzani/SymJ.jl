@@ -314,7 +314,16 @@ register_function!(:binomial; julia = _num_binomial,
         end
         (k.kind == NUMBER && _isint(k.num)) || return nothing
         kk = _toint(k.num)
-        kk < 0 && return ZERO
+        # negative integers, as binomial(n, n) = 1 says (and Mathematica, Maple):
+        # binomial(n, k) = (-1)^(n-k) binomial(-k-1, n-k) for k ≤ n < 0, else 0 for k < 0
+        # (Julia's Base gives binomial(-1, -1) = 0; SymPy #23497)
+        if kk < 0
+            if n.kind == NUMBER && _isint(n.num) && kk <= _toint(n.num) < 0
+                nn = _toint(n.num)
+                return Sym(SymNumber((-1)^isodd(nn - kk) * binomial(big(-kk - 1), nn - kk)))
+            end
+            return ZERO
+        end
         n.kind == NUMBER && _isint(n.num) && return Sym(SymNumber(binomial(big(_toint(n.num)), kk)))
         kk <= 64 || return nothing
         r = ONE

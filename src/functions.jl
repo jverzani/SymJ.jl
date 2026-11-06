@@ -319,6 +319,8 @@ register_function!(:log; julia = log,
             a = args[1]
             isone(a) && return ZERO
             a === E && return ONE
+            # log(0) = -∞ (as for floats; then 0*log(0) is NaN, not 0; SymPy #22612)
+            a.kind == NUMBER && isexact(a.num) && iszero(a.num) && return Sym(-Inf)
             if a.kind == POW && a.args[1] === E && a.args[2].kind == NUMBER
                 return a.args[2]                 # log(e^r) == r for real r
             end

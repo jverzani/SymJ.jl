@@ -384,3 +384,39 @@ end
     g = only(last(sol.cases).second)
     @test N(subs(g[s], r => 2, σ => 1)) ≈ 1
 end
+
+@testset "wrong answers (SymPy review, round 6)" begin
+    @syms a b u v q i t
+    LA = SymJ.LinearAlgebra
+    # radicals in a linear system over the field they generate: √6√11 = √2√33 (#22852)
+    x0, x1, x2 = Sym(:x0), Sym(:x1), Sym(:x2)
+    sol = solve([sqrt(Sym(6)) * sqrt(Sym(11)) * x0 - sqrt(Sym(2)) * sqrt(Sym(33)) * x0 + x1 ~ 1, x1 - x2 ~ 0], [x0, x1, x2])
+    @test !any(d -> any(w -> occursin("NaN", string(N(subs(w, x0 => 1, x1 => 1, x2 => 1)))), values(d)), sol)
+    # exponentials of rational multiples of q seen together in rank and nullspace (#23531)
+    m = Sym[-2cosh(q / 3) exp(-q) 1; exp(q) -2cosh(q / 3) 1; 1 1 -2cosh(q / 3)]
+    @test LA.rank(m) == 2
+    @test size(LA.nullspace(m), 2) == 1
+    # a degenerate factor with complex roots is a case (#23459); derivative unknowns
+    # keep their names in Cases
+    cs = solve([a * u + b * v ~ 0, b^2 * u + a^2 * v ~ 0], [u, v])
+    @test any(c -> any(r -> occursin("sqrt(3)", string(r)), c.first), cs.cases)
+    f, g = SymFunction(:f), SymFunction(:g)
+    cs = solve([a * diff(f(t), t) + b * diff(g(t), t) ~ 1, diff(f(t), t) - diff(g(t), t) ~ 2], [diff(f(t), t), diff(g(t), t)])
+    @test haskey(only(last(cs.cases).second), diff(f(t), t))
+    # telescoping infinite sums (#23119)
+    @test SymJ.summation(1 / (i + 1) - 1 / (i + 2), i, 0, Inf) == 1
+    @test SymJ.summation(1 / (5 * (5i + 2)) - 1 / (5 * (5i + 7)), i, 0, Inf) == Sym(1) / 10
+    # log(0) = -∞, and 0*log(0) is NaN, not 0 (#22612)
+    @test log(Sym(0)) == Sym(-Inf)
+    @test isnan(N(subs(x * log(x), x => 0)))
+    # an integer-valued float is an integer (#23731)
+    @test solve(x ~ 1.0, x; assume = (x ∈ ℤ,)) == [Sym(1.0)]
+    # binomial at negative integers, as binomial(n, n) = 1 (#23497)
+    @test binomial(Sym(-1), Sym(-1)) == 1
+    @test binomial(Sym(-3), Sym(-5)) == 6
+    # floats with symbols and a quartic: refused, not formulas with no accuracy (#22685)
+    @test_throws ArgumentError LA.eigvals(Sym[1.5 x 0 0; x 0.5 x 0; 0 x 2.5 x; 0 0 x 3.5])
+    # an unknown function's argument is not floated (#22524)
+    h = SymFunction(:h)
+    @test solve(h(2) * 4.0 + x ~ 0, x) == [-4.0 * h(2)]
+end
