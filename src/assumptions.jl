@@ -971,7 +971,9 @@ end
 function _isinteger(e::Sym, A::Assumptions)::Union{Nothing,Bool}
     isempty(A.subst) || (e = expand(subs(e, A.subst...)))
     k = e.kind
-    k == NUMBER && return isexact(e.num) && isone(_denominator(e.num))
+    # (a float with an integer value is one: solve(x ~ 1.0, x; assume = (x ∈ ℤ,)) is
+    # [1.0]; SymPy #23731)
+    k == NUMBER && return isexact(e.num) ? isone(_denominator(e.num)) : (v = Float64(e.num); isfinite(v) && isinteger(v))
     _hassymbol(e) || return _const_rational(e) === false ? false : nothing
     if _isnamed(e)
         get(A.dom, e, _CR) == _ZR && return true

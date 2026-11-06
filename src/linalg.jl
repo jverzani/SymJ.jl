@@ -31,6 +31,10 @@ Base.one(::Type{_AlgF}) = _AlgF(ONE)
 Base.zero(::_AlgF) = _AlgF(ZERO)
 Base.one(::_AlgF) = _AlgF(ONE)
 
+_has_algebraic(e::Sym) = _isalgebraic_atom(e) || any(_has_algebraic, e.args) ||
+    (e.kind == MUL && any(i -> _isalgebraic_atom(_mkpow(e.args[i], e.exps[i])), eachindex(e.args)))
+Sym(a::_AlgF) = a.v
+
 # an atom that is algebraic over the others: a radical (sqrt(2), im, sqrt(-t^2)), whose
 # powers reduce in the canonical form
 _isalgebraic_atom(a::Sym) = a.kind == POW && a.args[2].kind == NUMBER && isexact(a.args[2].num) &&
@@ -252,7 +256,8 @@ function _cramer_sym(M::AbstractMatrix, n::Int)
         P === nothing && return nothing
         D = n == 1 ? P[1, 1] : _bareiss_det(P[:, 1:n])
         Ds = expand(Sym(D))
-        iszero(Ds) && return nothing
+        # (radicals: zero once they are merged, √6√11 - √2√33)
+        (iszero(Ds) || (_has_algebraic(Ds) && iszero(_algnorm(Ds)))) && return nothing
         (_cramer(P, n, D), Ds)
     end
 end
@@ -435,6 +440,14 @@ end
 
 # reduced row echelon form over the field: (R, pivot columns)
 function _rref_field(A::AbstractMatrix)
+    # exponentials of rational multiples of one u (and cosh, sinh, tanh of them): powers
+    # of w = exp(u/N), so the relations among them are seen (exp(±q) with cosh(q/3);
+    # SymPy #23531), w put back after
+    E2, wback = _exp_powers(A)
+    if wback !== nothing
+        R, piv = _rref_field(E2)
+        return Sym[simplify(subs(e, wback...)) for e in R], piv
+    end
     M, back = _field_matrix(A)
     m, n = size(M)
     r = 1
@@ -460,6 +473,48 @@ function _rref_field(A::AbstractMatrix)
         r += 1
     end
     Sym[back(e) for e in M], pivots
+end
+
+# (A with its exponentials as powers of new symbols, the substitutions back), or (A, nothing)
+# when there are no two exponentials of rational multiples of one argument
+function _exp_powers(A::AbstractMatrix)
+    S = Sym[Sym(a) for a in A]
+    hyp = (sinh, cosh, tanh, coth, sech, csch)
+    any(e -> _has_fn(e, (:sinh, :cosh, :tanh, :coth, :sech, :csch)) || _has_epow(e), S) || return S, nothing
+    X = Sym[_has_fn(e, (:sinh, :cosh, :tanh, :coth, :sech, :csch)) ? rewrite(e, hyp => exp) : e for e in S]
+    # the exponents, c u with c rational
+    groups = Dict{Sym,Vector{Rational{BigInt}}}()
+    for e in X
+        _replace_walk(e) do t
+            if t.kind == POW && t.args[1] === E
+                g = t.args[2]
+                c = g.kind == MUL ? g.num : N1
+                isexact(c) || return nothing
+                u = g.kind == MUL ? g / Sym(c) : g
+                push!(get!(groups, u, Rational{BigInt}[]), Rational{BigInt}(_numerator(c), _denominator(c)))
+            end
+            nothing
+        end
+    end
+    # (also a product holding e as a base: exp(q)^k is E^(kq) as built)
+    any(v -> length(unique(abs.(v))) >= 2 || any(c -> !isone(abs(c)), v), values(groups)) || return S, nothing
+    ws = Dict{Sym,Tuple{Sym,BigInt}}()
+    for (u, cs) in groups
+        ws[u] = (Sym(Symbol("_expw", length(ws) + 1)), reduce(lcm, (denominator(c) for c in cs); init = big(1)))
+    end
+    to_w(e) = _replace_walk(e) do t
+        t.kind == POW && t.args[1] === E || return nothing
+        g = t.args[2]
+        c = g.kind == MUL ? g.num : N1
+        isexact(c) || return nothing
+        u = g.kind == MUL ? g / Sym(c) : g
+        haskey(ws, u) || return nothing
+        w, N = ws[u]
+        w^Int(Rational{BigInt}(_numerator(c), _denominator(c)) * N)
+    end
+    Y = Sym[cancel(to_w(e)) for e in X]
+    any(e -> any(u -> has(e, u) && _has_epow(e), keys(ws)), Y) && return S, nothing
+    Y, [w => exp(u / N) for (u, (w, N)) in ws]
 end
 
 """
@@ -622,6 +677,16 @@ function _eigen_mult(A::AbstractMatrix)
     λ = Sym(Symbol("_eigλ"))
     p = factor(charpoly(A, λ))
     fs = p.kind == MUL ? collect(zip(p.args, p.exps)) : p.kind == POW ? [(p.args[1], p.args[2])] : [(p, ONE)]
+    # floats with symbols: a cubic's or quartic's radical formula in floating point loses
+    # every digit to cancellation (NaN at sample values; SymPy #22685), so refused
+    S = Sym[Sym(a) for a in A]
+    if any(e -> !_isexactex(e), S) && any(_hassymbol, S)
+        for (f, _) in fs
+            has(f, λ) || continue
+            d = try degree(Poly{Sym}(expand(f), [λ]), λ) catch; 0 end
+            d >= 3 && throw(ArgumentError("eigvals: with floating point numbers and symbols, the eigenvalues are roots of a polynomial of degree $d, whose radical formula has no accuracy in floating point; substitute numbers for the symbols first (the eigenvalues are then computed numerically), or use exact numbers"))
+        end
+    end
     out = Pair{Sym,Int}[]
     for (f, k) in fs
         has(f, λ) || continue

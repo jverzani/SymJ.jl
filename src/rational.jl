@@ -128,6 +128,8 @@ function _cancel(ex::Sym; gcd_method::Symbol = :auto)
     # normalization, is then decided by the other atoms
     gs = sort!(collect(atoms); lt = (a, b) -> _isrationalsqrt(a) == _isrationalsqrt(b) ? _lt(a, b) : _isrationalsqrt(b))
     P, Q = Poly{SymNumber}(n, gs), Poly{SymNumber}(d, gs)
+    # (an infinity among the factors, -∞ from log(0), leaves no denominator to divide by)
+    (iszero(Q) || any(c -> isfloat(c) && !isfinite(Float64(c)), [P.coefs; Q.coefs])) && return ex
     g = _gcd_poly(P, Q; method = gcd_method)
     P, Q = divexact(P, g), divexact(Q, g)
     r = _cancel_radicals(P, Q, gs, gcd_method)

@@ -192,7 +192,8 @@ function _held_nodes!(out, e::Sym, calls)
 end
 
 _solve_back(r::Sym, back) = subs(r, back)
-_solve_back(r::AbstractVector, back) = [_solve_back(x, back) for x in r]
+# (a Cases is a vector too: its values mapped, not its pairs left as they are; SymPy #23459)
+_solve_back(r::AbstractVector, back) = r isa Cases ? _map_cases(v -> _solve_back(v, back), r) : [_solve_back(x, back) for x in r]
 _solve_back(r::AbstractDict, back) = Dict(_solve_back(k, back) => _solve_back(v, back) for (k, v) in r)
 _solve_back(r::Relation, back) = Relation(r.op, _solve_back(r.lhs, back), _solve_back(r.rhs, back))
 _solve_back(r, back) = r isa Cases ? _map_cases(v -> _solve_back(v, back), r) : r   # (Cases: defined later)
@@ -256,6 +257,9 @@ function _floatify(e::Sym)
     elseif k == POW
         return (e.args[1] === E ? E : _floatify(e.args[1]))^e.args[2]
     elseif k == FN
+        # (an unknown function's arguments are its own: f(2) stays f(2), not f(2.0), which
+        # is another expression; SymPy #22524)
+        haskey(FUNCTION_RULES, e.name) || return e
         return apply_function(e.name, Sym[_floatify(a) for a in e.args])
     end
     e

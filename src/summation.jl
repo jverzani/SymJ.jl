@@ -86,6 +86,15 @@ function _summation(f::Sym, k::Sym, a::Sym, b, assume)
         terms = [Sym(c) * t for (c, t) in zip(f.coefs, f.args)]
         iszero(f.num) || push!(terms, Sym(f.num))
         parts = [_summation(t, k, a, b, assume) for t in terms]
+        # divergent parts (Σ 1/(k+1) - Σ 1/(k+2) is ∞ - ∞): the summand as a whole, which
+        # telescopes (SymPy #23119)
+        if any(p -> p isa Sym && p.kind == NUMBER && !isfinite(Float64(p.num)), parts)
+            g = cancel(f)
+            F = _antidifference(g, k)
+            F === nothing || return _from_antidifference(F, k, a, b, assume)
+            r = _rational_sum(g, k, a, b)
+            r === nothing || return r
+        end
         any(p -> p isa Cases, parts) && return _sum_cases(parts)
         return _add_many(parts)
     end
