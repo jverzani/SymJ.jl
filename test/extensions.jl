@@ -531,6 +531,14 @@ import PolyLog as PL
         end
     end
 
+    @testset "wrong answers (SymPy review, round 7)" begin
+        @syms a
+        # a limit not found is not divergence: the sign of a decided, a > 0 converges (#21054)
+        r = RischIntegrate.integrate(sin(x) * exp(-a * x), (x, 0, Inf))
+        @test r isa SymJ.Cases
+        @test any(cv -> cv.second == 1 / (a^2 + 1), r)
+    end
+
     @testset "asymptotic series at ±∞: exponential and oscillating factors" begin
         @syms y
         S(f, x0, n) = Sym(series(f, x, x0, n))

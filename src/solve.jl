@@ -595,8 +595,14 @@ function _solve_piecewise(eq::Relation, x::Sym)
     end
     out = Sym[]
     ps = _pieces(P)
+    zero = falses(length(ps))
     for (i, (c, v)) in enumerate(ps)
         e = Relation(:eq, subs(eq.lhs, P => v), subs(eq.rhs, P => v))
+        # a piece that is the equation identically: all of its interval (SymPy #21079)
+        if !has(e.lhs - e.rhs, x) && iszero(simplify(e.lhs - e.rhs))
+            zero[i] = true
+            continue
+        end
         rs = try
             has(e.lhs - e.rhs, x) ? _solve_eq(e, x) : Sym[]
         catch err
@@ -609,7 +615,29 @@ function _solve_piecewise(eq::Relation, x::Sym)
             any(o -> _eq(o, r), out) || push!(out, r)
         end
     end
-    out
+    any(zero) || return out
+    # the intervals where an identically satisfied piece is the one that applies, with
+    # the other roots as points: a set (the conditions' breakpoints numbers)
+    bps = _breakpoints(P, x)
+    (bps === nothing || any(_hassymbol, bps)) &&
+        throw(ArgumentError("solve: every $x where $(ps[findfirst(zero)][1]) holds satisfies the equation"))
+    pts = [r for r in out if !_hassymbol(r) && _isreal_const(r) === true]
+    length(pts) == length(out) ||
+        throw(ArgumentError("solve: every $x where $(ps[findfirst(zero)][1]) holds satisfies the equation, and there are non-real roots"))
+    function active(v)
+        w = v isa Sym ? v : Sym(v)
+        for (i, (c, _)) in enumerate(ps)
+            t = _truth(subs(c, x => w))
+            t == ONE && return i
+            t == ZERO || return nothing
+        end
+        nothing
+    end
+    S = _set_from(unique(vcat(bps, pts)), (v, atpoint) -> begin
+        i = active(v)
+        (i !== nothing && zero[i]) || (atpoint && any(o -> _eq(o, v), pts))
+    end)
+    SymSet(S.intervals, x)
 end
 
 # Π bᵢ^uᵢ = Π cⱼ^vⱼ with positive constant bases (and positive constant factors): their
@@ -1005,6 +1033,11 @@ function _invert(g::Sym, r::Sym, x::Sym)
         elseif !has(e, x) && e.kind == NUMBER && isexact(e.num)   # t^(p/q) = r
             return [(b, r^inv(e))]
         elseif !has(e, x)                                   # t^1.11 = r, t^a = r: the principal root
+            # an integer exponent n has n roots r^(1/n) e^(2πik/n), not a finite list for a
+            # symbolic n: refused rather than the one principal root (SymPy #21014)
+            A = _SOLVE_ASSUME[]
+            _hassymbol(e) && A !== nothing && _isinteger(e, A) === true && throw(ArgumentError(
+                "solve: $g = $r has the roots $(isone(r) ? "" : "($r)^(1/$e) ")exp(2πik/$e) for k = 0, …, |$e| - 1, which depend on $e; substitute a number for $e"))
             return [(b, r^(1 / e))]
         end
     end

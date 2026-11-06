@@ -93,7 +93,18 @@ function _summation(f::Sym, k::Sym, a::Sym, b, assume)
             F = _antidifference(g, k)
             F === nothing || return _from_antidifference(F, k, a, b, assume)
             r = _rational_sum(g, k, a, b)
-            r === nothing || return r
+            (r === nothing || (r isa Sym && r.kind == NUMBER && isnan(Float64(r.num)))) || return r
+            # an infinite part beside others is no value of the whole: Σ (1 - cos(1/k))
+            # converges though Σ 1 does not (SymPy #21434, #21315, #21151). The whole
+            # summand: a known sum of logarithms, else divergence by its behaviour at ∞,
+            # else unevaluated
+            if b === nothing
+                r = _log_gamma_sum(f, k, a)
+                r === nothing || return r
+                r = _divergence_at_infinity(f, k, assume)
+                r === nothing || return r
+                return _summation_unevaluated(f, k, a, b)
+            end
         end
         any(p -> p isa Cases, parts) && return _sum_cases(parts)
         return _add_many(parts)
@@ -1232,3 +1243,59 @@ register_function!(:harmonic; julia = _harmonic_float,
     end)
 # the order of a harmonic number, 1 for harmonic(n)
 _horder(h::Sym) = length(h.args) == 2 ? h.args[2] : ONE
+
+# Σ_{k≥a} f for f = A/k + Σ βⱼ log(1 + aⱼ/k) (each log's argument (k + aⱼ)/k), A and the
+# βⱼ, aⱼ free of k: convergent when A + Σ βⱼaⱼ = 0, and then, from
+# Σ_{k≥1} (c/k - log(1 + c/k)) = γc + log Γ(1 + c), the value -Σ βⱼ(γaⱼ + log Γ(1 + aⱼ)),
+# γ = -ψ(1), less the terms below a; nothing otherwise
+function _log_gamma_sum(f::Sym, k::Sym, a::Sym)
+    (a.kind == NUMBER && _isint(a.num) && a.num >= N1 && a.num <= SymNumber(50)) || return nothing
+    e = expand(f)
+    terms = e.kind == ADD ? [(Sym(c), t) for (c, t) in zip(e.coefs, e.args)] : [(ONE, e)]
+    e.kind == ADD && !iszero(e.num) && return nothing
+    A = ZERO
+    logs = Tuple{Sym,Sym}[]                          # (β, a)
+    for (c, t) in terms
+        cc, tt = _split_kfree(c * t, k)
+        if tt.kind == FN && tt.name === :log && length(tt.args) == 1
+            u = cancel(tt.args[1] * k)
+            P = try Poly{Sym}(u, [k]) catch; return nothing end
+            (degree(P, k) == 1 && _eq(coeff(u, k, 1), ONE)) || return nothing
+            aj = coeff(u, k, 0)
+            has(aj, k) && return nothing
+            push!(logs, (cc, aj))
+        elseif _eq(tt, inv(k))
+            A += cc
+        else
+            return nothing
+        end
+    end
+    isempty(logs) && return nothing
+    iszero(simplify(A + _add_many(β * aj for (β, aj) in logs))) || return nothing
+    γ = -apply_function(:digamma, Sym[ONE])
+    v = -_add_many(β * (γ * aj + apply_function(:loggamma, Sym[1 + aj])) for (β, aj) in logs)
+    n0 = _toint(a.num)
+    n0 > 1 && (v -= _add_many(subs(f, k => Sym(j)) for j in 1:(n0 - 1)))
+    simplify(v)
+end
+
+# ±∞ when the terms do not tend to 0 (with a sign) or behave like c/k; nothing when the
+# test is not decided (the terms like c/k^p, p > 1: convergent, value unknown)
+function _divergence_at_infinity(f::Sym, k::Sym, assume)
+    L = try limit(f, k => Inf; assume) catch err; err isa InterruptException && rethrow(); return nothing end
+    L isa Sym || return nothing
+    if _infinite(L)
+        return L
+    elseif !_hassymbol(L) && !iszero(L)
+        v = N(L)
+        v isa Real || return nothing
+        return Sym(v > 0 ? Inf : -Inf)
+    elseif !iszero(L)
+        return nothing
+    end
+    c = try limit(k * f, k => Inf; assume) catch err; err isa InterruptException && rethrow(); return nothing end
+    (c isa Sym && !_hassymbol(c) && !iszero(c)) || return nothing
+    v = _infinite(c) ? (Float64(c.num) > 0 ? 1.0 : -1.0) : N(c)
+    v isa Real || return nothing
+    Sym(v > 0 ? Inf : -Inf)
+end

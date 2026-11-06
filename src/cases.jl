@@ -419,6 +419,11 @@ function _solve_assumed(eq::Relation, x::Sym, A::Assumptions)
             return _decide(Relation(:eq, expand(subs(e.lhs - e.rhs, x => v)), ZERO), B) ? Sym[v] : Sym[]
         end
         rs = with(() -> _solve_case(e, x, B), _SOLVE_ASSUME => B)
+        # a set (an equation that holds on intervals): within what the assumptions allow
+        if rs isa SymSet
+            S = get(B.sets, x, nothing)
+            return S === nothing ? rs : SymSet(intersect(rs, S).intervals, x)
+        end
         filter(r -> _allowed(r, x, B), _real_if_tiny(rs, x, B))
     end
 end
@@ -449,6 +454,14 @@ function _param_factors(c::Sym, unknowns)
              f.kind == POW && f.args[2].kind == NUMBER && f.args[2].num > N0 ? [f.args[1]] : [f]
         for b in bs
             _hassymbol(b) && !any(u -> has(b, u), unknowns) && !any(u -> has(b, u), _NOT_PARAMS[]) || continue
+            # |u| vanishes where u does: u's factors (solve(|x| y ~ 0, y) has the case x = 0;
+            # SymPy #21943)
+            if b.kind == FN && b.name === :abs && length(b.args) == 1
+                for q in _param_factors(b.args[1], unknowns)
+                    any(o -> (r = cancel(o / q); r.kind == NUMBER), out) || push!(out, q)
+                end
+                continue
+            end
             atoms = Set{Sym}()
             _poly_atoms!(atoms, b)
             # a polynomial in the parameters, its coefficients constants such as √3
@@ -600,15 +613,47 @@ function _solve_abs_split(e::Relation, x::Sym, B::Assumptions)
     (_eq(e.lhs, a) && !has(e.rhs, x)) || (_eq(e.rhs, a) && !has(e.lhs, x)) && return nothing
     u = a.args[1]
     out = Sym[]
+    sets = SymSet[]
     for (w, op) in ((u, :ge), (-u, :le))
-        rs = _solve_case(Relation(:eq, subs(e.lhs, a => w), subs(e.rhs, a => w)), x, B)
+        eb = Relation(:eq, subs(e.lhs, a => w), subs(e.rhs, a => w))
+        rs = try
+            _solve_case(eb, x, B)
+        catch err
+            # the branch an identity: every x of its sign (|x| = -x for x ≤ 0), less the
+            # points where the equation is not defined (|x|/x = 1: x > 0), not every x
+            # (SymPy #22259)
+            (err isa ArgumentError && occursin("every value", err.msg)) || rethrow()
+            S = _identity_branch_set(e, Relation(op, u, ZERO), x)
+            S === nothing && rethrow()
+            push!(sets, S)
+            continue
+        end
         rs isa AbstractVector || return nothing
         for r in rs
             _decide(Relation(op, expand(subs(u, x => r)), ZERO), B) || continue
             any(o -> iszero(expand(o - r)), out) || push!(out, r)
         end
     end
-    _sort_roots!(out)
+    isempty(sets) && return _sort_roots!(out)
+    all(r -> !_hassymbol(r) && _isreal_const(r) === true, out) || return nothing
+    S = reduce(union, sets)
+    isempty(out) || (S = union(S, SymSet([SymInterval(r, r, true, true) for r in _sort_roots!(out)])))
+    SymSet(S.intervals, x)
+end
+
+# where the condition holds, less the points where eq is not defined; nothing when the
+# condition's set is not found
+function _identity_branch_set(eq::Relation, cond::Relation, x::Sym)
+    S = try _solve_inequality(cond, x) catch err; err isa ArgumentError || rethrow(); return nothing end
+    S isa SymSet || return nothing
+    bad = Sym[]
+    for z in unique(_zero_sets!(Sym[], eq.lhs - eq.rhs, x))
+        rs = try _solve_eq(z ~ 0, x) catch err; err isa ArgumentError || rethrow(); return nothing end
+        rs isa AbstractVector || return nothing
+        append!(bad, [r for r in rs if !_hassymbol(r) && _isreal_const(r) === true])
+    end
+    isempty(bad) && return S
+    setdiff(S, SymSet([SymInterval(r, r, true, true) for r in unique(bad)]))
 end
 
 # Σ cᵢ uᵢ^(2kᵢ) = 0 with cᵢ > 0 and the uᵢ real (x real): every uᵢ = 0. The roots of one

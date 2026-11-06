@@ -59,6 +59,14 @@ function SymNumber(x::Rational{Int})
 end
 SymNumber(x::Rational) = _frombig(Rational{BigInt}(x))
 SymNumber(x::AbstractFloat) = SymNumber(T_FLOAT, 0, 1, Float64(x), nothing)
+# floats are Float64: a finite value beyond its range is an error, not a silent Inf or 0
+# (Sym(big"1.5e400"); SymPy #21860)
+function SymNumber(x::BigFloat)
+    y = Float64(x)
+    ((isfinite(x) && !isfinite(y)) || (!iszero(x) && iszero(y))) && throw(ArgumentError(
+        "$x is outside Float64's range, in which SymJ keeps floats; use an exact number (rationalize, or big integers) instead"))
+    SymNumber(T_FLOAT, 0, 1, y, nothing)
+end
 
 const N0 = SymNumber(0)
 const N1 = SymNumber(1)

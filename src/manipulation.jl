@@ -195,7 +195,10 @@ function _subs(ex::Sym, d::Dict{Sym,Sym})
             end
             return r
         end
-        bs, es = _subs_args(ex.args, d), _subs_args(ex.exps, d)
+        # (a number among the keys is not put into the exponents, which are structure,
+        # as coefficients are: subs(x*y, 1 => 2) was x²y²; SymPy #21373)
+        bs = _subs_args(ex.args, d)
+        es = any(k -> k.kind == NUMBER, keys(d)) ? _subs_exps(ex.exps, d) : _subs_args(ex.exps, d)
         bs === nothing && es === nothing && return ex
         bs === nothing && (bs = ex.args)
         es === nothing && (es = ex.exps)
@@ -205,7 +208,8 @@ function _subs(ex::Sym, d::Dict{Sym,Sym})
         end
         return r
     elseif k == POW
-        b, e = _subs(ex.args[1], d), _subs(ex.args[2], d)
+        b = _subs(ex.args[1], d)
+        e = ex.args[2].kind == NUMBER ? ex.args[2] : _subs(ex.args[2], d)
         b === ex.args[1] && e === ex.args[2] && return ex
         return pow(b, e)
     elseif k == FN
@@ -232,6 +236,12 @@ function _subs_piecewise(ex::Sym, d::Dict{Sym,Sym})
     end
     isempty(args) && return Sym(NaN)
     apply_function(:piecewise, args)
+end
+
+# exponents substituted, numeric ones kept; nothing when none changes
+function _subs_exps(exps::Vector{Sym}, d::Dict{Sym,Sym})
+    new = Sym[e.kind == NUMBER ? e : _subs(e, d) for e in exps]
+    all(i -> new[i] === exps[i], eachindex(exps)) ? nothing : new
 end
 
 # the parts substituted, or nothing when none changes (allocating only from the first
@@ -405,6 +415,13 @@ end
 function _subs_derivative(ex::Sym, d::Dict{Sym,Sym})
     f, v = ex.args[1], ex.args[2]
     inner = haskey(d, v) ? delete!(copy(d), v) : d
+    # a call in v replaced by a symbol free of v (f(x) => y) is not replaced inside the
+    # derivative in v: f'(x) stays, as d/dx y would be 0 (SymPy #21658). By an expression
+    # in v (f(x) => sin(x)), f is that function, and its derivative is taken.
+    held(k, w) = k.kind == FN && has(k, v) && !has(w, v) && _hassymbol(w)
+    if any(((k, w),) -> held(k, w), inner)
+        inner = Dict{Sym,Sym}(k => w for (k, w) in inner if !held(k, w))
+    end
     fs = _subs(f, inner)
     if length(ex.args) == 3
         return apply_function(:Derivative, Sym[fs, v, _subs(ex.args[3], d)])
