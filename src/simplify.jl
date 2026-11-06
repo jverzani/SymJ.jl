@@ -629,6 +629,7 @@ function _simplify(e::Sym, A::Assumptions)
     end
     logq(x) = _hasfn2log(x) ? simplify_log(cancel(_log_quotients(x)); assume = A) : nothing
     for g in (simplify_rational, powers, expansion, _factor_or_nothing, simplify_trig, simplify_hyperbolic, logs, radicals, simplify_gamma, logq,
+              x -> huge ? nothing : _conjugate_radical_den(x),
               simplify_rational ∘ powers, expansion ∘ simplify_rational, expansion ∘ radicals,
               simplify_rational ∘ radicals,
               x -> (c = expansion(x); c === nothing ? nothing : simplify_rational(c)),
@@ -888,7 +889,8 @@ function _simplify_const(e::Sym, A::Assumptions)
               (x; assume) -> _erfc_to_erf(x), (x; assume) -> simplify_trig(x),
               (x; assume) -> simplify_hyperbolic(x), (x; assume) -> expand_trig(x),
               (x; assume) -> _unit_powers(x), (x; assume) -> cancel(simplify_radicals(x; assume)),
-              (x; assume) -> simplify_log(cancel(_log_quotients(x)); assume))
+              (x; assume) -> simplify_log(cancel(_log_quotients(x)); assume),
+              (x; assume) -> _trig_unity_zero(x))
         c = try g(e; assume = A) catch err; err isa InterruptException && rethrow(); e end
         c = try expand(c) catch; c end
         _nodes(c) < _nodes(best) && (best = c)
@@ -899,6 +901,15 @@ function _simplify_const(e::Sym, A::Assumptions)
 end
 
 const _INVTRIG_FNS = (:acos, :asin, :atan, :acot, :asec, :acsc)
+
+# 0 for a constant in sines and cosines of rational multiples of π that is 0: through
+# exponentials, roots of unity reduced modulo the cyclotomic polynomial, a normal form
+# (-32cos(π/14)cos(2π/7) - 32sin(3π/14)cos(3π/14) + … is 0; SymPy #23015); else e
+function _trig_unity_zero(e::Sym)
+    _has_fn(e, (:sin, :cos)) || return e
+    w = try _unity_reduce(expand(rewrite(e, exp))) catch err; err isa InterruptException && rethrow(); return e end
+    iszero(w) ? ZERO : e
+end
 
 # a constant with inverse trig functions whose value is q π, q rational with a small
 # denominator: e - qπ is a multiple of 2π when cos(e - qπ) is 1 exactly, and so 0, its
@@ -1016,20 +1027,28 @@ _map_pow_args(g, b::Sym, p::Sym) =
 # the size of an expression: its nodes, a product's exponents other than 1 and its
 # coefficient other than ±1, a sum's coefficients other than ±1 and its constant term;
 # a negative exponent counts one more, a division (as SymPy's count_ops counts it)
+# and a long exact number one more for every 4 digits past 6, so that 30 log(5) is
+# smaller than log(931322574615478515625) (SymPy #23210)
 _division_cost(p::Sym) = p.kind == NUMBER && p.num < N0 ? 1 : 0
+function _digit_cost(q::SymNumber)
+    q.tag == T_SMALL || q.tag == T_BIG || return 0
+    d = q.tag == T_SMALL ? ndigits(q.n) + (q.d == 1 ? 0 : ndigits(q.d)) :
+        ndigits(numerator(q.big)) + (isone(denominator(q.big)) ? 0 : ndigits(denominator(q.big)))
+    max(0, d - 6) ÷ 4
+end
 
 function _nodes(e::Sym)
     k = e.kind
-    k == NUMBER && return 1
+    k == NUMBER && return 1 + _digit_cost(e.num)
     isempty(e.args) && return 1
     n = 1
     if k == ADD
-        n += iszero(e.num) ? 0 : 1
+        n += iszero(e.num) ? 0 : 1 + _digit_cost(e.num)
         for (c, a) in zip(e.coefs, e.args)
-            n += _nodes(a) + (abs(c) == N1 ? 0 : 1)
+            n += _nodes(a) + (abs(c) == N1 ? 0 : 1 + _digit_cost(c))
         end
     elseif k == MUL
-        n += abs(e.num) == N1 ? 0 : 1
+        n += abs(e.num) == N1 ? 0 : 1 + _digit_cost(e.num)
         for (b, p) in zip(e.args, e.exps)
             n += _nodes(b) + (p == ONE ? 0 : 1 + _nodes(p)) + _division_cost(p)
         end
@@ -1066,6 +1085,9 @@ function simplify_powers(ex; assume = nothing)
     _powers(_refine(Sym(ex), A), A)
 end
 
+_negated_exponent(p::Sym) = p.kind == MUL ? p.num < N0 :
+    p.kind == ADD && p.num <= N0 && all(c -> c < N0, p.coefs)
+
 function _powers(e::Sym, A::Assumptions)
     isempty(e.args) && return e
     if e.kind == MUL
@@ -1077,13 +1099,23 @@ function _powers(e::Sym, A::Assumptions)
             b2, p2 = _powers(b, A), _powers(p, A)
             intexp = p2.kind == NUMBER && isexact(p2.num) && isone(_denominator(p2.num))
             if !intexp && (b2.kind == NUMBER ? b2.num > N0 : _nonneg(b2, A))
-                push!(get!(groups, p2, Sym[]), b2)
+                # b^(-p) joins the group of p as (1/b)^p, for b > 0 ((a + b)^(n+1) /
+                # (a + 2b)^(n+1) = ((a + b)/(a + 2b))^(n+1); SymPy #22546)
+                q = expand(-p2)
+                if !haskey(groups, p2) && haskey(groups, q) && (b2.kind == NUMBER || _ispos(b2, A))
+                    push!(groups[q], inv(b2))
+                else
+                    push!(get!(groups, p2, Sym[]), b2)
+                end
             else
                 other *= b2^p2
             end
         end
         for (p, bs) in groups
-            other *= prod(bs; init = ONE)^p
+            b = prod(bs; init = ONE)
+            # (a negated exponent as the power of the reciprocal, (u/v)^(n+1) rather than
+            # (v/u)^(-n-1), when more than one base merged)
+            length(bs) >= 2 && _negated_exponent(p) ? (other *= inv(b)^expand(-p)) : (other *= b^p)
         end
         return other
     end
@@ -1572,6 +1604,15 @@ function _log_expand(e::Sym, A::Assumptions, force::Bool = false)
     realp(p) = force || _isreal(p, A) === true
     if e.kind == FN && e.name === :log && length(e.args) == 1
         u = _log_expand(e.args[1], A, force)
+        # a sum p/q + r over its common denominator, log(n/d) = log(n) - log(d) for n > 0
+        # and d ≥ 0 (d ≠ 0 where the logarithm is defined): log(1 + 1/x²) = log(x² + 1) -
+        # log(x²) for real x (SymPy #23569)
+        if u.kind == ADD && _hassymbol(u)
+            n, d = numer_denom(u)
+            if !(d.kind == NUMBER) && (pos(n) || n.kind != NUMBER && _ispos(n, A)) && (force || _nonneg(d, A))
+                return _log_expand(log(n), A, force) - _log_expand(log(d), A, force)
+            end
+        end
         if u.kind == MUL
             out, rest = ZERO, Sym(u.num)
             _logpos(Sym(u.num), A) && !isone(u.num) ? (out += log(Sym(u.num)); rest = ONE) : nothing
@@ -1738,4 +1779,63 @@ function _conjugate(b::Sym)
     norm = Sym(p * p - r * r * c)
     iszero(norm) && return nothing
     Sym(p) - Sym(r) * sqrt(Sym(c)), norm
+end
+
+# n/d with d linear in a square root R = √Q of an expression with symbols, d = a + bR:
+# times the conjugate a - bR over the norm a² - b²Q, which has no R, then cancelled
+# (the derivative of log(b + 2√c√(a + bx + cx²) + 2cx) is √c/√(a + bx + cx²); SymPy
+# #23641); nothing when there is no such root
+function _conjugate_radical_den(e::Sym)
+    n, d = numer_denom(cancel(e))
+    rs = Sym[]
+    _replace_walk(d) do t
+        t.kind == POW && t.args[2].kind == NUMBER && t.args[2].num == SymNumber(1 // 2) &&
+            _hassymbol(t.args[1]) && !any(q -> _eq(q, t), rs) && push!(rs, t)
+        nothing
+    end
+    isempty(rs) && return nothing
+    best = nothing
+    for R in rs
+        u = Sym(Symbol("_conj_r"))
+        du = expand(subs(d, R => u))
+        P = try Poly{Sym}(du, [u]) catch; continue end
+        degree(P, u) == 1 || continue
+        conj = subs(expand(coeff(du, u, 0) - coeff(du, u, 1) * u), u => R)
+        norm = expand(d * conj)
+        has(norm, R) && continue
+        c = try _cancel_halfpowers(expand(n * conj), norm) catch err; err isa InterruptException && rethrow(); continue end
+        (best === nothing || _nodes(c) < _nodes(best)) && (best = c)
+    end
+    best
+end
+
+# p/q cancelled with √s of each symbol s in them a variable u (s = u², s^(3/2) = u³),
+# so that c^(3/2) and √c share their factor
+function _cancel_halfpowers(p::Sym, q::Sym)
+    m = Dict{Sym,Sym}()
+    function find(e)
+        if e.kind == POW && _isnamed(e.args[1]) && e.args[2].kind == NUMBER && _denominator(e.args[2].num) == 2
+            m[e.args[1]] = Sym(Symbol("_half_", e.args[1]))
+        elseif e.kind == MUL
+            for (b, x) in zip(e.args, e.exps)
+                _isnamed(b) && x.kind == NUMBER && _denominator(x.num) == 2 && (m[b] = Sym(Symbol("_half_", b)))
+            end
+        end
+        foreach(find, e.args)
+    end
+    find(p); find(q)
+    isempty(m) && return cancel(p / q)
+    function sub(e)
+        _isnamed(e) && haskey(m, e) && return m[e]^2
+        isempty(e.args) && return e
+        if e.kind == POW && haskey(m, e.args[1]) && e.args[2].kind == NUMBER && isexact(e.args[2].num)
+            return m[e.args[1]]^Sym(2 * e.args[2].num)
+        elseif e.kind == MUL
+            return Sym(e.num) * prod((haskey(m, b) && x.kind == NUMBER && isexact(x.num) ? m[b]^Sym(2 * x.num) : sub(b)^x
+                                      for (b, x) in zip(e.args, e.exps)); init = ONE)
+        end
+        _rebuild_node(e, Sym[sub(a) for a in e.args])
+    end
+    r = cancel(sub(p) / sub(q))
+    subs(r, (u => sqrt(b) for (b, u) in m)...)
 end

@@ -452,7 +452,12 @@ function _ode_linear(P::_ODE, Cs)
     # Cauchy–Euler: aₖ = cₖ xᵏ (up to a common factor), through x = eᵗ
     n = P.n
     cs = Sym[_ode_tidy(a[k + 1] * x^(n - k) / a[n + 1]) for k in 0:n]
-    any(c -> has(c, x), cs) && return _ode_exact_linear(P, a, g, Cs)
+    if any(c -> has(c, x), cs)
+        r = _ode_exact_linear(P, a, g, Cs)
+        r === nothing || return r
+        n == 2 && return _ode_reduction_of_order(a, g, x, Cs)
+        return nothing
+    end
     t = Sym(:_ode_t)
     # x^k y⁽ᵏ⁾ = θ(θ - 1)…(θ - k + 1) y, θ = d/dt: the coefficients of the polynomial in θ
     r = Sym(:_ode_r)
@@ -461,6 +466,44 @@ function _ode_linear(P::_ODE, Cs)
     G = _explog(subs(_ode_tidy(g * x^n / a[n + 1]), x => exp(t)))
     S = _ode_constcoeff(b, G, t, Cs)
     (:explicit, _ode_tidy(_explog(subs(S, t => log(x)))))
+end
+
+# a₂y'' + a₁y' + a₀y = g with a homogeneous solution y₁ found (a polynomial of degree at
+# most 4, or e^(±x)): y = y₁ v, w = v' then solves the first-order linear
+# a₂ y₁ w' + (2a₂ y₁' + a₁ y₁) w = g, by its integrating factor μ = y₁² e^(∫a₁/a₂)
+# (x²(2 - x)y'' + 2xy' - 2y = e^(-x)x²(2 - x)², y₁ = x; SymPy #23351). nothing when no
+# y₁ is found or an integral is not.
+function _ode_reduction_of_order(a::Vector{Sym}, g::Sym, x::Sym, Cs)
+    a0, a1, a2 = a
+    y1 = _ode_homogeneous_guess(a, x)
+    y1 === nothing && return nothing
+    μ = _ode_tidy(y1^2 * exp(_integrate(_ode_tidy(a1 / a2), x)))
+    w = (_integrate(_ode_tidy(μ * g / (a2 * y1)), x) + Cs[1]) / μ
+    v = _integrate(_ode_tidy(expand(w)), x) + Cs[2]
+    (:explicit, _ode_tidy(expand(y1 * v)))
+end
+
+function _ode_homogeneous_guess(a::Vector{Sym}, x::Sym)
+    L(y) = _ode_tidy(a[3] * diff(y, x, 2) + a[2] * diff(y, x) + a[1] * y)
+    for y in (exp(x), exp(-x))
+        iszero(L(y)) && return y
+    end
+    for d in 0:4
+        cs = [Sym(Symbol("_ode_c", i)) for i in 0:(d - 1)]
+        y = x^d + _add_many(c * x^(i - 1) for (i, c) in enumerate(cs))
+        n = numer_denom(cancel(L(y)))[1]
+        P = try Poly{Sym}(expand(n), [x]) catch; continue end
+        eqs = Relation[Relation(:eq, Sym(c), ZERO) for c in coefficients(P)]
+        if isempty(cs)
+            all(e -> iszero(e.lhs), eqs) && return y
+            continue
+        end
+        sols = try _solve_generic(eqs, cs) catch err; err isa ArgumentError || rethrow(); continue end
+        isempty(sols) && continue
+        s = sols[1]
+        return expand(subs(y, (c => (_eq(get(s, c, c), c) ? ZERO : s[c]) for c in cs)...))
+    end
+    nothing
 end
 
 _ode_coeff(q::Sym, r::Sym, k::Int) = (d = diff(q, r, k); subs(d, r => ZERO) / factorial(big(k)))
@@ -1372,7 +1415,9 @@ function _ode_series_check(P::_ODE, St::Sym, t::Sym, a::Sym, m::Integer, shift =
     m <= 0 && return true
     R = subs(P.F, P.x => a + t, (P.ys[k + 1] => diff(St, t, k) for k in 0:P.n)...)
     ps = try Base.invokelatest(SymJ.series, R, t, 0, shift + m).ps catch; return true end
-    all(i -> ps.e[i] >= shift + m || iszero(simplify(ps.c[i])), eachindex(ps.e))
+    # (with floats, a coefficient that is a rounding residue is 0: 4.0 for 4; SymPy #22525)
+    all(i -> ps.e[i] >= shift + m || iszero(simplify(ps.c[i])) ||
+             (!_isexactex(ps.c[i]) && _ode_numzero(ps.c[i], free_symbols(ps.c[i])) === true), eachindex(ps.e))
 end
 
 # Frobenius at a regular singular point of a₂ y'' + a₁ y' + a₀ y = 0: t p = t a₁/a₂ and

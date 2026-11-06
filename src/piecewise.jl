@@ -31,7 +31,23 @@ _cond(b::Bool) = b ? ONE : ZERO
 _cond(c::Sym) = (_iscond(c) || c == ONE || c == ZERO) ? c :
     throw(ArgumentError("piecewise: $c is not a condition"))
 _cond(cs::Union{Tuple,AbstractVector}) = apply_function(:And, Sym[_cond(c) for c in cs])
+_cond(c::FactAnd) = apply_function(:And, Sym[_cond(f) for f in c.facts])
 _cond(c) = throw(ArgumentError("piecewise: $c is not a condition"))
+
+# a condition as the conditions of pieces with one value: an Or as one piece for each
+# of its parts, an And of Ors distributed over them (SymPy #22852)
+_disjuncts(c::FactOr) = reduce(vcat, Any[_disjuncts(f) for f in c.facts])
+function _disjuncts(c::Union{FactAnd,Tuple,AbstractVector})
+    fs = c isa FactAnd ? c.facts : collect(c)
+    any(f -> f isa FactOr, fs) || return Any[c]
+    out = Any[Any[]]
+    for f in fs
+        ds = f isa FactOr ? _disjuncts(f) : Any[f]
+        out = Any[vcat(o, Any[d]) for o in out for d in ds]
+    end
+    Any[Tuple(o) for o in out]
+end
+_disjuncts(c) = Any[c]
 
 # a condition evaluated with floats (Lt(0.5, 1.0) is 1.0) as 1 or 0
 _truth(c::Sym) = c.kind == NUMBER ? (iszero(c.num) ? ZERO : ONE) : c
@@ -81,8 +97,9 @@ register_function!(:And; julia = (vs...) -> Float64(all(!iszero, vs)),
     SymJ.piecewise(cs::Cases)
 
 A piecewise function: `v₁` where `c₁` holds, else `v₂` where `c₂` holds, and so on. A
-condition is a relation (`x ≪ 0`), a tuple of them that all hold (`(0 ≦ x, x ≪ 1)`), or
-`true`. Not exported.
+condition is a relation (`x ≪ 0`), a tuple of them that all hold (`(0 ≦ x, x ≪ 1)`),
+their combinations with `&` and `|` (`(x ≪ 0) | (x ≫ 1)`, made one piece for each
+alternative), or `true`. Not exported.
 
 With one expression, writes its `heaviside`, `sign`, `abs`, `max` and `min` as piecewise
 functions (taking their arguments to be real); with cases, makes them one expression.
@@ -99,8 +116,8 @@ diff(SymJ.piecewise(x ≪ 0 => 0, true => 1), x)   # dirac(x)
 function piecewise(pairs::Pair...)
     isempty(pairs) && throw(ArgumentError("piecewise: no pieces"))
     args = Sym[]
-    for (c, v) in pairs
-        push!(args, _cond(c), Sym(v))
+    for (c, v) in pairs, d in _disjuncts(c)
+        push!(args, _cond(d), Sym(v))
     end
     apply_function(:piecewise, args)
 end
@@ -440,9 +457,16 @@ function _integrate_pieces(e::Sym, x::Sym, integ)
     # (no piece holds on an interval: the integrand, and so the antiderivative, is not
     # defined there)
     Fs = Union{Sym,Nothing}[]
-    for p in pts
+    numeric = !any(_hassymbol, bps)
+    for (i, p) in enumerate(pts)
         gi = _pieces_at(g, x, p)
-        push!(Fs, gi === nothing ? nothing : integ(gi))
+        F = gi === nothing ? nothing : integ(gi)
+        if F isa Sym && numeric
+            lo = i == 1 ? -Inf : Float64(N(bps[i-1]))
+            hi = i == length(pts) ? Inf : Float64(N(bps[i]))
+            F = _real_logs(F, x, p, lo, hi)
+        end
+        push!(Fs, F)
     end
     all(F -> F === nothing, Fs) &&
         throw(ArgumentError("integrate: no piece of $g holds anywhere"))
@@ -476,6 +500,25 @@ function _integrate_pieces(e::Sym, x::Sym, integ)
         return out + R
     end
     out + piecewise(ps...)
+end
+
+# on an interval (lo, hi) of real x where a linear u = c₁x + c₀ (numbers) is negative,
+# log(u) as log(-u), a real antiderivative (they differ by the constant iπ): ∫ 1/|x| dx
+# is -log(-x) for x < 0 (SymPy #22533)
+function _real_logs(F::Sym, x::Sym, p::Sym, lo::Float64, hi::Float64)
+    _hasfn(F, :log) || return F
+    _replace_walk(F) do t
+        (t.kind == FN && t.name === :log && length(t.args) == 1) || return nothing
+        u = t.args[1]
+        (has(u, x) && all(s -> _eq(s, x), free_symbols(u))) || return nothing
+        c1 = try coeff(expand(u), x, 1) catch; return nothing end
+        c0 = expand(u - c1 * x)
+        (c1.kind == NUMBER && c0.kind == NUMBER && !iszero(c1.num)) || return nothing
+        r = -Float64(c0.num) / Float64(c1.num)
+        lo < r < hi && return nothing
+        Float64(N(subs(u, x => p))) < 0 || return nothing
+        log(-u)
+    end
 end
 
 # (k, c, h) with g(x) = h(k x + c), k a nonzero number, c ≠ 0 in parameters and h free
@@ -672,11 +715,11 @@ end
 
 # e with each piecewise and heaviside in x replaced by its value at x = p (a point
 # inside an interval, so no condition is on its boundary)
-function _pieces_at(e::Sym, x::Sym, p::Sym)
+function _pieces_at(e::Sym, x::Sym, p::Sym; extra = ())
     _haspieces(e, x) || return e
     args = Sym[]
     for a in e.args
-        r = _pieces_at(a, x, p)
+        r = _pieces_at(a, x, p; extra)
         r === nothing && return nothing
         push!(args, r)
     end
@@ -684,13 +727,13 @@ function _pieces_at(e::Sym, x::Sym, p::Sym)
     e.kind == FN && e.name in _PIECEFNS || return e
     if e.name === :piecewise
         for (c, v) in _pieces(e)
-            cv = _truth(subs(c, x => p))
+            cv = _truth(subs(c, x => p, extra...))
             cv == ONE && return v
             cv == ZERO || return nothing
         end
         return nothing
     elseif e.name === :heaviside
-        s = _csign(expand(subs(e.args[1], x => p)))
+        s = _csign(expand(subs(e.args[1], x => p, extra...)))
         return s === nothing ? nothing : s > 0 ? ONE : ZERO
     end
     nothing                                              # dirac in a product

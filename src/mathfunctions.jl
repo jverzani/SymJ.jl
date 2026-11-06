@@ -282,8 +282,12 @@ function _extreme_rule(name::Symbol, better)
         _mkfn_node(name, rest)
     end
 end
-register_function!(:max; julia = max, eval = _extreme_rule(:max, (v, w) -> v > w))
-register_function!(:min; julia = min, eval = _extreme_rule(:min, (v, w) -> v < w))
+# ∂max(a, b)/∂a = heaviside(a - b), ∂min(a, b)/∂a = heaviside(b - a), for real a and b
+# (the halves at a = b add up to 1; SymPy #22726)
+_extreme_diff(sg) = (args, i) -> length(args) == 2 ?
+    heaviside(sg * (args[i] - args[3 - i])) : nothing
+register_function!(:max; julia = max, eval = _extreme_rule(:max, (v, w) -> v > w), diff = _extreme_diff(1))
+register_function!(:min; julia = min, eval = _extreme_rule(:min, (v, w) -> v < w), diff = _extreme_diff(-1))
 
 ## factorial and binomial
 

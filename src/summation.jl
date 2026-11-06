@@ -118,6 +118,19 @@ function _summation(f::Sym, k::Sym, a::Sym, b, assume)
     end
     r = _rational_sum(f, k, a, b)
     r === nothing || return r
+    # sines and cosines in k through exponentials, geometric in k: Σ_{i=1}^{v} cos(2πi/v)
+    # = 0 as Σ exp(2πi i/v) is (SymPy #23576)
+    if _has_fn(f, (:sin, :cos))
+        g = try expand(rewrite(f, exp)) catch err; err isa InterruptException && rethrow(); nothing end
+        if g isa Sym && !_has_fn(g, (:sin, :cos))
+            r = _summation(g, k, a, b, assume)
+            # (a closed form with im for a real summand only if im leaves it again)
+            if r isa Sym && !_hasfn(r, :Sum) && (has(f, IM) || !has(r, IM) || !has(simplify(r; assume), IM))
+                r = simplify(r; assume)
+                return _has_fn(r, (:exp,)) && (t = simplify(rewrite(r, cos); assume); _nodes(t) <= _nodes(r)) ? t : r
+            end
+        end
+    end
     _summation_unevaluated(f, k, a, b)
 end
 

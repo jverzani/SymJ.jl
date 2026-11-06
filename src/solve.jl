@@ -81,14 +81,32 @@ function solve(eq::Relation, x::Sym; assume = nothing, drop_empty::Bool = false)
     # inequality (SymPy #25001)
     eq.op === :eq && _isnamed(x) && (S = _solve_floor(eq, x, assume); S !== nothing) && return S
     A = something(_assumptions(assume), Assumptions())
-    r = if !_isnamed(x)
-        with(_NOT_PARAMS => _named(x)) do
-            _solve_for_calls((es, vs, B) -> solve(only(es), only(vs); assume = B), [eq], [x]; assume = A)
+    r = try
+        if !_isnamed(x)
+            with(_NOT_PARAMS => _named(x)) do
+                _solve_for_calls((es, vs, B) -> solve(only(es), only(vs); assume = B), [eq], [x]; assume = A)
+            end
+        else
+            _solve_assumed(eq, x, A)
         end
-    else
-        _solve_assumed(eq, x, A)
+    catch err
+        (err isa ArgumentError && occursin("inexact coefficients", err.msg)) || rethrow()
+        r = _solve_floats_exactly(eq, x, assume)
+        r === nothing ? rethrow() : r
     end
     drop_empty ? _drop_empty(r) : r
+end
+
+# floats where the exact methods need exact numbers (t^1.1, a float exponent): each as
+# the shortest rational within its rounding, solved exactly, the solutions numbers again
+# (SymPy #23284, #22584); nothing when that fails too
+function _solve_floats_exactly(eq::Relation, x::Sym, assume)
+    (_isexactex(eq.lhs) && _isexactex(eq.rhs)) && return nothing
+    e2 = Relation(eq.op, _exactfloats(eq.lhs; short = true), _exactfloats(eq.rhs; short = true))
+    r = try solve(e2, x; assume) catch err; err isa ArgumentError || rethrow(); return nothing end
+    num(v) = v isa Sym ? (_hassymbol(v) ? _floatify(v) : (w = N(v); w isa Number ? Sym(w) : v)) : v
+    r isa Cases && return _map_cases(vs -> vs isa AbstractVector ? map(num, vs) : vs, r)
+    r isa AbstractVector ? map(num, r) : nothing
 end
 
 # floor(u) = n ⇔ n ≤ u < n + 1 and ceil(u) = n ⇔ n - 1 < u ≤ n, n an integer (no
@@ -207,7 +225,7 @@ function _solve_eq(eq::Relation, x::Sym)
     r === nothing || return r
     n, _ = numer_denom(cancel(eq.lhs - eq.rhs))
     if !has(n, x)
-        iszero(n) && throw(ArgumentError("solve: every value of $x satisfies $eq"))
+        iszero(n) && throw(_identity_error(x, eq))
         return Sym[]
     end
     atoms = Set{Sym}()
@@ -263,6 +281,26 @@ function _floatify(e::Sym)
         return apply_function(e.name, Sym[_floatify(a) for a in e.args])
     end
     e
+end
+
+# the error for an equation that every value satisfies, naming the points where it is
+# not defined (x/(x - 1) - 1/(x - 1) = 1 holds for every x except 1; SymPy #23254)
+function _identity_error(x::Sym, eq)
+    e = eq isa Relation ? eq.lhs - eq.rhs : Sym(eq)
+    pts = Sym[]
+    for z in unique(_zero_sets!(Sym[], e, x))
+        rs = try _solve_eq(z ~ 0, x) catch err
+            err isa Union{ArgumentError,DivisionByZero} || rethrow()
+            continue
+        end
+        (rs isa AbstractVector && !(rs isa Cases)) || continue
+        for r in rs
+            r isa Sym && !has(r, x) && !any(q -> _eq(q, r), pts) && push!(pts, r)
+        end
+    end
+    isempty(pts) && return ArgumentError("solve: every value of $x satisfies $eq")
+    ArgumentError("solve: every value of $x satisfies $eq, except " * join(("$x = $r" for r in pts), ", ") *
+                  ", where it is not defined")
 end
 
 # the roots at which e is defined: cancel can remove a factor of a denominator, so
@@ -406,7 +444,7 @@ function _solve_weierstrass(eq::Relation, n::Sym, x::Sym, w::Sym)
         end
         if !has(num, t)                           # a constant: zero for every w, or never
             (iszero(num) || !all(f -> _decide(Relation(:ne, f, ZERO), A), _param_factors(num, (x, t)))) &&
-                throw(ArgumentError("solve: every value of $x satisfies $eq"))
+                throw(_identity_error(x, eq))
             return at_pi ? filter(r -> _defined_at(n, x, r), _eq(w, x) ? Sym[PI] : _solve_generic(w ~ PI, x)) : Sym[]
         end
     end
@@ -485,6 +523,8 @@ function _solve_through(eq::Relation, n::Sym, x::Sym, bad::Vector{Sym})
         end
         r = _solve_lambert(eq, nu, u, g, x)
         r === nothing || return r
+        r = _solve_generator_first(eq, nu, u, g, x)
+        r === nothing || return r
         r = _solve_inner_generator(eq, n, x, g)
         r === nothing || return r
         throw(ArgumentError("solve: $eq involves both $x and $g; not supported (it may need, e.g., Lambert W)"))
@@ -495,7 +535,44 @@ function _solve_through(eq::Relation, n::Sym, x::Sym, bad::Vector{Sym})
         # power), whose numeric value then loses the root to cancellation
         _eq(arg, x) ? push!(out, _float_value(val)) : append!(out, _solve_eq(arg ~ val, x))
     end
-    filter(r -> _satisfies(eq, x, r), out)
+    out = filter(r -> _satisfies(eq, x, r), out)
+    # (roots through a power of x, (…)^6/19683 from x^(1/6): simplified when that makes
+    # them smaller, and then the same root once; SymPy #23028)
+    common === nothing || (out = _tidy_roots(out))
+    out
+end
+
+# nu, a polynomial of degree ≥ 2 in u = g with coefficients in x: solved for u first,
+# then g = each root (a²/log(b/x + c)² = x²: log(b/x + c) = ±a/x, each through Lambert
+# W; SymPy #23253). nothing when nu is not such a polynomial or no root gives solutions.
+function _solve_generator_first(eq::Relation, nu::Sym, u::Sym, g::Sym, x::Sym)
+    P = try Poly{Sym}(expand(nu), [u]) catch; return nothing end
+    degree(P, u) >= 2 || return nothing
+    us = try _solve_eq(nu ~ 0, u) catch err; err isa ArgumentError || rethrow(); return nothing end
+    (us isa AbstractVector && !(us isa Cases)) || return nothing
+    out = Sym[]
+    found = false
+    for r in us
+        rs = try _solve_eq(g ~ r, x) catch err; err isa ArgumentError || rethrow(); continue end
+        (rs isa AbstractVector && !(rs isa Cases)) || continue
+        found = true
+        append!(out, rs)
+    end
+    found || return nothing
+    unique(filter(r -> _satisfies(eq, x, r), out))
+end
+
+function _tidy_roots(rs::Vector{Sym})
+    length(rs) <= 12 || return rs
+    out = Sym[]
+    for r in rs
+        if !_hassymbol(r) && _nodes(r) > 8
+            s = try simplify(r) catch err; err isa InterruptException && rethrow(); r end
+            _nodes(s) < _nodes(r) && (r = s)
+        end
+        any(q -> _eq(q, r), out) || push!(out, r)
+    end
+    out
 end
 
 # a piecewise function of x in the equation: solved piece by piece, a piece's roots kept
@@ -911,7 +988,12 @@ function _invert(g::Sym, r::Sym, x::Sym)
         name === :log && return [(t, exp(r))]
         name === :asin && return [(t, sin(r))]
         name === :acos && return [(t, cos(r))]
-        name === :atan && return [(t, tan(r))]
+        # (atan's values lie strictly between -π/2 and π/2: atan(t) = π/2 has no root, as
+        # the case of 1/(C + cos x) with a breakpoint there asked; SymPy #23613)
+        if name === :atan
+            v = try tan(r) catch err; _isdivzero(err) || rethrow(); nothing end
+            return v === nothing ? Tuple{Sym,Sym}[] : [(t, v)]
+        end
         name === :sinh && return [(t, asinh(r))]
         name === :cosh && return [(t, acosh(r)), (t, -acosh(r))]
         name === :tanh && return [(t, atanh(r))]

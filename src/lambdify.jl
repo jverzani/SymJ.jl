@@ -247,6 +247,37 @@ function _unity_powers(e::Sym)
     end
 end
 
+# sums sharing two or more terms (the same coefficient times the same term): the
+# largest such part of two sums replaced by a placeholder P in every sum that has it,
+# P => the part pushed onto subsums; repeated while there are any
+function _cse_subsums!(subsums::Vector{Pair{Sym,Sym}}, outs::Vector{Sym})
+    for _ in 1:20
+        sums = Sym[]
+        seen = Set{Sym}()
+        walk(e) = (isempty(e.args) || e in seen) ? nothing :
+            (push!(seen, e); e.kind == ADD && push!(sums, e); foreach(walk, e.args))
+        foreach(walk, outs)
+        length(sums) > 200 && return outs
+        termset(e) = Set{Tuple{SymNumber,Sym}}(zip(e.coefs, e.args))
+        sets = map(termset, sums)
+        best = Tuple{SymNumber,Sym}[]
+        for i in eachindex(sets), j in 1:(i - 1)
+            c = intersect(sets[i], sets[j])
+            length(c) > length(best) && (best = collect(c))
+        end
+        (length(best) >= 2 && count(st -> issubset(best, st), sets) >= 2) || return outs
+        S = _add_many(Sym(c) * t for (c, t) in best)
+        P = Sym(Symbol("_cse_part", length(subsums) + 1))
+        push!(subsums, P => S)
+        outs = map(outs) do o
+            _replace_walk(o) do t
+                t.kind == ADD && issubset(best, termset(t)) ? t - S + P : nothing
+            end
+        end
+    end
+    outs
+end
+
 """
     SymJ.cse(ex; prefix = :t)
 
@@ -255,8 +286,9 @@ of `t1 => s1, t2 => s2, ...` (each `s` in terms of the earlier `t`s) and `reduce
 expressions with the repeated parts replaced. `ex` is an expression or a vector (tuple)
 of them, and `reduced` has the same shape. A subexpression is repeated when the same
 node (a sum, product, power or function call, a power also as a factor of a product)
-occurs more than once; a part of a larger sum or product (`x + y` inside `x + y + z`)
-is not separated out. The names avoid the symbols in `ex`. Not exported.
+occurs more than once; the terms that two or more sums share are one subexpression too
+(`x + y` in `x + y + z` and `x + y - z`), but a part of a product is not separated out.
+The names avoid the symbols in `ex`. Not exported.
 
 ```julia
 @syms x y
@@ -265,6 +297,10 @@ SymJ.cse((x + y)^2 + sin(x + y))      # ([t1 => x + y], t1^2 + sin(t1))
 """
 function cse(ex; prefix = :t)
     outs = map(_unity_powers, _outputs(ex))
+    # common parts of sums first: terms that two or more sums share, as one placeholder
+    # (c²/2 + d/9 in -a + d/9 + c²/2 + c/3 and -b + d/9 + c²/2 - c/3; SymPy #23297)
+    subsums = Pair{Sym,Sym}[]
+    outs = _cse_subsums!(subsums, outs)
     # a product's factor b^p is counted as the power it is (exp(u) in exp(u)*sin(u) and
     # in exp(u) + 1 alike)
     factors(e) = e.kind == MUL ? Sym[isone(p) ? b : b^p for (b, p) in zip(e.args, e.exps)] : e.args
@@ -286,6 +322,7 @@ function cse(ex; prefix = :t)
     end
     reps = Pair{Sym,Sym}[]
     memo = Dict{Sym,Sym}()
+    foreach(count!, (S for (_, S) in subsums))
     function rep(e)
         haskey(memo, e) && return memo[e]
         isempty(e.args) && return e
@@ -298,6 +335,17 @@ function cse(ex; prefix = :t)
         end
         memo[e] = r
     end
-    reduced = Sym[rep(o) for o in outs]
+    # each placeholder named in its turn, after the parts its sum needs
+    names = Pair{Sym,Sym}[]
+    for (P, S) in subsums
+        r = subs(rep(S), names...)
+        t = fresh()
+        push!(reps, t => r)
+        push!(names, P => t)
+    end
+    reduced = Sym[subs(rep(o), names...) for o in outs]
+    if !isempty(names)
+        reps = [t => subs(r, names...) for (t, r) in reps]
+    end
     reps, ex isa Tuple ? Tuple(reduced) : ex isa AbstractArray ? reshape(reduced, size(ex)) : only(reduced)
 end

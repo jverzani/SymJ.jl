@@ -65,6 +65,7 @@ function _mp(e::Sym)::Vector{Sym}
                     (z - 1 / z) / (IM * (z + 1 / z))
                 return _mp_select(_mp(w), e)
             end
+            e.name === :cos && (P = _mp_cos_acos(e)) !== nothing && return P
         end
     end
     throw(ArgumentError("minimal_polynomial: $e is not algebraic (or not known to be)"))
@@ -136,4 +137,31 @@ function _mp_normal(c::Vector{Sym})
     ns = ns .÷ g
     ns[end] < 0 && (ns = -ns)
     Sym[Sym(n) for n in ns]
+end
+
+# cos(acos(c)/m + rπ), c algebraic and m r an integer (Cardano's roots in the casus
+# irreducibilis): t = cos(u) satisfies T_m(t) = cos(m u) = (-1)^(m r) c, T_m the
+# Chebyshev polynomial; the resultant over c's minimal polynomial (SymPy #23677)
+function _mp_cos_acos(e::Sym)
+    u = expand(e.args[1])
+    terms = u.kind == ADD ? [(Sym(c), t) for (c, t) in zip(u.coefs, u.args)] : [(ONE, u)]
+    u.kind == MUL && length(u.args) == 1 && isone(u.exps[1]) && (terms = [(Sym(u.num), u.args[1])])
+    ia = findall(((k, t),) -> t.kind == FN && t.name === :acos && length(t.args) == 1, terms)
+    length(ia) == 1 || return nothing
+    k, a = terms[only(ia)]
+    (k.kind == NUMBER && isexact(k.num) && abs(_numerator(k.num)) == 1) || return nothing
+    m = Int(_denominator(k.num))
+    m <= 12 || return nothing
+    r = expand((u - k * a) / PI)
+    (r.kind == NUMBER && isexact(r.num)) || return nothing
+    q = (k.num > N0 ? r.num : -r.num) * m           # cos is even: u or -u
+    _isint(q) || return nothing
+    σ = iseven(_toint(q)) ? ONE : MINUS_ONE
+    T0, T1 = ONE, _MP_T
+    for _ in 2:m
+        T0, T1 = T1, expand(2 * _MP_T * T1 - T0)
+    end
+    Tm = m == 1 ? _MP_T : T1
+    Pc = _mp(a.args[1])
+    _mp_select(resultant(_mp_expr(Pc, _MP_Y), expand(Tm - σ * _MP_Y), _MP_Y), e)
 end

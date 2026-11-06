@@ -501,7 +501,9 @@ function _degenerate_subst(D, B::Assumptions, unknowns)
         end
         best === nothing || return f => [best[1] => best[2]]
         rs = isempty(ps) ? Sym[] : (try _solve_generic(f ~ 0, ps[1]) catch err; err isa ArgumentError || rethrow(); Sym[] end)
-        isempty(rs) || return f => [ps[1] => r for r in rs]
+        # (√(-w²) as i w: the two roots ±i w, with no radical of a parameter for the
+        # system to carry; a² + b² = 0 in a circle and a line, SymPy #23889)
+        isempty(rs) || return f => [ps[1] => _imag_square_root(r) for r in rs]
         throw(ArgumentError("solve: the case $f = 0 is not supported"))
     end
     nothing
@@ -546,7 +548,7 @@ function _alternatives(run, (f, ps))
         [run(p) for p in ps]
     catch err
         (err isa ArgumentError || _isdivzero(err)) && length(ps) > 1 || rethrow()
-        throw(ArgumentError("solve: the case $f = 0 is not supported"))
+        throw(ArgumentError("solve: the case $f = 0 is not supported ($(sprint(showerror, err)))"))
     end
     length(rs) == 1 && return rs[1]
     all(r -> r isa AbstractVector && isempty(r), rs) && return rs[1]
@@ -679,18 +681,18 @@ function _solve_case(e::Relation, x::Sym, B::Assumptions)
                     m = expand(m - lc * u^k)
                 end
                 if !has(m, u)
-                    iszero(m) && throw(ArgumentError("solve: every value of $x satisfies $e"))
+                    iszero(m) && throw(_identity_error(x, e))
                     all(f -> _decide(Relation(:ne, f, ZERO), B), _param_factors(m, (x, u))) && return Sym[]
-                    throw(ArgumentError("solve: every value of $x satisfies $e"))
+                    throw(_identity_error(x, e))
                 end
                 _eq(m, m0) || (n = subs(m, u => g); reduced = true)
             end
         end
     end
     if !has(n, x)
-        iszero(n) && throw(ArgumentError("solve: every value of $x satisfies $e"))
+        iszero(n) && throw(_identity_error(x, e))
         all(f -> _decide(Relation(:ne, f, ZERO), B), _param_factors(n, (x,))) && return Sym[]
-        throw(ArgumentError("solve: every value of $x satisfies $e"))
+        throw(_identity_error(x, e))
     end
     rs = reduced ? _in_domain(_solve_eq(n ~ 0, x), e.lhs - e.rhs, x) : _solve_eq(e, x)
     rs isa AbstractVector || return rs            # an inequality's set
@@ -757,4 +759,11 @@ function _solve_ineq_assumed(r::Relation, x::Sym, A::Assumptions)
     S = _solve_eq(isempty(sub) ? r : Relation(r.op, subs(r.lhs, sub...), subs(r.rhs, sub...)), x)
     T = get(A.sets, x, nothing)
     T === nothing ? S : SymSet((S ∩ T).intervals, x)
+end
+
+# r with each √(-u), u the square of a polynomial w, as i w (a root's sign is its pair's)
+_imag_square_root(r::Sym) = _replace_walk(r) do t
+    (t.kind == POW && t.args[2].kind == NUMBER && t.args[2].num == SymNumber(1 // 2) && _hassymbol(t.args[1])) || return nothing
+    w = try _square_root(expand(-t.args[1])) catch; nothing end
+    w === nothing ? nothing : IM * w
 end

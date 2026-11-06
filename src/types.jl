@@ -137,6 +137,8 @@ const IM = _mkpow_node(MINUS_ONE, HALF)   # sqrt(-1)
 
 Sym(::Irrational{:π}) = PI
 Sym(::Irrational{:ℯ}) = E
+# Euler's constant γ = -ψ(1), as limits and series give it (SymJ has no γ constant)
+Sym(::Irrational{:γ}) = -apply_function(:digamma, Sym[ONE])
 Sym(z::Complex) = Sym(real(z)) + Sym(imag(z)) * IM
 
 ## Structural order, equality, hashing

@@ -65,6 +65,7 @@ function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Boo
                     gr = Ax === nothing ? g : _refine(g, Ax)
                     v = _gaussian_definite(gr, x, l, h, A)
                 end
+                v === nothing && (v = _definite_fallback(g, x, l, h, antider, A, principal_value, 1))
                 v === nothing ? rethrow() : v
             end
         end
@@ -81,8 +82,23 @@ function _definite_degenerate(run, g::Sym, x::Sym, l::Sym, h::Sym, A::Assumption
     v = run(g, l, h)
     (v isa Sym && _hassymbol(v)) || return v
     own = _param_factors(numer_denom(g)[2], (x,))
-    D = [f for f in _param_factors(numer_denom(cancel(v))[2], (x,))
-         if !any(o -> cancel(o / f).kind == NUMBER, own)]
+    # (denominators inside the value's functions and radicals too: √(1/M² + 1) is not
+    # defined at M = 0, where a simpler form of 4/((M + M√(1/M² + 1))² - 1) has it)
+    dens = Sym[numer_denom(cancel(v))[2]]
+    _replace_walk(v) do t
+        if t.kind == POW && t.args[2].kind == NUMBER && t.args[2].num < N0 && _hassymbol(t.args[1])
+            push!(dens, t.args[1])
+        elseif t.kind == MUL
+            for (b, q) in zip(t.args, t.exps)
+                q.kind == NUMBER && q.num < N0 && _hassymbol(b) && push!(dens, b)
+            end
+        end
+        nothing
+    end
+    D = Sym[]
+    for d in dens, f in _param_factors(d, (x,))
+        any(o -> cancel(o / f).kind == NUMBER, own) || any(o -> _eq(o, f), D) || push!(D, f)
+    end
     isempty(D) && return v
     ps = _degenerate_subst(D, A, (x,))
     ps === nothing && return v
@@ -290,6 +306,14 @@ function _definite(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A::Assumptions, pv
     has(f, x) || return _ordered_length(f, lo, hi, A)
     v = _definite_by_pieces(f, x, lo, hi, antider, A, pv)
     v === nothing || return v
+    v = _definite_param_pieces(f, x, lo, hi, antider, A, pv)
+    v === nothing || return v
+    # over (-a, a), finite: the odd terms, continuous there, integrate to 0 (x³cos(x/2)
+    # √(4 - x²), which has no elementary antiderivative; SymPy #23246)
+    if !_isinfpt(lo) && !_isinfpt(hi) && iszero(expand(lo + hi)) && !_eq(lo, hi)
+        g = _drop_odd_terms(f, x, lo, hi)
+        g === nothing || return iszero(g) ? ZERO : _definite(g, x, lo, hi, antider, A, pv)
+    end
     S = _singular_points(f, x, lo, hi)
     F = _antiderivative(antider, f, x, A; numeric = true)
     # an antiderivative known only numerically that has an expression valid on the
@@ -301,7 +325,7 @@ function _definite(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A::Assumptions, pv
     end
     # F may jump where f is smooth: 2atan(√(A²-1) tan(t/2)/(A-1))/√(A²-1) for 1/(A - cos t)
     # at t = π (#26283); split there too (a point where F is continuous changes nothing)
-    F isa Sym && (S = unique(vcat(S, _jump_points(F, x, lo, hi))))
+    F isa Sym && (S = _same_points(vcat(S, _jump_points(F, x, lo, hi))))
     if isempty(S) && !_isinfpt(lo) && !_isinfpt(hi)
         F isa Sym || return _numeric_difference(F, f, lo, hi)
         return _sum_values([(1, _endvalue(F, x, hi, :-, A)), (-1, _endvalue(F, x, lo, :+, A))], A)
@@ -318,7 +342,10 @@ function _definite(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A::Assumptions, pv
         # a parametric point is compared with a finite end, which reduces to facts about
         # the parameters (√(-a) > 0 is a < 0); with both ends infinite, its reality
         (!_hassymbol(s) || (_isinfpt(lo) && _isinfpt(hi))) && !_isreal_point(s, A) && continue
-        (_isinfpt(lo) || _decide(Relation(:gt, s, lo), A)) && (_isinfpt(hi) || _decide(Relation(:lt, s, hi), A)) || continue
+        # a point k acos(u) + m: real for u² ≤ 1 (cos x = -C: SymPy #23613)
+        ac = _hassymbol(s) ? _acos_affine(s) : nothing
+        ac === nothing || _decide(Relation(:le, ac[1]^2, ONE), A) || continue
+        (_isinfpt(lo) || _decide_pt(:gt, s, lo, A)) && (_isinfpt(hi) || _decide_pt(:lt, s, hi, A)) || continue
         any(t -> _eq(t, s), inside) || _insert_sorted!(inside, s, A)
     end
     union!(sing, inside)
@@ -328,6 +355,15 @@ function _definite(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A::Assumptions, pv
         isempty(sing) || throw(ArgumentError(
             "integrate: the antiderivative of $f is known only numerically, and $f is singular on the interval"))
         return _numeric_difference(F, f, lo, hi)
+    end
+    # a simple pole inside, (x - s) f tending to a nonzero number: no integral, only a
+    # principal value (F's two sides there can look equal: atan(±i) for 1/(C + cos x),
+    # |C| < 1, came out 0; SymPy #23613)
+    if !pv
+        for s in inside
+            _simple_pole(f, x, s, A) && throw(ArgumentError(
+                "integrate: the integral does not converge: $f has a pole at $x = $s inside the interval"))
+        end
     end
     terms = Tuple{Int,Sym}[]
     for s in inside                                  # F(s⁻) - F(s⁺)
@@ -393,7 +429,45 @@ end
 function _less(p::Sym, q::Sym, A)
     _isinfpt(p) && return _infsign(p) < 0 && !(_isinfpt(q) && _infsign(q) < 0)
     _isinfpt(q) && return _infsign(q) > 0
-    _decide(Relation(:lt, p, q), A)
+    _decide_pt(:lt, p, q, A)
+end
+
+# s = k acos(u) + m, k and m numbers, u with parameters: (u, k, m), or nothing
+function _acos_affine(s::Sym)
+    as = Sym[]
+    _replace_walk(s) do t
+        t.kind == FN && t.name === :acos && length(t.args) == 1 && _hassymbol(t.args[1]) &&
+            !any(b -> _eq(b, t), as) && push!(as, t)
+        nothing
+    end
+    length(as) == 1 || return nothing
+    a = only(as)
+    k = expand(subs(s, a => ONE) - subs(s, a => ZERO))
+    m = expand(subs(s, a => ZERO))
+    (k.kind == NUMBER && !iszero(k.num) && !_hassymbol(m) && iszero(expand(s - k * a - m))) || return nothing
+    a.args[1], k, m
+end
+
+# p op q (op :lt or :gt) for p or q a point k acos(u) + m and the other a number: as a
+# condition on u, acos taking its values in [0, π] (acos(u) > 0 is u < 1), rather than one
+# on acos(u); else as it is
+function _decide_pt(op::Symbol, p::Sym, q::Sym, A)
+    rel = Relation(op, p, q)
+    d = expand(p - q)
+    ac = _acos_affine(d)
+    ac === nothing && return _decide(rel, A)
+    u, k, m = ac
+    t = try Float64(N(-m / k)) catch; return _decide(rel, A) end       # d op 0 ⇔ acos(u) op′ t
+    gt = (op === :gt) == (k.num > N0)
+    if gt                                                              # acos(u) > t
+        t < 0 && return true
+        t >= π && return false
+        return _decide(Relation(:lt, u, cos(-m / k)), A)
+    else                                                               # acos(u) < t
+        t <= 0 && return false
+        t > π && return true
+        return _decide(Relation(:gt, u, cos(-m / k)), A)
+    end
 end
 
 function _insert_sorted!(v::Vector{Sym}, s::Sym, A)
@@ -491,8 +565,11 @@ function _onesided(F::Sym, x::Sym, p::Sym, dir::Symbol, A)
             if all(v -> v.second isa Sym, vs)
                 if all(v -> !_isinfpt(v.second), vs)
                     L = _tidy_constant(sum(k * v for (k, v) in vs; init = ZERO))
-                elseif length(vs) == 1 && isone(vs[1].first)
-                    L = vs[1].second
+                elseif count(v -> _isinfpt(v.second), vs) == 1 &&
+                       (iv = findfirst(v -> _isinfpt(v.second), vs); isone(vs[iv].first))
+                    # the real part infinite, the constants iπ beside it finite: ∫₁³
+                    # dx/(x - 3), log(x - 3) = log(3 - x) + iπ, is -∞ (SymPy #23337)
+                    L = vs[iv].second
                 end
             end
         end
@@ -886,4 +963,199 @@ function _removable_at(g::Sym, p::Sym, q::Sym, val::Sym)
         iszero(d) || (!_hassymbol(d) && abs(N(d)) < 1e-12) || return false
     end
     true
+end
+
+
+# a piecewise integrand whose breakpoints in x move with one parameter y (a convolution
+# of boxes: 0, 1, y - 1, y): the values of y where two of them (or one and a finite end)
+# meet cut its line into intervals, on each of which their order is fixed; the integral
+# on each, under that interval's assumption, makes a piecewise function of y (SymPy
+# #23761). nothing when the points are not linear in one parameter.
+const _PARAM_CUTS_MAX = 12
+function _definite_param_pieces(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A, pv::Bool)
+    (_hassymbol(lo) || _hassymbol(hi)) && return nothing
+    g = piecewise(f)
+    _haspieces(g, x) || return nothing
+    bps = _all_breakpoints(g, x)
+    (bps === nothing || !any(_hassymbol, bps)) && return nothing
+    ys = unique(s for r in bps for s in free_symbols(r))
+    length(ys) == 1 || return nothing
+    y = only(ys)
+    function lin(r)
+        c1 = try coeff(expand(r), y, 1) catch; return nothing end
+        c0 = expand(r - c1 * y)
+        (c1.kind == NUMBER && c0.kind == NUMBER) ? (c1.num, c0.num) : nothing
+    end
+    ls = map(lin, bps)
+    any(isnothing, ls) && return nothing
+    ends = [p for p in (lo, hi) if !_isinfpt(p)]
+    crit = Float64[]
+    addc(v) = (isfinite(v) && !any(c -> isapprox(c, v; atol = 1e-12), crit)) && push!(crit, v)
+    for i in eachindex(ls)
+        a1, b1 = ls[i]
+        for j in 1:(i - 1)
+            a2, b2 = ls[j]
+            a1 == a2 || addc(Float64((b2 - b1) / (a1 - a2)))
+        end
+        for e in ends
+            iszero(a1) || addc(Float64((e.num - b1) / a1))
+        end
+    end
+    isempty(crit) && return nothing
+    length(crit) <= _PARAM_CUTS_MAX || return nothing
+    sort!(crit)
+    cy = [Sym(SymNumber(rationalize(BigInt, c; tol = 1e-14))) for c in crit]
+    pieces = Pair[]
+    for k in 0:length(crit)
+        y0 = k == 0 ? crit[1] - 1 : k == length(crit) ? crit[end] + 1 : (crit[k] + crit[k+1]) / 2
+        Ak = A
+        k > 0 && (Ak = _with_fact(Ak, Relation(:gt, y, cy[k])))
+        Ak === nothing && continue
+        k < length(crit) && (Ak = _with_fact(Ak, Relation(:lt, y, cy[k+1])))
+        Ak === nothing && continue
+        # the points inside (lo, hi) at y0, in order
+        l0, h0 = Float64(N(lo)), Float64(N(hi))
+        vals = [(Float64(a) * y0 + Float64(b), r) for ((a, b), r) in zip(ls, bps)]
+        inside = sort!([(v, r) for (v, r) in vals if l0 < v < h0]; by = first)
+        pts = Tuple{Float64,Sym}[(l0, lo); inside; (h0, hi)]
+        total = ZERO
+        ysub = y => Sym(SymNumber(rationalize(BigInt, y0; tol = 1e-14)))
+        for i in 1:(length(pts) - 1)
+            (u, p), (w, q) = pts[i], pts[i+1]
+            isapprox(u, w; atol = 1e-12) && continue
+            m = isinf(u) ? w - 1 : isinf(w) ? u + 1 : (u + w) / 2
+            gi = _pieces_at(g, x, Sym(SymNumber(rationalize(BigInt, m; tol = 1e-9))); extra = (ysub,))
+            gi === nothing && return nothing
+            v = _definite(gi, x, p, q, antider, Ak, pv)
+            v isa Sym || return nothing
+            total += v
+        end
+        c = k == length(crit) ? true : (y ≦ cy[k+1])
+        push!(pieces, c => simplify(total))
+    end
+    isempty(pieces) && return nothing
+    piecewise(pieces...)
+end
+
+# every breakpoint of g in x, numeric or with parameters; nothing when one can't be found
+function _all_breakpoints(e::Sym, x::Sym)
+    out = Sym[]
+    ok = Ref(true)
+    function visit(n::Sym)
+        ok[] || return
+        if n.kind == FN && (haskey(_COND_RELS, n.name) || n.name === :heaviside) && has(n, x)
+            u = haskey(_COND_RELS, n.name) ? n.args[1] - n.args[2] : n.args[1]
+            rs = try _solve_generic(u ~ 0, x) catch; (ok[] = false; return) end
+            rs isa AbstractVector || (ok[] = false; return)
+            for r in rs
+                (_hassymbol(r) || _isreal_const(r) === true) || continue
+                any(q -> iszero(expand(q - r)), out) || push!(out, r)
+            end
+            n.name === :heaviside && return
+        end
+        foreach(visit, n.args)
+        n.kind == MUL && foreach(visit, n.exps)
+    end
+    visit(e)
+    ok[] && !isempty(out) ? out : nothing
+end
+
+# f without its odd terms in x (f(-x) = -f(x)) that have no singular point on [lo, hi];
+# nothing when there are none
+function _drop_odd_terms(f::Sym, x::Sym, lo::Sym, hi::Sym)
+    odd(t) = iszero(expand(subs(t, x => -x) + t))
+    ok(t) = isempty(_singular_points(t, x, lo, hi))
+    odd(f) && ok(f) && return ZERO
+    e = f.kind == ADD ? f : expand(f)
+    e.kind == ADD || return nothing
+    terms = [Sym(c) * t for (c, t) in zip(e.coefs, e.args)]
+    keep = [!(has(t, x) && odd(t) && ok(t)) for t in terms]
+    all(keep) && return nothing
+    _add_many(t for (t, k) in zip(terms, keep) if k) + Sym(e.num)
+end
+
+# f = n/d with d(s) = 0, d'(s) ≠ 0 and n(s) ≠ 0 (decided under A)
+function _simple_pole(f::Sym, x::Sym, s::Sym, A)
+    n, d = numer_denom(f)
+    has(d, x) || return false
+    at(e) = try simplify(subs(e, x => s)) catch err; err isa InterruptException && rethrow(); nothing end
+    nonzero(v) = v isa Sym && (_hassymbol(v) ? (try _decide(Relation(:ne, v, ZERO), A) catch; false end) :
+                               (w = try N(v) catch; nothing end; w isa Number && isfinite(w) && abs(w) > 1e-12))
+    d0 = at(d)
+    d0 isa Sym && iszero(d0) || return false
+    nonzero(at(diff(d, x))) && nonzero(at(n))
+end
+
+# points that are one point merged: equal, or equal in value (at sample values of their
+# parameters): acos(-C) and 2atan((C + 1)/√(1 - C²)) (SymPy #23613)
+function _same_points(S::Vector{Sym})
+    out = Sym[]
+    for p in S
+        any(q -> _eq(p, q) || _same_value(p, q), out) || push!(out, p)
+    end
+    out
+end
+function _same_value(p::Sym, q::Sym)
+    syms = unique(vcat(free_symbols(p), free_symbols(q)))
+    # (samples where both are real: the points are real there, branches agree)
+    agree = 0
+    for k in 1:(isempty(syms) ? 1 : 6)
+        vals = [s => Sym(_SAMPLE_VALUES[mod1(k + 3j, length(_SAMPLE_VALUES))]) for (j, s) in enumerate(syms)]
+        a, b = try (ComplexF64(N(subs(p, vals...))), ComplexF64(N(subs(q, vals...)))) catch; continue end
+        (isfinite(a) && isfinite(b)) || continue
+        isempty(syms) || (abs(imag(a)) < 1e-12 && abs(imag(b)) < 1e-12) || continue
+        abs(a - b) <= 1e-10 * max(1, abs(a)) || return false
+        agree += 1
+    end
+    agree >= (isempty(syms) ? 1 : 2)
+end
+
+# integrals over (-∞, ∞) or (0, ∞) with no elementary antiderivative, by known values and
+# parts: a sum term by term; c sin(a x²), c cos(a x²) (Fresnel: ∫ sin(ax²) dx over the
+# line is sign(a) √(π/(2|a|))); and n(x)/x² with n(0) = 0 by parts, ∫ n'(x)/x dx with the
+# boundary terms -n/x (∫ (cos(x²) - cos x)/x² dx = π - √(2π); SymPy #22487). nothing when
+# none applies. depth bounds the parts.
+function _definite_fallback(g::Sym, x::Sym, l::Sym, h::Sym, antider, A, pv::Bool, depth::Int)
+    line = _isinfpt(l) && _infsign(l) < 0 && _isinfpt(h) && _infsign(h) > 0
+    half = iszero(l) && _isinfpt(h) && _infsign(h) > 0
+    (line || half) || return nothing
+    one(t) = try
+        _definite(t, x, l, h, antider, A, pv)
+    catch err
+        err isa InterruptException && rethrow()
+        _definite_fallback(t, x, l, h, antider, A, pv, depth)
+    end
+    if g.kind == ADD
+        iszero(g.num) || return nothing                  # a constant: divergent
+        vs = [one(Sym(c) * t) for (c, t) in zip(g.coefs, g.args)]
+        all(v -> v isa Sym, vs) || return nothing
+        return _sum_values([(1, v) for v in vs], A)
+    end
+    c, t = _split_kfree(g, x)
+    if t.kind == FN && t.name in (:sin, :cos) && length(t.args) == 1
+        a = expand(t.args[1] / x^2)
+        if a.kind == NUMBER && !iszero(a.num)
+            v = sqrt(PI / (2 * abs(a)))
+            t.name === :sin && a.num < N0 && (v = -v)
+            return c * (line ? v : v / 2)
+        end
+    end
+    depth >= 1 || return nothing
+    n = expand(g * x^2)
+    (has(n, x) && !has(numer_denom(cancel(n))[2], x)) || return nothing
+    iszero(simplify(subs(n, x => ZERO))) || return nothing
+    B = -n / x
+    ends = [_limit_or(B, x, Float64(h.num), :-, A), line ? _limit_or(B, x, -Inf, :+, A) : _limit_or(B, x, ZERO, :+, A)]
+    all(e -> e isa Sym && !_isinfpt(e), ends) || return nothing
+    rest = _definite_fallback_or(expand(diff(n, x) / x), x, l, h, antider, A, pv, depth - 1)
+    rest isa Sym || return nothing
+    simplify(ends[1] - ends[2] + rest)
+end
+function _definite_fallback_or(t::Sym, x, l, h, antider, A, pv, depth)
+    try
+        _definite(t, x, l, h, antider, A, pv)
+    catch err
+        err isa InterruptException && rethrow()
+        _definite_fallback(t, x, l, h, antider, A, pv, depth)
+    end
 end
