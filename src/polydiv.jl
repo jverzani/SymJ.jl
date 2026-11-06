@@ -122,6 +122,14 @@ function _divrem(p::Poly{C,M}, q::Poly{C,M}) where {C,M}
     Poly{C}(gs, L, quom, quoc), Poly{C}(gs, L, remm, remc)
 end
 
+# coefficients of two types (Poly{Sym} and Poly{SymNumber}): both as Poly{Sym} over the
+# generators of either (Base's divrem calls div, which called divrem: a stack overflow;
+# SymPy #23828)
+function Base.divrem(p::Poly{C1}, q::Poly{C2}) where {C1,C2}
+    gs = Sym[p.gens; [g for g in q.gens if !any(h -> _eq(h, g), p.gens)]]
+    divrem(Poly{Sym}(Sym(p), gs), Poly{Sym}(Sym(q), gs))
+end
+
 Base.div(p::Poly, q::Poly) = divrem(p, q)[1]
 Base.rem(p::Poly, q::Poly) = divrem(p, q)[2]
 

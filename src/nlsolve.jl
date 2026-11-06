@@ -293,6 +293,7 @@ function _solve_groebner(nums::Vector{Sym}, vars::Vector{Sym})
         end
         return _uniquesols(out)
     end
+    _parametric_degree_guard(nums, vars)
     G = groebner(nums, vars...)
     G == [ONE] && return Dict{Sym,Sym}[]
     seen = _COMPONENTS[]
@@ -307,6 +308,44 @@ function _solve_groebner(nums::Vector{Sym}, vars::Vector{Sym})
     end
     isempty(degen) ? out : _uniquesols(out)
 end
+
+# With parameters, the system at sample values of them: when the last unknown's
+# polynomial there has an irreducible factor of degree > 4 that does not decompose, so has
+# the generic one (specializing only splits factors), whose roots solve cannot give; an
+# error then, before the basis over the parameters' rational functions, which can run for
+# hours (two quartics with 10 parameters; SymPy #23604)
+function _parametric_degree_guard(nums::Vector{Sym}, vars::Vector{Sym})
+    length(vars) >= 2 || return
+    ps = Sym[]
+    for n in nums, a in _named(n)
+        any(v -> _eq(v, a), vars) || any(q -> _eq(q, a), ps) || push!(ps, a)
+    end
+    isempty(ps) && return
+    atoms = Set{Sym}()
+    all(n -> _poly_atoms!(atoms, n), nums) || return
+    all(_isnamed, atoms) || return
+    vals = [p => Sym(SymNumber((3i + 4) // (2i + 7))) for (i, p) in enumerate(ps)]
+    G = try groebner([expand(subs(n, vals...)) for n in nums], vars...) catch err
+        err isa ArgumentError || rethrow(); return
+    end
+    last = [g for g in G if _mainvar(g, vars) == length(vars)]
+    length(last) == 1 && _onlyvar(last[1], vars[end]) || return
+    _, facs = factor(Poly{SymNumber}(last[1], [vars[end]]))
+    for (f, _) in facs
+        d = degree(f)
+        # a cubic or quartic in many parameters: Cardano's or Ferrari's formula over
+        # coefficients in all of them, and the basis to get there, are too large to use
+        if 3 <= d <= 4 && length(ps) >= _PARAMETRIC_RADICAL_MAX
+            throw(ArgumentError("solve: the solutions are roots of an irreducible polynomial of degree $d in $(vars[end]) whose coefficients involve $(length(ps)) parameters; a closed form is too large to compute or use. Substitute numbers for the parameters"))
+        end
+        d > 4 || continue
+        c = _xcoeffs(f)
+        chain = _decompose(c)
+        (length(chain) > 1 && all(g -> length(g) <= 5, chain)) && continue
+        throw(ArgumentError("solve: with the parameters, the solutions are roots of an irreducible polynomial of degree $d in $(vars[end]), which have no closed form; substitute numbers for the parameters (the roots are then found numerically)"))
+    end
+end
+const _PARAMETRIC_RADICAL_MAX = 6
 
 # the irreducible factors (up to constants) of the expressions in D that involve vars:
 # through products and powers (sqrt(-y^2) vanishes where y does)

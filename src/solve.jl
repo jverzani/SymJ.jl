@@ -724,12 +724,15 @@ function _solve_logs(eq::Relation, n::Sym, x::Sym)
             return nothing                              # log products or symbolic coefficients
         end
     end
-    L = reduce(lcm, (big(_denominator(c.num)) for c in cs); init = big(1))
+    # the coefficients over their gcd g: 72/5 log(y - c) - 72/5 log(y) is log((y - c)/y)
+    # times 72/5, not a polynomial of degree 72 (an ODE's implicit solution; SymPy #22462)
+    rs = Rational{BigInt}[Rational{BigInt}(_numerator(c.num), _denominator(c.num)) for c in cs]
+    g = reduce(gcd, rs)
     for (ev, c) in zip(exponent_vectors(P), coefficients(P))
-        sum(ev) == 1 && (ks[findfirst(==(1), ev)] = Int(_numerator(c.num) * (L ÷ _denominator(c.num))))
+        sum(ev) == 1 && (ks[findfirst(==(1), ev)] = Int(Rational{BigInt}(_numerator(c.num), _denominator(c.num)) / g))
     end
     lhs = prod((logs[i].args[1]^ks[i] for i in eachindex(logs) if ks[i] != 0); init = ONE)
-    cands = _solve_eq(lhs ~ exp(-Sym(SymNumber(L)) * R), x)
+    cands = _solve_eq(lhs ~ exp(-R / Sym(SymNumber(g))), x)
     filter(r -> _satisfies(eq, x, r), cands)
 end
 

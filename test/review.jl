@@ -420,3 +420,33 @@ end
     h = SymFunction(:h)
     @test solve(h(2) * 4.0 + x ~ 0, x) == [-4.0 * h(2)]
 end
+
+@testset "crashes and hangs (SymPy review, round 6)" begin
+    @syms a b p q m kx ky
+    LA = SymJ.LinearAlgebra
+    # divrem of polynomials with coefficients of two types (#23828)
+    @test divrem(Poly(a * x + b + p, a), Poly(a, a)) == (Poly(x, a), Poly(b + p, a))
+    # an unknown function replaced by a function in subs (#23759)
+    f, g = SymFunction(:f), SymFunction(:g)
+    @test subs(f(g(x)), f => sin) == sin(g(x))
+    @test subs(diff(f(x), x) + f(x), f => sin) == cos(x) + sin(x)
+    # simplify of a conjunction of facts (#23391)
+    @test simplify((x ≪ 1) & (x ≪ 2)) == (x ≪ 1)
+    # subs into a piecewise: a branch whose condition is false is not evaluated (#23295)
+    @test subs(SymJ.piecewise(abs(b) ≫ 0 => 1 / b, true => 0), b => 0) == 0
+    # a zero pivot in nested radicals (#22604)
+    J = SymJ.jordan_form(Sym[0 0 1 0; 0 0 0 1; -2 1 0 0; 1 -1 0 0])[2]
+    @test LA.isdiag(J)
+    # logs with a common coefficient: no degree-72 polynomial (#22462)
+    @test length(solve(72log(x - Sym(1) // 288) / 5 - 72log(x) / 5 ~ q, x)) == 1
+    # det with im and a symbolic denominator: fraction-free (#23408)
+    I2, X, Y, Z = Sym[1 0; 0 1], Sym[0 1; 1 0], Sym[0 -IM; IM 0], Sym[1 0; 0 -1]
+    H = ((kx^2 + ky^2) / (2m) - p) * kron(Z, I2) + a * kron(X, I2) + b * (kx * kron(I2, Y) - ky * kron(I2, X)) * kron(Z, I2) + q * kron(I2, X)
+    vals = [kx => 1, ky => 2, m => 3, p => 5, a => 7, b => 11, q => 13]
+    @test N(subs(LA.det(H), vals...)) ≈ real(LA.det(ComplexF64.(N.(subs.(H, Ref.(vals)...)))))
+    # a quartic in 10 parameters: a clear error, not hours (#23604)
+    ps = [Sym(Symbol(:c, i)) for i in 1:10]
+    @syms u v
+    sys = [u^2 * ps[1] + v^2 * ps[2] + u * v * ps[3] + ps[4] * u + ps[5] ~ 0, u^2 * ps[6] + v^2 * ps[7] + ps[8] * u * v + ps[9] * v + ps[10] ~ 0]
+    @test_throws ArgumentError SymJ._parametric_degree_guard(Sym[e.lhs for e in sys], [u, v])
+end

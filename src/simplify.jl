@@ -472,6 +472,30 @@ function simplify(ex; assume = nothing)
     A === nothing && (A = Assumptions())
     _simplify(_refine(Sym(ex), A), A)
 end
+# a conjunction of facts without those the others imply (x ≪ 1 & x ≪ 2 is x ≪ 1), a
+# disjunction without those that imply another; one fact left is that fact (SymPy #23391)
+function simplify(f::Union{FactAnd,FactOr}; assume = nothing)
+    fs = Any[g isa Relation ? simplify(g; assume) : g for g in f.facts]
+    any(g -> g === (f isa FactAnd ? false : true), fs) && return f isa FactAnd ? false : true
+    fs = [g for g in fs if g !== (f isa FactAnd ? true : false)]
+    keep = trues(length(fs))
+    for i in eachindex(fs)
+        others = [fs[j] for j in eachindex(fs) if j != i && keep[j]]
+        isempty(others) && continue
+        implied = if f isa FactAnd
+            B = try Assumptions(others...) catch err; err isa ArgumentError || rethrow(); nothing end
+            B !== nothing && _holds(fs[i], B) === true
+        else
+            B = try Assumptions(fs[i]) catch err; err isa ArgumentError || rethrow(); nothing end
+            B !== nothing && any(h -> _holds(h, B) === true, others)
+        end
+        implied && (keep[i] = false)
+    end
+    fs = fs[keep]
+    isempty(fs) && return f isa FactAnd
+    length(fs) == 1 ? fs[1] : (f isa FactAnd ? FactAnd(fs) : FactOr(fs))
+end
+
 # each case's value (an integral by cases; SymPy #23909 extra)
 simplify(cs::Cases; assume = nothing) =
     _map_cases(v -> v isa AbstractArray ? map(w -> simplify(w; assume), v) : simplify(v; assume), cs)
