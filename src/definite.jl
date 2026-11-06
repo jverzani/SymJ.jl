@@ -577,8 +577,10 @@ function _onesided(F::Sym, x::Sym, p::Sym, dir::Symbol, A)
     if L === nothing
         # a limit the limit code could not take (an unsupported function) is no proof
         # of divergence
+        # (a limit the code could not take, an unsupported function or an undecided
+        # sign, is no proof of divergence: only a limit that does not exist is)
         e = fail[]
-        e isa GruntzError && occursin("unsupported", sprint(showerror, e)) && throw(ArgumentError(
+        e isa GruntzError && e.kind !== :nolimit && throw(ArgumentError(
             "integrate: cannot find the limit of the antiderivative $F at $x = $p ($(sprint(showerror, e)))"))
         throw(ArgumentError("integrate: the integral does not converge: the antiderivative $F has no limit at $x = $p"))
     end
@@ -586,11 +588,23 @@ function _onesided(F::Sym, x::Sym, p::Sym, dir::Symbol, A)
 end
 
 # the limit, or nothing (the error, if one was the cause, left in fail[])
-function _limit_or(F, x, x0, dir, A, fail = Ref{Any}(nothing))
+function _limit_or(F, x, x0, dir, A, fail = Ref{Any}(nothing); depth::Int = 0)
     L = try
         limit(F, x => x0; dir = dir === :+ ? :+ : :-, assume = A)
     catch err
         err isa Union{GruntzError,ArgumentError,DomainError} || rethrow()
+        # a sign the limit could not split on: decided here, a case for each sign of a
+        # parameter whose sign is open (e^(-ax) sin x at ∞ with a ≠ 0; SymPy #21054)
+        if err isa GruntzError && err.kind === :fail && depth < 2 && A isa Assumptions
+            ps = [p for p in free_symbols(Sym(F)) if !_eq(p, x) && !_eq(p, _MARK_IPI) &&
+                  (m = _signs(p, A); m === nothing || (m != _POS && m != _NEG))]
+            if !isempty(ps)
+                p = first(ps)
+                pos = _decide(Relation(:gt, p, ZERO), A)
+                A2 = _with_fact(A, Relation(pos ? :gt : :le, p, ZERO))
+                A2 === nothing || return _limit_or(F, x, x0, dir, A2, fail; depth = depth + 1)
+            end
+        end
         fail[] = err
         return nothing
     end

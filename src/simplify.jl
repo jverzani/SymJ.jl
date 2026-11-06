@@ -1261,6 +1261,17 @@ function _circ_simplify(e::Sym, M::_Circ)
     vars = [(Sym(Symbol("_circS", i)), Sym(Symbol("_circC", i))) for i in eachindex(bases)]
     p = _circ_poly(e, bases, vars, M)
     p === nothing && return e
+    # e's own denominator 0 by the identities (before cancel takes the common factor out):
+    # e is defined nowhere, and no form of it is simpler (sec² from (tan² - sec² + 1)/
+    # (sin² + cos² - 1); SymPy #21340)
+    d0 = numer_denom(e)[2]
+    if _hassymbol(d0)
+        pd = _circ_poly(d0, bases, vars, M)
+        if pd !== nothing
+            nd, dd = numer_denom(cancel(pd))
+            any(o -> iszero(_circ_reduce(nd, vars, o, M)), Iterators.product(((true, false) for _ in bases)...)) && return e
+        end
+    end
     n, d = numer_denom(cancel(p))
     best, size = e, _nodes(e)
     consider(r) = (k = _nodes(r); k < size && ((best, size) = (r, k)))
@@ -1270,6 +1281,7 @@ function _circ_simplify(e::Sym, M::_Circ)
     for order in Iterators.product(((true, false) for _ in bases)...)
         ns = _circ_reduce(n, vars, order, M)
         ds = _circ_reduce(d, vars, order, M)
+        iszero(ds) && return e
         for q in (cancel(ns / ds), ns / ds)
             r = try back(q) catch; continue end
             consider(r)

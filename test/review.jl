@@ -529,3 +529,36 @@ end
     @test SymJ.dsolve(4.0 * N0 * sqrt(N0 - 1) * ρ(s0) + (4s0^2 * (N0 - 1) + (N0 - 2s0 * (N0 - 1))^2) * diff(ρ(s0), s0, 2) ~ 0,
                       ρ(s0); series = 5) isa SymJ.Relation
 end
+
+@testset "wrong answers (SymPy review, round 7)" begin
+    @syms x y z k a n
+    f = SymFunction(:f)
+    # sums with an infinite part beside others: decided as a whole (#21434, #21315, #21151)
+    @test SymJ.summation(1 - cos(1 / k), k, 1, Inf) == SymJ._summation_unevaluated(1 - cos(1 / k), k, Sym(1), Sym(Inf))
+    @test SymJ.summation(1 - 1 / k, k, 1, Inf) == Inf
+    @test SymJ.summation(1 / k - log(1 + 1 / k), k, 1, Inf) == -SymJ.SpecialFunctionsSupport.SF.digamma(Sym(1))
+    @test N(SymJ.summation(3 / (4k) - log(1 + 3 / (4k)), k, 1, Inf)) ≈ 3 * Base.MathConstants.eulergamma / 4 + log(SymJ.SpecialFunctionsSupport.SF.gamma(1.75)) rtol = 1e-12
+    # a quotient whose denominator is 0 by the identities is defined nowhere (#21340)
+    e = (tan(x)^2 - sec(x)^2 + 1) / (sin(x)^2 + cos(x)^2 - 1)
+    @test simplify(e) == e
+    # a piece of a piecewise that holds identically: its interval (#21079)
+    S = solve(SymJ.piecewise(x ≪ -1 => 0, x ≦ 1 => x^2, true => log(x)) ~ 0, x)
+    @test S isa SymJ.SymSet
+    @test S(-3)
+    @test S(0)
+    @test !S(Sym(1) // 2)
+    # x^n = 1 for an integer n: refused, not the one root 1 (#21014)
+    @test_throws ArgumentError solve(x^n ~ 1, x; assume = (n ∈ ℤ, n ≫ 0))
+    # |u| branches that are identities: the half-lines (#22259)
+    @test solve(abs(x) ~ -x, x; assume = (x ∈ ℝ,)) == solve(x ≦ 0, x)
+    @test solve(abs(x) / x ~ 1, x; assume = (x ∈ ℝ,)) == solve(x ≫ 0, x)
+    # f(x) => y keeps f'(x) (#21658)
+    @test subs(diff(f(x), x)^2 + f(x), f(x) => y) == y + diff(f(x), x)^2
+    # a BigFloat beyond Float64's range: an error, not Inf (#21860)
+    @test_throws ArgumentError Sym(big"1.5e400")
+    # |x| y = 0: the case x = 0 (#21943)
+    @test solve(abs(x) * y ~ 0, y) isa SymJ.Cases
+    # numbers as subs keys leave exponents alone (#21373)
+    @test subs(x * y, 1 => 2) == x * y
+    @test subs(x / z, 1 => 1.0) == x / z
+end
