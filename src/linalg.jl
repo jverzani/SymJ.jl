@@ -811,6 +811,9 @@ function _unity_reduce(e::Sym)
         nothing
     end
     isempty(rs) && return e
+    # (im = exp(iπ/2), a root of unity too: N a multiple of 4)
+    hasim = has(e, IM)
+    hasim && push!(rs, Rational{BigInt}(1, 2))
     N = Int(reduce(lcm, (denominator(r / 2) for r in rs)))
     N <= 60 || return e
     w = Sym(Symbol("_unity_w"))
@@ -820,6 +823,7 @@ function _unity_reduce(e::Sym)
         # (w^N = 1: exponents mod N, so w⁻¹ is w^(N-1))
         r === nothing ? nothing : w^mod(Int(Rational{BigInt}(_numerator(r), _denominator(r)) * N / 2), N)
     end)
+    hasim && (g = expand(subs(g, IM => w^(N ÷ 4))))
     has(g, w) || return g
     atoms = Set{Sym}()
     _poly_atoms!(atoms, g) || return e

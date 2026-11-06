@@ -16,6 +16,29 @@ using PrecompileTools: @setup_workload, @compile_workload
 # RischIntegrate has one; signs they leave open take its default.
 RischIntegrate.integrate(ex::Sym, x::Sym; assume = nothing, kw...) = _unwrap(_indefinite(ex, x; assume, kw...))
 
+# an answer by cases (an inner definite integral's) integrated case by case, each with
+# its conditions among the assumptions; an infinite value or an error stays (SymPy #23610)
+function RischIntegrate.integrate(cs::SymJ.Cases, x::Sym; assume = nothing, kw...)
+    A0 = something(SymJ._assumptions(assume), SymJ.Assumptions())
+    SymJ.Cases{Any}(Any[c.first => _case_integral(c.second, c.first, x, A0; kw...) for c in cs.cases])
+end
+function _case_integral(v, conds, x::Sym, A0; kw...)
+    v isa Exception && return v
+    v = Sym(v)
+    SymJ._isinfpt(v) && return v
+    A = A0
+    for c in conds
+        B = try SymJ._with_fact(A, c) catch err; err isa ArgumentError || rethrow(); nothing end
+        B === nothing || (A = B)
+    end
+    try
+        RischIntegrate.integrate(v, x; assume = A, kw...)
+    catch err
+        err isa InterruptException && rethrow()
+        err
+    end
+end
+
 # (the definite integrals take the answer as it is: a ₂F₁ term holds only where its
 # radicand is positive, which they check numerically)
 function _indefinite(ex::Sym, x::Sym; assume = nothing, kw...)

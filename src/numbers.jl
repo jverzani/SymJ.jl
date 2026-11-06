@@ -292,7 +292,26 @@ function _perfect_root(m::Integer, k::Int)
 end
 
 # n = a^q * c with c free of q-th powers (exact for prime factors < 1000, best effort beyond)
-function _extract_power(n::Integer, q::Int)
+# (memoized for large n: cancel over radicals of 40-digit integers asked for the same
+# ones thousands of times, each a trial division to 2^17; SymPy #23165)
+const _EXTRACT_MEMO = Dict{Tuple{BigInt,Int},Tuple{BigInt,BigInt}}()
+const _EXTRACT_LOCK = ReentrantLock()
+_extract_power(n::Integer, q::Int) = _extract_power_raw(n, q)
+function _extract_power(n::BigInt, q::Int)::Tuple{BigInt,BigInt}
+    Base.top_set_bit(n) > 62 || return _extract_power_raw(n, q)
+    key = (n, q)
+    Base.@lock _EXTRACT_LOCK begin
+        r = get(_EXTRACT_MEMO, key, nothing)
+        r === nothing || return r
+    end
+    r = _extract_power_raw(n, q)
+    Base.@lock _EXTRACT_LOCK begin
+        length(_EXTRACT_MEMO) > 10_000 && empty!(_EXTRACT_MEMO)
+        _EXTRACT_MEMO[key] = r
+    end
+    r
+end
+function _extract_power_raw(n::Integer, q::Int)
     a, c, m = one(n), one(n), n
     for p in _SMALL_PRIMES
         p * p > m && break

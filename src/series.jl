@@ -212,6 +212,22 @@ function _psapply(name::Symbol, args::Vector{Sym}, N::Rational{Int})
         end
         r === nothing || return _ser(r, N)
     end
+    # Γ, ψ and ψ⁽ᵏ⁾ at a pole -m (m = 0, 1, …): moved to the regular point 1 by the
+    # recurrences, Γ(w) = Γ(w + m + 1)/(w (w + 1) ⋯ (w + m)) and ψ⁽ᵏ⁾(w) = ψ⁽ᵏ⁾(w + m + 1)
+    # - (-1)^k k! Σ_j 1/(w + j)^(k+1), a Laurent series (SymPy #23635)
+    if a0.kind == NUMBER && isexact(a0.num) && _isint(a0.num) && a0.num <= N0 && (length(args) == 1 && name in (:gamma, :digamma, :trigamma) ||
+                           name === :polygamma && i == 2 && args[1].kind == NUMBER && isexact(args[1].num) && _isint(args[1].num) && args[1].num >= N0)
+        m = -_toint(a0.num)
+        w = args[i]
+        r = if name === :gamma
+            apply_function(:gamma, Sym[w + m + 1]) / prod(Sym[w + j for j in 0:m])
+        else
+            k = name === :digamma ? 0 : name === :trigamma ? 1 : _toint(args[1].num)
+            f = k == 0 ? apply_function(:digamma, Sym[w + m + 1]) : apply_function(:polygamma, Sym[Sym(k), w + m + 1])
+            f - Sym(isodd(k) ? -factorial(big(k)) : factorial(big(k))) * _add_many(inv((w + j)^(k + 1)) for j in 0:m)
+        end
+        return _ser(r, N)
+    end
     a.o > 0 || throw(_SeriesPrecision())
     y = Sym(Symbol("_y"))
     fy = apply_function(name, Sym[j == i ? y : args[j] for j in eachindex(args)])
@@ -524,9 +540,9 @@ end
 # special functions of an argument u → ±∞ (nothing: not handled here)
 function _asfn(name::Symbol, args::Vector{Sym}, N::Rational{Int})
     name in (:erf, :erfc, :erfi, :erfcx, :expinti, :expint, :sinint, :cosint,
-             :besselj, :bessely, :besseli, :besselk, :gamma) || return nothing
+             :besselj, :bessely, :besseli, :besselk, :gamma, :airyai, :airybi) || return nothing
     any(a -> has(a, _T), args[1:end-1]) && return nothing
-    name === :gamma && length(args) != 1 && return nothing
+    name in (:gamma, :airyai, :airybi) && length(args) != 1 && return nothing
     u = _ser(args[end], N)
     any(<(0), u.e) || return nothing                 # finite at the point
     _, c0, _ = _pslead(u)
@@ -584,6 +600,17 @@ function _asfn(name::Symbol, args::Vector{Sym}, N::Rational{Int})
         body = name === :besselj ? _asadd(_asmul(cω, P), _asscale(_asmul(sω, Q), MINUS_ONE)) :
                                    _asadd(_asmul(sω, P), _asmul(cω, Q))
         return _asmul(_asplain(_psscale(r, sqrt(Sym(2)) / sqrt(PI))), body)
+    elseif name in (:airyai, :airybi)
+        # u → +∞, ζ = 2u^(3/2)/3: Ai = e^(-ζ)/(2√π u^(1/4)) Σ (-1)^k c_k/ζ^k and
+        # Bi = e^ζ/(√π u^(1/4)) Σ c_k/ζ^k, c_k = (6k)!/(16^k 54^k (3k)! (2k)!) (SymPy #23563)
+        sg > 0 || return nothing
+        ck(k) = Sym(factorial(big(6k)) // (big(16)^k * big(54)^k * factorial(big(3k)) * factorial(big(2k))))
+        zi = _psscale(_pspow(u, Sym(-3 // 2), N), Sym(3 // 2))                  # 1/ζ
+        ai = name === :airyai
+        S = _psgeom(zi, k -> ai && isodd(k) ? -ck(k) : ck(k), N)
+        pre = _psscale(_pspow(u, Sym(-1 // 4), N), ai ? inv(2 * sqrt(PI)) : inv(sqrt(PI)))
+        ζ = _psscale(_pspow(u, Sym(3 // 2), N), Sym(ai ? -2 // 3 : 2 // 3))
+        return _asmul(_asexp(ζ, N), _asplain(_psmul(pre, S)))
     elseif name === :gamma                           # Stirling's series
         sg > 0 || return nothing
         g = _asexp(_psadd(_psloggamma(u, N), _psconst(-log(2PI) / 2)), N)
@@ -625,8 +652,8 @@ At `±Inf`, an expansion may need an exponential or oscillating factor: terms
 `exp(g)*(series)`, `cos(h)*(series)` and `sin(h)*(series)` with `g`, `h` growing at the
 point. These come from `exp`, `sin` and `cos` of growing arguments and from the asymptotic
 expansions of `erf`, `erfc`, `erfi`, `erfcx`, `expinti`, `expint`, `sinint`, `cosint`,
-`besselj`, `bessely`, `besseli`, `besselk` and `gamma` (Stirling's series; `loggamma`'s is
-an ordinary series). Such a term is not dropped even when it is exponentially small:
+`besselj`, `bessely`, `besseli`, `besselk`, `airyai` and `airybi` (at `+Inf`) and `gamma`
+(Stirling's series; `loggamma`'s is an ordinary series). Such a term is not dropped even when it is exponentially small:
 `erf(x)` at `Inf` is `1 - exp(-x^2)*(1/(√π x) - …)`, not `1`. For `besseli` the term of
 relative size `exp(-2x)` is left out, as is usual for real arguments.
 

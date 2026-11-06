@@ -450,3 +450,82 @@ end
     sys = [u^2 * ps[1] + v^2 * ps[2] + u * v * ps[3] + ps[4] * u + ps[5] ~ 0, u^2 * ps[6] + v^2 * ps[7] + ps[8] * u * v + ps[9] * v + ps[10] ~ 0]
     @test_throws ArgumentError SymJ._parametric_degree_guard(Sym[e.lhs for e in sys], [u, v])
 end
+
+@testset "missing cases (SymPy review, round 6)" begin
+    @syms x y a b c d n p v z R i
+    PI = SymJ.PI
+    LA = SymJ.LinearAlgebra
+    # cse: terms that two sums share (#23297)
+    reps, red = SymJ.cse([-a + d / 9 + c^2 / 2 + c / 3, -b + d / 9 + c^2 / 2 - c / 3])
+    @test length(reps) == 1
+    @test reps[1].second == c^2 / 2 + d / 9
+    @test red == [-a + c / 3 + reps[1].first, -b - c / 3 + reps[1].first]
+    # diff of max and min (#22726)
+    @test diff(max(x, y), x) == SymJ.heaviside(x - y)
+    @test diff(min(x, 2), x) == SymJ.heaviside(2 - x)
+    # piecewise conditions with | and & (#22852)
+    @test SymJ.piecewise(((x ≪ 0) | (x ≫ 1)) => 1, true => 0) == SymJ.piecewise(x ≪ 0 => 1, x ≫ 1 => 1, true => 0)
+    @test SymJ.piecewise(((x ≪ 0) & (x ≫ -1)) => 1, true => 0) == SymJ.piecewise((x ≪ 0, x ≫ -1) => 1, true => 0)
+    # powers with negated exponents combined (#22546)
+    @test simplify((a + b)^(n + 1) / (a + 2b)^(n + 1); assume = (a ≫ 0, b ≫ 0)) == ((a + b) / (a + 2b))^(n + 1)
+    # log of a sum over its denominator, x real (#23569)
+    @test simplify(log(1 + 1 / x^2) / 2 - (log(x^2 + 1) - log(x^2)) / 2; assume = (x ∈ ℝ,)) == 0
+    # a long integer counts in simplify's size (#23210)
+    @test simplify(30log(Sym(5))) == 30log(Sym(5))
+    # a conjugate radical in the denominator (#23641)
+    @test simplify(diff(log(b + 2sqrt(c) * sqrt(a + b * x + c * x^2) + 2c * x), x)) == sqrt(c) / sqrt(a + b * x + c * x^2)
+    # a trigonometric constant that is 0 (#23015)
+    @test simplify(-32cos(PI / 14) * cos(2PI / 7) - 32sin(3PI / 14) * cos(3PI / 14) +
+                   32cos(3PI / 14) * cos(2PI / 7) + 32sin(3PI / 14) * cos(PI / 14)) == 0
+    # float exponents (#23284, #22584)
+    r = solve(1 - 0.8 ~ exp(-6.7784905546796565e-6 * x^1.1), x)
+    @test length(r) == 1
+    @test N(r[1]) ≈ 77064.73080118217 rtol = 1e-10
+    # every x except the excluded point (#23254)
+    @test_throws "except x = 1" solve(x / (x - 1) - 1 / (x - 1) - 1 ~ 0, x)
+    # the log first, then Lambert W (#23253)
+    r = solve(4 / log(3 / x + 1)^2 - x^2 ~ 0, x)
+    @test !isempty(r)
+    @test all(s -> abs(N(subs(4 / log(3 / x + 1)^2 - x^2, x => s))) < 1e-8, r)
+    # cos² + sin² in the denominators of a linear system (#23140)
+    q2, q3 = Sym(:q2), Sym(:q3)
+    @syms u1 u2 u3 d1 d2 d3
+    s = solve([-(u1 * sin(q3) + u2 * cos(q3)) / sin(q2) + d1 ~ 0, -u1 * cos(q3) + u2 * sin(q3) + d2 ~ 0,
+               (u1 * sin(q3) + u2 * cos(q3)) * cos(q2) / sin(q2) - u3 + d3 ~ 0], [u1, u2, u3])
+    @test s[1][u1] == cos(q3) * d2 + d1 * sin(q2) * sin(q3)
+    # log(A) = log(B) as A = B; polynomial equations first; floats with a log (#23662, #22723, #23318)
+    @test solve([-y^2 + log(y^2 / x) + 2 ~ 0, -2x * y + 2x / y ~ 0], [x, y]) == [Dict(x => E, y => 1), Dict(x => E, y => -1)]
+    s = solve([53.5780461486929 ~ x * log(y / (5.0 - y) + 1) / y, x ~ 0.0015 * z, 0.0015 ~ 7845.32 * y / z], [x, y, z])
+    @test length(s) == 1
+    @test N(s[1][y]) ≈ 0.03403016806816325 rtol = 1e-8
+    s = solve([log(x * y) ~ log(Sym(2)), x + y ~ 3], [x, y])
+    @test length(s) == 2
+    # roots through x^(1/6) simplified and once (#23028)
+    @test solve(2x^(1 // 3) - 1 - sqrt(Sym(3)) * sqrt(x) ~ 0, x) == [-1]
+    # a small polynomial system with large radicals, quickly (#23165)
+    @syms vc vs xn
+    s = solve([vc / vs - xn / (170 - xn) ~ 0, 1 // 2 * 30000 * vc * 120 * xn - 102500vs - 240(200 - xn) ~ 0,
+               19760400 - 102500vs * (170 - xn / 3) - 240(200 - xn) * (100 + xn / 6) ~ 0], [vc, vs, xn])
+    @test sort([real(N(t[xn])) for t in s]) ≈ [-200.0201888275084, -200.0201888275084, -3.9343295061690924, 3.8038738278525512]
+    # the case a² + b² = 0 of a circle and a line (#23889)
+    s = solve([x^2 + y^2 ~ R^2, a * x + b * y ~ c], [x, y])
+    @test !any(cv -> cv.second isa Exception, s)
+    # special solutions within a family dropped (#23110)
+    @test length(solve([x * y ~ 0, x * z ~ 0, x * v ~ 0], [x, y, z, v])) == 2
+    # unknowns with an equation of their own solved first (#23322)
+    s = solve([d + p - x ~ 0, d^2 + 1 - 9 ~ 0, -1 - p^2 + 4 ~ 0], [d, p, x])
+    @test Set(t[x] for t in s) == Set([2sqrt(Sym(2)) + sqrt(Sym(3)), 2sqrt(Sym(2)) - sqrt(Sym(3)),
+                                        -2sqrt(Sym(2)) + sqrt(Sym(3)), -2sqrt(Sym(2)) - sqrt(Sym(3))])
+    # cosines summed over a full period, through exponentials (#23576)
+    @test SymJ.summation(cos(2PI * i / v), i, 1, v; assume = (v ∈ ℤ, v ≫ 1)) == 0
+    # minimal polynomial of Cardano's roots in the casus irreducibilis (#23677)
+    rs = solve(4000000x^3 - 239960000x^2 + 4782399900x - 31663998001 ~ 0, x)
+    m = SymJ.minimal_polynomial(rs[1] + rs[2], y)
+    @test abs(N(subs(m, y => N(rs[1] + rs[2])))) < 1e-3
+    @test SymJ.degree(Poly(m, y)) == 3
+    # a series solution with float coefficients (#22525)
+    ρ = SymFunction(:ρ)
+    @syms N0 s0
+    @test SymJ.dsolve(4.0 * N0 * sqrt(N0 - 1) * ρ(s0) + (4s0^2 * (N0 - 1) + (N0 - 2s0 * (N0 - 1))^2) * diff(ρ(s0), s0, 2) ~ 0,
+                      ρ(s0); series = 5) isa SymJ.Relation
+end

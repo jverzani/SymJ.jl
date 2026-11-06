@@ -46,7 +46,8 @@ function gamma_value(args)
     a = args[1]
     if isint(a)
         n = _toint(a.num)
-        return n >= 1 ? Sym(factorial(big(n - 1))) : nothing
+        n >= 1 || _gamma_pole(:gamma, a)
+        return Sym(factorial(big(n - 1)))
     elseif ishalfint(a) && a.num > SymNumber(0)
         n = _toint(a.num - SymNumber(1 // 2))
         return Sym(factorial(big(2n)) // (big(4)^n * factorial(big(n)))) * SQRTPI
@@ -57,6 +58,11 @@ function gamma_value(args)
     end
     nothing
 end
+
+# Γ, ψ and ψ⁽ᵐ⁾ have poles at 0, -1, -2, …: an error, as tan(π/2) is (SymPy #23156)
+_gamma_pole(name, a) = throw(SymJ.DivisionByZero("$name($a): a pole"))
+_nonpos_int(a::Sym) = isint(a) && a.num <= SymNumber(0)
+digamma_value(args) = (length(args) == 1 && _nonpos_int(args[1]) && _gamma_pole(:digamma, args[1]); nothing)
 
 # ζ(2n) = (-1)^(n+1) B_2n (2π)^2n / (2 (2n)!), for a few n
 const ZETA_EVEN = Dict(2 => PI^2 / 6, 4 => PI^4 / 90, 6 => PI^6 / 945, 8 => PI^8 / 9450)
@@ -71,6 +77,7 @@ end
 # ψ⁽ᵐ⁾(k) = (-1)^(m+1) m! (ζ(m + 1) - Σ_{j<k} 1/j^(m+1)) at a positive integer k, m ≥ 1
 function polygamma_value(args)
     m, a = args
+    isint(m) && m.num >= SymNumber(0) && _nonpos_int(a) && _gamma_pole(:polygamma, a)
     (isint(m) && m.num >= SymNumber(1) && isint(a) && a.num >= SymNumber(1)) || return nothing
     m, k = _toint(m.num), _toint(a.num)
     k <= 1000 || return nothing
@@ -105,8 +112,8 @@ function __init__()
         diff = (args, i) -> length(args) == 1 ? SF.gamma(args[1]) * SF.digamma(args[1]) :
                             i == 2 ? -args[2]^(args[1] - 1) * exp(-args[2]) : nothing)
     reg(:loggamma; eval = _unary(a -> isone(a) || a == 2 ? ZERO : nothing), diff = d1(SF.digamma))
-    reg(:digamma; diff = d1(SF.trigamma))
-    reg(:trigamma; diff = d1(a -> SF.polygamma(2, a)))
+    reg(:digamma; eval = digamma_value, diff = d1(SF.trigamma))
+    reg(:trigamma; eval = args -> (_nonpos_int(args[1]) && _gamma_pole(:trigamma, args[1]); polygamma_value(Sym[ONE, args[1]])), diff = d1(a -> SF.polygamma(2, a)))
     reg(:invdigamma; diff = d1(a -> inv(SF.trigamma(SF.invdigamma(a)))))
     reg(:polygamma; eval = polygamma_value, diff = dx((m, a) -> SF.polygamma(m + 1, a)))
     reg(:beta; eval = beta_value,

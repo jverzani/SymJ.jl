@@ -348,7 +348,7 @@ register_function!(:log; julia = log,
 # These stay as their own functions (sec(x), not 1/cos(x)). Their exact values come
 # from the rules of the function they are defined through, accepted only when that
 # function no longer appears: sec(π/3) = 1/cos(π/3) = 2 and sec(acos(x)) = 1/x, while
-# sec(x) stays sec(x). A pole (sec(π/2)) stays unevaluated.
+# sec(x) stays sec(x). A pole (sec(π/2)) is a DivisionByZero error.
 
 _hasfn(ex::Sym, name::Symbol) =
     (ex.kind == FN && ex.name === name) || any(a -> _hasfn(a, name), ex.args) || any(a -> _hasfn(a, name), ex.exps)

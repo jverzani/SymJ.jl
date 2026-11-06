@@ -75,7 +75,9 @@ import PolyLog as PL
 
         # exact values and symmetry
         @test SF.gamma(Sym(5)) == 24 && SF.gamma(Sym(1 // 2)) == sqrt(PI) && SF.gamma(Sym(7 // 2)) == 15sqrt(PI) / 8
-        @test kind(SF.gamma(Sym(-1))) == FN && kind(SF.gamma(x)) == FN
+        # (a pole: an error, as tan(π/2) is; SymPy #23156)
+        @test_throws SymJ.DivisionByZero SF.gamma(Sym(-1))
+        @test kind(SF.gamma(x)) == FN
         @test SF.zeta(Sym(2)) == PI^2 / 6 && SF.zeta(Sym(0)) == Sym(-1 // 2)
         @test SF.beta(Sym(2), Sym(3)) == Sym(1 // 12)
         @test SF.erf(Sym(0)) == 0 && SF.erfc(Sym(0)) == 1 && SF.erf(-x) == -SF.erf(x) && SF.erfi(-x) == -SF.erfi(x)
@@ -481,6 +483,52 @@ import PolyLog as PL
         # |exp(w)|² for complex w refined to a real Gaussian (#26102)
         v = RischIntegrate.integrate(abs(exp(-IM / 2 * x^2 / (IM * zR + z)))^2, (x, -Inf, Inf); assume = (zR ≫ 0, z ∈ ℝ))
         @test N(subs(v, zR => 2, z => 1)) ≈ sqrt(π) * sqrt(5) / sqrt(2)
+    end
+
+    @testset "missing cases (SymPy review, round 6)" begin
+        @syms y C tau
+        ∫ = RischIntegrate.integrate
+        # Γ, ψ at their poles: an error, as tan(π/2) is; Laurent series there (#23156, #23635)
+        @test_throws SymJ.DivisionByZero SF.gamma(Sym(0))
+        @test_throws SymJ.DivisionByZero SF.digamma(Sym(-2))
+        @test Sym(series(SF.gamma(y), y, 0, 1)) == 1 / y + SF.digamma(Sym(1))
+        @test Sym(series(SF.polygamma(1, y), y, 0, 1)) == 1 / y^2 + PI^2 / 6
+        @test N(subs(Sym(series(SF.gamma(y), y, -1, 3)), y => -1 + Sym(1) // 100)) ≈ SF.gamma(-0.99) rtol = 1e-5
+        # Euler's constant as -ψ(1)
+        @test Sym(Base.MathConstants.eulergamma) == -SF.digamma(Sym(1))
+        # Airy functions at +∞ (#23563)
+        v = N(subs(Sym(series(SF.airyai(x), x, Inf, 4)), x => 10))
+        @test v ≈ SF.airyai(10.0) rtol = 1e-4
+        v = N(subs(Sym(series(SF.airybi(x), x, Inf, 4)), x => 10))
+        @test v ≈ SF.airybi(10.0) rtol = 1e-4
+        # ∫ dx/|x| real for x < 0 (#22533)
+        @test ∫(1 / abs(x), x; assume = (x ∈ ℝ,)) == SymJ.piecewise(x ≪ 0 => -log(-x), true => log(x))
+        # an answer by cases integrated case by case (#23610)
+        r = ∫(∫(x^a, (x, 0, 1)), a)
+        @test r isa SymJ.Cases
+        # the end a pole of a real integrand: ±∞, not "no limit" (#23337)
+        @test ∫(1 / (x - 3), (x, 1, 3)) == -Inf
+        # odd terms over (-a, a) (#23246)
+        @test ∫((x^3 * cos(x / 2) + Sym(1) // 2) * sqrt(4 - x^2), (x, -2, 2)) == PI
+        # Fresnel, Si and parts (#22487)
+        @test ∫(sin(x^2), (x, 0, Inf)) == sqrt(2PI) / 4
+        @test N(∫((cos(x^2) - cos(x)) / x^2, (x, -Inf, Inf))) ≈ π - sqrt(2π)
+        # breakpoints that move with a parameter: a convolution of boxes (#23761)
+        gp = SymJ.piecewise((0 ≦ x, x ≦ 1) => 1, true => 0)
+        @test ∫(subs(gp, x => tau) * subs(gp, x => x - tau), (tau, -Inf, Inf)) ==
+              SymJ.piecewise(x ≦ 0 => 0, x ≦ 1 => x, x ≦ 2 => 2 - x, true => 0)
+        # reduction of order (#23351)
+        u = SymFunction(:u)
+        sol = SymJ.dsolve(x^2 * (2 - x) * diff(u(x), x, 2) + 2x * diff(u(x), x) - 2u(x) ~ exp(-x) * x^2 * (2 - x)^2, u(x))
+        @test sol isa SymJ.Relation
+        # 1/(C + cos x) over a period by cases on C, divergent for |C| ≤ 1 (#23613)
+        if isdefined(RischIntegrate, :clausen2)
+            r = ∫(1 / (C + cos(x)), (x, 0, 2PI))
+            @test r isa SymJ.Cases
+            @test any(cv -> cv.second == 2PI / sqrt(C^2 - 1), r)
+            @test_throws ArgumentError ∫(1 / (Sym(1) // 2 + cos(x)), (x, 0, 2PI))
+            @test_throws ArgumentError ∫(1 / (-Sym(1) // 3 + cos(x)), (x, 0, 2PI))
+        end
     end
 
     @testset "asymptotic series at ±∞: exponential and oscillating factors" begin

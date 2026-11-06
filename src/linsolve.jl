@@ -176,7 +176,7 @@ end
 # (Only decided where the expressions that must not vanish become constants: with
 # x free, x ≠ 1 is not recorded.)
 function _defined_in(eqs, s::Dict{Sym,Sym}, vars::Vector{Sym})
-    ps = [v => s[v] for v in vars]
+    ps = [v => get(s, v, v) for v in vars]
     for eq in eqs
         e = eq.lhs - eq.rhs
         zs = Sym[]
@@ -204,7 +204,13 @@ function _islinear(eqs, vars::Vector{Sym})
     true
 end
 
+# (denominators smaller by trigonometric identities, cos² + sin² = 1, reduced; SymPy #23140)
 function _solve_linear(eqs, vars::Vector{Sym})
+    r = _solve_linear0(eqs, vars)
+    (r isa AbstractDict && any(v -> _has_fn(v, _CIRCFNS), values(r))) || return r
+    Dict{Sym,Sym}(k => _trig_den(v) for (k, v) in r)
+end
+function _solve_linear0(eqs, vars::Vector{Sym})
     A, b = _linear_system(eqs, vars)
     # square, with parameters: Cramer's rule, whose one divisor is det A (the pivots of
     # Gauss–Jordan are divisors too, each a case to decide, and its rational functions
@@ -213,7 +219,8 @@ function _solve_linear(eqs, vars::Vector{Sym})
         r = _cramer_sym(hcat(A, b), size(A, 1))
         if r !== nothing
             X, D = r
-            _divisor!(D)
+            Dt = _trig_reduced(D)
+            _divisor!(Dt)
             return Dict{Sym,Sym}(v => X[i, 1] for (i, v) in enumerate(vars))
         end
     end
@@ -239,6 +246,19 @@ function _solve_linear(eqs, vars::Vector{Sym})
     end
 end
 solve(eqs::Tuple{Vararg{Relation}}, vars; kws...) = solve(collect(Relation, eqs), vars; kws...)
+
+# d simplified by trigonometric identities when that makes it smaller, else d itself
+function _trig_reduced(d::Sym)
+    _has_fn(d, _CIRCFNS) || return d
+    t = try simplify_trig(d) catch err; err isa InterruptException && rethrow(); return d end
+    _nodes(t) < _nodes(d) ? t : d
+end
+
+function _trig_den(v::Sym)
+    n, d = numer_denom(v)
+    dt = _trig_reduced(d)
+    dt === d ? v : cancel(n / dt)
+end
 
 # A x = b from the equations: each lhs - rhs in lowest terms, no unknown in the
 # denominator, of degree at most 1 in the unknowns

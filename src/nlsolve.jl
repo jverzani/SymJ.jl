@@ -14,6 +14,14 @@
 # rationals they stand for and the solutions converted back to floating point.
 
 function _solve_nonlinear(eqs::Vector{<:Relation}, vars::Vector{Sym})
+    les = [_log_eq(e, vars) for e in eqs]
+    if any(!isnothing, les)
+        es = Relation[l === nothing ? e : l[1] for (e, l) in zip(eqs, les)]
+        As = Sym[l[2] for l in les if l !== nothing]
+        sols = _solve_generic(es, vars)
+        sols isa AbstractVector || return sols
+        return filter(s -> all(A -> (a = try subs(A, s...) catch; return false end; !_vanishes(a)), As), sols)
+    end
     r = _solve_abs_system(eqs, vars)
     r === nothing || return r
     r = _solve_radical_system(eqs, vars)
@@ -23,6 +31,7 @@ function _solve_nonlinear(eqs::Vector{<:Relation}, vars::Vector{Sym})
     catch err
         (err isa ArgumentError && occursin("must be polynomial or rational", sprint(showerror, err))) || rethrow()
         sols = _solve_triangular(eqs, vars)
+        sols === nothing && (sols = _solve_by_elimination(eqs, vars))
         sols === nothing ? rethrow() : return sols
     end
 end
@@ -173,7 +182,16 @@ function _solve_polynomial_system(eqs::Vector{<:Relation}, vars::Vector{Sym})
         end
         iszero(n) || push!(nums, n)
     end
-    sols = isempty(nums) ? [Dict{Sym,Sym}()] : _solve_algebraic(nums, vars)
+    # unknowns that an equation of their own determines last in the lex order, solved
+    # first: d² = 8, p² = 3, x = d + p gives x = d + p, not x from x⁴ - 22x² + 25 with
+    # d, p back from x (nested radicals; SymPy #23322). (Here, for the unknowns: the
+    # variables for algebraic constants are placed on purpose.)
+    own = [v for v in vars if any(n -> has(n, v) && all(u -> _eq(u, v) || !has(n, u), vars), nums)]
+    ovars = vars
+    if !isempty(own) && length(own) < length(vars) && !all(v -> v in own, vars[end-length(own)+1:end])
+        ovars = [[v for v in vars if !(v in own)]; own]
+    end
+    sols = isempty(nums) ? [Dict{Sym,Sym}()] : _solve_algebraic(nums, ovars)
     # drop solutions at a pole
     filter!(s -> all(d -> !_vanishes(subs(d, s...)), dens), sols)
     if inexact
@@ -226,7 +244,14 @@ function _solve_algebraic(nums::Vector{Sym}, vars::Vector{Sym})
     catch e
         e isa ArgumentError && e.msg == _GROEBNER_ALGEBRAIC_MSG || rethrow()
     end
-    out = _solve_lifted(nums, vars, false)
+    # (the new variables last, else first: with im and parameters, a x + i a y = c, the
+    # basis with r last met the same vanishing coefficient; SymPy #23889)
+    out = try
+        _solve_lifted(nums, vars, false)
+    catch e
+        e isa ArgumentError && e.msg == _GROEBNER_ALGEBRAIC_MSG || rethrow()
+        _solve_lifted(nums, vars, true)
+    end
     out === nothing && throw(ArgumentError(_GROEBNER_ALGEBRAIC_MSG))
     out
 end
@@ -482,7 +507,33 @@ function _uniquesols(sols::Vector{Dict{Sym,Sym}})
     for s in sols
         any(t -> keys(t) == keys(s) && all(k -> _vanishes(t[k] - s[k]), keys(s)), out) || push!(out, s)
     end
-    out
+    _drop_special(out)
+end
+
+# solutions that are special cases of a family among the others dropped: {x = 0, y = 0}
+# lies in {x = 0} (y free, as an unknown missing from the Dict or y => y is), the
+# family's free unknowns taking s's values (x y = x z = x v = 0: two families, not
+# eight; SymPy #23110)
+function _drop_special(sols::Vector{Dict{Sym,Sym}})
+    2 <= length(sols) <= 200 || return sols
+    function within(s, t)
+        s === t && return false
+        for (k, w) in t
+            if haskey(s, k)
+                d = try subs(w, s...) - s[k] catch; return false end
+                _vanishes(d) || return false
+            else
+                _eq(w, k) || return false
+            end
+        end
+        true
+    end
+    keep = [!any(t -> within(s, t), sols) for s in sols]
+    # (two families each within the other, the same set: the first kept)
+    for i in eachindex(sols), j in 1:(i - 1)
+        keep[i] || keep[j] || !(within(sols[i], sols[j]) && within(sols[j], sols[i])) || (keep[j] = true)
+    end
+    sols[keep]
 end
 
 # exact: no floating point numbers anywhere in the expression
@@ -507,3 +558,110 @@ function _exactfloats(e::Sym; short::Bool = false)
     k == FN && return apply_function(e.name, Sym[r(a) for a in e.args])
     e
 end
+
+
+# log(A) = log(B) as A = B: the principal logarithm is one to one on the nonzero
+# numbers, so the two are equivalent where A ≠ 0 (SymPy #23662). The equation, and the
+# A that must not vanish, or nothing when eq is not of that form.
+function _log_eq(eq::Relation, vars::Vector{Sym})
+    d = expand(eq.lhs - eq.rhs)
+    d.kind == ADD && iszero(d.num) && length(d.args) == 2 || return nothing
+    (c1, t1), (c2, t2) = zip(d.coefs, d.args)
+    c1 == -c2 || return nothing
+    islog(t) = t.kind == FN && t.name === :log && length(t.args) == 1
+    (islog(t1) && islog(t2)) || return nothing
+    A, B = t1.args[1], t2.args[1]
+    any(v -> has(A, v) || has(B, v), vars) || return nothing
+    Relation(:eq, A, B), A
+end
+
+# a system that is not polynomial, by elimination: an unknown that an equation gives
+# as a rational function of the others (x = 0.0015 z) substituted into the rest; or the
+# equations that are polynomial solved first, their solutions (families too) put into
+# the others (2x/y - 2xy = 0 gives y = ±1, then log(1/x) + 1 = 0; SymPy #22723,
+# #23318). nothing when neither applies.
+function _solve_by_elimination(eqs::Vector{<:Relation}, vars::Vector{Sym})
+    length(vars) >= 2 || return nothing
+    # floats: the system with the rationals they stand for, the solutions floats again
+    if !all(e -> _isexactex(e.lhs) && _isexactex(e.rhs), eqs)
+        ex = Relation[Relation(:eq, _exactfloats(e.lhs; short = true), _exactfloats(e.rhs; short = true)) for e in eqs]
+        r = _solve_by_elimination(ex, vars)
+        r === nothing && return nothing
+        num(v) = _hassymbol(v) ? _floatify(v) : (w = N(v); w isa Number ? Sym(w) : v)
+        return [Dict{Sym,Sym}(k => num(v) for (k, v) in s) for s in r]
+    end
+    ds = [e.lhs - e.rhs for e in eqs]
+    function ispoly(e)
+        atoms = Set{Sym}()
+        n, d = numer_denom(cancel(_exactfloats(e)))         # (floats count as numbers)
+        _poly_atoms!(atoms, n) && _poly_atoms!(atoms, d) &&
+            !any(a -> !any(v -> _eq(a, v), vars) && any(v -> has(a, v), vars), atoms)
+    end
+    # an unknown of degree 1 in a polynomial equation, its coefficient free of the
+    # unknowns: v = -c₀/c₁
+    for (i, e) in enumerate(ds)
+        ispoly(e) || continue
+        n, d = numer_denom(cancel(e))
+        for v in vars
+            has(n, v) || continue
+            P = try Poly{Sym}(n, [v]) catch; continue end
+            degree(P, v) == 1 || continue
+            c1, c0 = coeff(n, v, 1), coeff(n, v, 0)
+            any(u -> has(c1, u), vars) && continue
+            iszero(c1) && continue
+            r = cancel(-c0 / c1)
+            others = [u for u in vars if !_eq(u, v)]
+            rest = Relation[Relation(:eq, subs(eqs[j].lhs, v => r), subs(eqs[j].rhs, v => r)) for j in eachindex(eqs) if j != i]
+            rest = [f for f in rest if !iszero(simplify(f.lhs - f.rhs))]
+            sub = isempty(rest) ? [Dict{Sym,Sym}()] :
+                  try _solve_generic(rest, others) catch err; err isa ArgumentError || rethrow(); return nothing end
+            sub isa AbstractVector || return nothing
+            out = Dict{Sym,Sym}[]
+            for s in sub
+                s = copy(s)
+                s[v] = cancel(subs(r, s...))
+                _defined_in(eqs, s, vars) && push!(out, s)
+            end
+            return out
+        end
+    end
+    # the polynomial equations first
+    P = [i for i in eachindex(ds) if ispoly(ds[i])]
+    (isempty(P) || length(P) == length(ds)) && return nothing
+    pvars = [v for v in vars if any(i -> has(ds[i], v), P)]
+    psols = try _solve_generic(eqs[P], pvars) catch err; err isa ArgumentError || rethrow(); return nothing end
+    psols isa AbstractVector || return nothing
+    out = Dict{Sym,Sym}[]
+    for s in psols
+        fixed = Dict{Sym,Sym}(k => v for (k, v) in s if !_eq(k, v))
+        isempty(fixed) && return nothing
+        rest = Relation[]
+        ok = true
+        for j in eachindex(eqs)
+            j in P && continue
+            f = try Relation(:eq, subs(eqs[j].lhs, fixed...), subs(eqs[j].rhs, fixed...)) catch err
+                _isdivzero(err) || rethrow()
+                ok = false; break
+            end
+            g = f.lhs - f.rhs
+            if any(v -> has(g, v), vars)
+                push!(rest, f)
+            else
+                # (undefined, log(1/0), or false: not a solution)
+                _defined_at_all(g) && iszero(simplify(g)) || (ok = false; break)
+            end
+        end
+        ok || continue
+        left = [v for v in vars if !haskey(fixed, v)]
+        sub = isempty(rest) ? [Dict{Sym,Sym}()] :
+              try _solve_generic(rest, left) catch err; err isa ArgumentError || rethrow(); continue end
+        sub isa AbstractVector || continue
+        for t in sub
+            d = Dict{Sym,Sym}(k => cancel(subs(v, t...)) for (k, v) in fixed)
+            merge!(d, t)
+            _defined_in(eqs, d, vars) && push!(out, d)
+        end
+    end
+    out
+end
+_defined_at_all(g::Sym) = (v = try N(g) catch; return true end; !(v isa Number) || isfinite(v))
