@@ -1786,7 +1786,8 @@ end
 # (the derivative of log(b + 2√c√(a + bx + cx²) + 2cx) is √c/√(a + bx + cx²); SymPy
 # #23641); nothing when there is no such root
 function _conjugate_radical_den(e::Sym)
-    n, d = numer_denom(cancel(e))
+    # (expanded: a factor Q beside √Q would be taken as (√Q)² by the substitution)
+    n, d = map(expand, numer_denom(cancel(e)))
     rs = Sym[]
     _replace_walk(d) do t
         t.kind == POW && t.args[2].kind == NUMBER && t.args[2].num == SymNumber(1 // 2) &&
