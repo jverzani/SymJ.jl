@@ -217,6 +217,10 @@ function _gspoly(f::_GP{C,W}, g::_GP{C,W}, pr::_GPair{W}, ctx) where {C,W}
     _gsub(one(a), af, b, pr.lk - g.k[1], tg, g, ctx)
 end
 
+const _GROEBNER_MAX_TERMS = 200_000
+_gsize(h) = sum(_gcsize, h.c; init = 0)
+_gcsize(c) = c isa Poly ? length(c.monos) : c isa RatFun ? length(c.num.monos) + length(c.den.monos) : 1
+
 # a reduced Gröbner basis, primitive, ordered by decreasing leading monomial
 function _buchberger(F::Vector{_GP{C,W}}, ctx::_GCtx{W}) where {C,W}
     polys = _GP{C,W}[]
@@ -242,6 +246,9 @@ function _buchberger(F::Vector{_GP{C,W}}, ctx::_GCtx{W}) where {C,W}
         h, _ = _gnf(s, polys, G, ctx)
         iszero(h) && continue
         h, _ = _gprimitive(h)
+        # a basis growing without bound (two quartics in 2 unknowns with 10 parameters
+        # ran for hours; SymPy #23604): an error, the system too large for exact solving
+        _gsize(h) > _GROEBNER_MAX_TERMS && throw(ArgumentError("groebner: the basis has grown past $_GROEBNER_MAX_TERMS terms (counting its coefficients' terms); the system is too large to solve exactly. With parameters, substitute numbers for them first"))
         push!(polys, h)
         push!(sug, pr.sugar)
         if h.k[1] == _gkey(ctx, zero(W))              # a constant: the whole ring

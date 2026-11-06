@@ -25,7 +25,14 @@ Base.:-(a::_AlgF, b::_AlgF) = _AlgF(_algnorm(a.v - b.v))
 Base.:-(a::_AlgF) = _AlgF(-a.v)
 Base.:*(a::_AlgF, b::_AlgF) = _AlgF(_algnorm(a.v * b.v))
 Base.inv(a::_AlgF) = _AlgF(_algnorm(cancel(1 / a.v)))
-Base.iszero(a::_AlgF) = iszero(a.v) || iszero(cancel(a.v))
+Base.iszero(a::_AlgF) = iszero(a.v) || iszero(cancel(a.v)) || _const_zero(a.v)
+# a constant in nested radicals that is 0 though the forms do not cancel
+# (√((3+√5)/2) against (1+√5)/2·…): its value at 512 bits below 1e-100 (SymPy #22604)
+function _const_zero(e::Sym)
+    (_hassymbol(e) || !_isexactex(e)) && return false
+    w = _bigvalue(e, 512)
+    w !== nothing && abs(w) < big(10.0)^-100
+end
 Base.zero(::Type{_AlgF}) = _AlgF(ZERO)
 Base.one(::Type{_AlgF}) = _AlgF(ONE)
 Base.zero(::_AlgF) = _AlgF(ZERO)
@@ -129,8 +136,17 @@ function LinearAlgebra.det(A::AbstractMatrix{Sym})
     n = _square(A)
     n == 0 && return ONE
     # the polynomials built inside, so that a wider exponent packing applies on a retry
-    d = _with_widening(B -> (P = _poly_matrix(B); P === nothing ? nothing : Sym(_bareiss_det(P))), A)
+    # (radicals and im as generators too: a determinant is a polynomial identity, the
+    # relations applied when it is an expression again; over the field they generate it
+    # took minutes for a 4 × 4 Hamiltonian with im; SymPy #23408)
+    d = _with_widening(B -> (P = _poly_matrix(B; algebraic = true); P === nothing ? nothing : Sym(_bareiss_det(P))), A)
     d === nothing || return expand(d)
+    # rational entries: each row times the lcm of its denominators, det(D A) / det(D)
+    S, Ls = _rows_cleared_factors(A)
+    if !all(isone, Ls)
+        d = _with_widening(B -> (P = _poly_matrix(B; algebraic = true); P === nothing ? nothing : Sym(_bareiss_det(P))), S)
+        d === nothing || return cancel(expand(d) / prod(Ls))
+    end
     M, back = _field_matrix(A)
     back(_elim_det(M))
 end
@@ -230,6 +246,25 @@ const _CRAMER_MAX = 8
 
 # M with each row times the lcm of the denominators in it (M itself when none, or when
 # a denominator is not a polynomial with numeric coefficients)
+# (M with its rows cleared of denominators, the factor each row was multiplied by)
+function _rows_cleared_factors(M::AbstractMatrix)
+    S = Sym[Sym(a) for a in M]
+    Ls = fill(ONE, size(S, 1))
+    for i in axes(S, 1)
+        L = ONE
+        for e in S[i, :]
+            d = numer_denom(e)[2]
+            _hassymbol(d) || continue
+            L = try lcm(L, d) catch err; err isa ArgumentError || rethrow(); return S, fill(ONE, size(S, 1)) end
+        end
+        if !isone(L)
+            S[i, :] = Sym[cancel(e * L) for e in S[i, :]]
+            Ls[i] = L
+        end
+    end
+    S, Ls
+end
+
 function _rows_cleared(M::AbstractMatrix)
     S = Sym[Sym(a) for a in M]
     any(e -> _hassymbol(numer_denom(e)[2]), S) || return S

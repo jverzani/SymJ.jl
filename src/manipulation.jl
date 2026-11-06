@@ -131,9 +131,37 @@ subs(x^3, x^2 => w)                       # x^3 (3/2 is not an integer)
 subs(exp(x + 1), exp(-x) => w)            # ℯ/w
 subs(2a + 2b + x, a + b => w)             # 2w + x
 subs(x^2 * log(x)^2, x * log(x) => w)     # w^2
+subs(f(g(x)), f => sin)                   # sin(g(x)): an unknown function by a function
 ```
 """
-subs(ex::Sym, ps::Pair...) = _subs_top(ex, Dict{Sym,Sym}(Sym(p.first) => Sym(p.second) for p in ps))
+function subs(ex::Sym, ps::Pair...)
+    # an unknown function replaced by a function: each call f(args…) by g(args…), and the
+    # held derivatives of it then taken (subs(f(g(x)), f => sin); SymPy #23759)
+    if any(p -> p.first isa SymFunction, ps)
+        fs = [p for p in ps if p.first isa SymFunction]
+        rest = [p for p in ps if !(p.first isa SymFunction)]
+        ex = _subs_functions(ex, fs)
+        isempty(rest) && return ex
+        ps = Tuple(rest)
+    end
+    _subs_top(ex, Dict{Sym,Sym}(Sym(p.first) => Sym(p.second) for p in ps))
+end
+
+function _subs_functions(ex::Sym, fs)
+    _replace_walk(ex) do t
+        t.kind == FN || return nothing
+        for (f, g) in fs
+            t.name === f.name && return Sym(g(t.args...))
+        end
+        # a held derivative whose function is now known
+        if t.name === :Derivative && length(t.args) == 2 && !_has_unknown_fn(t.args[1])
+            return diff(t.args[1], t.args[2])
+        end
+        nothing
+    end
+end
+_has_unknown_fn(e::Sym) = (e.kind == FN && !haskey(FUNCTION_RULES, e.name)) || any(_has_unknown_fn, e.args) ||
+    (e.kind == MUL && any(_has_unknown_fn, e.exps))
 subs(ex::Sym, d::AbstractDict) = _subs_top(ex, Dict{Sym,Sym}(Sym(k) => Sym(v) for (k, v) in d))
 subs(ex::Number, args...) = Sym(ex)
 
@@ -182,6 +210,7 @@ function _subs(ex::Sym, d::Dict{Sym,Sym})
         return pow(b, e)
     elseif k == FN
         ex.name === :Derivative && return _subs_derivative(ex, d)
+        ex.name === :piecewise && iseven(length(ex.args)) && return _subs_piecewise(ex, d)
         _isdefint(ex) && return _subs_defint(ex, d)
         _isboundsum(ex) && return _subs_bound(ex, d, apply_function)
         new = _subs_args(ex.args, d)
@@ -190,6 +219,21 @@ function _subs(ex::Sym, d::Dict{Sym,Sym})
     end
     ex
 end
+# a piecewise function piece by piece: a piece whose condition becomes false is dropped
+# without substituting into its value, and the first that becomes true ends the list
+# (1/b at b = 0, in a piece for b ≠ 0 only, divided by zero; SymPy #23295)
+function _subs_piecewise(ex::Sym, d::Dict{Sym,Sym})
+    args = Sym[]
+    for i in 1:2:length(ex.args)
+        c = _truth(_subs(ex.args[i], d))
+        c == ZERO && continue
+        push!(args, c, _subs(ex.args[i + 1], d))
+        c == ONE && break
+    end
+    isempty(args) && return Sym(NaN)
+    apply_function(:piecewise, args)
+end
+
 # the parts substituted, or nothing when none changes (allocating only from the first
 # change on)
 function _subs_args(args::Vector{Sym}, d::Dict{Sym,Sym})
