@@ -303,6 +303,14 @@ _infsign(p::Sym) = Float64(p.num) > 0 ? 1 : -1
 
 function _definite(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A::Assumptions, pv::Bool = false)
     _eq(lo, hi) && return ZERO
+    # piecewise conditions free of x (b ≤ 1/2 in ∫ piecewise((a ≤ 1/2, b ≤ 1/2) => 1) da):
+    # decided by cases on the parameters, then the pieces in x (SymPy #22023)
+    if _hasfn(f, :piecewise)
+        f = _replace_walk(f) do t
+            (t.kind == FN && haskey(_COND_RELS, t.name) && !has(t, x) && _hassymbol(t)) || return nothing
+            _decide(_relation_of(t), A) ? ONE : ZERO
+        end
+    end
     has(f, x) || return _ordered_length(f, lo, hi, A)
     v = _definite_by_pieces(f, x, lo, hi, antider, A, pv)
     v === nothing || return v
@@ -313,6 +321,12 @@ function _definite(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A::Assumptions, pv
     if !_isinfpt(lo) && !_isinfpt(hi) && iszero(expand(lo + hi)) && !_eq(lo, hi)
         g = _drop_odd_terms(f, x, lo, hi)
         g === nothing || return iszero(g) ? ZERO : _definite(g, x, lo, hi, antider, A, pv)
+    end
+    # over the whole line: an odd f continuous there whose integral converges absolutely,
+    # |f| ≤ C/x² far out (e^(-x²) sin x, sin x/(1 + x²); SymPy #21091)
+    if _isinfpt(lo) && _isinfpt(hi) && _infsign(lo) < 0 && _infsign(hi) > 0 &&
+       iszero(expand(subs(f, x => -x) + f)) && isempty(_singular_points(f, x, lo, hi)) && _abs_convergent_at_inf(f, x, A)
+        return ZERO
     end
     S = _singular_points(f, x, lo, hi)
     F = _antiderivative(antider, f, x, A; numeric = true)
@@ -1172,4 +1186,16 @@ function _definite_fallback_or(t::Sym, x, l, h, antider, A, pv, depth)
         err isa InterruptException && rethrow()
         _definite_fallback(t, x, l, h, antider, A, pv, depth)
     end
+end
+
+# |f| ≤ g with each sin, cos factor of f bounded by 1, and x² g bounded at ±∞
+function _abs_convergent_at_inf(f::Sym, x::Sym, A)
+    trig(b, p) = b.kind == FN && b.name in (:sin, :cos) && length(b.args) == 1 && p.kind == NUMBER && p.num > N0
+    g = f.kind == MUL ? Sym(f.num) * prod((b^p for (b, p) in zip(f.args, f.exps) if !trig(b, p)); init = ONE) : f
+    (_hasfn(g, :sin) || _hasfn(g, :cos)) && return false
+    for x0 in (Inf, -Inf)
+        L = try limit(x^2 * g, x => x0; assume = A) catch err; err isa InterruptException && rethrow(); return false end
+        (L isa Sym && !_hassymbol(L) && !_isinfpt(L) && L.kind == NUMBER) || return false
+    end
+    true
 end

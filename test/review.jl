@@ -586,3 +586,36 @@ end
     @test length(r) == 3
     @test !any(e -> has(e.rhs, IM), r)
 end
+
+@testset "missing cases (SymPy review, round 7)" begin
+    @syms h p A
+    as = (h ≫ 0, p ≫ 0, A ∈ ℝ, sin(A) ≫ 0)
+    # h cos A + h + p sin A = h(cos A + 1) + p sin A > 0 (#21811)
+    @test refine(abs(h * cos(A) + h + p * sin(A)); assume = as) == h * cos(A) + h + p * sin(A)
+    q = p + p^2 * sin(A) / (2abs(h * cos(A) + h + p * sin(A))) - p^2 * sin(A) / (2(h * cos(A) + h + p * sin(A)))
+    @test simplify(q; assume = as) == p
+    @test SymJ._hasfn(refine(abs(h * cos(A) - h + p * sin(A)); assume = as), :abs)   # undecided: kept
+    # complex floats in a linear system, solved in complex floating point (#21445)
+    @syms IR y x
+    r = solve([IR + y ~ 1.0im, IR - y ~ 2.0], [IR, y])
+    @test isapprox(ComplexF64(N(only(r)[IR])), 1.0 + 0.5im)
+    @test isapprox(ComplexF64(N(only(solve([IR + 1.5 + 2.0im ~ 0], [IR]))[IR])), -1.5 - 2.0im)
+    # a polynomial in exponentials e^(c x), c rational, factored in e^(x/q) (#21511)
+    e = y^2 - y * exp(x / 7) - y * exp(x / 2) + exp(9x / 14)
+    @test factor(e).kind == SymJ.MUL
+    @test iszero(expand(factor(e) - e))
+    @test factor(exp(2x) - 1) == (exp(x) - 1) * (exp(x) + 1)
+    # the minimal polynomial of cos(2π/11): its roots cos(2πk/11) (#21631)
+    PI = SymJ.PI
+    @test Set(solve(32x^5 + 16x^4 - 32x^3 - 12x^2 + 6x + 1 ~ 0, x)) == Set(cos(2k * PI / 11) for k in 1:5)
+    C11 = Sym[(abs(i - j) == 1 || abs(i - j) == 10) ? Sym(1) // 2 : Sym(0) for i in 1:11, j in 1:11]
+    @test count(==(cos(2PI / 11)), SymJ.LinearAlgebra.eigvals(C11)) == 2
+    # Laplace transforms: f/t, symbolic powers of t, and their inverses (#21372)
+    @syms t s a n
+    L, IL = SymJ.laplace_transform, SymJ.inverse_laplace_transform
+    @test L(sin(a * t) / t, t, s) == atan(a / s)
+    @test L(exp(-2t) * sin(3t) / t, t, s) == atan(3 / (s + 2))
+    @test IL(atan(a / s), s, t) == sin(a * t) / t
+    @test IL(factorial(n) / (s + a)^(n + 1), s, t) == t^n * exp(-a * t)
+    @test IL(L(t^n * exp(-a * t), t, s), s, t) == t^n * exp(-a * t)
+end

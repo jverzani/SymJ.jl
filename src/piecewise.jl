@@ -460,7 +460,7 @@ function _integrate_pieces(e::Sym, x::Sym, integ)
     numeric = !any(_hassymbol, bps)
     for (i, p) in enumerate(pts)
         gi = _pieces_at(g, x, p)
-        F = gi === nothing ? nothing : integ(gi)
+        F = gi === nothing ? nothing : _integ_xfree_pieces(integ, gi, x)
         if F isa Sym && numeric
             lo = i == 1 ? -Inf : Float64(N(bps[i-1]))
             hi = i == length(pts) ? Inf : Float64(N(bps[i]))
@@ -500,6 +500,23 @@ function _integrate_pieces(e::Sym, x::Sym, integ)
         return out + R
     end
     out + piecewise(ps...)
+end
+
+# integ(g), with each piecewise function in g free of x (one left by the conditions in
+# other symbols; SymPy #22023) a constant for the integrator, put back after
+function _integ_xfree_pieces(integ, g::Sym, x::Sym)
+    reps = Pair{Sym,Sym}[]
+    h = _replace_walk(g) do t
+        (t.kind == FN && t.name === :piecewise && !has(t, x)) || return nothing
+        i = findfirst(r -> _eq(r[2], t), reps)
+        i === nothing || return reps[i][1]
+        c = _fresh_dummy(g + _add_many(first.(reps)) + x)
+        push!(reps, c => t)
+        c
+    end
+    isempty(reps) && return integ(g)
+    F = integ(h)
+    F isa Sym ? subs(F, reps...) : F
 end
 
 # on an interval (lo, hi) of real x where a linear u = c₁x + c₀ (numbers) is negative,
@@ -726,11 +743,23 @@ function _pieces_at(e::Sym, x::Sym, p::Sym; extra = ())
     e = _rebuild_node(e, args)
     e.kind == FN && e.name in _PIECEFNS || return e
     if e.name === :piecewise
+        # a condition left with other symbols only (a ≤ 1/2 and b ≤ 1/2 at a = 0) is a
+        # piecewise function of those, constant in x (SymPy #22023); one with the
+        # symbols of p undecided
+        ps = Pair{Sym,Sym}[]
+        psyms = _hassymbol(p) ? free_symbols(p) : Sym[]
         for (c, v) in _pieces(e)
             cv = _truth(subs(c, x => p, extra...))
-            cv == ONE && return v
-            cv == ZERO || return nothing
+            cv == ZERO && continue
+            if cv == ONE
+                isempty(ps) && return v
+                push!(ps, cv => v)
+                return piecewise(ps...)
+            end
+            (has(cv, x) || any(s -> has(cv, s), psyms)) && return nothing
+            push!(ps, cv => v)
         end
+        isempty(ps) && return nothing
         return nothing
     elseif e.name === :heaviside
         s = _csign(expand(subs(e.args[1], x => p, extra...)))

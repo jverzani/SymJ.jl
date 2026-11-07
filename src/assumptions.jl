@@ -531,6 +531,19 @@ function _check!(A::Assumptions)
         haskey(A.subst, x) && any(v -> _eq(v, A.subst[x]), vs) && return false
     end
     isempty(A.lin) || _fm_feasible(_with_bounds(A, copy(A.lin))) || return false
+    # a linear expression known ≠ 0 that the linear relations make 0 (l ≠ k with l = -k,
+    # k, l ≥ 0; SymPy #22066)
+    if !isempty(A.lin)
+        for d in A.nonzero
+            lf = _linform(d)
+            lf === nothing && continue
+            a, k = lf
+            pos = _ACon(a, k, true)
+            neg = _ACon(Dict{Sym,SymNumber}(t => -c for (t, c) in a), -k, true)
+            !_fm_feasible(_with_bounds(A, push!(copy(A.lin), pos))) &&
+                !_fm_feasible(_with_bounds(A, push!(copy(A.lin), neg))) && return false
+        end
+    end
     true
 end
 
@@ -635,6 +648,10 @@ function _signs(e::Sym, A::Assumptions)::Union{Nothing,UInt8}
     if m !== nothing && m & _ZER != 0 && count_ones(m) > 1 && _known_nonzero(e, A)
         m &= ~_ZER
     end
+    if (m === nothing || count_ones(m) > 1) && e.kind == ADD
+        mg = _sign_by_grouping(e, A)
+        mg === nothing || (m = m === nothing ? mg : (m & mg == 0 ? m : m & mg))
+    end
     if (m === nothing || count_ones(m) > 1) && _SPLIT_DEPTH[] < 3
         ms = with(() -> _sign_by_split(e, A), _SPLIT_DEPTH => _SPLIT_DEPTH[] + 1)
         ms === nothing || (m = m === nothing ? ms : (m & ms == 0 ? m : m & ms))
@@ -645,6 +662,33 @@ function _signs(e::Sym, A::Assumptions)::Union{Nothing,UInt8}
     end
     A.cache[e] = m
     m
+end
+
+# The sign of a sum v Q + R, with v a symbol of known sign that is a factor of two or
+# more of its terms, from the signs of Q and R (h cos A + h + p sin A = h(cos A + 1) +
+# p sin A > 0 for h, p, sin A > 0; SymPy #21811). nothing when no grouping decides more.
+function _sign_by_grouping(e::Sym, A::Assumptions)
+    length(e.args) <= 12 || return nothing
+    best = nothing
+    for v in _sort_by_name!(collect(free_symbols(e)))
+        mv = _signs(v, A)
+        (mv == _POS || mv == _NEG) || continue
+        q, r = Sym[], Sym[Sym(e.num)]
+        for (c, t) in zip(e.coefs, e.args)
+            hasv = _eq(t, v) || (t.kind == MUL && any(i -> _eq(t.args[i], v) && t.exps[i].kind == NUMBER && t.exps[i].num > N0, eachindex(t.args)))
+            push!(hasv ? q : r, Sym(c) * t)
+        end
+        length(q) >= 2 || continue
+        mq = _signs(expand(_add_many(q) / v), A)
+        mq === nothing && continue
+        R = _add_many(r)
+        mr = iszero(R) ? _ZER : _signs(R, A)
+        mr === nothing && continue
+        m = _madd(_mmul(mv, mq), mr)
+        (best === nothing || count_ones(m) < count_ones(best)) && (best = m)
+        count_ones(best) == 1 && break
+    end
+    best
 end
 
 # The sign of e through a function of a real argument it contains, by cases: floor(u) as
@@ -662,11 +706,19 @@ function _sign_by_split(e::Sym, A::Assumptions)
             t = s
         elseif s.name in (:max, :min) && length(s.args) == 2 && all(a -> _isreal(a, A) === true, s.args)
             t = s
+        elseif s.name in (:sin, :cos) && length(s.args) == 1 && _isreal(s.args[1], A) === true &&
+               (ms = _smask(s, A); ms === nothing || count_ones(ms) > 1)
+            # sin u, cos u ∈ [-1, 1] (|cos x + 1| = cos x + 1; SymPy #21359, #21351, #21811)
+            t = s
         end
         nothing
     end
     t === nothing && return nothing
-    branches = if t.name in (:floor, :ceil)
+    branches = if t.name in (:sin, :cos)
+        w = Sym(Symbol("_trig", _SPLIT_DEPTH[]))
+        B = _with_fact(A, FactAnd(Any[Relation(:ge, w, MINUS_ONE), Relation(:le, w, ONE)]))
+        [(B, subs(e, t => w))]
+    elseif t.name in (:floor, :ceil)
         w = Sym(Symbol("_frac", _SPLIT_DEPTH[]))
         B = _with_fact(A, FactAnd(Any[Relation(:ge, w, ZERO), Relation(:lt, w, ONE)]))
         [(B, subs(e, t => (t.name === :floor ? t.args[1] - w : t.args[1] + w)))]

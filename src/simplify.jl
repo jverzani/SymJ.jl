@@ -138,6 +138,17 @@ function _refine_rule(e::Sym, A::Assumptions)
     end
     k == FN && e.name === :atan2 && return _refine_atan2(e.args[1], e.args[2], A)
     k == FN && e.name === :And && return _refine_and(e, A)
+    # floor(u) = n where n ≤ u < n + 1 by the assumptions, ceil alike, for small n
+    # (floor(-1/x) = -1 for an integer x > 0; SymPy #21429)
+    if k == FN && e.name in (:floor, :ceil) && length(e.args) == 1 && _hassymbol(e.args[1]) && _isreal(e.args[1], A) === true
+        u = e.args[1]
+        for n in -2:2
+            N_ = Sym(n)
+            ok = e.name === :floor ? (_holds(Relation(:ge, u, N_), A) === true && _holds(Relation(:lt, u, N_ + 1), A) === true) :
+                                     (_holds(Relation(:gt, u, N_ - 1), A) === true && _holds(Relation(:le, u, N_), A) === true)
+            ok && return N_
+        end
+    end
     if k == POW
         b, q = e.args
         if b.kind == NUMBER && b.num == NM1 && !(q.kind == NUMBER)
@@ -514,6 +525,18 @@ function simplify(r::Relation; assume = nothing)
         ts = _signed_terms(d, A)
         ts === nothing || return _fact_and([simplify(Relation(:eq, t, ZERO); assume) for t in ts])
     end
+    # an equation's factors known not to vanish divided out: a(b - c) ~ 0 with a ≠ 0 is
+    # b ~ c (SymPy #21108)
+    if v.op in (:eq, :ne) && _hassymbol(d)
+        f = try factor(simplify(d; assume)) catch err; err isa ArgumentError || rethrow(); d end
+        if f.kind == MUL && length(f.args) >= 2
+            keep = [!(_isnonzero(b, A) === true) for b in f.args]
+            if !all(keep) && any(keep)
+                rest = prod((b^p for (b, p, k) in zip(f.args, f.exps, keep) if k); init = ONE)
+                return simplify(Relation(v.op, rest, ZERO); assume)
+            end
+        end
+    end
     # one side, without numeric content, when shorter: -x ~ x is x ~ 0, y ≥ -y is y ≥ 0
     # (SymPy #27754, #27623)
     one = _one_sided(v.op, simplify(d; assume))
@@ -628,7 +651,22 @@ function _simplify(e::Sym, A::Assumptions)
         n < size && ((best, size) = (c, n))
     end
     logq(x) = _hasfn2log(x) ? simplify_log(cancel(_log_quotients(x)); assume = A) : nothing
+    elog(x) = (y = _exp_log_powers(x); y === x ? nothing : y)
+    # piecewise functions folded under the assumptions: shadowed or impossible pieces gone
+    # (SymPy #22148)
+    function pwfold(x)
+        _hasfn(x, :piecewise) || return nothing
+        vs = Set{Sym}()
+        _pw_condsyms!(vs, x)
+        local folded = nothing   # (not `best`, which this closure would overwrite)
+        for v in _sort_by_name!(collect(vs))
+            r = try piecewise_fold(x, v; assume = A) catch err; err isa InterruptException && rethrow(); nothing end
+            r isa Sym && (folded === nothing || _nodes(r) < _nodes(folded)) && (folded = r)
+        end
+        folded
+    end
     for g in (simplify_rational, powers, expansion, _factor_or_nothing, simplify_trig, simplify_hyperbolic, logs, radicals, simplify_gamma, logq,
+              elog, simplify_rational ∘ (x -> _exp_log_powers(x)), pwfold,
               x -> huge ? nothing : _conjugate_radical_den(x),
               simplify_rational ∘ powers, expansion ∘ simplify_rational, expansion ∘ radicals,
               simplify_rational ∘ radicals,
@@ -982,7 +1020,8 @@ const _FACTOR_MAX_TERMS = 2000
 function _factor_or_nothing(e::Sym)
     n, d = numer_denom(e)
     _expanded_terms(n) > _FACTOR_MAX_TERMS && return nothing
-    _ispolylike(n) && (_ispolylike(d) || d.kind == NUMBER) ? factor(n) / factor(d) : nothing
+    _ispolylike(n) && (_ispolylike(d) || d.kind == NUMBER) || return nothing
+    with(() -> factor(n) / factor(d), _FACTOR_EXPS => false)
 end
 # an upper bound on the number of terms of expand(e) (capped)
 function _expanded_terms(e::Sym)
@@ -1851,4 +1890,29 @@ function _cancel_halfpowers(p::Sym, q::Sym)
     end
     r = cancel(sub(p) / sub(q))
     subs(r, (u => sqrt(b) for (b, u) in m)...)
+end
+
+# exp(w) with w linear in log(u) (a coefficient of any kind) as u^c exp(w - c log(u)):
+# exp((a - 1) log x) is x^(a - 1) by the definition of the power (SymPy #21360)
+function _exp_log_powers(e::Sym)
+    _replace_walk(e) do t
+        t.kind == POW && t.args[1] === E || return nothing
+        w = expand(t.args[2])
+        logs = Sym[]
+        _replace_walk(w) do q
+            q.kind == FN && q.name === :log && length(q.args) == 1 && !any(o -> _eq(o, q), logs) && push!(logs, q)
+            nothing
+        end
+        isempty(logs) && return nothing
+        out, rest = ONE, w
+        for L in logs
+            λ = Sym(Symbol("_elog"))
+            r = expand(subs(rest, L => λ))
+            c = expand(diff(r, λ))
+            (has(c, λ) || iszero(c)) && continue
+            out *= L.args[1]^c
+            rest = expand(subs(r - c * λ, λ => L))
+        end
+        isone(out) ? nothing : out * exp(rest)
+    end
 end

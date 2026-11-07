@@ -14,6 +14,10 @@
 # rationals they stand for and the solutions converted back to floating point.
 
 function _solve_nonlinear(eqs::Vector{<:Relation}, vars::Vector{Sym})
+    # factors e^u, never 0, dropped from an equation that is a product ((x² + 2x - y²)e^x
+    # = 0; SymPy #21908)
+    stripped = Relation[_drop_exp_factors(e, vars) for e in eqs]
+    any(i -> stripped[i] !== eqs[i], eachindex(eqs)) && return _solve_generic(stripped, vars)
     les = [_log_eq(e, vars) for e in eqs]
     if any(!isnothing, les)
         es = Relation[l === nothing ? e : l[1] for (e, l) in zip(eqs, les)]
@@ -74,13 +78,23 @@ end
 # (Lagrange multipliers with a distance √((x+1)² + …); SymPy #24868, #24269). nothing
 # when there is no such root.
 function _solve_radical_system(eqs::Vector{<:Relation}, vars::Vector{Sym})
-    roots = Sym[]
+    # the radicals: (R, q, real) for √R (principal, q = 2), R^(k/3) (principal, q = 3) and
+    # cbrt(R) (the real cube root); cube roots too (cbrt(x - 1) + cbrt(x) + cbrt(x + 1) = 0;
+    # SymPy #21167, #21026)
+    roots = Tuple{Sym,Int,Bool}[]
+    add!(R, q, rl) = any(o -> _eq(o[1], R) && o[2] == q && o[3] == rl, roots) || push!(roots, (R, q, rl))
     for eq in eqs
         _replace_walk(eq.lhs - eq.rhs) do t
-            if t.kind == POW && t.args[2].kind == NUMBER && abs(t.args[2].num) == SymNumber(1 // 2) &&
-               any(v -> has(t.args[1], v), vars)
-                R = t.args[1]
-                any(o -> _eq(o, R), roots) || push!(roots, R)
+            if t.kind == POW && t.args[2].kind == NUMBER && isexact(t.args[2].num) &&
+               _denominator(t.args[2].num) in (2, 3) && any(v -> has(t.args[1], v), vars)
+                add!(t.args[1], Int(_denominator(t.args[2].num)), false)
+            elseif t.kind == MUL
+                for (b, p) in zip(t.args, t.exps)
+                    p.kind == NUMBER && isexact(p.num) && _denominator(p.num) in (2, 3) && any(v -> has(b, v), vars) &&
+                        add!(b, Int(_denominator(p.num)), false)
+                end
+            elseif t.kind == FN && t.name === :cbrt && length(t.args) == 1 && any(v -> has(t.args[1], v), vars)
+                add!(t.args[1], 3, true)
             end
             nothing
         end
@@ -88,31 +102,55 @@ function _solve_radical_system(eqs::Vector{<:Relation}, vars::Vector{Sym})
     isempty(roots) && return nothing
     length(roots) <= 3 || return nothing
     atoms = Set{Sym}()
-    all(R -> _poly_atoms!(atoms, R), roots) || return nothing
+    all(r -> _poly_atoms!(atoms, r[1]), roots) || return nothing
     any(a -> !any(v -> _eq(a, v), vars) && any(v -> has(a, v), vars), atoms) && return nothing
     ws = [Sym(Symbol("_w", i)) for i in eachindex(roots)]
-    # R^(k/2) as w^k
+    # R^(k/q) as w^k, cbrt(R) as w
     sub(e) = _replace_walk(e) do t
-        t.kind == POW && t.args[2].kind == NUMBER && _isint(2 * t.args[2].num) || return nothing
-        i = findfirst(R -> _eq(R, t.args[1]), roots)
-        i === nothing ? nothing : ws[i]^_toint(2 * t.args[2].num)
+        if t.kind == FN && t.name === :cbrt && length(t.args) == 1
+            i = findfirst(r -> _eq(r[1], t.args[1]) && r[3], roots)
+            return i === nothing ? nothing : ws[i]
+        end
+        t.kind == POW && t.args[2].kind == NUMBER && isexact(t.args[2].num) || return nothing
+        q = Int(_denominator(t.args[2].num))
+        i = findfirst(r -> _eq(r[1], t.args[1]) && r[2] == q && !r[3], roots)
+        i === nothing ? nothing : ws[i]^_toint(q * t.args[2].num)
     end
     es = Relation[Relation(:eq, sub(e.lhs), sub(e.rhs)) for e in eqs]
-    any(e -> any(R -> any(v -> has(e.lhs - e.rhs, v), vars) && has(e.lhs - e.rhs, sqrt(R)), roots), es) && return nothing
-    append!(es, [Relation(:eq, w^2, R) for (R, w) in zip(roots, ws)])
+    # (a radical of the unknowns left after the substitution: not this method's)
+    left(g) = any(t -> any(v -> has(t.args[1], v), vars), _radical_nodes(g)) ||
+              (_hasfn(g, :cbrt) && any(v -> has(g, v), vars))
+    any(e -> left(e.lhs - e.rhs), es) && return nothing
+    append!(es, [Relation(:eq, w^q, R) for ((R, q, _), w) in zip(roots, ws)])
     sols = try _solve_generic(es, [vars; ws]) catch err; err isa ArgumentError || rethrow(); return nothing end
     out = Dict{Sym,Sym}[]
     for sol in sols
-        ok = all(zip(roots, ws)) do (R, w)
+        ok = all(zip(roots, ws)) do ((R, q, rl), w)
             wv = sol[w]
             _hassymbol(wv) && return true                   # undecided: kept
-            pr = sqrt(subs(R, (v => sol[v] for v in vars)...))
-            z = try N(wv - pr) catch; return true end
+            Rv = subs(R, (v => sol[v] for v in vars)...)
+            z = try
+                r = rl ? (v = N(Rv); v isa Real ? sign(v) * abs(v)^(1 / 3) : nothing) : N(Rv^(Sym(1) // q))
+                r === nothing ? nothing : N(wv) - r
+            catch
+                return true
+            end
+            z === nothing && return false
             abs(z) <= 1e-9 * max(1, abs(N(wv)))
         end
         ok || continue
         d = Dict{Sym,Sym}(v => sol[v] for v in vars)
         any(o -> all(v -> _eq(o[v], d[v]), vars), out) || push!(out, d)
+    end
+    out
+end
+
+# the POW nodes of e with a non-integer exponent
+function _radical_nodes(e::Sym)
+    out = Sym[]
+    _replace_walk(e) do t
+        t.kind == POW && t.args[2].kind == NUMBER && !_isint(t.args[2].num) && push!(out, t)
+        nothing
     end
     out
 end
@@ -665,3 +703,11 @@ function _solve_by_elimination(eqs::Vector{<:Relation}, vars::Vector{Sym})
     out
 end
 _defined_at_all(g::Sym) = (v = try N(g) catch; return true end; !(v isa Number) || isfinite(v))
+
+function _drop_exp_factors(eq::Relation, vars::Vector{Sym})
+    g = eq.lhs - eq.rhs
+    g.kind == MUL || return eq
+    keep = [!(b === E && any(v -> has(p, v), vars)) for (b, p) in zip(g.args, g.exps)]
+    all(keep) && return eq
+    Relation(:eq, Sym(g.num) * prod((b^p for (b, p, k) in zip(g.args, g.exps, keep) if k); init = ONE), ZERO)
+end

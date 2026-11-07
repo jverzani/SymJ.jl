@@ -42,6 +42,14 @@ end
 # (the definite integrals take the answer as it is: a ₂F₁ term holds only where its
 # radicand is positive, which they check numerically)
 function _indefinite(ex::Sym, x::Sym; assume = nothing, kw...)
+    # a factor free of x outside (1/√(2π) beside √2 made a constant field the integrator
+    # does not take; SymPy #22075)
+    c, t = SymJ._split_kfree(ex, x)
+    if !isone(c) && SymJ._hassymbol(t) && !(c.kind == SymJ.NUMBER)
+        r = try _indefinite(t, x; assume, kw...) catch err; err isa InterruptException && rethrow(); nothing end
+        r isa Sym && return c * r
+        r isa SymJ.Cases && return SymJ._map_cases(v -> v isa Sym ? c * v : v, r)
+    end
     A = SymJ._assumptions(assume)
     if A !== nothing && _has_oracle() && !haskey(kw, :sign)
         kw = (; sign = SymJ._sign_oracle(A), kw...)

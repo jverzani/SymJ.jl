@@ -134,6 +134,9 @@ function _lap_term(term::Sym, t::Sym, s::Sym)
     # sin(a√t), sin(a√t)/√t and cos(a√t)/√t (SymPy #24309)
     r = _lap_sqrt_trig(fs, cf, t, s)
     r === nothing || return r
+    # sin(a t) e^(αt)/t: atan(a/(s - α)) (L{f/t} = ∫ₛ^∞ F; SymPy #21372)
+    r = _lap_sinc(fs, cf, t, s)
+    r === nothing || return r
     # tᵏ e^(αt) terms, sin and cos as exponentials
     e = expand(_ode_toexp(term))
     terms = e.kind == ADD ? [(Sym(c), x) for (c, x) in zip(e.coefs, e.args)] : [(ONE, e)]
@@ -162,6 +165,28 @@ function _lap_sqrt_trig(fs, cf::Sym, t::Sym, s::Sym)
     nothing
 end
 
+function _lap_sinc(fs, cf::Sym, t::Sym, s::Sym)
+    i = findfirst(((b, p),) -> _eq(b, t) && _eq(p, MINUS_ONE), fs)
+    i === nothing && return nothing
+    j = findfirst(((b, p),) -> b.kind == FN && b.name === :sin && _eq(p, ONE) && has(b, t), fs)
+    j === nothing && return nothing
+    a = diff(fs[j][1].args[1], t)
+    (has(a, t) || !iszero(expand(subs(fs[j][1].args[1], t => ZERO)))) && return nothing
+    c, α = cf, ZERO
+    for (k, (b, p)) in enumerate(fs)
+        (k == i || k == j) && continue
+        if !has(b, t) && !has(p, t)
+            c *= b^p
+        elseif b === E && (d = diff(p, t); !has(d, t))
+            c *= exp(subs(p, t => ZERO))
+            α += d
+        else
+            return nothing
+        end
+    end
+    c * atan(a / (s - α))
+end
+
 # a term's factors as (base, exponent), and its coefficient
 _lap_factors(e::Sym) = e.kind == MUL ? (collect(zip(e.args, e.exps)), Sym(e.num)) :
     e.kind == POW ? ([(e.args[1], e.args[2])], ONE) : ([(e, ONE)], ONE)
@@ -173,7 +198,7 @@ function _lap_expoly(term::Sym, t::Sym, s::Sym)
     for (b, q) in fs
         if !has(b, t) && !has(q, t)
             cf *= b^q
-        elseif _eq(b, t) && q.kind == NUMBER
+        elseif _eq(b, t) && !has(q, t)
             p += q
         elseif b === E && (d = diff(q, t); !has(d, t))
             cf *= exp(subs(q, t => ZERO))
@@ -185,8 +210,9 @@ function _lap_expoly(term::Sym, t::Sym, s::Sym)
             throw(ArgumentError("laplace_transform: no transform found for $(term)"))
         end
     end
-    p.kind == NUMBER && p.num > -N1 || throw(ArgumentError("laplace_transform: t^$p has no transform"))
-    g = isinteger(p) ? Sym(factorial(big(_toint(p.num)))) : apply_function(:gamma, Sym[p + 1])
+    # (a symbolic power: Γ(p + 1)/(s - α)^(p + 1), for p > -1; SymPy #21372)
+    p.kind == NUMBER && !(p.num > -N1) && throw(ArgumentError("laplace_transform: t^$p has no transform"))
+    g = p.kind == NUMBER && isinteger(p) ? Sym(factorial(big(_toint(p.num)))) : apply_function(:gamma, Sym[p + 1])
     cf * g / (s - α)^(p + 1)
 end
 
@@ -278,10 +304,54 @@ function inverse_laplace_transform(F, s::Sym, t::Sym)
         # e^(-cs) with c < 0 is the transform of no function of t ≥ 0 (SymPy #24595); a
         # symbol c is taken to be ≥ 0, as in laplace_transform, so -a is refused too
         _ilap_negshift(c) && throw(ArgumentError("inverse_laplace_transform: exp($(-c)*s) is a shift to t < 0; no inverse for t ≥ 0"))
-        g = _ilap_rational(R, s, t)
+        g = _ilap_special(R, s, t)
         out += iszero(c) ? g : heaviside(t - c) * subs(g, t => t - c)
     end
     out
+end
+
+# terms c atan(a/(s - α)) (e^(αt) sin(at)/t) and c (s - α)^(-m), m symbolic
+# (t^(m-1) e^(αt) c/Γ(m), the gamma functions simplified: factorial(n)/(s + a)^(n + 1)
+# is tⁿ e^(-at); SymPy #21372); the rest a rational function
+function _ilap_special(R::Sym, s::Sym, t::Sym)
+    sympow(b, q) = has(b, s) && _hassymbol(q) && !has(q, s)
+    special(x) = _hasfn(x, :atan) || _has_node(x, u -> (u.kind == POW && sympow(u.args...)) ||
+                                                       (u.kind == MUL && any(i -> sympow(u.args[i], u.exps[i]), eachindex(u.args))))
+    special(R) || return _ilap_rational(R, s, t)
+    E1 = expand(R)
+    terms = E1.kind == ADD ? [Sym(c) * x for (c, x) in zip(E1.coefs, E1.args)] : [E1]
+    E1.kind == ADD && !iszero(E1.num) && push!(terms, Sym(E1.num))
+    out, rest = ZERO, ZERO
+    for x in terms
+        g = special(x) ? _ilap_special_term(x, s, t) : nothing
+        g === nothing ? (rest += x) : (out += g)
+    end
+    out + (iszero(rest) ? ZERO : _ilap_rational(rest, s, t))
+end
+function _ilap_special_term(x::Sym, s::Sym, t::Sym)
+    fs, cf = _lap_factors(x)
+    i = findfirst(((b, p),) -> has(b, s) || has(p, s), fs)
+    i === nothing && return nothing
+    any(k -> k != i && (has(fs[k][1], s) || has(fs[k][2], s)), eachindex(fs)) && return nothing
+    c = cf * prod((b^p for (k, (b, p)) in enumerate(fs) if k != i); init = ONE)
+    b, p = fs[i]
+    lin(u) = (k1 = diff(u, s); has(k1, s) || iszero(k1) ? nothing : (k1, expand(subs(u, s => ZERO))))
+    if b.kind == FN && b.name === :atan && length(b.args) == 1 && _eq(p, ONE)
+        l = lin(cancel(1 / b.args[1]))                # 1/u = (s - α)/a
+        l === nothing && return nothing
+        k1, k0 = l
+        a, α = 1 / k1, -k0 / k1
+        return c * exp(α * t) * sin(a * t) / t
+    end
+    (has(p, s) || !_hassymbol(p)) && return nothing
+    l = lin(b)
+    l === nothing && return nothing
+    k1, k0 = l                                        # b = k1 (s - α)
+    α, m = -k0 / k1, -p
+    c = c * k1^p
+    q = c / apply_function(:gamma, Sym[m])
+    q = try simplify_gamma(q) catch err; err isa InterruptException && rethrow(); q end
+    q * t^(m - 1) * exp(α * t)
 end
 
 function _ilap_float(F::Sym, s::Sym, t::Sym)

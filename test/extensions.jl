@@ -310,7 +310,9 @@ import PolyLog as PL
         @test ∫(log(x), (x, -1, 0)) == IM * PI - 1
         @test ∫(x * log(x), (x, -1, 0)) == Sym(1 // 4) - IM * PI / 2
         @test ∫(log(x)^2, (x, -1, 0)) == 2 - PI^2 - 2IM * PI
-        @test ∫(x^m, (x, -1, 0); assume = @assume(m > 0)) == exp(IM * m * PI) / (m + 1)
+        # (the principal branch: e^{iπm}/(m + 1), in whatever form; at m = 1/3)
+        @test isapprox(ComplexF64(N(subs(∫(x^m, (x, -1, 0); assume = @assume(m > 0)), m => Sym(1) // 3))),
+                       exp(im * π / 3) / (4 / 3))
         # a variable end: the integral by cases, its limit taking the case that holds (Gabriel's horn)
         if VERSION >= v"1.12"                                            # (the older RischIntegrate cannot)
             @syms M
@@ -537,6 +539,27 @@ import PolyLog as PL
         r = RischIntegrate.integrate(sin(x) * exp(-a * x), (x, 0, Inf))
         @test r isa SymJ.Cases
         @test any(cv -> cv.second == 1 / (a^2 + 1), r)
+    end
+
+    @testset "missing cases (SymPy review, round 7)" begin
+        @syms a b
+        # a condition in a second variable: the integral a piecewise function of it, the
+        # same in either order (#22023)
+        f = SymJ.piecewise((a ≦ 1 // 2, b ≦ 1 // 2) => 1, true => 0)
+        g = f + SymJ.piecewise((a ≧ 1 // 2, b ≧ 1 // 2) => 1, true => 0)
+        @test simplify(f) isa Sym
+        @test subs(RischIntegrate.integrate(f, a), a => 0, b => 0) == 0
+        r = RischIntegrate.integrate(f, (a, 0, 1))
+        @test r isa SymJ.Cases
+        @test any(cv -> cv.second == Sym(1) // 2, r)
+        @test RischIntegrate.integrate(RischIntegrate.integrate(g, (a, 0, 1)), (b, 0, 1)) == Sym(1) // 2
+        @test RischIntegrate.integrate(RischIntegrate.integrate(g, (b, 0, 1)), (a, 0, 1)) == Sym(1) // 2
+        # an impossible case pruned: l ≠ k and l = -k with k, l ≥ 0 (#22066)
+        @syms k l L
+        r = RischIntegrate.integrate(cos(x * k * PI / L) * cos(x * l * PI / L), (x, -L, L);
+                                     assume = (L ≫ 0, k ∈ ℤ, l ∈ ℤ, k ≧ 0, l ≧ 0))
+        @test r isa SymJ.Cases
+        @test length(r) == 3
     end
 
     @testset "asymptotic series at ±∞: exponential and oscillating factors" begin

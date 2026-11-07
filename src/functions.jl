@@ -335,6 +335,11 @@ register_function!(:log; julia = log,
         isone(x) && return ZERO
         _eq(b, x) && return ONE
         b === E && return apply_function(:log, Sym[x])
+        # log(b, b^k) = k for positive rationals b ≠ 1 and x (log(2, 8) = 3; SymPy #20953)
+        if b.kind == NUMBER && x.kind == NUMBER && isexact(b.num) && isexact(x.num) && b.num > N0 && x.num > N0 && !isone(b.num)
+            k = round(Int, log(Float64(_rat(x.num))) / log(Float64(_rat(b.num))))
+            abs(k) <= 10_000 && _rat(b.num)^k == _rat(x.num) && return Sym(k)
+        end
         nothing
     end,
     diff = function (args, i)
@@ -454,6 +459,15 @@ for (f, g, jump) in ((:floor, floor, round), (:ceil, ceil, round), (:trunc, trun
         eval = _unary(function (a)
             a.kind == NUMBER && isexact(a.num) && return Sym(SymNumber(g(BigInt, _rat(a.num))))
             _isfn(a, f) && return a
+            # a complex number: its parts (round(2.6 + 1.2i) = 3 + i; SymPy #21513)
+            if !_hassymbol(a) && has(a, IM)
+                v = try _evalc(a) catch; nothing end
+                if v isa Complex && isfinite(v) && !iszero(imag(v))
+                    re, ip = real(a), imag(a)
+                    (has(re, IM) || has(ip, IM)) && return nothing
+                    return apply_function(f, Sym[re]) + IM * apply_function(f, Sym[ip])
+                end
+            end
             # floor(floor(u)/m) = floor(u/m) for an integer m > 0, ceil alike (SymPy #27400)
             if f in (:floor, :ceil) && a.kind == MUL && length(a.args) == 1 && _isone(a.exps[1]) &&
                _isfn(a.args[1], f) && isexact(a.num) && isone(_numerator(a.num)) && _denominator(a.num) > 1
