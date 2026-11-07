@@ -283,6 +283,8 @@ end
 # largest r with r^k <= m, m > 0
 function _iroot(m::Integer, k::Int)
     k == 2 && return isqrt(m)
+    # a k-th root of m < 2^k is 0 or 1: no 2^k for a huge k (3^(1/50000000000); SymPy #21762)
+    m >= 0 && k >= Base.top_set_bit(BigInt(m)) && return oftype(m, m >= 1 ? 1 : 0)
     mb = BigInt(m)
     r = BigInt(floor(BigFloat(mb)^(1 / BigFloat(k))))
     while (r + 1)^k <= mb

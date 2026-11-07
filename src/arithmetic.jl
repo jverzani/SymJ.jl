@@ -508,7 +508,9 @@ function _introot_pow(n::Integer, e::SymNumber)
     a, c = _extract_power(n, Int(q))
     coef *= SymNumber(a)^r
     isone(c) && return Sym(coef)
-    for j in Int(q):-1:2               # c may still be a perfect j-th power with j | q
+    # c may still be a perfect j-th power with j | q, j at most c's bit length (not every
+    # j up to a denominator of 5·10¹⁰; SymPy #21860)
+    for j in min(Int(q), Base.top_set_bit(BigInt(c))):-1:2
         q % j == 0 || continue
         d = _perfect_root(c, j)
         d === nothing || return mul(Sym(coef), _numpow(SymNumber(d), SymNumber(r * j // q)))
