@@ -740,13 +740,36 @@ function Poly{C}(ex::Sym, gs::Vector{Sym}) where {C}
     # degrees (products and powers inside find room for themselves)
     L = _polylayout(n)
     try
-        return _topoly(C, _monotype(L), ex, gs, L, index)
+        return _drop_zero_coefs(_topoly(C, _monotype(L), ex, gs, L, index))
     catch err
         err isa _PackOverflow || rethrow()
     end
     L = _layout_for(_degbound(ex, index, n))
-    _topoly(C, _monotype(L), ex, gs, L, index)
+    _drop_zero_coefs(_topoly(C, _monotype(L), ex, gs, L, index))
 end
+
+# expression coefficients that are 0 though not in form (x(x + 1) - x² - x; a constant
+# in cube roots that cancels only numerically) dropped: the coefficients are nonzero, so
+# the degree is right (SymPy #20389, #20427)
+function _drop_zero_coefs(p::Poly{C,M}) where {C,M}
+    C === Sym || return p
+    keep = [!_coef_is_zero(c) for c in p.coefs]
+    all(keep) && return p
+    Poly{Sym,M}(p.gens, p.layout, p.monos[keep], p.coefs[keep])
+end
+function _coef_is_zero(c::Sym)
+    c.kind == NUMBER && return iszero(c.num)
+    (c.kind == ADD || c.kind == MUL || c.kind == POW) || return false
+    if _hassymbol(c)
+        _hasadd_inside(c) || return false
+        return iszero(expand(c))
+    end
+    w = try _evalc(c) catch; return false end
+    abs(w) < 1e-10 || return false
+    iszero(expand(c)) || _const_zero(c)
+end
+# whether a product or power has a sum inside (so expand may cancel); a sum always may
+_hasadd_inside(c::Sym) = c.kind == ADD || any(a -> a.kind == ADD || _hasadd_inside(a), c.args)
 
 # an upper bound on the degree of ex in each generator (exact for an expanded sum)
 function _degbound(ex::Sym, index, n::Int)

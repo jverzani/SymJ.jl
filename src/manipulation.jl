@@ -620,7 +620,18 @@ function _ev(ex::Sym, a, F, var)
     vs = map(x -> _intarg(x) ? _toint(x.num) : _ev(x, a, F, var), ex.args)
     ex.name in _HUGE_ARG_FNS && length(vs) == 1 && _huge_bigfloat(vs[1]) &&
         throw(HugeArgumentError(ex.name, vs[1]))
-    rule.julia(vs...)
+    r = rule.julia(vs...)
+    # integer arguments (kept as Ints for orders, besselj(2, x)) in a BigFloat evaluation:
+    # a Float64 result is computed again at the working precision, log(6) included (it
+    # was log(6.0) widened, so a zero 6log2 + 6log3 - 6log6 had a sign; SymPy #20897)
+    if F !== nothing && real(F) === BigFloat && r isa Union{Float64,ComplexF64} && any(v -> v isa Integer, vs)
+        r2 = try rule.julia(map(v -> v isa Integer ? BigFloat(v) : v, vs)...) catch err
+            err isa Union{MethodError,DomainError,ArgumentError} || rethrow()
+            nothing
+        end
+        r2 isa Union{BigFloat,Complex{BigFloat}} && return r2
+    end
+    r
 end
 
 # sin of a BigFloat with millions of digits before the point: MPFR reduces it modulo 2π

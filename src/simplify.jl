@@ -622,6 +622,10 @@ end
 function _simplify(e::Sym, A::Assumptions)
     e = _exact_int_exponents(e)
     if !_hassymbol(e) && e.kind != NUMBER
+        # a constant in radicals that is 0 though no form cancels (it numerically 0 at 512
+        # bits; SymPy #20427)
+        w = try _evalc(e) catch; nothing end
+        w isa Number && abs(w) < 1e-10 && _const_zero(e) && return ZERO
         # until it stops shrinking (a product of square roots that a step leaves, √10√2√5,
         # merges in the next; found in the review of SymPy #24948)
         for _ in 1:3
