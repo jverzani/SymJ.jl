@@ -514,6 +514,11 @@ function _degenerate_subst(D, B::Assumptions, unknowns)
         end
         best === nothing || return f => [best[1] => best[2]]
         rs = isempty(ps) ? Sym[] : (try _solve_generic(f ~ 0, ps[1]) catch err; err isa ArgumentError || rethrow(); Sym[] end)
+        # roots with large radicals of the other parameters: substituted, every equation
+        # was cancelled over them (minutes for 11 parameters; SymPy #21694). The case is
+        # left unsupported rather than computed.
+        any(r -> _nodes(r) > 60 && _has_radical_of_symbols(r), rs) &&
+            throw(ArgumentError("solve: the case $f = 0 is not supported (its solutions for $(ps[1]) are large radicals)"))
         # (√(-w²) as i w: the two roots ±i w, with no radical of a parameter for the
         # system to carry; a² + b² = 0 in a circle and a line, SymPy #23889)
         isempty(rs) || return f => [ps[1] => _imag_square_root(r) for r in rs]
@@ -809,6 +814,13 @@ end
 # r with each √(-u), u the square of a polynomial w, as i w (a root's sign is its pair's)
 _imag_square_root(r::Sym) = _replace_walk(r) do t
     (t.kind == POW && t.args[2].kind == NUMBER && t.args[2].num == SymNumber(1 // 2) && _hassymbol(t.args[1])) || return nothing
+    # (small radicands only: factoring a quadratic formula's discriminant in 11 parameters
+    # took minutes; SymPy #21694)
+    _nodes(t.args[1]) <= 40 || return nothing
     w = try _square_root(expand(-t.args[1])) catch; nothing end
     w === nothing ? nothing : IM * w
 end
+
+_has_radical_of_symbols(e::Sym) = (e.kind == POW && e.args[2].kind == NUMBER && !_isint(e.args[2].num) && _hassymbol(e.args[1])) ||
+    (e.kind == MUL && any(((b, p),) -> p.kind == NUMBER && !_isint(p.num) && _hassymbol(b), zip(e.args, e.exps))) ||
+    any(_has_radical_of_symbols, e.args)
