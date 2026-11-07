@@ -562,6 +562,17 @@ import PolyLog as PL
         @test length(r) == 3
     end
 
+    @testset "crashes and hangs (SymPy review, round 8)" begin
+        @syms a b
+        # a case where the integrand is not defined (b = 0): an error for that case (#19672)
+        r = RischIntegrate.integrate(exp(-(x - a)^2 / b), (x, -Inf, Inf))
+        @test r isa SymJ.Cases
+        @test any(cv -> cv.second == sqrt(b * PI), r)
+        # abs of functions with a pole: no division by zero (#20755)
+        @test RischIntegrate.integrate(abs(1 / x), (x, 1, 2)) == log(Sym(2))
+        @test RischIntegrate.integrate(abs(atan(1 / x)), (x, -1, 1)) == log(Sym(2)) + PI / 2
+    end
+
     @testset "asymptotic series at ±∞: exponential and oscillating factors" begin
         @syms y
         S(f, x0, n) = Sym(series(f, x, x0, n))

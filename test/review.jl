@@ -619,3 +619,33 @@ end
     @test IL(factorial(n) / (s + a)^(n + 1), s, t) == t^n * exp(-a * t)
     @test IL(L(t^n * exp(-a * t), t, s), s, t) == t^n * exp(-a * t)
 end
+
+@testset "crashes and hangs (SymPy review, round 8)" begin
+    @syms x z L Ca0 t a
+    LA = SymJ.LinearAlgebra
+    # boundary-value problems: two value conditions, a derivative at a symbolic point (#20547)
+    C = SymFunction(:C)
+    @test SymJ.dsolve(diff(C(z), z, z) ~ 0, C(z), C(0) => 1, C(1) => 0) == (C(z) ~ 1 - z)
+    r = SymJ.dsolve(diff(C(z), z, z) - C(z) ~ 0, C(z), C(0) => 1, C(1) => 0)
+    @test iszero(simplify(subs(r.rhs, z => 1)))
+    r = SymJ.dsolve(diff(C(z), z, z) - C(z) ~ 0, C(z), C(0) => Ca0, subs(diff(C(z), z), z => L) => 0)
+    @test iszero(simplify(subs(diff(r.rhs, z), z => L)))
+    # isposdef and Hermitian for symbolic matrices (#19547)
+    @test LA.isposdef(Sym[2 0; 0 1])
+    @test !LA.isposdef(Sym[1 2; 2 1])
+    @test LA.isposdef(LA.Hermitian(Sym[2 1; 1 2]))
+    # Poly: higher derivatives; conj, transpose (#19590, #19531)
+    p = SymJ.Poly(x^2 + 2x + 1, x)
+    @test diff(p, x, 2) == SymJ.Poly(Sym(2), x)
+    @test transpose([p, p])[1] == p
+    @test conj(SymJ.Poly(x^2 + SymJ.IM * x, x)) == SymJ.Poly(x^2 - SymJ.IM * x, x)
+    # a combination of relations (#20080)
+    @test solve((x ≧ 0) & (x ≦ 1), x) == solve(x ≧ 0, x) ∩ solve(x ≦ 1, x)
+    @test isempty(solve((x ≫ 0) & (x ≪ 0), x))
+    # a matrix function with eigenvalues in a quartic's radicals: refused, not a hang (#19565)
+    I_, s2 = SymJ.IM, sqrt(Sym(2))
+    M = Sym[1 -I_ I_*s2 0; -I_ Sym(1)//2 0 I_*s2; I_*s2 0 Sym(1)//2 -I_; 0 I_*s2 -I_ Sym(1)//2]
+    @test_throws ArgumentError exp(-M * t)
+    @test exp(t * Sym[0 1; -1 0]) == Sym[cos(t) sin(t); -sin(t) cos(t)]
+end
+
