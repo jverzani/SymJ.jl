@@ -1184,8 +1184,24 @@ end
 # the real fundamental matrix Φ, and for the particular solution P exp(J t) and
 # exp(-J t) P⁻¹ F (nothing when F = 0)
 function _odesys_fundamental(M, F, t)
+    # with parameters, eigenvalues that are roots of an irreducible cubic or more: their
+    # formulas (Cardano's) in the parameters are too large to use (SymPy #21867)
+    if any(_hassymbol, M) && size(M, 1) >= 3
+        λ = Sym(:_odesys_lambda)
+        fq = try factor(expand(charpoly(M, λ))) catch err; err isa ArgumentError || rethrow(); nothing end
+        bs = fq === nothing ? Sym[] : fq.kind == MUL ? fq.args : fq.kind == POW ? [fq.args[1]] : [fq]
+        deg(b) = (P = try Poly{Sym}(b, [λ]) catch; return 0 end; degree(P, λ))
+        any(b -> has(b, λ) && deg(b) >= 3, bs) && throw(ArgumentError(
+            "dsolve: the system's eigenvalues are roots of a polynomial of degree ≥ 3 in the parameters, whose closed forms are too large to use; substitute numbers for the parameters"))
+    end
     P, J = jordan_form(M)
     P = map(_ode_cartesian, P)
+    # the eigenvalues as a + i b too: Cardano's roots carry 1/ω², whose parts substituting
+    # i = 0 does not give (SymPy #21867)
+    J = copy(J)
+    for i in axes(J, 1)
+        J[i, i] = _ode_cartesian(J[i, i])
+    end
     N = size(M, 1)
     EJ, EJm = zeros(Sym, N, N), zeros(Sym, N, N)   # exp(J t), exp(-J t)
     i = 1
@@ -1212,12 +1228,27 @@ function _odesys_fundamental(M, F, t)
             skip[λ] -= 1
             continue
         end
+        # (the conjugate written differently: Cardano's roots with ω and with ω², equal in
+        # value; SymPy #21867)
+        if !_hassymbol(λ) && (w = try ComplexF64(SymJ.N(λ)) catch; nothing end) !== nothing  # (N is the size here)
+            k = findfirst(((c, n),) -> n > 0 && !_hassymbol(c) &&
+                          (cv = try ComplexF64(SymJ.N(c)) catch; nothing end; cv !== nothing && abs(cv - w) <= 1e-9 * max(1, abs(w))), collect(skip))
+            if k !== nothing
+                c = collect(keys(skip))[k]
+                skip[c] -= 1
+                continue
+            end
+        end
         v = [expand(_ode_cis(Ψ[r, j])) for r in 1:N]
         re = [subs(e, IM => ZERO) for e in v]
-        if all(r -> _eq(re[r], v[r]), 1:N)
+        # a real eigenvalue written with i (a cubic's three real roots by Cardano's formula):
+        # a real column as it is, not a complex pair (SymPy #21867)
+        lreal = !_hassymbol(λ) && (w = try SymJ.N(λ) catch; nothing end; w isa Number && abs(imag(w)) <= 1e-10 * max(1, abs(w)))
+        if lreal || all(r -> _eq(re[r], v[r]), 1:N)
             col += 1
             Φ[:, col] = [_ode_tidy(e) for e in v]
         else                                     # a complex column: its real and imaginary parts
+            col + 2 <= N || throw(ArgumentError("dsolve: no real fundamental system found"))
             im_ = [expand((v[r] - re[r]) / IM) for r in 1:N]
             Φ[:, col + 1] = [_ode_tidy(e) for e in re]
             Φ[:, col + 2] = [_ode_tidy(e) for e in im_]

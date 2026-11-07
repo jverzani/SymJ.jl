@@ -562,3 +562,27 @@ end
     @test subs(x * y, 1 => 2) == x * y
     @test subs(x / z, 1 => 1.0) == x / z
 end
+
+@testset "crashes and hangs (SymPy review, round 7)" begin
+    @syms x t ka k21 ke k12
+    # rational powers with huge denominators: no 2^k, no loop over k (#21762, #21860, #21647)
+    @test Sym(3)^(Sym(16666666667) // 50000000000) isa Sym
+    @test subs((x^2 + 6)^(Sym(33333333333333333) // 50000000000000000), x => Sym(1) // 2) isa Sym
+    @test subs(log((Sym(567) // 500)^(811 * (Sym(567) // 500)^x / 100)), x => 6) isa Sym
+    # a 3×3 linear system in 11 parameters: its cases quickly (#21694)
+    @syms A B C n m nu l R h K D E F
+    PI = SymJ.PI
+    eq1 = -PI^2 * A * m^2 / l^2 + A * n^2 * nu / (2R^2) - A * n^2 / (2R^2) + PI * B * m * n * nu / (2R * l) + PI * B * m * n / (2R * l) + PI * C * m * nu / (R * l) + D / K
+    eq2 = PI * A * m * n * nu / (2R * l) + PI * A * m * n / (2R * l) + PI^2 * B * m^2 * nu / (2l^2) - PI^2 * B * m^2 / (2l^2) - B * n^2 / R^2 - PI^2 * C * h^2 * m^2 * n / (12R^2 * l^2) - C * n / R^2 - C * h^2 * n^3 / (12R^4) + E / K
+    eq3 = -PI * A * m * nu / (R * l) + PI^2 * B * h^2 * m^2 * n / (12R^2 * l^2) + B * n / R^2 + B * h^2 * n^3 / (12R^4) + PI^4 * C * h^2 * m^4 / (12l^4) + PI^2 * C * h^2 * m^2 * n^2 / (6R^2 * l^2) + C / R^2 + C * h^2 * n^4 / (12R^4) - F / K
+    @test solve([eq1 ~ 0, eq2 ~ 0, eq3 ~ 0], [A, B, C]) isa SymJ.Cases
+    # ODE systems: eigenvalues of a cubic in parameters refused; Cardano's complex pair
+    # recognized, not more columns than unknowns (#21867)
+    Ac, Ap, Ad = SymFunction(:Ac), SymFunction(:Ap), SymFunction(:Ad)
+    @test_throws ArgumentError SymJ.dsolve([diff(Ac(t), t) ~ Ad(t) * ka + Ap(t) * k21 - Ac(t) * (ke + k12),
+        diff(Ap(t), t) ~ Ac(t) * k12 - Ap(t) * k21, diff(Ad(t), t) ~ -Ac(t) * ka], [Ac(t), Ap(t), Ad(t)])
+    r = SymJ.dsolve([diff(Ac(t), t) ~ 2Ad(t) + 3Ap(t) - 12Ac(t), diff(Ap(t), t) ~ 7Ac(t) - 3Ap(t), diff(Ad(t), t) ~ -2Ac(t)],
+                    [Ac(t), Ap(t), Ad(t)])
+    @test length(r) == 3
+    @test !any(e -> has(e.rhs, IM), r)
+end
