@@ -148,8 +148,11 @@ function _solve_inequality(r::Relation, x::Sym)
     atoms = Set{Sym}()
     (_poly_atoms!(atoms, n) && _poly_atoms!(atoms, d)) ||
         throw(ArgumentError("solve: an inequality with inexact coefficients is not supported yet"))
-    all(a -> _eq(a, x) || !has(a, x), atoms) ||
-        throw(ArgumentError("solve: only polynomial and rational inequalities are supported yet"))
+    if !all(a -> _eq(a, x) || !has(a, x), atoms)
+        S = _solve_inequality_continuous(r, x, atoms)
+        S === nothing && throw(ArgumentError("solve: only polynomial and rational inequalities are supported yet"))
+        return S
+    end
     zs = has(n, x) ? _real_roots(_solve_eq(n ~ 0, x)) : Sym[]
     ps = has(d, x) ? _real_roots(_solve_eq(d ~ 0, x)) : Sym[]
     # the zeros of the denominators cancel removed (x = 1 in (x^2 - 1)/(x - 1)) are
@@ -165,4 +168,41 @@ function _solve_inequality(r::Relation, x::Sym)
         val = rc(x => w)
         val isa Bool ? val : false
     end) |> S -> SymSet(S.intervals, x)
+end
+
+# an inequality in radicals, logs and exponentials of x (no periodic functions, so the
+# equation has finitely many roots): its breakpoints the real roots of the equation, the
+# ends of the real domain (zeros of radicands and of log's arguments) and the poles; each
+# piece decided at a point, outside the real domain excluded (x/√(1 - x²) > 2; SymPy
+# #21173). nothing when not of that kind or the roots are not found.
+function _solve_inequality_continuous(r::Relation, x::Sym, atoms)
+    e = r.lhs - r.rhs
+    ok(a) = _eq(a, x) || !has(a, x) ||
+        (a.kind == POW && a.args[2].kind == NUMBER && isexact(a.args[2].num) && _ispolyin(a.args[1], [x])) ||
+        (a.kind == FN && a.name in (:log, :exp, :cbrt) && length(a.args) == 1 && _ispolyin(a.args[1], [x]))
+    all(ok, atoms) || return nothing
+    rts = try _solve_eq(Relation(:eq, r.lhs, r.rhs), x) catch err; err isa ArgumentError || rethrow(); return nothing end
+    rts isa AbstractVector || return nothing
+    pts = Sym[q for q in _real_roots(rts) if !_hassymbol(q)]
+    for a in atoms
+        u = a.kind == POW ? a.args[1] : a.kind == FN && a.name === :log ? a.args[1] : nothing
+        u === nothing && continue
+        has(u, x) || continue
+        append!(pts, [q for q in _real_roots(_solve_eq(u ~ 0, x)) if !_hassymbol(q)])
+    end
+    for b in unique(_zero_sets!(Sym[], e, x))
+        zs = try _solve_eq(b ~ 0, x) catch err; err isa ArgumentError || rethrow(); continue end
+        zs isa AbstractVector && append!(pts, [q for q in _real_roots(zs) if !_hassymbol(q)])
+    end
+    rel = _REL_INFO[r.op][2]
+    S = _set_from(unique(pts), (v, atpoint) -> begin
+        w = v isa Sym ? v : Sym(v)
+        val = try N(subs(e, x => w)) catch err; err isa Union{DivisionByZero,DomainError,ArgumentError} || rethrow(); return false end
+        val isa Number || return false
+        val isa Complex && (abs(imag(val)) <= 1e-12 * max(1, abs(val)) ? (val = real(val)) : return false)
+        isfinite(val) || return false
+        atpoint && abs(val) <= 1e-12 && (val = 0.0)
+        rel(val, 0)
+    end)
+    SymSet(S.intervals, x)
 end

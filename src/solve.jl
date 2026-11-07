@@ -493,6 +493,12 @@ function _solve_through(eq::Relation, n::Sym, x::Sym, bad::Vector{Sym})
             r === nothing || return r
             r = _solve_exp_sum(eq, n, x)
             r === nothing || return r
+            # cube roots among them (or a square root beside a cube root): each radical an
+            # unknown w with w^q = R, the polynomial system solved (SymPy #21167, #21026)
+            if !all(_issqrt, bad) && length(bad) <= 3 && all(b -> _issqrt(b) || _iscuberoot(b), bad)
+                sols = _solve_radical_system(Relation[eq], [x])
+                sols === nothing || return _sort_roots!(unique([s[x] for s in sols if !_hassymbol(s[x]) || !has(s[x], x)]))
+            end
             # several radicals: one squared away at a time (the rest in the recursion)
             if all(_issqrt, bad) && length(bad) <= 4
                 R = first(bad)
@@ -561,6 +567,9 @@ function _solve_generator_first(eq::Relation, nu::Sym, u::Sym, g::Sym, x::Sym)
     found || return nothing
     unique(filter(r -> _satisfies(eq, x, r), out))
 end
+
+_iscuberoot(b::Sym) = (b.kind == FN && b.name === :cbrt && length(b.args) == 1) ||
+    (b.kind == POW && b.args[2].kind == NUMBER && isexact(b.args[2].num) && _denominator(b.args[2].num) == 3)
 
 function _tidy_roots(rs::Vector{Sym})
     length(rs) <= 12 || return rs
@@ -1145,6 +1154,10 @@ function _solve_irreducible(c::Vector{Sym}, f)
     # rational multiples of π, not radicals or floats (x^7 + 1; SymPy #25192)
     N = _cyclotomic_index(c)
     N === nothing || return Sym[cos(Sym(2k // N) * PI) + IM * sin(Sym(2k // N) * PI) for k in 1:N if gcd(k, N) == 1]
+    # the minimal polynomial of cos(2π/N): its roots cos(2πk/N), not radicals or floats
+    # (32x⁵ + 16x⁴ - 32x³ - 12x² + 6x + 1 for N = 11, from an 11×11 circulant; SymPy #21631)
+    N = _cos_minpoly_index(c)
+    N === nothing || return Sym[cos(Sym(2k // N) * PI) for k in 1:(N ÷ 2) if gcd(k, N) == 1]
     d == 3 && return _cardano(c...)
     d == 4 && return _ferrari(c...)
     r = _solve_decomposed(c)
@@ -1168,6 +1181,40 @@ function _cyclotomic_index(c::Vector{Sym})
     nothing
 end
 _totient(n::Int) = count(k -> gcd(k, n) == 1, 1:n)
+# N when the polynomial with coefficients c is a multiple of the minimal polynomial of
+# cos(2π/N), N ≥ 7 (degree φ(N)/2 ≥ 3), else nothing
+function _cos_minpoly_index(c::Vector{Sym})
+    all(ci -> ci.kind == NUMBER && isexact(ci.num), c) || return nothing
+    d = length(c) - 1
+    d >= 3 || return nothing
+    lc = c[end].num
+    q = [Rational{BigInt}(_numerator(ci.num / lc), _denominator(ci.num / lc)) for ci in c]
+    for N in 7:(4d^2 + 2)
+        _totient(N) == 2d || continue
+        _cos_minpoly(N) == q && return N
+    end
+    nothing
+end
+# the monic minimal polynomial of cos(2π/N), low to high: Φ_N(z) = z^d Ψ(z + 1/z),
+# z^j + z^(-j) = D_j(y) (D₀ = 2, D₁ = y, D_j = y D_(j-1) - D_(j-2)), y = 2x
+function _cos_minpoly(N::Int)
+    a = _cyclotomic(N)
+    d = (length(a) - 1) ÷ 2
+    padd(p, q) = (r = zeros(Rational{BigInt}, max(length(p), length(q))); r[1:length(p)] .+= p; r[1:length(q)] .+= q; r)
+    Ds = Vector{Vector{Rational{BigInt}}}(undef, d + 1)
+    Ds[1] = Rational{BigInt}[2]
+    d >= 1 && (Ds[2] = Rational{BigInt}[0, 1])
+    for j in 2:d
+        Ds[j+1] = padd([zero(Rational{BigInt}); Ds[j]], -Ds[j-1])
+    end
+    psi = Rational{BigInt}[a[d+1]]
+    for j in 1:d
+        psi = padd(psi, a[d+j+1] .* Ds[j+1])
+    end
+    px = [psi[i] * big(2)^(i - 1) for i in eachindex(psi)]   # y = 2x
+    px ./ px[end]
+end
+
 const _CYCLOTOMIC = Dict{Int,Vector{Rational{BigInt}}}()
 # Φ_N's coefficients, low to high: (x^N - 1) / Π_{d | N, d < N} Φ_d
 function _cyclotomic(N::Int)

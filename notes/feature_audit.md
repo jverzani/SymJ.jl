@@ -238,6 +238,17 @@ transforms). Of the rest, in rough order of value for calculus-level use:
    expansions at ∞ the reviews found missing: `erfc`, `Ei`/`expinti`, `Si` and `Ci`
    (#26257, #26207), the modified Bessel functions `besseli`/`besselk` (#26210; also
    their limits at ∞, #26040), and Stirling's series for `gamma` (#26096).
+10. **Gaps from the seventh SymPy review (#20909–#22408)**, none a wrong answer:
+   - series: `log(log(x))` at 0, a logarithmic leading term inside log (#21227);
+     irrational exponents, `exp(w^(1/π))` (#21358); a small exponential inside an
+     oscillating argument at ∞, `sin(1/x + e^(-x)) - sin(1/x)` (#21938).
+   - `dsolve`: Riccati equations not in the recognized forms, `u' = (x + u)²` by the
+     substitution w = x + u (#21503).
+   - definite integrals without an elementary antiderivative by contour or series
+     methods: `∫₀^π e^(cos x) cos(sin x) dx = π` (#21030).
+   - algebraic numbers: `atan` of a radical that is `tan(kπ/n)` not recognized, so
+     `cos(25 atan(…))` stays (#21324); denesting square roots of sums of several surds,
+     `√(19 + 3√2 + 6√3 - √10)` (#21599).
 
 Done since the first audit: trigonometric and logarithmic expansion, gamma and combinatorial simplification, LaTeX output (a Latexify extension), resultants and Gröbner
 bases (polynomial systems are solved), real and imaginary parts and `conj`, and

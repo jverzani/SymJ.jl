@@ -67,6 +67,8 @@ _sum_parts(u, v) = (u isa Cases || v isa Cases) ? _sum_cases(Any[u, v]) : u + v
 # b === nothing: an infinite sum
 function _summation(f::Sym, k::Sym, a::Sym, b, assume)
     iszero(f) && return ZERO
+    # a summand 0 by identities (sin² + cos² - 1; SymPy #22260)
+    _has_fn(f, _CIRCFNS) && iszero(simplify_trig(f)) && return ZERO
     # 0^(c - k): its ratio has 0 in the denominator; summed in the other direction,
     # k => a + b - k, it is 0^(k + ...) (SymPy #23952)
     b === nothing || !_zero_pow_down(f, k) || return _summation(subs(f, k => a + b - k), k, a, b, assume)
@@ -129,6 +131,19 @@ function _summation(f::Sym, k::Sym, a::Sym, b, assume)
     end
     r = _rational_sum(f, k, a, b)
     r === nothing || return r
+    # (-1)^k R(k) to ∞ with R rational, a an integer: consecutive terms paired,
+    # (-1)^a Σ_j (R(a + 2j) - R(a + 2j + 1)), a rational sum (Σ (-1)^k/(k² + 1); SymPy #21148)
+    if b === nothing && a.kind == NUMBER && _isint(a.num)
+        R = _alternating_part(f, k)
+        if R !== nothing
+            j = Sym(Symbol("_alt_j"))
+            g = cancel(subs(R, k => a + 2j) - subs(R, k => a + 2j + 1))
+            r = try _summation(g, j, ZERO, nothing, assume) catch err; err isa InterruptException && rethrow(); nothing end
+            if r isa Sym && !_hasfn(r, :Sum)
+                return simplify((iseven(_toint(a.num)) ? ONE : MINUS_ONE) * r)
+            end
+        end
+    end
     # sines and cosines in k through exponentials, geometric in k: Σ_{i=1}^{v} cos(2πi/v)
     # = 0 as Σ exp(2πi i/v) is (SymPy #23576)
     if _has_fn(f, (:sin, :cos))
@@ -1298,4 +1313,15 @@ function _divergence_at_infinity(f::Sym, k::Sym, assume)
     v = _infinite(c) ? (Float64(c.num) > 0 ? 1.0 : -1.0) : N(c)
     v isa Real || return nothing
     Sym(v > 0 ? Inf : -Inf)
+end
+
+# R for f = (-1)^k R(k) with R rational in k (and free of other powers in k); else nothing
+function _alternating_part(f::Sym, k::Sym)
+    f.kind == MUL || return nothing
+    i = findfirst(((b, p),) -> _eq(b, MINUS_ONE) && (_eq(p, k) || _eq(p, -k)), collect(zip(f.args, f.exps)))   # ((-1)^(-k) = (-1)^k)
+    i === nothing && return nothing
+    R = Sym(f.num) * prod((b^p for (m, (b, p)) in enumerate(zip(f.args, f.exps)) if m != i); init = ONE)
+    n, d = numer_denom(cancel(R))
+    (_ispolyin(n, [k]) && _ispolyin(d, [k]) && has(d, k)) || return nothing
+    R
 end

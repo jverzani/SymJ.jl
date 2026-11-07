@@ -226,6 +226,10 @@ function _solve_linear0(eqs, vars::Vector{Sym})
     end
     if all(e -> e.kind == NUMBER, Iterators.flatten((A, b)))
         _gauss_jordan(map(e -> e.num, A), map(e -> e.num, b), vars, Sym)
+    elseif !any(_hassymbol, Iterators.flatten((A, b))) && any(e -> !_isexactex(e), Iterators.flatten((A, b)))
+        # complex numbers with floats (1.5 + 2.0im): solved in complex floating point
+        # (SymPy #21445)
+        _gauss_jordan(map(e -> ComplexF64(N(e)), A), map(e -> ComplexF64(N(e)), b), vars, Sym)
     else
         atoms = Set{Sym}()
         all(e -> _poly_atoms!(atoms, numer_denom(e)[1]) && _poly_atoms!(atoms, numer_denom(e)[2]),
@@ -286,22 +290,25 @@ function _gauss_jordan(A::Matrix{C}, b::Vector{C}, vars::Vector{Sym}, ::Type{Sym
     M = hcat(A, b)
     # floating point entries: a residue of rounding (5/3.0 - 1.6666666666666667) is zero,
     # not 0 = nonzero (SymPy #26223); the largest pivot is taken
-    fl = C === SymNumber && any(e -> isfloat(e), M)
-    scale = fl ? maximum(e -> abs(Float64(e)), M; init = 0.0) : 0.0
-    nz(e) = !iszero(e) && !(fl && isfloat(e) && abs(Float64(e)) <= 1e-12 * scale)
+    # (complex floats, C = ComplexF64, likewise; SymPy #21445)
+    cx = C === ComplexF64
+    fl = cx || (C === SymNumber && any(e -> isfloat(e), M))
+    fabs(e) = cx ? abs(e) : abs(Float64(e))
+    scale = fl ? maximum(fabs, M; init = 0.0) : 0.0
+    nz(e) = !iszero(e) && !(fl && (cx || isfloat(e)) && fabs(e) <= 1e-12 * scale)
     r = 1
     pivots = Tuple{Int,Int}[]
     for col in 1:k
         r > m && break
         p = fl ? (is = [i for i in r:m if nz(M[i, col])];
-                  isempty(is) ? nothing : is[argmax([abs(Float64(M[i, col])) for i in is])] - r + 1) :
+                  isempty(is) ? nothing : is[argmax([fabs(M[i, col]) for i in is])] - r + 1) :
                  findfirst(i -> nz(M[i, col]), r:m)
         p === nothing && continue
         p += r - 1
         if p != r
             M[r, :], M[p, :] = M[p, :], M[r, :]
         end
-        C === SymNumber || _divisor!(M[r, col])
+        C === SymNumber || cx || _divisor!(M[r, col])
         piv = inv(M[r, col])
         M[r, :] = [e * piv for e in M[r, :]]
         for i in 1:m
@@ -315,7 +322,7 @@ function _gauss_jordan(A::Matrix{C}, b::Vector{C}, vars::Vector{Sym}, ::Type{Sym
         r += 1
     end
     if any(i -> nz(M[i, k+1]), r:m)                            # 0 = nonzero: inconsistent
-        C === SymNumber || foreach(i -> iszero(M[i, k+1]) || _divisor!(M[i, k+1]), r:m)
+        C === SymNumber || cx || foreach(i -> iszero(M[i, k+1]) || _divisor!(M[i, k+1]), r:m)
         return nothing
     end
     pivcols = Set(c for (_, c) in pivots)

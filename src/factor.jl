@@ -56,6 +56,11 @@ end
 
 factor(ex::Sym; gcd_method::Symbol = :auto) = _with_widening(_factor_sym, ex; gcd_method)
 function _factor_sym(ex::Sym; gcd_method::Symbol = :auto)
+    # exponentials e^(c u), several rational c for one u: a polynomial in t = e^(u/q), q
+    # the denominators' lcm, factored (y² - y e^(x/7) - y e^(x/2) + e^(9x/14) is
+    # (y - e^(x/7))(y - e^(x/2)); SymPy #21511)
+    r = _FACTOR_EXPS[] ? _factor_exp_powers(ex; gcd_method) : nothing
+    r === nothing || return r
     n, d = numer_denom(_cancel(ex; gcd_method))
     atoms = Set{Sym}()
     (_poly_atoms!(atoms, n) && _poly_atoms!(atoms, d)) || return ex
@@ -81,6 +86,68 @@ function _factor_sym(ex::Sym; gcd_method::Symbol = :auto)
     r
 end
 factor(x::Number; gcd_method::Symbol = :auto) = Sym(x)
+
+# (off for simplify's factoring candidate: C₁eˣ + C₂e²ˣ is no simpler as (C₁ + C₂eˣ)eˣ)
+const _FACTOR_EXPS = ScopedValue(true)
+# the exponent w of e as c u, c a rational number
+function _exp_split(w::Sym)
+    w.kind == MUL && isexact(w.num) && return (w.num, w / Sym(w.num))
+    (N1, w)
+end
+function _factor_exp_powers(ex::Sym; gcd_method::Symbol = :auto)
+    groups = Dict{Sym,Vector{SymNumber}}()
+    note(w) = _hassymbol(w) && ((c, u) = _exp_split(w); push!(get!(groups, u, SymNumber[]), c))
+    _replace_walk(ex) do t
+        if t.kind == POW && t.args[1] === E
+            note(t.args[2])
+        elseif t.kind == MUL
+            for (b, q) in zip(t.args, t.exps)
+                b === E && note(q)
+            end
+        end
+        nothing
+    end
+    # (or one c with a numerator of 2 or more: e^(2x) - 1 = (e^x - 1)(e^x + 1))
+    us = [u for (u, cs) in groups if length(unique(cs)) >= 2 || abs(_numerator(only(unique(cs)))) >= 2]
+    isempty(us) && return nothing
+    reps = Dict{Sym,Tuple{Sym,BigInt}}()
+    used = ex
+    for u in _sort_by_name!(us)
+        q = reduce(lcm, (_denominator(c) for c in groups[u]); init = big(1))
+        # (a name ordered after the others: the factors led by them, y - e^(x/7))
+        k = 1
+        while has(used, Sym(Symbol("ω_e", k)))
+            k += 1
+        end
+        t = Sym(Symbol("ω_e", k))
+        used += t
+        reps[u] = (t, q)
+    end
+    function sw(w)
+        (c, u) = _exp_split(w)
+        haskey(reps, u) || return nothing
+        t, q = reps[u]
+        t^Sym(c * SymNumber(q))
+    end
+    h = _replace_walk(ex) do t
+        if t.kind == POW && t.args[1] === E
+            return sw(t.args[2])
+        elseif t.kind == MUL && any(b -> b === E, t.args)
+            fs = Sym[]
+            for (b, q) in zip(t.args, t.exps)
+                v = b === E ? sw(q) : nothing
+                push!(fs, v === nothing ? b^q : v)
+            end
+            return Sym(t.num) * prod(fs)
+        end
+        nothing
+    end
+    any(u -> _has_epow_of(h, u), us) && return nothing      # (one not replaced)
+    f = _factor_sym(h; gcd_method)
+    _eq(f, h) && return nothing
+    subs(f, [t => exp(u / Sym(q)) for (u, (t, q)) in reps]...)
+end
+_has_epow_of(e::Sym, u::Sym) = _has_node(e, t -> t.kind == POW && t.args[1] === E && _eq(_exp_split(t.args[2])[2], u))
 
 # irreducible factors of a squarefree, primitive, positive polynomial
 function _factor_sqfree(q::Poly{SymNumber})
