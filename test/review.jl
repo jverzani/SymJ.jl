@@ -619,3 +619,57 @@ end
     @test IL(factorial(n) / (s + a)^(n + 1), s, t) == t^n * exp(-a * t)
     @test IL(L(t^n * exp(-a * t), t, s), s, t) == t^n * exp(-a * t)
 end
+
+@testset "wrong answers (SymPy review, round 8)" begin
+    @syms phi x y k a
+    IM, PI = SymJ.IM, SymJ.PI
+    # exp(iφ) with bounds on φ is not a positive real (#20453)
+    as = (phi ≫ 0, phi ≪ 1)
+    @test refine(imag(exp(IM * phi)); assume = as) == sin(phi)
+    @test refine(abs(exp(IM * phi)); assume = as) == 1
+    @test !(refine(exp(IM * phi) ≫ 0; assume = as) isa Bool)
+    @test SymJ._isreal(IM * phi, SymJ._assumptions(as)) !== true
+    # inverse trig inequalities; acot jumps at 0 (#20755, #19977)
+    @test solve(acot(x) ≪ 0, x) == solve(x ≪ 0, x)
+    @test solve(atan(log(x)) ≫ 0, x) == solve(x ≫ 1, x)
+    @test SymJ._signs(acot(x), SymJ._assumptions((x ∈ ℝ,))) === nothing
+    # trig roots in every period of an assumed interval (#20798)
+    @test solve(cos(2x) ~ 1 // 2, x; assume = @assume(0 ≤ x ≤ 2PI)) == [PI / 6, 5PI / 6, 7PI / 6, 11PI / 6]
+    @test length(solve(sin(x) ~ 1 // 2, x; assume = @assume(0 ≤ x ≤ 4PI))) == 4
+    @test solve(cos(2x) ~ 1 // 2, x) == [PI / 6, 5PI / 6]
+    # a disguised zero: sign 0, floor 0 (log evaluated at the working precision; #20897, #20865)
+    L(n) = log(Sym(n))
+    z = 5L(5) / (-6L(6) - 5L(5) + 6L(2) + 6L(3)) + 1
+    @test sign(z) == 0
+    @test floor(z) == 0
+    s3 = sqrt(Sym(3)) + 1 - 1 / (sqrt(Sym(3)) / 2 - Sym(1) // 2)
+    @test ceil(s3) == 0
+    @test sign(log(Sym(2)) - 1) == -1
+    # Poly coefficients that are 0 are dropped (#20389, #20427)
+    @test degree(Poly(y * (x * (x + 1) - x^2 - x) + 1, y)) == 0
+    q = Sym(1) // 3
+    r = sqrt(Sym(9165)); u = (24201 + 253r)^q; D = 217603955769048 * u + 2273005839412 * r * u
+    c = -117968192370600 * Sym(18)^q / D - 15720318185 * Sym(2)^(2q) * Sym(3)^q * u^2 / D +
+        15720318185 * Sym(12)^q * u^2 / D + 117968192370600 * Sym(2)^q * Sym(3)^(2q) / D
+    @test degree(Poly(c * x + 1, x)) == 0
+    @test simplify(c) == 0
+    @test degree(Poly((sqrt(Sym(2)) - 1) * x + 1, x)) == 1
+    # a negative base: real only at integers (#19816); exact integer logs
+    @test solve((-2)^x ~ -8, x; assume = (x ∈ ℤ,)) == [3]
+    @test solve((-2)^x ~ 8, x; assume = (x ∈ ℤ,)) == Sym[]
+    @test solve(2^x ~ 8, x; assume = (x ∈ ℤ,)) == [3]
+    @test solve(Sym(3)^x ~ 5, x) == [log(Sym(5)) / log(Sym(3))]
+    # an equation free of the unknowns: conditions on the parameters (#19564)
+    r = solve([(k + 1)^2 - 4(k + 4) ~ 0, x^2 * (k + 4) + x * (k + 1) + 1 ~ 0], [x])
+    @test r isa SymJ.Cases
+    @test any(cv -> cv.first == Any[k ~ 5] && cv.second == [Dict(x => -Sym(1) // 3)], r)
+    @test any(cv -> cv.first == Any[k ~ -3] && cv.second == [Dict(x => Sym(1))], r)
+    # k = a, a + 1, … up to a non-integer bound (#19745)
+    @test SymJ.summation(x, x, 1, Sym(3) // 2) == 1
+    @test SymJ.summation(x, x, Sym(1) // 2, Sym(7) // 2) == 8
+    # a root at a parametric pole: a case (a = 0, where 0 is the pole)
+    r = solve(x^2 / (a + x) - 2 ~ 0, x)
+    @test r isa SymJ.Cases
+    @test any(cv -> cv.first == Any[a ~ 0] && cv.second == [Sym(2)], r)
+end
+

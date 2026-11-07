@@ -596,6 +596,24 @@ function _defined_roots(rs::AbstractVector, e::Sym, x::Sym, B::Assumptions)
             # through a cubic's radicals: no polynomial factors in the parameters to decide
             # (and cancel over them took minutes; SymPy #25920)
             _has_high_root(v) && continue
+            # with a radical of the parameters (a + x at x = 1 - √(2a + 1)): its zeros in a
+            # parameter, each a case (a = 0, where that root is the pole; SymPy #19722)
+            if _has_radical_of_symbols(v)
+                ps = _named(v)
+                if length(ps) == 1
+                    p = only(ps)
+                    zs = try _solve_generic(v ~ 0, p) catch err; err isa ArgumentError || rethrow(); nothing end
+                    if zs isa AbstractVector
+                        for ρ in zs
+                            (_hassymbol(ρ) || _isreal_const(ρ) === true) || continue
+                            w = try simplify(subs(v, p => ρ)) catch err; _isdivzero(err) || rethrow(); continue end
+                            iszero(w) || continue
+                            _decide(Relation(:ne, p, ρ), B) || return false
+                        end
+                        continue
+                    end
+                end
+            end
             all(f -> _decide(Relation(:ne, f, ZERO), B), _param_factors(cancel(v), (x,))) || return false
         end
         true

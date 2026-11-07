@@ -175,20 +175,48 @@ end
 # ends of the real domain (zeros of radicands and of log's arguments) and the poles; each
 # piece decided at a point, outside the real domain excluded (x/√(1 - x²) > 2; SymPy
 # #21173). nothing when not of that kind or the roots are not found.
+# (atan and acot too, of such arguments in turn, acot(u) as atan(1/u), with a jump where
+# u = 0: |acot x| on (-1, 1), atan(log x) > 0; SymPy #20755, #19977)
 function _solve_inequality_continuous(r::Relation, x::Sym, atoms)
-    e = r.lhs - r.rhs
+    acot2atan(t) = _replace_walk(t) do q
+        q.kind == FN && q.name === :acot && length(q.args) == 1 ? atan(1 / acot2atan(q.args[1])) : nothing
+    end
+    lhs, rhs = acot2atan(r.lhs), acot2atan(r.rhs)
+    e = lhs - rhs
+    function okexpr(u)
+        n, d = numer_denom(u)
+        as = Set{Sym}()
+        (_poly_atoms!(as, n) && _poly_atoms!(as, d)) || return false
+        all(ok, as)
+    end
     ok(a) = _eq(a, x) || !has(a, x) ||
         (a.kind == POW && a.args[2].kind == NUMBER && isexact(a.args[2].num) && _ispolyin(a.args[1], [x])) ||
-        (a.kind == FN && a.name in (:log, :exp, :cbrt) && length(a.args) == 1 && _ispolyin(a.args[1], [x]))
-    all(ok, atoms) || return nothing
-    rts = try _solve_eq(Relation(:eq, r.lhs, r.rhs), x) catch err; err isa ArgumentError || rethrow(); return nothing end
+        (a.kind == FN && a.name in (:log, :exp, :cbrt) && length(a.args) == 1 && _ispolyin(a.args[1], [x])) ||
+        (a.kind == FN && a.name in (:log, :exp, :cbrt, :atan) && length(a.args) == 1 && okexpr(a.args[1]))
+    n0, d0 = numer_denom(cancel(e))
+    as0 = Set{Sym}()
+    (_poly_atoms!(as0, n0) && _poly_atoms!(as0, d0) && all(ok, as0)) || return nothing
+    rts = try _solve_eq(Relation(:eq, lhs, rhs), x) catch err; err isa ArgumentError || rethrow(); return nothing end
     rts isa AbstractVector || return nothing
     pts = Sym[q for q in _real_roots(rts) if !_hassymbol(q)]
-    for a in atoms
-        u = a.kind == POW ? a.args[1] : a.kind == FN && a.name === :log ? a.args[1] : nothing
-        u === nothing && continue
-        has(u, x) || continue
-        append!(pts, [q for q in _real_roots(_solve_eq(u ~ 0, x)) if !_hassymbol(q)])
+    # the ends of the real domain and the jumps: zeros of radicands, of log's arguments, and
+    # of the denominators inside atan (1/x in acot x), at any depth
+    us = Sym[]
+    _replace_walk(e) do a
+        if a.kind == POW && has(a.args[1], x)
+            push!(us, a.args[1])
+        elseif a.kind == FN && a.name === :log && has(a.args[1], x)
+            push!(us, a.args[1])
+        elseif a.kind == FN && a.name === :atan && has(a.args[1], x)
+            d = numer_denom(a.args[1])[2]
+            has(d, x) && push!(us, d)
+        end
+        nothing
+    end
+    for u in unique(us)
+        zs = try _solve_eq(u ~ 0, x) catch err; err isa ArgumentError || rethrow(); return nothing end
+        zs isa AbstractVector || return nothing
+        append!(pts, [q for q in _real_roots(zs) if !_hassymbol(q)])
     end
     for b in unique(_zero_sets!(Sym[], e, x))
         zs = try _solve_eq(b ~ 0, x) catch err; err isa ArgumentError || rethrow(); continue end
