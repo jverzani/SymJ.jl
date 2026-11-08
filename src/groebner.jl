@@ -218,6 +218,7 @@ function _gspoly(f::_GP{C,W}, g::_GP{C,W}, pr::_GPair{W}, ctx) where {C,W}
 end
 
 const _GROEBNER_MAX_TERMS = 200_000
+const _GROEBNER_MAX_SECONDS = 120.0
 _gsize(h) = sum(_gcsize, h.c; init = 0)
 _gcsize(c) = c isa Poly ? length(c.monos) : c isa RatFun ? length(c.num.monos) + length(c.den.monos) : 1
 
@@ -235,7 +236,12 @@ function _buchberger(F::Vector{_GP{C,W}}, ctx::_GCtx{W}) where {C,W}
         push!(sug, maximum(m -> _gdeg(ctx, m), h.m))
         _gupdate!(G, B, length(polys), polys, sug, ctx)
     end
+    t0 = time()
     while !isempty(B)
+        # (and one that takes too long: reductions with ever larger coefficients, the term
+        # count small; a Lagrange system with √(1 - a²), √(1 - b²) ran past minutes, as in
+        # SymPy; #17960)
+        time() - t0 > _GROEBNER_MAX_SECONDS && throw(ArgumentError("groebner: the basis did not finish within $(Int(_GROEBNER_MAX_SECONDS)) s; the system is too large to solve exactly. Try fewer unknowns, numbers for parameters, or a numeric method"))
         best = 1
         for t in 2:length(B)
             (B[t].sugar, B[t].lk) < (B[best].sugar, B[best].lk) && (best = t)

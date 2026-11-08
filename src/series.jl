@@ -731,6 +731,39 @@ end
 Sym(s::SymSeries) = _add_many(vcat([_psexpr(s, s.ps)], [_pfactor(s, q) * _psexpr(s, q.p) for q in s.pcs]))
 (s::SymSeries)(args...; kws...) = Sym(s)(args...; kws...)
 
+# subs into a series: a parameter's value into the coefficients; x => c x^m (m > 0) about
+# 0, the series of the composition, its order m times as high (cos(x) with x => x²;
+# SymPy #19120). Other substitutions do not keep it a series about the point: an error
+# (Sym(s) is the truncated expression).
+function subs(s::SymSeries, ps::Pair...)
+    for p in ps
+        k, v = Sym(p.first), Sym(p.second)
+        if _eq(k, s.x)
+            s = _series_scale(s, v)
+        elseif !has(v, s.x)
+            sc(q::_PS) = _PS(q.e, Sym[subs(c, k => v) for c in q.c], q.o)
+            s = SymSeries(s.x, s.x0, sc(s.ps), s.n, _Piece[_Piece(sc(q.G), q.k, sc(q.H), sc(q.p)) for q in s.pcs])
+        else
+            throw(ArgumentError("subs: $k => $v does not keep the series a series in $(s.x); use subs(Sym(s), …) for the truncated expression"))
+        end
+    end
+    s
+end
+function _series_scale(s::SymSeries, v::Sym)
+    bad() = throw(ArgumentError("subs: a series about 0 takes $(s.x) => c*$(s.x)^m (m > 0); use subs(Sym(s), …) for the truncated expression"))
+    (s.x0 isa Sym && iszero(s.x0) && isempty(s.pcs)) || bad()
+    any(c -> has(c, _LOGT), s.ps.c) && bad()
+    m = v.kind == MUL ? sum((q for (b, q) in zip(v.args, v.exps) if _eq(b, s.x)); init = ZERO) :
+        v.kind == POW ? (_eq(v.args[1], s.x) ? v.args[2] : ZERO) : (_eq(v, s.x) ? ONE : ZERO)
+    (m.kind == NUMBER && isexact(m.num) && m.num > N0) || bad()
+    c = cancel(v / s.x^m)
+    has(c, s.x) && bad()
+    mr = Rational{Int}(_numerator(m.num), _denominator(m.num))
+    ps = _PS(s.ps.e .* mr, Sym[ci * c^Sym(SymNumber(e)) for (e, ci) in zip(s.ps.e, s.ps.c)],
+             s.ps.o == _INF ? _INF : s.ps.o * mr)
+    SymSeries(s.x, s.x0, ps, s.n * mr)
+end
+
 # a term as printed: the coefficient, then the power of (x - x0), not multiplied out
 # (multiplying would distribute the coefficient over x - x0)
 function _termstring(s::SymSeries, e::Rational{Int}, c::Sym)

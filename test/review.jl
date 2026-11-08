@@ -747,6 +747,29 @@ end
     @test any(==(Sym(1)), SymJ.LinearAlgebra.eigen(T).values)
 end
 
+@testset "crashes and hangs (SymPy review, round 9)" begin
+    @syms x y z d n
+    # subs and the simplify_* functions on a relation (#18412)
+    @test subs(x ~ y^3 + 1, y^3 => z) == (x ~ z + 1)
+    @test SymJ.simplify_powers(x^2 * x ~ 1) == (x^3 ~ 1)
+    # subs into a series: x => x^2 about 0, its order doubled; a parameter (#19120)
+    s = subs(series(cos(x), x, 0, 8), x => x^2)
+    @test Sym(s) == 1 - x^4 / 2 + x^8 / 24 - x^12 / 720
+    @test Sym(subs(series(exp(d * x), x, 0, 3), d => 2)) == 1 + 2x + 2x^2
+    @test_throws ArgumentError subs(series(cos(x), x, 0, 8), x => x + 1)
+    # refine of an Or of relations, and of a membership (#18389, #19145)
+    @test refine((n ≫ -1) | (n ≪ -5); assume = (n ≫ 0,)) == true
+    @test refine((n ~ 0) | (n ≧ 1)) isa SymJ.FactOr
+    @test refine(1 / (1 + d) ∈ ℤ; assume = (d ≫ 0,)) == false
+    @test refine(d ∈ ℤ; assume = (d ∈ ℤ,)) == true
+    # a root index past Int: the power as it is (#18526)
+    @test Sym(2)^(1 // big(10)^50) isa Sym
+    @test isapprox(Float64(N(Sym(2)^(1 // big(10)^50))), 1.0)
+    # an array of polynomials times a polynomial
+    p = SymJ.Poly(x + 1, x)
+    @test [p p] * SymJ.Poly(x - 1, x) == [SymJ.Poly(x^2 - 1, x) SymJ.Poly(x^2 - 1, x)]
+end
+
 @testset "wrong answers (SymPy review, round 9)" begin
     @syms n x y
     IM = SymJ.IM

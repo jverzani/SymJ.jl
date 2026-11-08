@@ -1035,6 +1035,22 @@ end
 # is e an integer?
 function _isinteger(e::Sym, A::Assumptions)::Union{Nothing,Bool}
     isempty(A.subst) || (e = expand(subs(e, A.subst...)))
+    r = _isinteger_form(e, A)
+    r === nothing || return r
+    # a real e between consecutive integers, n < e < n + 1 with n = floor(e) decided:
+    # not an integer (1/(1 + d) for d > 0; SymPy #19145)
+    if !_IN_ISINTEGER[] && _hassymbol(e) && _isreal(e, A) === true
+        n = with(() -> _refine(floor(e), A), _IN_ISINTEGER => true)
+        if n.kind == NUMBER && isexact(n.num)
+            m = _signs(expand(e - n), A)
+            m !== nothing && m & _ZER == 0 && return false
+        end
+    end
+    nothing
+end
+const _IN_ISINTEGER = ScopedValue(false)
+# from e's form: integer parts and integer powers of integers
+function _isinteger_form(e::Sym, A::Assumptions)::Union{Nothing,Bool}
     k = e.kind
     # (a float with an integer value is one: solve(x ~ 1.0, x; assume = (x ∈ ℤ,)) is
     # [1.0]; SymPy #23731)

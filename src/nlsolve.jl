@@ -132,7 +132,14 @@ function _solve_radical_system(eqs::Vector{<:Relation}, vars::Vector{Sym})
               (_hasfn(g, :cbrt) && any(v -> has(g, v), vars))
     any(e -> left(e.lhs - e.rhs), es) && return nothing
     append!(es, [Relation(:eq, w^q, R) for ((R, q, _), w) in zip(roots, ws)])
-    sols = try _solve_generic(es, [vars; ws]) catch err; err isa ArgumentError || rethrow(); return nothing end
+    sols = try
+        _solve_generic(es, [vars; ws])
+    catch err
+        err isa ArgumentError || rethrow()
+        # (a basis that did not finish: that reason, not "must be polynomial" after it)
+        occursin("did not finish", sprint(showerror, err)) && rethrow()
+        return nothing
+    end
     out = Dict{Sym,Sym}[]
     for sol in sols
         ok = all(zip(roots, ws)) do ((R, q, rl), w)
