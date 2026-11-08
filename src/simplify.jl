@@ -49,6 +49,29 @@ function refine(ex; assume = nothing)
     A = _assumptions(assume)
     _refine(Sym(ex), A === nothing ? Assumptions() : A)
 end
+# a membership, or a combination of facts: decided under the assumptions, else the parts
+# refined (refine((n = 0) | (n ≥ 1)) and refine(1/(1 + d) ∈ ℤ) were MethodErrors; SymPy
+# #18389, #19145)
+function refine(f::Union{FactAnd,FactOr,Membership}; assume = nothing)
+    A = _assumptions(assume)
+    A === nothing && (A = Assumptions())
+    if f isa Membership
+        v = _holds(f, A)
+        return v === nothing ? f : v
+    end
+    parts = Any[g isa Relation || g isa Membership || g isa FactAnd || g isa FactOr ? refine(g; assume) : g for g in f.facts]
+    if f isa FactOr
+        any(p -> p === true, parts) && return true
+        rest = Any[p for p in parts if p !== false]
+        isempty(rest) && return false
+        return length(rest) == 1 ? only(rest) : simplify(FactOr(rest); assume)
+    else
+        any(p -> p === false, parts) && return false
+        rest = Any[p for p in parts if p !== true]
+        isempty(rest) && return true
+        return length(rest) == 1 ? only(rest) : simplify(FactAnd(rest); assume)
+    end
+end
 function refine(r::Relation; assume = nothing)
     A = _assumptions(assume)
     A === nothing && (A = Assumptions())

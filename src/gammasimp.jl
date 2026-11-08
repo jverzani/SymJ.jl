@@ -210,3 +210,11 @@ function _gbinomials(e::Sym)
     e.kind == ADD && return Sym(e.num) + _add_many(Sym(c) * _gbinomials(t) for (c, t) in zip(e.coefs, e.args))
     _binomial_form(e)
 end
+
+# the simplify_* functions and subs on a relation: on each side (simplify_powers(x²x ~ 1)
+# and subs(x ~ y³, y³ => z) were MethodErrors; SymPy #18412)
+for f in (:simplify_gamma, :simplify_rational, :simplify_powers, :simplify_trig, :simplify_hyperbolic,
+          :simplify_log, :simplify_radicals)
+    @eval $f(r::Relation; kws...) = Relation(r.op, $f(r.lhs; kws...), $f(r.rhs; kws...))
+end
+subs(r::Relation, ps::Pair...) = Relation(r.op, subs(r.lhs, ps...), subs(r.rhs, ps...))

@@ -1028,3 +1028,8 @@ function Base.show(io::IO, p::Poly)
     print(io, ")")
 end
 Base.show(io::IO, ::MIME"text/plain", p::Poly) = show(io, p)
+
+# an array of polynomials times a polynomial, as a scalar: entry by entry ([p q] * r was a
+# MethodError in both orders; found in the review of SymPy #17941)
+Base.:*(A::AbstractArray{<:Poly}, p::Poly) = A .* p
+Base.:*(p::Poly, A::AbstractArray{<:Poly}) = p .* A

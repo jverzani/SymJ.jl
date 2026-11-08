@@ -503,6 +503,9 @@ end
 # n^(p/q) for an integer n > 1 and q > 1
 function _introot_pow(n::Integer, e::SymNumber)
     p, q = _numerator(e), _denominator(e)
+    # a root index past Int (2^(1/10^50)): no perfect power to find, the power as it is
+    # (Int(q) failed; SymPy #18526)
+    q > typemax(Int) && return _mkpow_node(Sym(SymNumber(n)), Sym(e))
     k, r = fldmod(p, q)
     coef = SymNumber(n)^k
     a, c = _extract_power(n, Int(q))
