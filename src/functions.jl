@@ -449,8 +449,21 @@ register_function!(:sign; julia = sign,
         a.kind == NUMBER && isexact(a.num) && return Sym(sign(a.num))
         _isfn(a, :sign) && return a
         v = _constant_float(a, _ -> 0.0)
-        v === nothing ? _odd(:sign, a) : Sym(Int(sign(v)))
+        v === nothing || return Sym(Int(sign(v)))
+        _exact_jump_value(a, ZERO) && return ZERO
+        _odd(:sign, a)
     end))
+
+# whether a constant within rounding of the jump n (one no precision separates) is n
+# exactly, by simplify (a disguised 0, 5log5/(6log2 + 6log3 - 5log5 - 6log6) + 1: sign 0,
+# floor 0; SymPy #20897, #20865)
+function _exact_jump_value(a::Sym, n::Sym)
+    _hassymbol(a) && return false
+    w = try _evalc(a) catch; return false end
+    (isfinite(w) && abs(w - ComplexF64(N(n))) <= 1e-10 * max(1, abs(w))) || return false
+    d = try simplify(a - n) catch err; err isa InterruptException && rethrow(); return false end
+    iszero(d)
+end
 
 # the jumps to stay away from: integers, or for round the half-integers
 for (f, g, jump) in ((:floor, floor, round), (:ceil, ceil, round), (:trunc, trunc, round),
@@ -475,6 +488,14 @@ for (f, g, jump) in ((:floor, floor, round), (:ceil, ceil, round), (:trunc, trun
             end
             v = _constant_float(a, jump)
             v === nothing || return Sym(SymNumber(g(BigInt, v)))
+            # (at a jump exactly: the integer itself, for floor, ceil, trunc)
+            if f !== :round && !_hassymbol(a)
+                w = try _evalc(a) catch; nothing end
+                if w isa Number && isfinite(w) && abs(imag(w)) < 1e-10
+                    n = Sym(SymNumber(round(BigInt, real(w))))
+                    _exact_jump_value(a, n) && return n
+                end
+            end
             # floor(u + r) = floor(u + r - n) + n for the integer part n of a rational r, so
             # that floor(z + 3/4) - floor(z - 1/4) is 1; ceil alike
             if f in (:floor, :ceil) && a.kind == ADD && isexact(a.num) && !_isint(a.num)

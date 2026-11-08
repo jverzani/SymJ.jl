@@ -749,14 +749,20 @@ end
 const _IN_EXTREMA = ScopedValue(false)
 const _PERIODIC_FNS = (:sin, :cos, :tan, :cot, :sec, :csc)
 # not differentiable everywhere: an extremum may sit where the derivative does not exist
+# (or not continuous: acot x = atan(1/x) jumps from -π/2 to π/2 at 0, with no critical
+# point and the limit 0 at ±∞, so it was taken to be positive; SymPy #20755)
 const _NONSMOOTH_FNS = (:abs, :sign, :floor, :ceil, :round, :trunc, :piecewise, :heaviside, :dirac,
-                        :max, :min, :mod, :rem, :real, :imag, :conj, :angle)
+                        :max, :min, :mod, :rem, :real, :imag, :conj, :angle,
+                        :acot, :acoth, :asec, :acsc, :asech, :acsch)
 
 function _sign_by_extrema(e::Sym, A::Assumptions)
     vs = _named(e)
     length(vs) == 1 || return nothing
     x = only(vs)
     (_has_fn(e, _PERIODIC_FNS) || _has_fn(e, _NONSMOOTH_FNS)) && return nothing
+    # (a real function only: i phi is not positive for 0 < phi < 1, though its real part
+    # 0 is never negative; SymPy #20453)
+    has(e, IM) && return nothing
     S = get(A.sets, x, nothing)
     if S === nothing
         get(A.dom, x, _CR) == _RR || return nothing          # real: the whole line
@@ -786,17 +792,17 @@ function _sign_by_extrema(e::Sym, A::Assumptions)
         end
         pts = Sym[r for r in rs if (w = N(r); abs(imag(w)) <= 1e-12 * max(1, abs(w)) && inside(Float64(real(w))))]
         exact = Sym[subs(e, x => r) for r in pts]          # values at the critical points
-        attained = Float64[Float64(real(N(v))) for v in exact]
+        attained = Float64[_real_value(v) for v in exact]
         bounds = Float64[]
         for (p, closed, dir, inf) in ((I.lo, I.lclosed, :+, -Inf), (I.hi, I.rclosed, :-, Inf))
             if p === nothing
                 v = limit(e, x => inf)
-                push!(bounds, Float64(real(N(v))))
+                push!(bounds, _real_value(v))
             elseif closed
                 push!(exact, subs(e, x => p))
-                push!(attained, Float64(real(N(exact[end]))))
+                push!(attained, _real_value(exact[end]))
             else
-                push!(bounds, Float64(real(N(limit(e, x => p; dir)))))
+                push!(bounds, _real_value(limit(e, x => p; dir)))
             end
         end
         all(isfinite, attained) || return nothing
@@ -812,6 +818,13 @@ function _sign_by_extrema(e::Sym, A::Assumptions)
         err isa InterruptException && rethrow()
     end
     nothing
+end
+
+# the value of a real constant as a float; an error (so no sign) when it is not real
+function _real_value(v)
+    w = ComplexF64(N(v))
+    abs(imag(w)) <= 1e-12 * max(1, abs(w)) || throw(ArgumentError("not real: $v"))
+    real(w)
 end
 
 function _known_nonzero(e::Sym, A::Assumptions)

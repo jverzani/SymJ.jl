@@ -139,6 +139,29 @@ function _solve_system_case(eqs::Vector{Relation}, vars::Vector{Sym}, B)
     for e in es, f in _param_factors(numer_denom(cancel(e.lhs - e.rhs))[2], vars)
         _decide(Relation(:ne, f, ZERO), B) || return Dict{Sym,Sym}[]
     end
+    # an equation free of the unknowns is a condition on the parameters: no solutions
+    # where it fails, and where it holds the parameter values it gives substituted, each
+    # a case ((k + 1)² = 4(k + 4) beside a quadratic in x: k = -3 and k = 5; as a
+    # coefficient field it was a nonzero constant, so no solutions; SymPy #19564)
+    for e in es
+        any(v -> has(e.lhs, v) || has(e.rhs, v), vars) && continue
+        g = numer_denom(cancel(e.lhs - e.rhs))[1]
+        iszero(g) && continue
+        _hassymbol(g) || return Dict{Sym,Sym}[]
+        # each factor decided: one linear in a parameter that vanishes is then substituted
+        # by the case itself (k = -3), so the equation is gone when the system is solved
+        # again; another's roots are the alternatives
+        for f in _param_factors(g, vars)
+            _decide(Relation(:ne, f, ZERO), B) && continue
+            ps = _degenerate_subst([f], B, vars)
+            ps === nothing && return Dict{Sym,Sym}[]
+            rest = Relation[q for q in es if q !== e]
+            return _alternatives(ps) do p
+                _solve_system_case(Relation[Relation(:eq, subs(q.lhs, p), subs(q.rhs, p)) for q in rest], vars, B)
+            end
+        end
+        return Dict{Sym,Sym}[]
+    end
     D = Sym[]
     sols = with(() -> _solve_generic(es, vars), _DIVISORS => D)
     for s in sols, v in vars

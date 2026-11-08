@@ -573,6 +573,13 @@ import PolyLog as PL
         @test RischIntegrate.integrate(abs(atan(1 / x)), (x, -1, 1)) == log(Sym(2)) + PI / 2
     end
 
+    @testset "wrong answers (SymPy review, round 8)" begin
+        # |acot x| over (-1, 1): acot jumps at 0, so the abs is kept (#20755)
+        @test RischIntegrate.integrate(abs(acot(x)), (x, -1, 1)) == log(Sym(2)) + PI / 2
+        @test RischIntegrate.integrate(abs(acot(x)), (x, -1, 0)) == log(Sym(2)) / 2 + PI / 4
+        @test RischIntegrate.integrate(abs(acot(x)), x) isa Sym
+    end
+
     @testset "asymptotic series at ±∞: exponential and oscillating factors" begin
         @syms y
         S(f, x0, n) = Sym(series(f, x, x0, n))

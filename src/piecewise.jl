@@ -717,8 +717,11 @@ function _breakpoints(e::Sym, x::Sym)
     function visit(n::Sym)
         if n.kind == FN && (haskey(_COND_RELS, n.name) || n.name === :heaviside) && has(n, x)
             u = haskey(_COND_RELS, n.name) ? n.args[1] - n.args[2] : n.args[1]
-            rs = try _solve_generic(u ~ 0, x) catch; (ok[] = false; Sym[]) end
-            rs isa AbstractVector || (ok[] = false; return)
+            rs = try _solve_generic(u ~ 0, x) catch; nothing end
+            # (no roots found: the ends of the set where u < 0, which has the jumps too:
+            # acot(x) < 0 for x < 0; SymPy #20755)
+            rs isa AbstractVector || (rs = _sign_change_points(u, x))
+            rs === nothing && (ok[] = false; return)
             for r in rs
                 (_hassymbol(r) || _isreal_const(r) === true) && !any(q -> iszero(expand(q - r)), out) && push!(out, r)
             end
@@ -731,6 +734,20 @@ function _breakpoints(e::Sym, x::Sym)
     (ok[] && !isempty(out)) || return nothing
     any(_hassymbol, out) && return length(out) == 1 ? out : nothing
     sort!(out; by = r -> real(_evalc(r)))
+end
+
+# the finite ends of the intervals where u < 0 (numbers), or nothing
+function _sign_change_points(u::Sym, x::Sym)
+    _hassymbol(subs(u, x => ZERO)) && return nothing
+    S = try _solve_inequality(Relation(:lt, u, ZERO), x) catch err
+        err isa InterruptException && rethrow()
+        return nothing
+    end
+    pts = Sym[]
+    for I in S.intervals, p in (I.lo, I.hi)
+        p === nothing || any(q -> _eq(q, p), pts) || push!(pts, p)
+    end
+    pts
 end
 
 # e with each piecewise and heaviside in x replaced by its value at x = p (a point

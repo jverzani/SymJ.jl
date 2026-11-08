@@ -23,7 +23,9 @@
 The sum of `f` over the integers `k = a, a+1, ..., b`, in closed form where one is found.
 `b` may be `Inf` (an infinite series, whose value is found as a limit, so it may be
 `Inf`, or by cases of a parameter); `a` and `b` may be expressions. Assumptions about the
-other symbols are given with `assume`, as for [`limit`](@ref).
+other symbols are given with `assume`, as for [`limit`](@ref). When `b - a` is a
+number that is not an integer, the terms are `k = a, a+1, …` up to `b`
+(`summation(k, k, 1, 3//2)` is 1).
 
 Polynomials in `k` are summed by Faulhaber's formula, hypergeometric terms (polynomials
 times `r^k`, factorials, binomials, rational functions that telescope) by Gosper's
@@ -56,6 +58,12 @@ function summation(f, k::Sym, a, b; assume = nothing)
         return _sum_parts(summation(g, k, 1, Inf; assume), summation(f, k, 0, Inf; assume))
     end
     a, bs = Sym(a), infb ? nothing : Sym(b)
+    # k = a, a + 1, … while k ≤ b: a bound b - a that is a non-integer number is
+    # a + floor(b - a) (Σ_{k=1}^{3/2} k = 1, not the closed form's 15/8; SymPy #19745)
+    if bs !== nothing
+        d = expand(bs - a)
+        d.kind == NUMBER && isexact(d.num) && !_isint(d.num) && (bs = a + floor(d))
+    end
     _summation(f, k, a, bs, assume)
 end
 

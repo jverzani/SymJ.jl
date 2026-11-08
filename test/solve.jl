@@ -103,7 +103,7 @@
     @test solve(exp(x) ~ 2, x) == [log(Sym(2))] && solve(log(x) ~ 2, x) == [exp(Sym(2))]
     @test solve(exp(x) ~ a, x) == [log(a)]
     @test solve(sqrt(x) ~ 3, x) == [Sym(9)] && solve(sqrt(x) ~ -1, x) == Sym[]
-    @test solve(2^x ~ 8, x) == [log(Sym(8)) / log(Sym(2))]
+    @test solve(2^x ~ 8, x) == [Sym(3)]                     # an exact integer log
     # powers of one exponential, also with integer bases that are powers of one integer
     @test solve(exp(2x) - 3exp(x) + 2 ~ 0, x) == [Sym(0), log(Sym(2))]
     @test solve(exp(x) + exp(-x) ~ 2, x) == [Sym(0)]

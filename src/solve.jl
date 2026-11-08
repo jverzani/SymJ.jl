@@ -29,7 +29,9 @@ differentiation; other derivatives of it are held as they are.
 An equation through `sin` or `cos` gives the solutions for its argument in `[0, 2π]`,
 each once: `cos(x) ~ 0` gives `[π/2, 3π/2]`, `sin(x) ~ -1//2` gives `[7π/6, 11π/6]`, and
 `cos(x) ~ 1` gives `[0, 2π]` (with the interval closed, 0 brings 2π). `tan(u) = r` gives
-`atan(r)`. An equation `c*floor(u) + d ~ 0` (or `ceil`) holds on intervals: its solution
+`atan(r)`. When the assumptions keep `x` in a bounded interval and the argument is
+linear in `x`, every solution in that interval is given (`cos(2x) ~ 1//2` with
+`0 ≤ x ≤ 2π`: four). An equation `c*floor(u) + d ~ 0` (or `ceil`) holds on intervals: its solution
 is a set, as for an inequality (`floor(x) ~ 2` gives `[2, 3)`).
 
 ```julia
@@ -1019,9 +1021,9 @@ function _invert(g::Sym, r::Sym, x::Sym)
             r.kind == NUMBER && !(_isN1(abs(r.num))) && return Tuple{Sym,Sym}[]
             throw(ArgumentError("solve: sign($t) = $r holds on a set of $x (an inequality in $t), not at points"))
         end
-        name === :sin && return [(t, a) for a in _one_period(asin(r), PI - asin(r))]
-        name === :cos && return [(t, a) for a in _one_period(acos(r), 2PI - acos(r))]
-        name === :tan && return [(t, atan(r))]
+        name === :sin && return [(t, a) for a in _periods_in_range(t, _one_period(asin(r), PI - asin(r)), 2PI, x)]
+        name === :cos && return [(t, a) for a in _periods_in_range(t, _one_period(acos(r), 2PI - acos(r)), 2PI, x)]
+        name === :tan && return [(t, a) for a in _periods_in_range(t, [atan(r)], PI, x)]
         name === :log && return [(t, exp(r))]
         name === :asin && return [(t, sin(r))]
         name === :acos && return [(t, cos(r))]
@@ -1038,7 +1040,20 @@ function _invert(g::Sym, r::Sym, x::Sym)
         b, e = g.args
         if !has(b, x)                                       # b^t = r: t = log(r)/log(b)
             iszero(r) && return Tuple{Sym,Sym}[]
-            return [(e, b === E ? log(r) : log(r) / log(b))]
+            # a negative base and a real t: b^t is real only at integers, where |b|^t = |r|
+            # and the parity gives r's sign ((-2)^x = -8 at x = 3; log(-8)/log(-2) is not
+            # real; SymPy #19816)
+            A = _SOLVE_ASSUME[]
+            if A !== nothing && b.kind == NUMBER && isexact(b.num) && b.num < N0 && r.kind == NUMBER &&
+               isexact(r.num) && _isreal(e, A) === true
+                n = log(abs(b), abs(r))
+                (n.kind == NUMBER && _isint(n.num)) || return Tuple{Sym,Sym}[]
+                return b^n == r ? [(e, n)] : Tuple{Sym,Sym}[]
+            end
+            # (log(b, r): an exact integer when there is one, log(8)/log(2) = 3)
+            b === E && return [(e, log(r))]
+            n = log(b, r)
+            return [(e, n.kind == NUMBER ? n : log(r) / log(b))]
         elseif !has(e, x) && e.kind == NUMBER && isexact(e.num)   # t^(p/q) = r
             return [(b, r^inv(e))]
         elseif !has(e, x)                                   # t^1.11 = r, t^a = r: the principal root
@@ -1051,6 +1066,37 @@ function _invert(g::Sym, r::Sym, x::Sym)
         end
     end
     throw(ArgumentError("solve: cannot invert $g for $x"))
+end
+
+# the angles as, of period P, of an argument t = k x + c (numbers), when the assumptions
+# keep x in a bounded interval: every angle a + nP that t takes there (cos(2x) = 1/2 on
+# [0, 2π]: π/6, 5π/6, 7π/6, 11π/6; the one period alone lost two; SymPy #20798); as
+# otherwise
+function _periods_in_range(t::Sym, as::Vector{Sym}, P::Sym, x::Sym)
+    A = _SOLVE_ASSUME[]
+    A === nothing && return as
+    S = get(A.sets, x, nothing)
+    (S === nothing || length(S.intervals) != 1) && return as
+    I = only(S.intervals)
+    (I.lo === nothing || I.hi === nothing || _hassymbol(I.lo) || _hassymbol(I.hi)) && return as
+    any(_hassymbol, as) && return as
+    k = diff(t, x)
+    (k.kind == NUMBER && !iszero(k.num)) || return as
+    c = expand(t - k * x)
+    _hassymbol(c) && return as
+    ends = sort([Float64(N(k * I.lo + c)), Float64(N(k * I.hi + c))])
+    p = Float64(N(P))
+    out = Sym[]
+    for a in as
+        av = Float64(N(a))
+        n1, n2 = ceil(Int, (ends[1] - av) / p - 1e-9), floor(Int, (ends[2] - av) / p + 1e-9)
+        n2 - n1 > 1000 && return as
+        for n in n1:n2
+            w = iszero(n) ? a : a + n * P
+            any(o -> isapprox(N(o), N(w); atol = 1e-12), out) || push!(out, w)
+        end
+    end
+    sort!(out; by = N)
 end
 
 # the angles of sin or cos in [0, 2π], each once (and 0 with 2π: cos(x) = 1 gives both)
