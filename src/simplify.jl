@@ -53,6 +53,14 @@ function refine(r::Relation; assume = nothing)
     A = _assumptions(assume)
     A === nothing && (A = Assumptions())
     l, rr = _refine(r.lhs, A), _refine(r.rhs, A)
+    # an infinite side: compared as it is, not through l - r (∞ - ∞ is NaN, so ∞ ≤ ∞ was
+    # false and ∞ = ∞ became NaN = NaN; SymPy #19245)
+    if _isinfpt(l) || _isinfpt(rr)
+        (_hassymbol(l) || _hassymbol(rr)) && return Relation(r.op, l, rr)
+        a, b = _evalc(l), _evalc(rr)
+        (isreal(a) && isreal(b)) || return r.op === :eq ? a == b : r.op === :ne ? a != b : Relation(r.op, l, rr)
+        return _REL_INFO[r.op][2](real(a), real(b))
+    end
     v = _holds(Relation(r.op, expand(l - rr), ZERO), A)
     v === nothing ? Relation(r.op, l, rr) : v
 end
