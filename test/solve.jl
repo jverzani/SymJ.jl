@@ -176,7 +176,8 @@
     @test solve([x + y + z ~ 1, x - z ~ 0], [x, y, z]) == [Dict(x => z, y => 1 - 2z, z => z)]
     @test solve([x + y ~ 1, x + y ~ 2], [x, y]) == Dict{Sym,Sym}[]
     @test solve([x + y ~ 1, 2x + 2y ~ 2], [x, y]) == [Dict(x => 1 - y, y => y)]
-    @test_throws ArgumentError solve([x + y ~ 1, x - y ~ 2], [x, y]; assume = (x ≫ 0,))   # not yet for systems
+    @test solve([x + y ~ 1, x - y ~ 2], [x, y]; assume = (x ≫ 0,)) == [Dict(x => Sym(3) // 2, y => -Sym(1) // 2)]
+    @test solve([x + y ~ 1, x - y ~ 2], [x, y]; assume = (x ≪ 0,)) == Dict{Sym,Sym}[]   # filtered
     @test solve((x + y ~ 3, x - y ~ 1), (x, y)) == [Dict(x => 2, y => 1)]       # tuples
     for (eqs, vs) in (([a * x + y ~ 1, x - y ~ b], [x, y]), ([a * x + b * y ~ 1, b * x - a * y ~ 0], [x, y]),
                       ([x / 2 + y / 3 ~ 1, x ~ y], [x, y]), ([x + y ~ sin(a), x - y ~ cos(a)], [x, y]),

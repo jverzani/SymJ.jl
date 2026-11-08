@@ -25,7 +25,9 @@ Coefficients may involve parameters. Where the solution divides by an expression
 them (a pivot of the elimination, a coefficient of the Gröbner basis, a denominator of
 a solution) that could vanish, the result is a `Cases` value, the case where it
 vanishes solved again with it substituted; a case that cannot be solved so holds an
-error. `assume` is not supported for systems yet.
+error. `assume` for a system states facts about parameters and unknowns: `x ∈ ℝ` makes
+`abs(x)`, `real(x)` real-valued (and keeps only real solutions), `x ≫ 0` keeps the
+solutions with `x > 0`; without it the unknowns are complex.
 
 ```julia
 solve([a*x + y ~ 1, x - y ~ 2], [x, y])
@@ -40,8 +42,16 @@ solve([x*y ~ 1, x + y ~ 3], [x, y])
 ```
 """
 function solve(eqs::AbstractVector{<:Relation}, vars::Union{AbstractVector,Tuple}; assume = nothing)
-    assume === nothing ||
-        throw(ArgumentError("solve: assumptions are not supported for systems yet; solve the system, then refine its solutions"))
+    # assumptions: about the unknowns, they choose the domain (x ∈ ℝ: abs(x) as ±x, real
+    # solutions only) and filter the solutions; about parameters, they decide cases
+    if assume !== nothing
+        A = _assumptions(assume)
+        A === nothing && (A = Assumptions())
+        vs = Sym[Sym(v) for v in vars]
+        r = with(() -> solve(eqs, vars), _SYSTEM_ASSUME => A)
+        keep(sols) = sols isa AbstractVector ? filter(s -> !(s isa AbstractDict) || _system_sol_ok(s, vs, A), sols) : sols
+        return r isa Cases ? _map_cases(keep, r) : keep(r)
+    end
     vars = Sym[Sym(v) for v in vars]
     all(_isnamed, vars) || return with(_NOT_PARAMS => unique!(reduce(vcat, map(_named, vars)))) do
         _solve_for_calls((es, vs, _) -> solve(es, vs), collect(Relation, eqs), vars)
@@ -49,9 +59,29 @@ function solve(eqs::AbstractVector{<:Relation}, vars::Union{AbstractVector,Tuple
     all(e -> e.op === :eq, eqs) || return _solve_ineq_system(eqs, vars)
     r = _solve_float_constants(eqs, vars)
     r === nothing || return r
-    _by_cases(Assumptions()) do B
+    A0 = _SYSTEM_ASSUME[]
+    _by_cases(A0 === nothing ? Assumptions() : A0) do B
         _solve_system_case(collect(Relation, eqs), vars, B)
     end
+end
+
+# a solution against the assumptions about the unknowns: a real one's value real, one in a
+# set within it (numbers only; one with symbols kept)
+function _system_sol_ok(s::AbstractDict, vars::Vector{Sym}, A)
+    for v in vars
+        w = get(s, v, v)
+        (_eq(w, v) || _hassymbol(w)) && continue
+        z = try _evalc(w) catch; continue end
+        if _isreal(v, A) === true
+            abs(imag(z)) > 1e-10 * max(1, abs(z)) && return false
+        end
+        S = get(A.sets, v, nothing)
+        if S !== nothing && abs(imag(z)) <= 1e-10 * max(1, abs(z))
+            inS = try w in S catch; true end
+            inS || return false
+        end
+    end
+    true
 end
 
 # floats among parameters: each float an opaque constant c, the system solved exactly in
