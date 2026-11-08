@@ -580,6 +580,21 @@ import PolyLog as PL
         @test RischIntegrate.integrate(abs(acot(x)), x) isa Sym
     end
 
+    @testset "missing cases (SymPy review, round 8)" begin
+        @syms t y
+        # dirac with pieces: the pieces' value at its point (#19962, #20872)
+        @test RischIntegrate.integrate(SymJ.dirac(t - 5) * SymJ.heaviside(t - 1), (t, 0, 10)) == 1
+        @test RischIntegrate.integrate(SymJ.piecewise((x ≧ 1 // 50, x ≦ 3 // 100) => 100 * SymJ.dirac(x - 1 // 40), true => 0),
+                                       (x, 1 // 50, 3 // 100)) == 100
+        # improper integrals: divergence, Γ moments (#20831, #20685, #20043)
+        @test RischIntegrate.integrate(exp(x) * exp(log(x)^2), (x, 1, Inf)) == Inf
+        @test RischIntegrate.integrate(exp(-x^3), (x, 0, Inf)) == SymJ.apply_function(:gamma, Sym[Sym(4) // 3])
+        @test isapprox(Float64(N(RischIntegrate.integrate(t * log(t)^2 * exp(-t), (t, 0, Inf)))), 0.8236806608528794; atol = 1e-12)
+        # floats in, floats out
+        r = RischIntegrate.integrate(-0.000425170068027211 * x / (0.000212585034013605 * x^2 - 1.0), x)
+        @test !SymJ._isexactex(r)
+    end
+
     @testset "asymptotic series at ±∞: exponential and oscillating factors" begin
         @syms y
         S(f, x0, n) = Sym(series(f, x, x0, n))

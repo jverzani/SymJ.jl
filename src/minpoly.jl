@@ -32,6 +32,13 @@ function minimal_polynomial(ex, x::Sym)
     _isnamed(x) || throw(ArgumentError("minimal_polynomial: $x is not a symbol"))
     e = Sym(ex)
     _hassymbol(e) && throw(ArgumentError("minimal_polynomial: $e has free symbols; it is not a number"))
+    # e^(iqπ), q rational: cos(qπ) + i sin(qπ), a root of unity (SymPy #19744)
+    e = _replace_walk(e) do t
+        t.kind == POW && t.args[1] === E || return nothing
+        q = cancel(t.args[2] / (IM * PI))
+        (q.kind == NUMBER && isexact(q.num)) || return nothing
+        cos(q * PI) + IM * sin(q * PI)
+    end
     _from_xcoeffs(_mp_normal(_mp(e)), x)
 end
 

@@ -58,13 +58,36 @@ function summation(f, k::Sym, a, b; assume = nothing)
         return _sum_parts(summation(g, k, 1, Inf; assume), summation(f, k, 0, Inf; assume))
     end
     a, bs = Sym(a), infb ? nothing : Sym(b)
+    # pieces, abs and signs of the summand settled on the range a ≤ k ≤ b, k an integer
+    # (k ≤ n holds for every term, |x + 9| = x + 9 from 7 on; SymPy #19687)
+    if _has_fn(f, (:piecewise, :abs, :sign, :heaviside, :max, :min))
+        A0 = _assumptions(assume)
+        A0 === nothing && (A0 = Assumptions())
+        facts = Any[k ∈ ℤ, Relation(:ge, k, a)]
+        bs === nothing || push!(facts, Relation(:le, k, bs))
+        B = try _with_fact(A0, FactAnd(facts)) catch err; err isa ArgumentError || rethrow(); nothing end
+        if B !== nothing && B !== A0
+            g = try _refine(f, B) catch err; err isa ArgumentError || rethrow(); f end
+            f = g
+        end
+    end
     # k = a, a + 1, … while k ≤ b: a bound b - a that is a non-integer number is
     # a + floor(b - a) (Σ_{k=1}^{3/2} k = 1, not the closed form's 15/8; SymPy #19745)
     if bs !== nothing
         d = expand(bs - a)
         d.kind == NUMBER && isexact(d.num) && !_isint(d.num) && (bs = a + floor(d))
     end
-    _summation(f, k, a, bs, assume)
+    r = _summation(f, k, a, bs, assume)
+    # an infinite series from a small positive integer left unevaluated: from 0, less the
+    # first terms (Σ_{k≥1} 2^k/k! = e² - 1; SymPy #20464)
+    if bs === nothing && r isa Sym && _hasfn(r, :Sum) && a.kind == NUMBER && _isint(a.num) && N1 <= a.num <= SymNumber(20)
+        r0 = try _summation(f, k, ZERO, nothing, assume) catch err; err isa ArgumentError || rethrow(); nothing end
+        if r0 isa Sym && !_hasfn(r0, :Sum)
+            head = try _direct_sum(f, k, 0, _toint(a.num) - 1) catch err; _isdivzero(err) || rethrow(); nothing end
+            head isa Sym && return simplify(r0 - head)
+        end
+    end
+    r
 end
 
 const _DIRECT_TERMS = 1000

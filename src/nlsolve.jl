@@ -18,6 +18,10 @@ function _solve_nonlinear(eqs::Vector{<:Relation}, vars::Vector{Sym})
     # = 0; SymPy #21908)
     stripped = Relation[_drop_exp_factors(e, vars) for e in eqs]
     any(i -> stripped[i] !== eqs[i], eachindex(eqs)) && return _solve_generic(stripped, vars)
+    # c₁ Π bᵢ^eᵢ = c₂ Π bⱼ^eⱼ in positive numbers: their logs, linear in the exponents
+    # (32·2^m·2^n = 4^n, 27·3^m = 3^(-n): m = -4, n = 1; SymPy #19587)
+    logged = Relation[something(_exp_products_logged(e, vars), e) for e in eqs]
+    any(i -> logged[i] !== eqs[i], eachindex(eqs)) && return _solve_generic(logged, vars)
     les = [_log_eq(e, vars) for e in eqs]
     if any(!isnothing, les)
         es = Relation[l === nothing ? e : l[1] for (e, l) in zip(eqs, les)]
@@ -711,3 +715,38 @@ function _drop_exp_factors(eq::Relation, vars::Vector{Sym})
     all(keep) && return eq
     Relation(:eq, Sym(g.num) * prod((b^p for (b, p, k) in zip(g.args, g.exps, keep) if k); init = ONE), ZERO)
 end
+
+# lhs - rhs as a - b with a, b positive products of positive numbers to powers with the
+# unknowns: log a = log b, expanded (linear when the exponents are); nothing otherwise
+function _exp_products_logged(eq::Relation, vars::Vector{Sym})
+    e = expand(eq.lhs - eq.rhs)
+    (e.kind == ADD && iszero(e.num) && length(e.args) == 2) || return nothing
+    (c1, t1), (c2, t2) = zip(e.coefs, e.args)
+    (c1 > N0) == (c2 > N0) && return nothing
+    # log of a positive rational with its prime powers apart: log 32 = 5 log 2
+    function lg(r)
+        r.kind == NUMBER && isexact(r.num) || return log(r)
+        out = ZERO
+        for (v, sg) in ((_numerator(r.num), 1), (_denominator(r.num), -1))
+            v == 1 && continue
+            p, k = _int_root_power(BigInt(v))
+            out += sg * k * log(Sym(SymNumber(p)))
+        end
+        out
+    end
+    function logof(c, t)
+        s = lg(Sym(abs(c)))
+        fs = t.kind == MUL ? collect(zip(t.args, t.exps)) : t.kind == POW ? [(t.args[1], t.args[2])] : [(t, ONE)]
+        t.kind == MUL && (s += lg(Sym(t.num)))
+        for (b, q) in fs
+            (b.kind == NUMBER && isexact(b.num) && b.num > N0) || return nothing
+            s += q * lg(b)
+        end
+        s
+    end
+    any(v -> has(t1, v), vars) && any(v -> has(t2, v), vars) || return nothing
+    l1, l2 = logof(c1, t1), logof(c2, t2)
+    (l1 === nothing || l2 === nothing) && return nothing
+    Relation(:eq, expand(l1 - l2), ZERO)
+end
+

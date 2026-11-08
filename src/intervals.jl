@@ -141,6 +141,12 @@ _real_roots(rs) = filter(r -> (v = try _evalc(r) catch; return false end; abs(im
 
 function _solve_inequality(r::Relation, x::Sym)
     e = r.lhs - r.rhs
+    # a piecewise function of x: piece by piece, each on its condition's set less the
+    # earlier ones' (piecewise(x > 10 => 1, x ≤ 10 => 0) > 0 is x > 10; SymPy #19718)
+    if _has_fn(e, (:piecewise, :abs, :sign, :max, :min, :heaviside))
+        S = _solve_inequality_pieces(r, x)
+        S === nothing || return S
+    end
     n, d = numer_denom(cancel(e))
     for e in (n, d), s in free_symbols(e) ∪ free_parameters(e)
         _eq(s, x) || throw(ArgumentError("solve: inequalities with other symbols or parameters are not supported yet"))
@@ -168,6 +174,50 @@ function _solve_inequality(r::Relation, x::Sym)
         val = rc(x => w)
         val isa Bool ? val : false
     end) |> S -> SymSet(S.intervals, x)
+end
+
+function _solve_inequality_pieces(r::Relation, x::Sym)
+    e = r.lhs - r.rhs
+    _hasfn(e, :piecewise) || (e = piecewise(e))           # |x|, sign, max, min as pieces
+    pw = try piecewise_fold(e, x) catch err; err isa ArgumentError || rethrow(); return nothing end
+    (pw.kind == FN && pw.name === :piecewise) || return nothing
+    reals = SymSet([SymInterval(nothing, nothing, false, false)])
+    function cond_set(c::Sym)
+        c == ONE && return reals
+        c == ZERO && return SymSet(SymInterval[])
+        if c.kind == FN && haskey(_COND_RELS, c.name)
+            q = _relation_of(c)
+            q.op === :eq && return SymSet(_set_from(_real_roots(_solve_eq(q.lhs - q.rhs ~ 0, x)), (v, atpoint) -> atpoint).intervals)
+            q.op === :ne && return setdiff(reals, cond_set(_mkfn_node(:eq, Sym[q.lhs, q.rhs])))
+            return _solve_inequality(Relation(q.op, q.lhs, q.rhs), x)
+        elseif c.kind == FN && c.name in (:And, :Or)
+            ss = map(cond_set, c.args)
+            return reduce(c.name === :And ? intersect : union, ss)
+        elseif c.kind == FN && c.name === :Not
+            return setdiff(reals, cond_set(only(c.args)))
+        end
+        throw(ArgumentError("solve: the condition $c is not supported"))
+    end
+    covered = SymSet(SymInterval[])
+    out = SymSet(SymInterval[])
+    try
+        for (c, v) in _pieces(pw)
+            Sc = setdiff(cond_set(c), covered)
+            covered = union(covered, Sc)
+            isempty(Sc) && continue
+            Sv = if has(v, x)
+                _solve_inequality(Relation(r.op, v, ZERO), x)
+            else
+                d = _decide(Relation(r.op, v, ZERO))
+                d === true ? reals : d === false ? SymSet(SymInterval[]) : return nothing
+            end
+            out = union(out, intersect(Sc, Sv))
+        end
+    catch err
+        err isa ArgumentError || rethrow()
+        return nothing
+    end
+    SymSet(out.intervals, x)
 end
 
 # an inequality in radicals, logs and exponentials of x (no periodic functions, so the

@@ -719,6 +719,14 @@ function _simplify(e::Sym, A::Assumptions)
     _has_fn(e, (:erfc,)) && consider(_erfc_to_erf)
     # conj(w) w = abs(w)^2
     _has_fn(e, (:conj,)) && consider(_conj_pairs_to_abs)
+    # |u| sign(u) = u; |u|^m u^(2k) = |u|^(m + 2k) for real u (SymPy #20402, #19484, #20108)
+    _has_fn(e, (:abs,)) && consider(x -> _abs_sign_pairs(x, A))
+    # Σ_a^b f - Σ_a^c f with b - c a small integer: the terms between (SymPy #19685)
+    _has_fn(e, (:Sum,)) && consider(_combine_sums)
+    # fractional powers of one base as powers of t = b^(1/q), cancelled as a rational
+    # function of t, when smaller: (x - 1)/(√x - 1) = √x + 1 (cancel keeps such powers
+    # independent; SymPy #19769)
+    consider(_cancel_in_roots)
     # under a root, 1 ± cos(u) = 2cos²(u/2), 2sin²(u/2): √((1 + cos x)/2) = cos(x/2) for 0 < x < π
     # W(u) exp(W(u)) = u, on every branch
     _has_fn(e, (:lambertw,)) && consider(_lambertw_pairs)
@@ -924,6 +932,9 @@ function _simplify_const(e::Sym, A::Assumptions)
         x = try expand(e) catch err; err isa InterruptException && rethrow(); e end
         _nodes(x) < _nodes(e) && (e = x)
     end
+    # √(a + bi) with a² + b² a square and rational parts: √(3 + 4i) = 2 + i (SymPy #20024)
+    c = _complex_sqrt_denest(e)
+    _nodes(c) < _nodes(e) && (e = c)
     best = e
     # (trigonometric and hyperbolic too: cos(2)² + sin(2)² is 1, SymPy #25705; and over
     # a common denominator, log(5)/log(10) + log(2)/log(10) is 1, #25860)
@@ -1920,3 +1931,144 @@ function _exp_log_powers(e::Sym)
         isone(out) ? nothing : out * exp(rest)
     end
 end
+
+# in each product, |u|^p sign(u)^q (p, q positive integers, q odd) as |u|^(p-1) u
+# sign(u)^(q-1), and for real u, u^(2k) beside |u|^m as |u|^(m + 2k)
+function _abs_sign_pairs(e::Sym, A::Assumptions)
+    isempty(e.args) && return e
+    e = _rebuild_node(e, Sym[_abs_sign_pairs(a, A) for a in e.args])
+    e.kind == MUL || return e
+    bs, ps = collect(e.args), collect(e.exps)
+    posint(q) = q.kind == NUMBER && isexact(q.num) && _isint(q.num) && q.num > N0
+    changed = false
+    for i in eachindex(bs)
+        b = bs[i]
+        (b.kind == FN && b.name === :abs && length(b.args) == 1) || continue
+        u = b.args[1]
+        j = findfirst(j -> j != i && bs[j].kind == FN && bs[j].name === :sign && length(bs[j].args) == 1 &&
+                           _eq(bs[j].args[1], u) && posint(ps[j]) && isodd(_toint(ps[j].num)) && posint(ps[i]), eachindex(bs))
+        if j !== nothing
+            ps[i] -= 1; ps[j] -= 1
+            push!(bs, u); push!(ps, ONE)
+            changed = true
+            continue
+        end
+        _isreal(u, A) === true || continue
+        k = findfirst(k -> k != i && _eq(bs[k], u) && ps[k].kind == NUMBER && isexact(ps[k].num) &&
+                           _isint(ps[k].num) && iseven(_toint(ps[k].num)), eachindex(bs))
+        if k !== nothing && ps[i].kind == NUMBER
+            ps[i] += ps[k]; ps[k] = ZERO
+            changed = true
+        end
+    end
+    changed || return e
+    Sym(e.num) * prod((b^p for (b, p) in zip(bs, ps)); init = ONE)
+end
+
+# each square root of a + bi (a, b rational, b ≠ 0) as x + iy when x = √((r + a)/2) and
+# y = sign(b)√((r - a)/2), r = √(a² + b²), are rational: the principal root
+function _complex_sqrt_denest(e::Sym)
+    _replace_walk(e) do t
+        if t.kind == POW && t.args[2].kind == NUMBER && t.args[2].num == SymNumber(1 // 2)
+            r = _csqrt_parts(t.args[1])
+            return r === nothing ? nothing : r
+        elseif t.kind == MUL
+            changed = false
+            fs = Sym[]
+            for (b, q) in zip(t.args, t.exps)
+                if q.kind == NUMBER && isexact(q.num) && _denominator(q.num) == 2 && (r = _csqrt_parts(b)) !== nothing
+                    push!(fs, r^(Sym(_numerator(q.num))))
+                    changed = true
+                else
+                    push!(fs, b^q)
+                end
+            end
+            return changed ? Sym(t.num) * prod(fs) : nothing
+        end
+        nothing
+    end
+end
+function _csqrt_parts(z::Sym)
+    has(z, IM) && !_hassymbol(z) || return nothing
+    a, b = real(z), imag(z)
+    (a.kind == NUMBER && b.kind == NUMBER && isexact(a.num) && isexact(b.num) && !iszero(b.num)) || return nothing
+    r = sqrt(a^2 + b^2)
+    r.kind == NUMBER || return nothing
+    x, y = sqrt((r + a) / 2), sqrt((r - a) / 2)
+    (x.kind == NUMBER && y.kind == NUMBER) || return nothing
+    x + IM * (b.num > N0 ? y : -y)
+end
+
+function _cancel_in_roots(e::Sym)
+    exps = Dict{Sym,Vector{SymNumber}}()
+    note(b, q) = (_hassymbol(b) && q.kind == NUMBER && isexact(q.num) && push!(get!(exps, b, SymNumber[]), q.num); nothing)
+    _replace_walk(e) do t
+        if t.kind == POW
+            note(t.args[1], t.args[2])
+        elseif t.kind == MUL
+            foreach(note, t.args, t.exps)
+        end
+        nothing
+    end
+    bs = [b for (b, qs) in exps if any(q -> !_isint(q), qs)]
+    length(bs) == 1 || return nothing
+    b = only(bs)
+    has(e, b) || return nothing
+    q = reduce(lcm, (_denominator(r) for r in exps[b]); init = big(1))
+    t = _fresh_dummy(e)
+    intpow(v) = (w = v * SymNumber(q); t^Sym(SymNumber(_numerator(w))))      # (an integer exponent)
+    # (the walk is bottom-up: a base b is already t^q when its power is reached)
+    tq = t^Sym(q)
+    isb(base) = _eq(base, b) || _eq(base, tq)
+    sw(base, r) = (isb(base) && r.kind == NUMBER && isexact(r.num)) ? intpow(r.num) : nothing
+    h = _replace_walk(e) do u
+        _eq(u, b) && return tq
+        if u.kind == POW
+            return sw(u.args...)
+        elseif u.kind == MUL && any(isb, u.args)
+            return Sym(u.num) * prod((something(sw(a, r), a^r) for (a, r) in zip(u.args, u.exps)); init = ONE)
+        end
+        nothing
+    end
+    (has(h, b) || _has_node(h, u -> u.kind == POW && _eq(u.args[1], tq))) && return nothing                       # b still inside another way
+    c = cancel(h)
+    subs(c, t => b^(1 / Sym(q)))
+end
+
+# in a sum, c Sum(f, k, a, b) - c Sum(f, k, a', b') with the same f and k, and a = a',
+# b - b' an integer d (|d| ≤ 20), as c times the terms k = b' + 1, …, b (or with b = b',
+# the terms a, …, a' - 1); throughout e
+function _combine_sums(e::Sym)
+    isempty(e.args) && return e
+    e = _rebuild_node(e, Sym[_combine_sums(a) for a in e.args])
+    e.kind == ADD || return e
+    ts = [(Sym(c), t) for (c, t) in zip(e.coefs, e.args)]
+    issum(t) = t.kind == FN && t.name === :Sum && length(t.args) == 4
+    smallint(d) = d.kind == NUMBER && isexact(d.num) && _isint(d.num) && abs(d.num) <= SymNumber(20)
+    used = falses(length(ts))
+    out = Sym[]
+    for i in eachindex(ts), j in eachindex(ts)
+        (i < j && !used[i] && !used[j]) || continue
+        (ci, ti), (cj, tj) = ts[i], ts[j]
+        (issum(ti) && issum(tj) && iszero(ci + cj)) || continue
+        f, k, a, b = ti.args
+        g, k2, a2, b2 = tj.args
+        (_eq(f, subs(g, k2 => k))) || continue
+        part = nothing
+        if _eq(a, a2) && smallint(expand(b - b2))
+            d = _toint(expand(b - b2).num)
+            part = d >= 0 ? _add_many(subs(f, k => b2 + j2) for j2 in 1:d) :
+                            -_add_many(subs(f, k => b + j2) for j2 in 1:(-d))
+        elseif _eq(b, b2) && smallint(expand(a2 - a))
+            d = _toint(expand(a2 - a).num)
+            part = d >= 0 ? _add_many(subs(f, k => a + j2) for j2 in 0:(d - 1)) :
+                            -_add_many(subs(f, k => a2 + j2) for j2 in 0:(-d - 1))
+        end
+        part === nothing && continue
+        used[i] = used[j] = true
+        push!(out, ci * part)
+    end
+    any(used) || return e
+    Sym(e.num) + _add_many(c * t for (u, (c, t)) in zip(used, ts) if !u) + _add_many(out)
+end
+

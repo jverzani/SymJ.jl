@@ -404,6 +404,10 @@ end
 #     whole continuous. The breakpoints are real numbers, or one expression in parameters
 #     (heaviside(x - a)); others, which could not be ordered, are an error.
 function _integrate_pieces(e::Sym, x::Sym, integ)
+    # dirac inside a piece's value: by linearity, each such piece alone with the dirac
+    # outside (piecewise((x ≥ 1/50, x ≤ 3/100) => 100 dirac(x - 1/40), true => 0) is
+    # dirac(x - 1/40) times a piecewise; SymPy #20872)
+    _hasfn(e, :dirac) && (e = _dirac_out_of_pieces(e, x))
     # dirac inside a product with a sum: its terms apart (#27108)
     e.kind != ADD && _hasfn(e, :dirac) && (e = expand(e))
     terms = e.kind == ADD ? [Sym(c) * t for (c, t) in zip(e.coefs, e.args)] : [e]
@@ -665,17 +669,53 @@ function _integrate_dirac(t::Sym, x::Sym)
     k = length(d.args) == 2 ? _toint(d.args[2].num) : 0
     u = expand(d.args[1])
     g = cancel(t / d)
-    _haspieces(g, x) && return nothing
     m = expand(subs(u, x => ONE) - subs(u, x => ZERO))
     if !(m.kind == NUMBER && !iszero(m.num) && iszero(expand(u - m * x - subs(u, x => ZERO))))
-        k == 0 ? (return _integrate_dirac_roots(g, u, x)) : return nothing
+        (k == 0 && !_haspieces(g, x)) ? (return _integrate_dirac_roots(g, u, x)) : return nothing
     end
     a = expand(-subs(u, x => ZERO) / m)
+    # pieces beside the dirac: their value at its point, when that is no breakpoint (the
+    # pieces agree just left and right of it): dirac(t - 5) heaviside(t - 1) is
+    # dirac(t - 5) (SymPy #19962)
+    if _haspieces(g, x)
+        (k == 0 && a.kind == NUMBER && isexact(a.num)) || return nothing
+        δ = Sym(1 // 10^9)
+        gl, gr = _pieces_at(g, x, a - δ), _pieces_at(g, x, a + δ)
+        (gl === nothing || gr === nothing) && return nothing
+        iszero(expand(subs(gl, x => a) - subs(gr, x => a))) || return nothing
+        g = gr
+    end
     gk = g
     for _ in 1:k
         gk = diff(gk, x)
     end
     (-1)^k * subs(gk, x => a) / (m^k * abs(m)) * heaviside(x - a)
+end
+
+function _dirac_out_of_pieces(e::Sym, x::Sym)
+    _replace_walk(e) do t
+        (t.kind == FN && t.name === :piecewise && _hasfn(t, :dirac)) || return nothing
+        ps = _pieces(t)
+        out = ZERO
+        for (i, (c, v)) in enumerate(ps)
+            iszero(v) && continue
+            # piece i alone: the earlier conditions false, then c => v, else 0
+            prior = Pair{Sym,Sym}[ps[j][1] => ZERO for j in 1:(i - 1)]
+            dfac = nothing
+            if v.kind == FN && v.name === :dirac
+                dfac, w = v, ONE
+            elseif v.kind == MUL
+                j = findfirst(j -> v.args[j].kind == FN && v.args[j].name === :dirac && _isone(v.exps[j]), eachindex(v.args))
+                j === nothing || (dfac = v.args[j]; w = v / dfac)
+            end
+            if dfac === nothing
+                out += piecewise(prior..., c => v, true => ZERO)
+            else
+                out += dfac * piecewise(prior..., c => w, true => ZERO)
+            end
+        end
+        out
+    end
 end
 
 # ∫ g(x) dirac(u(x)) dx = Σ g(r)/|u′(r)| heaviside(x - r) over the real roots r of u, all
