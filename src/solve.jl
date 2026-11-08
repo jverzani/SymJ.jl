@@ -24,11 +24,11 @@ vector. A solution must be in the equation's domain: `(x^2 - 1)/(x - 1) ~ 2` has
 though cancelling gives `x + 1 = 2`. For a system, `solve([eqs...], [vars...])`, giving a vector of `Dict`s;
 mixing the forms (`solve(eq, [x])`, `solve([eq], x)`) is an error. An unknown may also
 be a function call or a derivative (`u(x)`, `diff(u(x), x)`), as in implicit
-differentiation; other derivatives of it are held as they are. In a system, `abs` of an
-unknown takes it to be real (`[I*R ~ 220, abs(I) ~ 2]` gives `I = ±2`); for a complex
-unknown write its modulus as `norm(I)`, or use `real(I)` and `imag(I)`: the system is
-then solved through the unknowns' real and imaginary parts, a family of solutions
-written with the free parts (`R_im`).
+differentiation; other derivatives of it are held as they are. In a system, `abs`,
+`real`, `imag` and `conj` of the unknowns are solved over the complex numbers, through
+each unknown's real and imaginary parts (`[I*R ~ 220, abs(I) ~ 2]`: a family written
+with a free part such as `R_im`); with the unknowns assumed real (`assume = (I ∈ ℝ,)`),
+`abs` is `±` its argument and only real solutions are kept (`I = ±2`).
 
 An equation through `sin` or `cos` gives the solutions for its argument in `[0, 2π]`,
 each once: `cos(x) ~ 0` gives `[π/2, 3π/2]`, `sin(x) ~ -1//2` gives `[7π/6, 11π/6]`, and

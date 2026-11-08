@@ -342,7 +342,7 @@ end
     # x through s² + x² only (#24418)
     @test length(solve(-5t^2 - 5x^2 + 5log(t^2 + x^2) + 7 ~ 0, t)) == 4
     # abs and square roots in systems (#24189, #24868)
-    @test solve([abs(x) + abs(y) ~ 2, x - y ~ 1], [x, y]) == [Dict(x => Sym(3) / 2, y => Sym(1) / 2), Dict(x => -Sym(1) / 2, y => -Sym(3) / 2)]
+    @test solve([abs(x) + abs(y) ~ 2, x - y ~ 1], [x, y]; assume = (x ∈ ℝ, y ∈ ℝ)) == [Dict(x => Sym(3) / 2, y => Sym(1) / 2), Dict(x => -Sym(1) / 2, y => -Sym(3) / 2)]
     f = sqrt((x + 1)^2 + (y - 1)^2 + (z + 1)^2)
     g = x^2 + y^2 + z^2 - 9
     @syms l
@@ -767,11 +767,14 @@ end
     yi = Sym(:y_im)
     @test all(s -> iszero(simplify(subs(s[x] * s[y] - 220, yi => 7))), r)
     @test all(s -> iszero(simplify(subs(real(s[x]), yi => 7) - 2)), r)
-    # abs in a system: the unknown real; norm: its modulus as a complex number
+    # abs in a system: over ℂ (a family), or with the unknowns assumed real (±2)
     @syms I2 R2
-    @test solve([I2 * R2 ~ 220, abs(I2) ~ 2], [I2, R2]) == [Dict(I2 => Sym(2), R2 => Sym(110)), Dict(I2 => Sym(-2), R2 => Sym(-110))]
-    @test SymJ.LinearAlgebra.norm(Sym(3) + 4IM) == 5
-    @test length(solve([I2 * R2 ~ 220, SymJ.LinearAlgebra.norm(I2) ~ 2], [I2, R2])) == 2
-    @test has(first(solve([I2 * R2 ~ 220, SymJ.LinearAlgebra.norm(I2) ~ 2], [I2, R2]))[I2], Sym(:R2_im))
+    @test solve([I2 * R2 ~ 220, abs(I2) ~ 2], [I2, R2]; assume = (I2 ∈ ℝ, R2 ∈ ℝ)) == [Dict(I2 => Sym(2), R2 => Sym(110)), Dict(I2 => Sym(-2), R2 => Sym(-110))]
+    r = solve([I2 * R2 ~ 220, abs(I2) ~ 2], [I2, R2])
+    @test length(r) == 2
+    @test any(s -> has(s[I2], IM), r)
+    # assumptions on the unknowns filter the solutions
+    @test solve([x^2 ~ 4, y ~ x], [x, y]; assume = (x ≫ 0,)) == [Dict(x => Sym(2), y => Sym(2))]
+    @test length(solve([x^2 ~ -4, y ~ x], [x, y]; assume = (x ∈ ℝ,))) == 0
 end
 

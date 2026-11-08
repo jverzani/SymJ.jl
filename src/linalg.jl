@@ -1394,8 +1394,3 @@ function LinearAlgebra.isposdef(A::AbstractMatrix{Sym})
     true
 end
 LinearAlgebra.isposdef(A::LinearAlgebra.Hermitian{Sym}) = LinearAlgebra.isposdef(Matrix(A))
-
-# the modulus of an expression through its real and imaginary parts, √(re² + im²): for a
-# complex unknown in solve, where abs takes it to be real (|z| = 2 in a system gives
-# z = ±2, norm(z) = 2 the circle z = a + bi, a² + b² = 4)
-LinearAlgebra.norm(x::Sym) = sqrt(real(x)^2 + imag(x)^2)

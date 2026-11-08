@@ -30,9 +30,10 @@ function _solve_nonlinear(eqs::Vector{<:Relation}, vars::Vector{Sym})
         sols isa AbstractVector || return sols
         return filter(s -> all(A -> (a = try subs(A, s...) catch; return false end; !_vanishes(a)), As), sols)
     end
-    # real, imag, conj of the unknowns: each unknown u as a + bi, a and b real, every
-    # equation's real and imaginary parts (x y = 220, re x = 2: a family in im x; it was
-    # no solution; SymPy #19349)
+    # real, imag, conj, abs of expressions in the unknowns: each unknown u as a + bi, a and
+    # b real (b = 0 for one assumed real), every equation's real and imaginary parts
+    # (x y = 220, re x = 2: a family; it was no solution; SymPy #19349). abs with its
+    # unknowns all assumed real: the abs path below
     r = _solve_complex_parts(eqs, vars)
     r === nothing || return r
     r = _solve_abs_system(eqs, vars)
@@ -49,8 +50,8 @@ function _solve_nonlinear(eqs::Vector{<:Relation}, vars::Vector{Sym})
     end
 end
 
-# |u| in the equations, u with unknowns: the unknowns taken to be real (|u| of complex
-# unknowns gives no finite set of solutions), the system with |u| = u where u ≥ 0 and
+# |u| in the equations, u with unknowns assumed real (complex ones go through their real
+# and imaginary parts, above), the system with |u| = u where u ≥ 0 and
 # |u| = -u where u ≤ 0, the real solutions kept that fall in their case (|x| + |y| = 2,
 # x - y = 1; SymPy #24189). nothing when there is no such |u|.
 function _solve_abs_system(eqs::Vector{<:Relation}, vars::Vector{Sym})
@@ -149,6 +150,9 @@ function _solve_radical_system(eqs::Vector{<:Relation}, vars::Vector{Sym})
         end
         ok || continue
         d = Dict{Sym,Sym}(v => sol[v] for v in vars)
+        # (a family in a radical's own unknown w, free: not a solution in the unknowns;
+        # that w would leak into the answer)
+        any(v -> any(w -> has(d[v], w), ws), vars) && return nothing
         any(o -> all(v -> _eq(o[v], d[v]), vars), out) || push!(out, d)
     end
     out
@@ -756,31 +760,44 @@ function _exp_products_logged(eq::Relation, vars::Vector{Sym})
 end
 
 function _solve_complex_parts(eqs::Vector{<:Relation}, vars::Vector{Sym})
-    parted(t) = t.kind == FN && t.name in (:real, :imag, :conj) && length(t.args) == 1 && any(v -> has(t.args[1], v), vars)
+    parted(t) = t.kind == FN && t.name in (:real, :imag, :conj, :abs) && length(t.args) == 1 && any(v -> has(t.args[1], v), vars)
     any(eq -> _has_node(eq.lhs - eq.rhs, parted), eqs) || return nothing
-    # (only real, imag, conj of an unknown itself; of other expressions, not taken apart)
-    any(eq -> _has_node(eq.lhs - eq.rhs, t -> parted(t) && !any(v -> _eq(t.args[1], v), vars)), eqs) && return nothing
+    A = _SYSTEM_ASSUME[]
+    realv(v) = A !== nothing && _isreal(v, A) === true
+    # every unknown in them assumed real, and an abs: the real abs path (|u| = ±u)
+    inside = unique!(Sym[v for eq in eqs for v in vars if _has_node(eq.lhs - eq.rhs, t -> parted(t) && has(t.args[1], v))])
+    all(realv, inside) && any(eq -> _has_node(eq.lhs - eq.rhs, t -> parted(t) && t.name === :abs), eqs) && return nothing
     re = Dict{Sym,Sym}(v => Sym(Symbol(v.name, "_re")) for v in vars)
-    im = Dict{Sym,Sym}(v => Sym(Symbol(v.name, "_im")) for v in vars)
+    im = Dict{Sym,Sym}(v => realv(v) ? ZERO : Sym(Symbol(v.name, "_im")) for v in vars)
     parts = Sym[]
-    foreach(v -> push!(parts, re[v], im[v]), vars)
+    foreach(v -> (push!(parts, re[v]); realv(v) || push!(parts, im[v])), vars)
+    split(e) = (e = expand(subs(e, (v => re[v] + IM * im[v] for v in vars)...));
+                a = expand(subs(e, IM => ZERO)); b = expand((e - a) / IM);
+                (has(a, IM) || has(b, IM)) ? nothing : (a, b))
     reqs = Relation[]
     for eq in eqs
-        e = eq.lhs - eq.rhs
-        e = _replace_walk(e) do t
+        failed = false
+        # (the walk is bottom-up: an inner real(u) is already a real expression in the parts)
+        e = _replace_walk(eq.lhs - eq.rhs) do t
             parted(t) || return nothing
-            v = t.args[1]
-            t.name === :real ? re[v] : t.name === :imag ? im[v] : re[v] - IM * im[v]
+            ab = split(t.args[1])
+            ab === nothing && (failed = true; return nothing)
+            a, b = ab
+            t.name === :real ? a : t.name === :imag ? b : t.name === :conj ? a - IM * b : sqrt(a^2 + b^2)
         end
-        e = expand(subs(e, (v => re[v] + IM * im[v] for v in vars)...))
-        # IM only as a coefficient (after expand, linearly): e = A + i B
-        A = expand(subs(e, IM => ZERO))
-        B = expand((e - A) / IM)
-        (has(A, IM) || has(B, IM)) && return nothing
-        iszero(A) || push!(reqs, Relation(:eq, A, ZERO))
-        iszero(B) || push!(reqs, Relation(:eq, B, ZERO))
+        failed && return nothing
+        ab = split(e)
+        ab === nothing && return nothing
+        A_, B_ = ab
+        iszero(A_) || push!(reqs, Relation(:eq, A_, ZERO))
+        iszero(B_) || push!(reqs, Relation(:eq, B_, ZERO))
     end
-    sols = _solve_generic(reqs, parts)
+    sols = try
+        _solve_generic(reqs, parts)
+    catch err
+        err isa ArgumentError || rethrow()
+        throw(ArgumentError("solve: the system was solved over the complex numbers (through the real and imaginary parts of $(join(vars, ", "))), and its solutions were not found there; for the real solutions, assume the unknowns real: assume = ($(join(("$v ∈ ℝ" for v in vars), ", "))$(length(vars) == 1 ? "," : ""))"))
+    end
     sols isa AbstractVector || return nothing
     out = Dict{Sym,Sym}[]
     for s in sols
@@ -793,8 +810,11 @@ function _solve_complex_parts(eqs::Vector{<:Relation}, vars::Vector{Sym})
             abs(imag(v)) > 1e-12 * max(1, abs(v)) && (bad = true; break)
         end
         bad && continue
-        push!(out, Dict{Sym,Sym}(v => simplify(get(s, re[v], re[v]) + IM * get(s, im[v], im[v])) for v in vars))
+        push!(out, Dict{Sym,Sym}(v => simplify(get(s, re[v], re[v]) + IM * (iszero(im[v]) ? ZERO : get(s, im[v], im[v]))) for v in vars))
     end
     out
 end
+
+# the assumptions of the system being solved (solve(eqs, vars; assume)), or nothing
+const _SYSTEM_ASSUME = ScopedValue{Any}(nothing)
 
