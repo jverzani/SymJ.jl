@@ -40,7 +40,14 @@ function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Boo
     isempty(ps) || (A0 = _with_fact(A0, FactAnd(Any[p ∈ ℝ for p in _sort_by_name!(collect(ps))])))
     v = _by_cases(A0) do A
         sub = collect(A.subst)
-        g, l, h = isempty(sub) ? (Sym(f), lo, hi) : (subs(Sym(f), sub...), subs(lo, sub...), subs(hi, sub...))
+        # (a case where the integrand is not defined, b = 0 in exp(-(x - a)²/b): an error
+        # for that case, not for the whole; SymPy #19672)
+        g, l, h = isempty(sub) ? (Sym(f), lo, hi) : try
+            (subs(Sym(f), sub...), subs(lo, sub...), subs(hi, sub...))
+        catch err
+            _isdivzero(err) || rethrow()
+            throw(ArgumentError("integrate: the integrand is not defined where $(join(("$k = $w" for (k, w) in sub), ", "))"))
+        end
         # the value refined under the case's assumptions (sin(nπ) = 0 for an integer n;
         # found in the review of SymPy #24000s)
         r = _definite_degenerate(g, x, l, h, A) do g, l, h
@@ -81,20 +88,26 @@ end
 function _definite_degenerate(run, g::Sym, x::Sym, l::Sym, h::Sym, A::Assumptions)
     v = run(g, l, h)
     (v isa Sym && _hassymbol(v)) || return v
-    own = _param_factors(numer_denom(g)[2], (x,))
-    # (denominators inside the value's functions and radicals too: √(1/M² + 1) is not
-    # defined at M = 0, where a simpler form of 4/((M + M√(1/M² + 1))² - 1) has it)
-    dens = Sym[numer_denom(cancel(v))[2]]
-    _replace_walk(v) do t
-        if t.kind == POW && t.args[2].kind == NUMBER && t.args[2].num < N0 && _hassymbol(t.args[1])
-            push!(dens, t.args[1])
-        elseif t.kind == MUL
-            for (b, q) in zip(t.args, t.exps)
-                q.kind == NUMBER && q.num < N0 && _hassymbol(b) && push!(dens, b)
+    # (denominators inside functions and radicals too: √(1/M² + 1) is not defined at
+    # M = 0, where a simpler form of 4/((M + M√(1/M² + 1))² - 1) has it)
+    function nested_dens!(dens, e)
+        _replace_walk(e) do t
+            if t.kind == POW && t.args[2].kind == NUMBER && t.args[2].num < N0 && _hassymbol(t.args[1])
+                push!(dens, t.args[1])
+            elseif t.kind == MUL
+                for (b, q) in zip(t.args, t.exps)
+                    q.kind == NUMBER && q.num < N0 && _hassymbol(b) && push!(dens, b)
+                end
             end
+            nothing
         end
-        nothing
+        dens
     end
+    # the integrand's own, nested ones included: exp(-(x - a)²/b) is not defined at b = 0,
+    # so that is no case to integrate again (it divided by zero; SymPy #19672)
+    owndens = nested_dens!(Sym[numer_denom(g)[2]], g)
+    own = unique(Sym[f for d in owndens for f in _param_factors(d, (x,))])
+    dens = nested_dens!(Sym[numer_denom(cancel(v))[2]], v)
     D = Sym[]
     for d in dens, f in _param_factors(d, (x,))
         any(o -> cancel(o / f).kind == NUMBER, own) || any(o -> _eq(o, f), D) || push!(D, f)
@@ -903,6 +916,12 @@ function _piece_cuts(g::Sym, x::Sym, a::Real, b::Real)
             u = haskey(_COND_RELS, n.name) ? n.args[1] - n.args[2] : n.args[1]
             rs = try _solve_generic(u ~ 0, x) catch; (ok[] = false; return) end
             rs isa AbstractVector || (ok[] = false; return)
+            # and where u is not defined, as it may change sign there (atan(1/x) at 0,
+            # where the midpoint was then taken; SymPy #20755)
+            for z in unique(_zero_sets!(Sym[], u, x))
+                zs = try _solve_generic(z ~ 0, x) catch; continue end
+                zs isa AbstractVector && (rs = vcat(rs, zs))
+            end
             P = _trig_period(u, x)
             p = P === nothing ? nothing : N(P)
             for r in rs

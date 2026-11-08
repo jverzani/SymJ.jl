@@ -68,9 +68,12 @@ for (op, name) in _COND_OPS
             vs = _named(d)
             length(vs) == 1 || return nothing
             v = only(vs)
-            c = expand(subs(d, v => ONE) - subs(d, v => ZERO))
-            (c.kind == NUMBER && !iszero(c.num) && iszero(expand(d - c * v - subs(d, v => ZERO)))) || return nothing
-            rhs = expand(-subs(d, v => ZERO) / c)
+            # (1/x < 0, atan(1/x) < 0: not linear, and not defined at 0; it divided by
+            # zero; SymPy #20755)
+            d0 = try subs(d, v => ZERO) catch err; _isdivzero(err) || rethrow(); return nothing end
+            c = expand(subs(d, v => ONE) - d0)
+            (c.kind == NUMBER && !iszero(c.num) && iszero(expand(d - c * v - d0))) || return nothing
+            rhs = expand(-d0 / c)
             (_eq(args[1], v) && _eq(args[2], rhs)) && return nothing
             _mkfn_node(_COND_OPS[c.num > N0 ? op : _FLIP_OP[op]], Sym[v, rhs])
         end)

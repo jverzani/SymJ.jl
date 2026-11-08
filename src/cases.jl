@@ -842,3 +842,23 @@ end
 _has_radical_of_symbols(e::Sym) = (e.kind == POW && e.args[2].kind == NUMBER && !_isint(e.args[2].num) && _hassymbol(e.args[1])) ||
     (e.kind == MUL && any(((b, p),) -> p.kind == NUMBER && !_isint(p.num) && _hassymbol(b), zip(e.args, e.exps))) ||
     any(_has_radical_of_symbols, e.args)
+
+# solve for a combination of relations in x: the sets of its parts intersected (&) or
+# joined (|), equations' real roots as points ((x ≧ 0) & (x ≦ 1) is [0, 1]; it reached
+# CommonSolve's init and a MethodError; SymPy #20080)
+function solve(f::Union{FactAnd,FactOr}, x::Sym; assume = nothing)
+    _isnamed(x) || throw(ArgumentError("solve: $x is not a symbol"))
+    function set_of(g)
+        g isa Union{FactAnd,FactOr} && return solve(g, x; assume)
+        g isa Relation || throw(ArgumentError("solve: $g is not a relation in $x"))
+        r = solve(g, x; assume)
+        r isa SymSet && return r
+        r isa AbstractVector || throw(ArgumentError("solve: the solutions of $g are by cases; solve its parts apart"))
+        rs = _real_roots(r)
+        length(rs) == length(r) || throw(ArgumentError("solve: $g has complex solutions; a combination of relations is solved over the reals"))
+        SymSet(_set_from(rs, (v, atpoint) -> atpoint).intervals, x)
+    end
+    sets = [set_of(g) for g in f.facts]
+    S = reduce(f isa FactAnd ? intersect : union, sets)
+    SymSet(S.intervals, x)
+end
