@@ -166,6 +166,21 @@ function _summation(f::Sym, k::Sym, a::Sym, b, assume)
     # (-1)^a Σ_j (R(a + 2j) - R(a + 2j + 1)), a rational sum (Σ (-1)^k/(k² + 1); SymPy #21148)
     if b === nothing && a.kind == NUMBER && _isint(a.num)
         R = _alternating_part(f, k)
+        # (only when R → 0: pairing the terms of a divergent series, Σ (-1)^k (1 + 1/k),
+        # gave a finite value; when R does not tend to 0, neither do the terms, and the
+        # series diverges; SymPy #17942)
+        if R !== nothing
+            nR, dR = numer_denom(cancel(R))
+            dg(p) = has(p, k) ? (try degree(Poly{Sym}(expand(p), [k]), k) catch; -1 end) : 0
+            dn, dd = dg(nR), dg(dR)
+            if dn < 0 || dd < 0
+                R = nothing
+            elseif dn >= dd && !_hassymbol(subs(nR, k => ONE)) && !_hassymbol(subs(dR, k => ONE))
+                throw(ArgumentError("summation: the series diverges"))
+            elseif dn >= dd
+                R = nothing
+            end
+        end
         if R !== nothing
             j = Sym(Symbol("_alt_j"))
             g = cancel(subs(R, k => a + 2j) - subs(R, k => a + 2j + 1))

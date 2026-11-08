@@ -28,7 +28,7 @@
     @test LA.norm([x, a], 1) == abs(x) + abs(a)
     @test LA.norm(Sym[3, -4], Inf) == 4
     @test LA.norm(Sym[1, 1], 3) == Sym(2)^(1 // 3)
-    @test LA.norm(x) == abs(x)
+    @test LA.norm(x) == sqrt(real(x)^2 + imag(x)^2)        # (the modulus, |x| for complex x)
     @test LA.normalize(Sym[3, 4]) == Sym[3 // 5, 4 // 5]
     @test refine(LA.dot([x, a], [x, a]); assume = @assume(x in Reals, a in Reals)) == x^2 + a^2
     @test refine(LA.norm([x, a]); assume = @assume(x in Reals, a in Reals)) == sqrt(x^2 + a^2)

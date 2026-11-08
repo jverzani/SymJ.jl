@@ -747,3 +747,31 @@ end
     @test any(==(Sym(1)), SymJ.LinearAlgebra.eigen(T).values)
 end
 
+@testset "wrong answers (SymPy review, round 9)" begin
+    @syms n x y
+    IM = SymJ.IM
+    # an alternating series whose terms do not tend to 0 diverges (#17942)
+    @test_throws ArgumentError SymJ.summation((-1)^n * (1 / n + 1), n, 1, Inf)
+    @test_throws ArgumentError SymJ.summation((-1)^n * n / (n + 1), n, 1, Inf)
+    @test SymJ.summation((-1)^n / n, n, 1, Inf) == log(Sym(1) // 2)
+    # infinite sides compared as they are, not through ∞ - ∞ (#19245)
+    @test simplify(Sym(Inf) ~ Sym(Inf)) == true
+    @test simplify(Sym(Inf) ≦ Sym(Inf)) == true
+    @test simplify(Sym(Inf) ≪ Sym(Inf)) == false
+    @test simplify(-Sym(Inf) ≪ Sym(Inf)) == true
+    # real, imag, conj of the unknowns: through real and imaginary parts (#19349)
+    @test solve([real(x) ~ 1, imag(x) ~ 2], [x]) == [Dict(x => 1 + 2IM)]
+    @test solve([x + conj(x) ~ 4, x - conj(x) ~ 2IM], [x]) == [Dict(x => 2 + IM)]
+    r = solve([x * y ~ 220, real(x) ~ 2], [x, y])
+    @test length(r) == 2
+    yi = Sym(:y_im)
+    @test all(s -> iszero(simplify(subs(s[x] * s[y] - 220, yi => 7))), r)
+    @test all(s -> iszero(simplify(subs(real(s[x]), yi => 7) - 2)), r)
+    # abs in a system: the unknown real; norm: its modulus as a complex number
+    @syms I2 R2
+    @test solve([I2 * R2 ~ 220, abs(I2) ~ 2], [I2, R2]) == [Dict(I2 => Sym(2), R2 => Sym(110)), Dict(I2 => Sym(-2), R2 => Sym(-110))]
+    @test SymJ.LinearAlgebra.norm(Sym(3) + 4IM) == 5
+    @test length(solve([I2 * R2 ~ 220, SymJ.LinearAlgebra.norm(I2) ~ 2], [I2, R2])) == 2
+    @test has(first(solve([I2 * R2 ~ 220, SymJ.LinearAlgebra.norm(I2) ~ 2], [I2, R2]))[I2], Sym(:R2_im))
+end
+

@@ -30,6 +30,11 @@ function _solve_nonlinear(eqs::Vector{<:Relation}, vars::Vector{Sym})
         sols isa AbstractVector || return sols
         return filter(s -> all(A -> (a = try subs(A, s...) catch; return false end; !_vanishes(a)), As), sols)
     end
+    # real, imag, conj of the unknowns: each unknown u as a + bi, a and b real, every
+    # equation's real and imaginary parts (x y = 220, re x = 2: a family in im x; it was
+    # no solution; SymPy #19349)
+    r = _solve_complex_parts(eqs, vars)
+    r === nothing || return r
     r = _solve_abs_system(eqs, vars)
     r === nothing || return r
     r = _solve_radical_system(eqs, vars)
@@ -748,5 +753,48 @@ function _exp_products_logged(eq::Relation, vars::Vector{Sym})
     l1, l2 = logof(c1, t1), logof(c2, t2)
     (l1 === nothing || l2 === nothing) && return nothing
     Relation(:eq, expand(l1 - l2), ZERO)
+end
+
+function _solve_complex_parts(eqs::Vector{<:Relation}, vars::Vector{Sym})
+    parted(t) = t.kind == FN && t.name in (:real, :imag, :conj) && length(t.args) == 1 && any(v -> has(t.args[1], v), vars)
+    any(eq -> _has_node(eq.lhs - eq.rhs, parted), eqs) || return nothing
+    # (only real, imag, conj of an unknown itself; of other expressions, not taken apart)
+    any(eq -> _has_node(eq.lhs - eq.rhs, t -> parted(t) && !any(v -> _eq(t.args[1], v), vars)), eqs) && return nothing
+    re = Dict{Sym,Sym}(v => Sym(Symbol(v.name, "_re")) for v in vars)
+    im = Dict{Sym,Sym}(v => Sym(Symbol(v.name, "_im")) for v in vars)
+    parts = Sym[]
+    foreach(v -> push!(parts, re[v], im[v]), vars)
+    reqs = Relation[]
+    for eq in eqs
+        e = eq.lhs - eq.rhs
+        e = _replace_walk(e) do t
+            parted(t) || return nothing
+            v = t.args[1]
+            t.name === :real ? re[v] : t.name === :imag ? im[v] : re[v] - IM * im[v]
+        end
+        e = expand(subs(e, (v => re[v] + IM * im[v] for v in vars)...))
+        # IM only as a coefficient (after expand, linearly): e = A + i B
+        A = expand(subs(e, IM => ZERO))
+        B = expand((e - A) / IM)
+        (has(A, IM) || has(B, IM)) && return nothing
+        iszero(A) || push!(reqs, Relation(:eq, A, ZERO))
+        iszero(B) || push!(reqs, Relation(:eq, B, ZERO))
+    end
+    sols = _solve_generic(reqs, parts)
+    sols isa AbstractVector || return nothing
+    out = Dict{Sym,Sym}[]
+    for s in sols
+        # complex values of a and b are no solution of the real system's meaning
+        bad = false
+        for p in parts
+            w = get(s, p, p)
+            _hassymbol(w) && continue
+            v = try _evalc(w) catch; continue end
+            abs(imag(v)) > 1e-12 * max(1, abs(v)) && (bad = true; break)
+        end
+        bad && continue
+        push!(out, Dict{Sym,Sym}(v => simplify(get(s, re[v], re[v]) + IM * get(s, im[v], im[v])) for v in vars))
+    end
+    out
 end
 
