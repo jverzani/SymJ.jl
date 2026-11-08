@@ -1259,6 +1259,13 @@ function _matfun(f, A::AbstractMatrix{Sym})
     # a multiple a B of a constant matrix: through B's Jordan form, f(a J) block by block,
     # so the eigenvalues are a λ (not sqrt(5 s^2) for exp(-s B); review of SymPy #24057)
     a, B = _scalar_multiple(A)
+    # eigenvalues that are an irreducible cubic's or quartic's radicals (Cardano's cube
+    # roots, large): the Jordan basis and its inverse in them did not finish in minutes
+    # (a 4×4 with entries ±i, i√2, 1/2; SymPy #19565). Refused, as the SVD is.
+    for (λ, _) in _eigen_mult(B)
+        _has_high_root(λ) && _nodes(λ) > 40 && throw(ArgumentError(
+            "exp, sin, cos of a matrix: an eigenvalue is a root of an irreducible cubic or quartic, $(first(string(λ), 80))…; the closed form is not supported (substitute numbers and use a Float64 matrix)"))
+    end
     P, J = jordan_form(B)
     t = Sym(Symbol("_matfun_t"))
     F = zeros(Sym, n, n)
@@ -1367,3 +1374,23 @@ function LinearAlgebra.pinv(A::AbstractMatrix{Sym})
     ct(M) = Sym[conj(M[j, i]) for i in axes(M, 2), j in axes(M, 1)]
     map(cancel, ct(F) * inv(F * ct(F)) * inv(ct(C) * C) * ct(C))
 end
+
+# Hermitian(A) and isposdef for symbolic matrices (Sym is not a Number, so LinearAlgebra's
+# generic hermitian_type did not apply; SymPy #19547). Positive definite by Sylvester's
+# criterion: A Hermitian and each leading principal minor positive, decided exactly; an
+# undecided sign (a symbol of unknown sign) is an error.
+LinearAlgebra.hermitian_type(::Type{Sym}) = Sym
+LinearAlgebra.hermitian(a::Sym, ::Symbol) = a              # a diagonal entry, as given
+function LinearAlgebra.isposdef(A::AbstractMatrix{Sym})
+    n = LinearAlgebra.checksquare(A)
+    LinearAlgebra.ishermitian(A) || return false
+    for k in 1:n
+        d = simplify(LinearAlgebra.det(Matrix(A[1:k, 1:k])))
+        s = _hassymbol(d) ? (m = _signs(d, Assumptions()); m === nothing ? nothing :
+                             m == _POS ? 1 : m & _POS == 0 ? -1 : nothing) : _csign(d)
+        s === nothing && throw(ArgumentError("isposdef: the sign of the leading minor $d is not decided; substitute values or use refine"))
+        s > 0 || return false
+    end
+    true
+end
+LinearAlgebra.isposdef(A::LinearAlgebra.Hermitian{Sym}) = LinearAlgebra.isposdef(Matrix(A))

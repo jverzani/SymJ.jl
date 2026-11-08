@@ -701,6 +701,28 @@ function Base.diff(p::Poly{C,M}, x::Sym) where {C,M}
     Poly{C}(p.gens, p.layout, monos, coefs)
 end
 
+# the n-th derivative (SymPy #19590)
+function Base.diff(p::Poly, x::Sym, n::Integer)
+    n >= 0 || throw(ArgumentError("diff: the order must be nonnegative"))
+    for _ in 1:n
+        p = diff(p, x)
+    end
+    p
+end
+
+# conj, real, imag of the coefficients (the generators taken as they are, as SymPy's
+# Poly.conjugate); transpose of a scalar is itself, so a vector of Polys transposes
+# (SymPy #19531, #19429)
+for f in (:conj, :real, :imag)
+    @eval function Base.$f(p::Poly{C,M}) where {C,M}
+        cs = [_tocoef(C, $f(Sym(c))) for c in p.coefs]
+        keep = [!iszero(Sym(c)) for c in cs]
+        Poly{C}(p.gens, p.layout, p.monos[keep], cs[keep])
+    end
+end
+Base.adjoint(p::Poly) = conj(p)
+Base.transpose(p::Poly) = p
+
 ## conversion from expressions
 
 _tocoef(::Type{SymNumber}, x::Sym) =

@@ -975,7 +975,11 @@ end
 # satisfies the equation for every x; else nothing
 function _ode_equilibrium(P::_ODE, conds)
     any(((o, _, _),) -> o == 0, conds) || return nothing
-    c = only(v for (o, _, v) in conds if o == 0)
+    # (a constant solution meets several value conditions only when they agree: a
+    # boundary-value problem y(0) = 1, y(1) = 0 has none; SymPy #20547)
+    vs = [v for (o, _, v) in conds if o == 0]
+    all(v -> iszero(expand(v - vs[1])), vs) || return nothing
+    c = vs[1]
     all(((o, _, v),) -> o == 0 || iszero(v), conds) || return nothing
     v = try subs(P.F, P.ys[1] => c, (P.ys[i] => ZERO for i in 2:length(P.ys))...) catch err
         _isdivzero(err) && return nothing
@@ -993,14 +997,16 @@ end
 # y(a) or y⁽ᵒ⁾(a) as (name, order, point), or nothing
 function _ode_ic_parts(k::Sym)
     k.kind == FN && length(k.args) == 1 && k.name !== :Derivative && return (k.name, 0, k.args[1])
-    _isderivat(k) || return nothing
+    (_isderivat(k) || (k.kind == FN && k.name === :Derivative && length(k.args) == 2)) || return nothing
     f, t = k.args[1], k.args[2]
     o = 1
     while f.kind == FN && f.name === :Derivative && length(f.args) == 2 && _eq(f.args[2], t)
         o += 1
         f = f.args[1]
     end
-    f.kind == FN && length(f.args) == 1 && _eq(f.args[1], t) ? (f.name, o, k.args[3]) : nothing
+    f.kind == FN && length(f.args) == 1 && _eq(f.args[1], t) || return nothing
+    # (Derivative(C(L), L), as subs writes y'(z) at z = L: the point is L itself; SymPy #20547)
+    (f.name, o, length(k.args) >= 3 ? k.args[3] : t)
 end
 
 # An unevaluated antiderivative Integral(f, x) (an unknown forcing P(x)) taken as the
