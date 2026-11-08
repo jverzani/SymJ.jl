@@ -95,25 +95,39 @@ function _exp_split(w::Sym)
     (N1, w)
 end
 function _factor_exp_powers(ex::Sym; gcd_method::Symbol = :auto)
-    groups = Dict{Sym,Vector{SymNumber}}()
-    note(w) = _hassymbol(w) && ((c, u) = _exp_split(w); push!(get!(groups, u, SymNumber[]), c))
+    # a power base^w with base e, or an integer > 1 as p^k (its smallest root: 4^x is
+    # 2^(2x), so 4^x - 2^x - 2 = (2^x - 2)(2^x + 1); SymPy #19776): (p, c, u) with the
+    # exponent k w = c u, or nothing
+    function key(b::Sym, w::Sym)
+        _hassymbol(w) || return nothing
+        if b === E
+            c, u = _exp_split(w)
+            return (E, c, u)
+        end
+        (b.kind == NUMBER && isexact(b.num) && _isint(b.num) && b.num > N1) || return nothing
+        p, k = _int_root_power(BigInt(_numerator(b.num)))
+        c, u = _exp_split(expand(k * w))
+        (Sym(p), c, u)
+    end
+    groups = Dict{Tuple{Sym,Sym},Vector{SymNumber}}()
+    note(b, w) = (r = key(b, w); r === nothing || push!(get!(groups, (r[1], r[3]), SymNumber[]), r[2]); nothing)
     _replace_walk(ex) do t
-        if t.kind == POW && t.args[1] === E
-            note(t.args[2])
+        if t.kind == POW
+            note(t.args[1], t.args[2])
         elseif t.kind == MUL
             for (b, q) in zip(t.args, t.exps)
-                b === E && note(q)
+                note(b, q)
             end
         end
         nothing
     end
     # (or one c with a numerator of 2 or more: e^(2x) - 1 = (e^x - 1)(e^x + 1))
-    us = [u for (u, cs) in groups if length(unique(cs)) >= 2 || abs(_numerator(only(unique(cs)))) >= 2]
-    isempty(us) && return nothing
-    reps = Dict{Sym,Tuple{Sym,BigInt}}()
+    gs = [g for (g, cs) in groups if length(unique(cs)) >= 2 || abs(_numerator(only(unique(cs)))) >= 2]
+    isempty(gs) && return nothing
+    reps = Dict{Tuple{Sym,Sym},Tuple{Sym,BigInt}}()
     used = ex
-    for u in _sort_by_name!(us)
-        q = reduce(lcm, (_denominator(c) for c in groups[u]); init = big(1))
+    for g in sort!(gs; by = g -> (string(g[1]), string(g[2])))
+        q = reduce(lcm, (_denominator(c) for c in groups[g]); init = big(1))
         # (a name ordered after the others: the factors led by them, y - e^(x/7))
         k = 1
         while has(used, Sym(Symbol("ω_e", k)))
@@ -121,33 +135,51 @@ function _factor_exp_powers(ex::Sym; gcd_method::Symbol = :auto)
         end
         t = Sym(Symbol("ω_e", k))
         used += t
-        reps[u] = (t, q)
+        reps[g] = (t, q)
     end
-    function sw(w)
-        (c, u) = _exp_split(w)
-        haskey(reps, u) || return nothing
-        t, q = reps[u]
-        t^Sym(c * SymNumber(q))
+    function sw(b, w)
+        r = key(b, w)
+        r === nothing && return nothing
+        haskey(reps, (r[1], r[3])) || return nothing
+        t, q = reps[(r[1], r[3])]
+        t^Sym(r[2] * SymNumber(q))
     end
     h = _replace_walk(ex) do t
-        if t.kind == POW && t.args[1] === E
-            return sw(t.args[2])
-        elseif t.kind == MUL && any(b -> b === E, t.args)
+        if t.kind == POW
+            return sw(t.args[1], t.args[2])
+        elseif t.kind == MUL
+            changed = false
             fs = Sym[]
             for (b, q) in zip(t.args, t.exps)
-                v = b === E ? sw(q) : nothing
+                v = sw(b, q)
+                v === nothing || (changed = true)
                 push!(fs, v === nothing ? b^q : v)
             end
-            return Sym(t.num) * prod(fs)
+            return changed ? Sym(t.num) * prod(fs) : nothing
         end
         nothing
     end
-    any(u -> _has_epow_of(h, u), us) && return nothing      # (one not replaced)
+    # (one not replaced: a power of the same generator left)
+    left = false
+    _replace_walk(h) do t
+        t.kind == POW && (r = key(t.args[1], t.args[2]); r !== nothing && haskey(reps, (r[1], r[3])) && (left = true))
+        nothing
+    end
+    left && return nothing
     f = _factor_sym(h; gcd_method)
     _eq(f, h) && return nothing
-    subs(f, [t => exp(u / Sym(q)) for (u, (t, q)) in reps]...)
+    subs(f, [t => (p === E ? exp(u / Sym(q)) : p^(u / Sym(q))) for ((p, u), (t, q)) in reps]...)
 end
-_has_epow_of(e::Sym, u::Sym) = _has_node(e, t -> t.kind == POW && t.args[1] === E && _eq(_exp_split(t.args[2])[2], u))
+# n = p^k with k as large as possible: (p, k)
+function _int_root_power(n::BigInt)
+    for k in (ndigits(n; base = 2) - 1):-1:2
+        r = round(BigInt, BigFloat(n)^(1 / BigFloat(k)))
+        for s in (r - 1, r, r + 1)
+            s > 1 && s^k == n && return (s, k)
+        end
+    end
+    (n, 1)
+end
 
 # irreducible factors of a squarefree, primitive, positive polynomial
 function _factor_sqfree(q::Poly{SymNumber})

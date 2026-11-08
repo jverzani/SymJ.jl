@@ -14,7 +14,12 @@ using PrecompileTools: @setup_workload, @compile_workload
 # (assume = …, or an @assuming block) decide the signs of parameter expressions the
 # answer's form depends on, through the integrator's sign oracle, when the installed
 # RischIntegrate has one; signs they leave open take its default.
-RischIntegrate.integrate(ex::Sym, x::Sym; assume = nothing, kw...) = _unwrap(_indefinite(ex, x; assume, kw...))
+# (floats in the integrand, which the integrator takes as the rationals they stand for:
+# the answer's numbers floats again, not 27-digit fractions; found in the review)
+function RischIntegrate.integrate(ex::Sym, x::Sym; assume = nothing, kw...)
+    r = _unwrap(_indefinite(ex, x; assume, kw...))
+    r isa Sym && !SymJ._isexactex(ex) ? SymJ._floatify(r) : r
+end
 
 # an answer by cases (an inner definite integral's) integrated case by case, each with
 # its conditions among the assumptions; an infinite value or an error stays (SymPy #23610)

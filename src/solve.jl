@@ -486,6 +486,14 @@ function _holds_at_point(eq::Relation, x::Sym, r::Sym)
 end
 
 function _solve_through(eq::Relation, n::Sym, x::Sym, bad::Vector{Sym})
+    # several hyperbolic functions (and exponentials): all as exponentials, sinh(8x) +
+    # cosh(8x) = e^(8x) (SymPy #19489)
+    hyp = (:sinh, :cosh, :tanh, :coth, :sech, :csch)
+    if length(bad) > 1 && any(g -> g.kind == FN && g.name in hyp, bad) &&
+       all(g -> (g.kind == FN && g.name in hyp) || (g.kind == POW && g.args[1] === E), bad)
+        n2 = numer_denom(cancel(expand(rewrite(n, (sinh, cosh, tanh, coth, sech, csch) => exp))))[1]
+        _has_fn(n2, hyp) || return filter(r -> _satisfies(eq, x, r), _solve_generic(n2 ~ 0, x))
+    end
     common = _common_power(bad)                     # exp(2x), exp(x): powers of one exp
     if common === nothing
         if length(bad) > 1
@@ -517,9 +525,9 @@ function _solve_through(eq::Relation, n::Sym, x::Sym, bad::Vector{Sym})
         u = Sym(Symbol("_u", objectid(g)))
         nu = subs(n, g => u)
     else
-        g, ks = common
+        g, ks, cs = common
         u = Sym(Symbol("_u", objectid(g)))
-        nu = subs(n, (a => u^k for (a, k) in zip(bad, ks))...)
+        nu = subs(n, (a => c * u^k for (a, k, c) in zip(bad, ks, cs))...)
     end
     if has(nu, x)
         _issqrt(g) && return _solve_radical(eq, nu, u, g, x)
@@ -860,22 +868,41 @@ function _common_power(atoms::Vector{Sym})
     b = atoms[1].args[1]
     es = [a.args[2] for a in atoms]
     if !all(a -> _eq(a.args[1], b), atoms)
-        # integer bases that are powers of one integer: 4^x = 2^(2x)
         bases = [a.args[1] for a in atoms]
-        all(c -> c.kind == NUMBER && _isint(c.num) && c.num > SymNumber(1), bases) || return nothing
-        r = _common_integer_base([big(_numerator(c.num)) for c in bases])
-        r === nothing && return nothing
-        b = Sym(SymNumber(r))
-        es = [e * Sym(SymNumber(_ilog(big(_numerator(c.num)), r))) for (e, c) in zip(es, bases)]
+        if all(c -> c.kind == NUMBER && _isint(c.num) && c.num > SymNumber(1), bases)
+            # integer bases that are powers of one integer: 4^x = 2^(2x)
+            r = _common_integer_base([big(_numerator(c.num)) for c in bases])
+            r === nothing && return nothing
+            b = Sym(SymNumber(r))
+            es = [e * Sym(SymNumber(_ilog(big(_numerator(c.num)), r))) for (e, c) in zip(es, bases)]
+        else
+            # constant bases that are small rational powers of the first: √(2 - √3) is
+            # 1/√(2 + √3) (SymPy #20709)
+            any(_hassymbol, bases) && return nothing
+            ks = SymNumber[]
+            for c in bases
+                k = findfirst(k -> iszero(simplify(c - b^Sym(k))), _BASE_POWERS)
+                k === nothing && return nothing
+                push!(ks, _BASE_POWERS[k])
+            end
+            es = [e * Sym(k) for (e, k) in zip(es, ks)]
+        end
     end
+    # exponents with constant parts: b^(x + 1) = b·b^x (SymPy #20199)
+    # (only an exponent with symbols: x^(1/3) and √x keep theirs)
+    xfree(e) = (e.kind == ADD && _hassymbol(e)) ?
+               Sym(e.num) + _add_many(Sym(c) * t for (c, t) in zip(e.coefs, e.args) if !_hassymbol(t)) : ZERO
+    ds = [xfree(expand(e)) for e in es]
+    es = [expand(e - d) for (e, d) in zip(es, ds)]
     e1 = es[1]
     ratios = [cancel(e / e1) for e in es]
     all(r -> r.kind == NUMBER && isexact(r.num), ratios) || return nothing
     q = reduce(lcm, (big(_denominator(r.num)) for r in ratios); init = big(1))
     g = e1 / Sym(SymNumber(q))
     ks = [Int(_numerator(r.num) * (q ÷ _denominator(r.num))) for r in ratios]
-    (pow(b, g), ks)
+    (pow(b, g), ks, Sym[b^d for d in ds])
 end
+const _BASE_POWERS = SymNumber[1, -1, 2, -2, 1 // 2, -1 // 2, 3, -3]
 
 # the least integer r > 1 of which every base is a power, or nothing
 function _common_integer_base(bs::Vector{BigInt})
@@ -1025,6 +1052,7 @@ function _invert(g::Sym, r::Sym, x::Sym)
         name === :cos && return [(t, a) for a in _periods_in_range(t, _one_period(acos(r), 2PI - acos(r)), 2PI, x)]
         name === :tan && return [(t, a) for a in _periods_in_range(t, [atan(r)], PI, x)]
         name === :log && return [(t, exp(r))]
+        name === :conj && return [(t, conj(r))]               # (SymPy #20305)
         name === :asin && return [(t, sin(r))]
         name === :acos && return [(t, cos(r))]
         # (atan's values lie strictly between -π/2 and π/2: atan(t) = π/2 has no root, as
@@ -1053,7 +1081,17 @@ function _invert(g::Sym, r::Sym, x::Sym)
             # (log(b, r): an exact integer when there is one, log(8)/log(2) = 3)
             b === E && return [(e, log(r))]
             n = log(b, r)
-            return [(e, n.kind == NUMBER ? n : log(r) / log(b))]
+            n.kind == NUMBER && return [(e, n)]
+            # r a small power of a constant base: √(2 + √3)^t = 2 - √3 at t = -2 (SymPy #20709)
+            if !_hassymbol(b) && !_hassymbol(r) && !(b.kind == NUMBER)
+                for k in (1, -1, 2, -2, 3, -3, 4, -4, 6, -6)
+                    v = try simplify(b^k - r) catch err; err isa InterruptException && rethrow(); continue end
+                    iszero(v) && return [(e, Sym(k))]
+                end
+            end
+            return [(e, log(r) / log(b))]
+        elseif iszero(r) && has(e, x)                       # b^e = 0: b = 0 (where e > 0,
+            return [(b, ZERO)]                              # as the roots are checked; SymPy #20205)
         elseif !has(e, x) && e.kind == NUMBER && isexact(e.num)   # t^(p/q) = r
             return [(b, r^inv(e))]
         elseif !has(e, x)                                   # t^1.11 = r, t^a = r: the principal root

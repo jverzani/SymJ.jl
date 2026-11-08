@@ -170,7 +170,9 @@ function _subs_top(ex::Sym, d::Dict{Sym,Sym})
     ck = [k => v for (k, v) in d if _subs_compound(k)]
     isempty(ck) ? _subs(ex, d) : _subs_alg(ex, d, ck)
 end
-_subs_compound(k::Sym) = k.kind == POW || k.kind == ADD || (k.kind == MUL && !(length(k.args) == 1 && _isone(k.exps[1])))
+# (c x with a number c ≠ 1 too: subs(2xy, 2x => z) = yz; SymPy #19422)
+_subs_compound(k::Sym) = k.kind == POW || k.kind == ADD ||
+    (k.kind == MUL && !(length(k.args) == 1 && _isone(k.exps[1]) && isone(k.num)))
 
 # A node none of whose parts change is returned as it is (no rebuilding, so a
 # substitution that misses most of a large expression allocates little).
@@ -309,6 +311,20 @@ function _subs_node(r::Sym, K::Sym, w::Sym)
         return something(_subs_sum(r, K, w), r)
     elseif K.kind == MUL && r.kind == MUL
         return something(_subs_prod(r, K, w), r)
+    elseif K.kind == MUL && r.kind == ADD && length(K.args) == 1 && _isone(K.exps[1]) && isexact(K.num)
+        # c t as a term of a sum, stored as the coefficient c of t: 2x + 4 with 2x => z
+        t = K.args[1]
+        hit = false
+        terms = Sym[]
+        for (c, a) in zip(r.coefs, r.args)
+            q = c / K.num
+            if _eq(a, t) && isexact(q) && _isint(q)
+                push!(terms, Sym(q) * w); hit = true
+            else
+                push!(terms, Sym(c) * a)
+            end
+        end
+        return hit ? Sym(r.num) + _add_many(terms) : r
     end
     r
 end
@@ -378,6 +394,12 @@ function _subs_prod(r::Sym, K::Sym, w::Sym)
         end
     end
     n === nothing && return nothing
+    # a coefficient: r's an integer multiple of K's to the n (6xy with 2x: 3yz; 3xy is
+    # not matched by 2x)
+    if !isone(K.num)
+        c = r.num / K.num^_toint(n.num)
+        (isexact(c) && _isint(c) && !iszero(c)) || return nothing
+    end
     mul(pow(w, n), r / K^n)
 end
 

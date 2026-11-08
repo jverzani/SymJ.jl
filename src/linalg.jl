@@ -887,10 +887,11 @@ end
 # eigenvalues and eigenvectors are LAPACK's, in the order of the exact ones (by real
 # part, then imaginary). Exactly, the roots of the characteristic polynomial come out
 # inexact and A - λI has no null space (SymPy #24057).
-function _float_eigen(A::AbstractMatrix{Sym})
+function _float_eigen(A::AbstractMatrix{Sym}; inexact_values::Bool = false)
     _square(A)
     es = [Sym(a) for a in A]
-    (all(e -> !_hassymbol(e), es) && any(e -> e.kind == NUMBER && isfloat(e.num), es)) || return nothing
+    all(e -> !_hassymbol(e), es) || return nothing
+    (inexact_values || any(e -> e.kind == NUMBER && isfloat(e.num), es)) || return nothing
     vs = try [_evalc(e) for e in es] catch; return nothing end
     M = all(v -> isreal(v), vs) ? Float64.(real.(vs)) : ComplexF64.(vs)
     F = LinearAlgebra.eigen(M; sortby = λ -> (real(λ), imag(λ)))
@@ -910,7 +911,19 @@ function LinearAlgebra.eigvecs(A::AbstractMatrix{Sym})
     F === nothing || return F.vectors
     n = _square(A)
     cols = Vector{Sym}[]
-    for (v, m) in _eigen_mult(A)
+    # eigenvalues only numerically (an irreducible factor of degree ≥ 5) of a constant
+    # matrix: the eigenvectors numerically too (exactly, the null space of A - λI with a
+    # float λ failed; SymPy #20351)
+    em = _eigen_mult(A)
+    Fl = any(((v, _),) -> !_isexactex(v), em) ? _float_eigen(A; inexact_values = true) : nothing
+    for (v, m) in em
+        # (a float eigenvalue: the numeric eigenvector for it; exact ones exactly)
+        if Fl !== nothing && !_isexactex(v)
+            vv = ComplexF64(_evalc(v))                 # (N is a local below)
+            j = argmin([abs(ComplexF64(_evalc(w)) - vv) for w in Fl.values])
+            push!(cols, Fl.vectors[:, j])
+            continue
+        end
         u = _eigvec_adjugate(A, v, m)
         u === nothing || (push!(cols, u); continue)
         N = LinearAlgebra.nullspace(Sym[Sym(a) for a in A] - v * LinearAlgebra.I(n))
@@ -958,7 +971,19 @@ function LinearAlgebra.eigen(A::AbstractMatrix{Sym})
     F === nothing || return F
     n = _square(A)
     vals, vecs = Sym[], Vector{Sym}[]
-    for (v, m) in _eigen_mult(A)
+    # eigenvalues only numerically (an irreducible factor of degree ≥ 5) of a constant
+    # matrix: the eigenvectors numerically too (exactly, the null space of A - λI with a
+    # float λ failed; SymPy #20351)
+    em = _eigen_mult(A)
+    Fl = any(((v, _),) -> !_isexactex(v), em) ? _float_eigen(A; inexact_values = true) : nothing
+    for (v, m) in em
+        # (a float eigenvalue: the numeric eigenvector for it; exact ones exactly)
+        if Fl !== nothing && !_isexactex(v)
+            vv = ComplexF64(_evalc(v))                 # (N is a local below)
+            j = argmin([abs(ComplexF64(_evalc(w)) - vv) for w in Fl.values])
+            push!(vals, v); push!(vecs, Fl.vectors[:, j])
+            continue
+        end
         u = _eigvec_adjugate(A, v, m)
         if u !== nothing
             push!(vals, v)

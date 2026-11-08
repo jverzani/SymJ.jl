@@ -249,6 +249,26 @@ transforms). Of the rest, in rough order of value for calculus-level use:
    - algebraic numbers: `atan` of a radical that is `tan(kπ/n)` not recognized, so
      `cos(25 atan(…))` stays (#21324); denesting square roots of sums of several surds,
      `√(19 + 3√2 + 6√3 - √10)` (#21599).
+11. **Gaps from the eighth SymPy review (#19409–#20908)**, none a wrong answer:
+   - solve: `angle(u) = r` (a ray, not points; #19506); trigonometric functions of
+     different multiples of one angle, `tan(x/6) = cos(x/2)` (#19488).
+   - simplify: rational functions over an algebraic extension, a derivative in
+     `√(x² + x + 1)` that is `(√(x² + x + 1) - 1)/x` modulo the minimal polynomial (#20236);
+     trigonometric quotients collapsed to one multiple angle, `64/sin(2x)⁶` (#20091);
+     √(a - √(a²+b²))·√(a + √(a²+b²)) products under assumptions (#20251).
+   - definite integrals: contour methods for `∫ log(1 + x²)/(9 + (7 - x)²)` over ℝ (#20171);
+     a numeric fallback on finite intervals for non-elementary integrands (round-8 extra);
+     incomplete gamma for `∫_y^∞ e^(-x³) dx` (#20685, in the order given); |sec x| over a
+     period (its breakpoints are poles).
+   - `subs` results are not always in the canonical form of the same expression built
+     directly, `-(-√2(x - 1) + x + 1)/(x - 1)` (#20616).
+   - Also from the first pass: Diophantine equations, function_range/maximum over a
+     domain, periodicity, symbolic derivative orders, factoring over GF(p), Legendre
+     polynomials, incomplete/regularized beta and gamma, factorial2, special matrices
+     (Vandermonde, Toeplitz), divide-and-conquer recurrences, nonlinear ODE systems,
+     matrix expressions, `apart` with an extension or RootSum, noncommutative symbols,
+     ImageSet/ProductSet, `collect`, `diff` of equations, integer factorization of
+     numbers (`factor(12)`).
 
 Done since the first audit: trigonometric and logarithmic expansion, gamma and combinatorial simplification, LaTeX output (a Latexify extension), resultants and Gröbner
 bases (polynomial systems are solved), real and imaginary parts and `conj`, and

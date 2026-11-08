@@ -1146,6 +1146,21 @@ end
 function _definite_fallback(g::Sym, x::Sym, l::Sym, h::Sym, antider, A, pv::Bool, depth::Int)
     line = _isinfpt(l) && _infsign(l) < 0 && _isinfpt(h) && _infsign(h) > 0
     half = iszero(l) && _isinfpt(h) && _infsign(h) > 0
+    # to +∞ from a finite point: an integrand whose limit there is not 0 (infinite, or a
+    # nonzero number) diverges, ±∞ by its sign (eˣ e^(log² x) on (1, ∞); SymPy #20831)
+    if !_isinfpt(l) && _isinfpt(h) && _infsign(h) > 0
+        L = try limit(g, x => Inf; assume = A) catch err; err isa InterruptException && rethrow(); nothing end
+        if L isa Sym && !_hassymbol(L)
+            _isinfpt(L) && !has(L, IM) && return L
+            (L.kind == NUMBER && !iszero(L.num) && isreal(L.num)) && return L.num > N0 ? Sym(Inf) : Sym(-Inf)
+        end
+    end
+    # ∫₀^∞ c xᵖ logᵏ(x) e^(-a x^q) dx = c dᵏ/dsᵏ [Γ(s/q)/(q a^(s/q))] at s = p + 1, for
+    # a > 0, q > 0, p > -1 (e^(-x³): Γ(4/3); t log²(t) e^(-t): Γ''(2); SymPy #20685, #20043)
+    if half
+        v = _gamma_moment(g, x, A)
+        v === nothing || return v
+    end
     (line || half) || return nothing
     one(t) = try
         _definite(t, x, l, h, antider, A, pv)
@@ -1179,6 +1194,45 @@ function _definite_fallback(g::Sym, x::Sym, l::Sym, h::Sym, antider, A, pv::Bool
     rest isa Sym || return nothing
     simplify(ends[1] - ends[2] + rest)
 end
+function _gamma_moment(g::Sym, x::Sym, A)
+    fs = g.kind == MUL ? [(b, p) for (b, p) in zip(g.args, g.exps)] :
+         g.kind == POW ? [(g.args[1], g.args[2])] : [(g, ONE)]
+    c = g.kind == MUL ? Sym(g.num) : ONE
+    p, k, a, q = ZERO, 0, nothing, nothing
+    for (b, e) in fs
+        if !has(b, x) && !has(e, x)
+            c *= b^e
+        elseif _eq(b, x) && !has(e, x)
+            p += e
+        elseif b.kind == FN && b.name === :log && length(b.args) == 1 && _eq(b.args[1], x) &&
+               e.kind == NUMBER && isexact(e.num) && _isint(e.num) && e.num > N0
+            k += _toint(e.num)
+        elseif b === E && has(e, x) && a === nothing
+            w = expand(e)
+            # -a x^q: a monomial in x
+            (w.kind == MUL || w.kind == POW || _eq(w, x)) || return nothing
+            qq = w.kind == MUL ? sum((ee for (bb, ee) in zip(w.args, w.exps) if _eq(bb, x)); init = ZERO) :
+                 w.kind == POW ? (_eq(w.args[1], x) ? w.args[2] : return nothing) : ONE
+            aa = cancel(-w / x^qq)
+            has(aa, x) && return nothing
+            a, q = aa, qq
+        else
+            return nothing
+        end
+    end
+    (a === nothing || has(p, x)) && return nothing
+    (q.kind == NUMBER && q.num > N0) || return nothing
+    _decide(Relation(:gt, a, ZERO), A) || return nothing
+    pv = _decide(Relation(:gt, p + 1, ZERO), A)
+    pv === true || return nothing
+    s = Sym(Symbol("_gm_s"))
+    F = apply_function(:gamma, Sym[s / q]) / (q * a^(s / q))
+    for _ in 1:k
+        F = diff(F, s)
+    end
+    simplify(c * subs(F, s => p + 1))
+end
+
 function _definite_fallback_or(t::Sym, x, l, h, antider, A, pv, depth)
     try
         _definite(t, x, l, h, antider, A, pv)

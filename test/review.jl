@@ -673,3 +673,48 @@ end
     @test any(cv -> cv.first == Any[a ~ 0] && cv.second == [Sym(2)], r)
 end
 
+@testset "missing cases (SymPy review, round 8)" begin
+    @syms x y z k n h m
+    IM, PI = SymJ.IM, SymJ.PI
+    u = SymFunction(:u)
+    # |u| sign(u) = u; |x|^m x^(2k) for real x (#20402, #19484, #20108)
+    @test simplify(abs(x) * sign(x)) == x
+    @test simplify(x^2 / abs(x); assume = (x ∈ ℝ,)) == abs(x)
+    @test simplify(x^2 / abs(x)) == x^2 / abs(x)
+    # √(a + bi) with rational parts (#20024)
+    @test simplify(sqrt(3 + 4IM)) == 2 + IM
+    @test simplify(sqrt(-3 + 4IM)) == 1 + 2IM
+    # factor in powers of an integer base; simplify over a root (#19776, #19769)
+    @test factor(4^x - 2^x - 2) == (2^x - 2) * (2^x + 1)
+    @test simplify((x - 1) / (sqrt(x) - 1)) == sqrt(x) + 1
+    # solve: conj, b^e = 0, offsets in exponents, reciprocal bases, sinh + cosh (#20305,
+    # #20205, #20199, #20709, #19489)
+    @test solve(conj(x) - 3 + IM ~ 0, x) == [3 + IM]
+    @test solve((x - 1)^x ~ 0, x) == [Sym(1)]
+    @test length(solve(exp(2x) + 2exp(x + 1) ~ 3, x)) == 2
+    @test Set(solve(sqrt(2 + sqrt(Sym(3)))^x + sqrt(2 - sqrt(Sym(3)))^x ~ 4, x)) == Set(Sym[-2, 2])
+    @test solve(sinh(8x) + cosh(8x) ~ 2, x) == [log(Sym(2)) / 8]
+    # an exponential system through logs (#19587)
+    @test solve([32 * 2^m * 2^n - 4^n ~ 0, 27 * 3^m - 3^(-n) ~ 0], [m, n]) == [Dict(m => Sym(-4), n => Sym(1))]
+    # inequalities in piecewise functions and abs (#19718)
+    @test solve(SymJ.piecewise((x ≫ 10) => 1, (x ≦ 10) => 0) ≫ 0, x) == solve(x ≫ 10, x)
+    @test string(solve(abs(x) - 1 ≪ 0, x)) == "(-1, 1)"
+    # sums: a shifted start, the summand refined on the range, shifted limits (#20464,
+    # #19687, #19685)
+    @test SymJ.summation(2^k / factorial(k), k, 1, Inf) == exp(Sym(2)) - 1
+    @test SymJ.summation(SymJ.piecewise((k ≦ n) => k * SymJ.binomial(n, k) / 2^n, true => 0), k, 0, n) == n / 2
+    @test SymJ.summation(1 / abs(x + 9), x, 7, Inf) == Inf
+    @test simplify(SymJ.summation(u(k), k, 0, n) - SymJ.summation(u(k), k, 0, n - 1)) == u(n)
+    # subs of a key with a numeric coefficient (#19422)
+    @test subs(2 * x * y, 2x => z) == y * z
+    @test subs(2x + 4, 2x => z) == z + 4
+    @test subs(3 * x * y, 2x => z) == 3 * x * y
+    # minimal polynomial of e^(iπ/3) (#19744)
+    @test SymJ.minimal_polynomial(exp(IM * PI / 3), x) == x^2 - x + 1
+    # eigenvectors of an exact matrix with numeric eigenvalues (#20351)
+    M = Sym[0 1 1 1 1 0 1; 1 0 0 0 0 0 0; 1 1 0 0 0 0 0; 0 1 1 0 1 0 0; 1 0 1 1 0 1 0; 1 0 0 0 1 0 0; 0 0 0 0 1 0 0]
+    T = transpose(M) * SymJ.LinearAlgebra.diagm(Sym[1 // 5, 1, 1 // 2, 1 // 3, 1 // 4, 1 // 2, 1])
+    @test size(SymJ.LinearAlgebra.eigvecs(T)) == (7, 7)
+    @test any(==(Sym(1)), SymJ.LinearAlgebra.eigen(T).values)
+end
+
