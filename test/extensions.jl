@@ -595,6 +595,20 @@ import PolyLog as PL
         @test !SymJ._isexactex(r)
     end
 
+    @testset "missing cases (SymPy review, round 9)" begin
+        @syms n
+        # the even part over (-∞, ∞) (#19175)
+        same(v, w) = VERSION >= v"1.12" ? v == w : N(v) ≈ N(w)            # (the older RischIntegrate: numerically)
+        @test same(RischIntegrate.integrate(exp(-x^2) / (1 + exp(x)), (x, -Inf, Inf)), sqrt(PI) / 2)
+        # floats in a definite integral: a float value; x^n kept as a power
+        @test RischIntegrate.integrate(2.5x, (x, 0, 1)) == Sym(1.25)
+        @test !has(RischIntegrate.integrate(x^n * log(x), x), SymJ.E)
+        # a nested piecewise solved as one (#18359)
+        pdf = SymJ.piecewise((0 ≦ x) & (x ≪ 1) => 1 // 2, (x ≧ 1) & (x ≪ 2) => 0, (x ≧ 2) & (x ≪ 3) => 1 // 2, true => 0)
+        F = RischIntegrate.integrate(pdf, (x, 0, x))
+        @test solve(SymJ.piecewise(x ≧ 0 => F, true => 0) ~ 1 // 2, x) isa SymJ.SymSet
+    end
+
     @testset "asymptotic series at ±∞: exponential and oscillating factors" begin
         @syms y
         S(f, x0, n) = Sym(series(f, x, x0, n))

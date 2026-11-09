@@ -299,6 +299,10 @@ _num_binomial(n, k) = n isa Integer && k isa Integer ? binomial(n, k) :
 
 register_function!(:factorial; julia = _num_factorial,
     eval = _unary(function (a)
+        # (a negative integer: a pole, as gamma's is; it stayed unevaluated and N gave
+        # -Inf - Inf im; found in the review of SymPy #19000)
+        a.kind == NUMBER && isexact(a.num) && _isint(a.num) && sign(a.num) < 0 &&
+            throw(DivisionByZero("factorial($a): a pole of gamma(n + 1) at a negative integer"))
         (a.kind == NUMBER && _isint(a.num) && 0 <= sign(a.num)) || return nothing
         n = _toint(a.num)
         n <= 100_000 ? Sym(SymNumber(factorial(big(n)))) : nothing

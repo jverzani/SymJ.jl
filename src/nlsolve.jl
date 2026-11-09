@@ -22,6 +22,11 @@ function _solve_nonlinear(eqs::Vector{<:Relation}, vars::Vector{Sym})
     # (32·2^m·2^n = 4^n, 27·3^m = 3^(-n): m = -4, n = 1; SymPy #19587)
     logged = Relation[something(_exp_products_logged(e, vars), e) for e in eqs]
     any(i -> logged[i] !== eqs[i], eachindex(eqs)) && return _solve_generic(logged, vars)
+    # each unknown only in exponents, b^(c v): one generator u per unknown, a polynomial
+    # system in the u's, then each v from its generator (3eˣ - 2eʸ = 17, 5eˣ + 3eʸ = 41:
+    # x = log 7, y = log 2; SymPy #17941)
+    r = _solve_exp_generators(eqs, vars)
+    r === nothing || return r
     les = [_log_eq(e, vars) for e in eqs]
     if any(!isnothing, les)
         es = Relation[l === nothing ? e : l[1] for (e, l) in zip(eqs, les)]
@@ -824,4 +829,72 @@ end
 
 # the assumptions of the system being solved (solve(eqs, vars; assume)), or nothing
 const _SYSTEM_ASSUME = ScopedValue{Any}(nothing)
+
+function _solve_exp_generators(eqs::Vector{<:Relation}, vars::Vector{Sym})
+    es = Sym[expand(e.lhs - e.rhs) for e in eqs]
+    # the powers base^w with w in one unknown and a base free of them
+    atoms = Dict{Sym,Vector{Sym}}(v => Sym[] for v in vars)
+    ok = true
+    for e in es
+        _replace_walk(e) do t
+            if t.kind == POW && !any(v -> has(t.args[1], v), vars)
+                vs = [v for v in vars if has(t.args[2], v)]
+                length(vs) == 1 && (any(a -> _eq(a, t), atoms[only(vs)]) || push!(atoms[only(vs)], t))
+                length(vs) > 1 && (ok = false)
+            elseif t.kind == MUL
+                for (b, q) in zip(t.args, t.exps)
+                    any(v -> has(b, v), vars) && continue
+                    vs = [v for v in vars if has(q, v)]
+                    isempty(vs) && continue
+                    length(vs) == 1 || (ok = false; continue)
+                    a = pow(b, q)
+                    any(o -> _eq(o, a), atoms[only(vs)]) || push!(atoms[only(vs)], a)
+                end
+            end
+            nothing
+        end
+    end
+    ok && all(v -> !isempty(atoms[v]), vars) || return nothing
+    gens = Dict{Sym,Tuple{Sym,Sym}}()
+    nes = es
+    for v in vars
+        as = atoms[v]
+        g, ks, cs = length(as) == 1 ? (as[1], [1], Sym[ONE]) : something(_common_power(as), (nothing, nothing, nothing))
+        g === nothing && return nothing
+        u = Sym(Symbol("_eg_", v.name))
+        gens[v] = (g, u)
+        nes = [subs(e, (a => c * u^k for (a, k, c) in zip(as, ks, cs))...) for e in nes]
+    end
+    # (an unknown left outside its exponentials: not this method's)
+    any(e -> any(v -> has(e, v), vars), nes) && return nothing
+    us = Sym[gens[v][2] for v in vars]
+    usols = try _solve_generic(Relation[Relation(:eq, e, ZERO) for e in nes], us) catch err
+        err isa ArgumentError || rethrow(); return nothing
+    end
+    usols isa AbstractVector || return nothing
+    out = Dict{Sym,Sym}[]
+    for d in usols
+        choices = Vector{Sym}[]
+        good = true
+        for v in vars
+            g, u = gens[v]
+            w = get(d, u, u)
+            (_eq(w, u) || iszero(w)) && (good = false; break)
+            rs = try _solve_generic(g ~ w, v) catch err; err isa ArgumentError || rethrow(); Sym[] end
+            rs isa AbstractVector || (good = false; break)
+            push!(choices, rs)
+        end
+        good || continue
+        # every combination of the unknowns' values (a loop: splatting choices into
+        # Iterators.product sent inference into a long recursion through _solve_generic)
+        combos = [Sym[]]
+        for c in choices
+            combos = [vcat(p, Sym[r]) for p in combos for r in c]
+        end
+        for combo in combos
+            push!(out, Dict{Sym,Sym}(v => r for (v, r) in zip(vars, combo)))
+        end
+    end
+    out
+end
 

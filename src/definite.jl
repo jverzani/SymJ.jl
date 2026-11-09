@@ -1174,6 +1174,18 @@ function _definite_fallback(g::Sym, x::Sym, l::Sym, h::Sym, antider, A, pv::Bool
             (L.kind == NUMBER && !iszero(L.num) && isreal(L.num)) && return L.num > N0 ? Sym(Inf) : Sym(-Inf)
         end
     end
+    # over (-∞, ∞): ∫₀^∞ (f(x) + f(-x)) dx when that sum is simpler (e^(-x²)/(1 + eˣ) has
+    # the even part e^(-x²): √π/2; SymPy #19175)
+    if line && depth >= 1
+        ev = try simplify(g + subs(g, x => -x)) catch err; err isa InterruptException && rethrow(); nothing end
+        if ev isa Sym && _nodes(ev) < _nodes(g)
+            v = try _definite(ev, x, ZERO, h, antider, A, pv) catch err
+                err isa InterruptException && rethrow()
+                _definite_fallback(ev, x, ZERO, h, antider, A, pv, depth - 1)
+            end
+            v isa Sym && return v
+        end
+    end
     # ∫₀^∞ c xᵖ logᵏ(x) e^(-a x^q) dx = c dᵏ/dsᵏ [Γ(s/q)/(q a^(s/q))] at s = p + 1, for
     # a > 0, q > 0, p > -1 (e^(-x³): Γ(4/3); t log²(t) e^(-t): Γ''(2); SymPy #20685, #20043)
     if half

@@ -512,7 +512,15 @@ simplify(1 - cos(x)^2)                           # sin(x)^2
 function simplify(ex; assume = nothing)
     A = _assumptions(assume)
     A === nothing && (A = Assumptions())
-    _simplify(_refine(Sym(ex), A), A)
+    e = _refine(Sym(ex), A)
+    r = _simplify(e, A)
+    # once more when the first pass changed it: a candidate of the result may reach
+    # further (2cos(x)sin(x)sin(π cos x) is sin(2x)sin(π cos x); SymPy #18231)
+    if !_eq(r, e) && _hassymbol(r) && _nodes(r) <= 40
+        r2 = _simplify(r, A)
+        _nodes(r2) < _nodes(r) && (r = r2)
+    end
+    r
 end
 # a conjunction of facts without those the others imply (x ≪ 1 & x ≪ 2 is x ≪ 1), a
 # disjunction without those that imply another; one fact left is that fact (SymPy #23391)
@@ -752,6 +760,22 @@ function _simplify(e::Sym, A::Assumptions)
     _has_fn(e, (:conj,)) && consider(_conj_pairs_to_abs)
     # |u| sign(u) = u; |u|^m u^(2k) = |u|^(m + 2k) for real u (SymPy #20402, #19484, #20108)
     _has_fn(e, (:abs,)) && consider(x -> _abs_sign_pairs(x, A))
+    # sin(iu) = i sinh(u), cos(iu) = cosh(u), tan(iu) = i tanh(u)
+    _has_fn(e, (:sin, :cos, :tan)) && consider(x -> _replace_walk(x) do t
+        (t.kind == FN && t.name in (:sin, :cos, :tan) && length(t.args) == 1) || return nothing
+        u = _im_multiple(t.args[1])
+        u === nothing ? nothing : t.name === :sin ? IM * sinh(u) : t.name === :cos ? cosh(u) : IM * tanh(u)
+    end)
+    # |a||b| = |ab| (|t/x||x| = |t|; SymPy #18840)
+    _count_fn(e, :abs) >= 2 && consider(_merge_abs)
+    # conj(u) = re u - i im u, beside real and imag parts (SymPy #18271)
+    _has_fn(e, (:conj,)) && _has_fn(e, (:real, :imag)) &&
+        consider(x -> _replace_walk(x) do t
+            t.kind == FN && t.name === :conj && length(t.args) == 1 ?
+                apply_function(:real, t.args) - IM * apply_function(:imag, t.args) : nothing
+        end)
+    # piecewise(u < 0 => -u, u ≥ 0 => u) is |u| (SymPy #19167)
+    _has_fn(e, (:piecewise,)) && consider(_pw_as_abs)
     # Σ_a^b f - Σ_a^c f with b - c a small integer: the terms between (SymPy #19685)
     _has_fn(e, (:Sum,)) && consider(_combine_sums)
     # fractional powers of one base as powers of t = b^(1/q), cancelled as a rational
@@ -966,6 +990,10 @@ function _simplify_const(e::Sym, A::Assumptions)
     # √(a + bi) with a² + b² a square and rational parts: √(3 + 4i) = 2 + i (SymPy #20024)
     c = _complex_sqrt_denest(e)
     _nodes(c) < _nodes(e) && (e = c)
+    # an algebraic constant that is rational: its minimal polynomial of degree 1
+    # (-48√(4 + 2√5)/(1 + √5)^(3/2) is -24; SymPy #18475)
+    r = _rational_by_minpoly(e)
+    r === nothing || return r
     best = e
     # (trigonometric and hyperbolic too: cos(2)² + sin(2)² is 1, SymPy #25705; and over
     # a common denominator, log(5)/log(10) + log(2)/log(10) is 1, #25860)
@@ -2101,5 +2129,85 @@ function _combine_sums(e::Sym)
     end
     any(used) || return e
     Sym(e.num) + _add_many(c * t for (u, (c, t)) in zip(used, ts) if !u) + _add_many(out)
+end
+
+# in each product, the abs factors with one integer exponent merged: |a|^k |b|^k = |ab|^k
+function _merge_abs(e::Sym)
+    isempty(e.args) && return e
+    e = _rebuild_node(e, Sym[_merge_abs(a) for a in e.args])
+    e.kind == MUL || return e
+    groups = Dict{Sym,Vector{Int}}()
+    for (i, (b, q)) in enumerate(zip(e.args, e.exps))
+        b.kind == FN && b.name === :abs && length(b.args) == 1 && q.kind == NUMBER && isexact(q.num) && _isint(q.num) &&
+            push!(get!(groups, q, Int[]), i)
+    end
+    any(ix -> length(ix) >= 2, values(groups)) || return e
+    used = falses(length(e.args))
+    out = Sym(e.num)
+    for (q, ix) in groups
+        length(ix) >= 2 || continue
+        out *= abs(prod(e.args[i].args[1] for i in ix))^q
+        used[ix] .= true
+    end
+    out * prod((b^q for (u, b, q) in zip(used, e.args, e.exps) if !u); init = ONE)
+end
+
+# a piecewise function of two pieces, u < 0 (or u ≤ 0) => -u and the rest => u, as |u|
+# (or the reverse, u > 0 => u); throughout e
+function _pw_as_abs(e::Sym)
+    _replace_walk(e) do t
+        (t.kind == FN && t.name === :piecewise && length(t.args) == 4) || return nothing
+        c1, v1, c2, v2 = t.args
+        (c1.kind == FN && haskey(_COND_RELS, c1.name)) || return nothing
+        r = _relation_of(c1)
+        d = expand(r.lhs - r.rhs)
+        u = r.op in (:lt, :le) ? d : r.op in (:gt, :ge) ? -d : return nothing
+        # c1 says u < 0 (u ≤ 0): v1 = -w, v2 = w with w = ±u
+        (iszero(expand(v1 + v2)) && (iszero(expand(v2 - u)) || iszero(expand(v2 + u)))) || return nothing
+        w = iszero(expand(v2 - u)) ? u : -u
+        # (c2 must be its complement or true)
+        c2 == ONE || (c2.kind == FN && haskey(_COND_RELS, c2.name) &&
+                      (q = _relation_of(c2); iszero(expand((q.lhs - q.rhs) - (r.lhs - r.rhs))) &&
+                       q.op === (r.op === :lt ? :ge : r.op === :le ? :gt : r.op === :gt ? :le : :lt))) || return nothing
+        _eq(w, u) ? abs(u) : -abs(u)
+    end
+end
+
+_small_den(q) = (d = _denominator(q); d > 1000 ? 1001 : Int(d))
+function _radical_degree_bound(e::Sym)
+    seen = Set{Tuple{Sym,Int}}()
+    _walk(u) = begin
+        if u.kind == POW && u.args[2].kind == NUMBER && !_isint(u.args[2].num)
+            push!(seen, (u.args[1], _small_den(u.args[2].num)))
+        elseif u.kind == MUL
+            for (b, x) in zip(u.args, u.exps)
+                x.kind == NUMBER && !_isint(x.num) && push!(seen, (b, _small_den(x.num)))
+            end
+        end
+        for a in u.args; _walk(a) end
+    end
+    _walk(e)
+    d = 1
+    for (_, q) in seen
+        d = Base.checked_mul(d, q) ; d > 1000 && return d
+    end
+    d
+end
+function _rational_by_minpoly(e::Sym)
+    (e.kind != NUMBER && _isexactex(e) && _nodes(e) <= 80) || return nothing
+    _has_node(e, t -> t.kind == FN) && return nothing            # radicals only
+    _has_node(e, t -> (t.kind == POW && t.args[2].kind == NUMBER && !_isint(t.args[2].num)) ||
+                      (t.kind == MUL && any(q -> q.kind == NUMBER && !_isint(q.num), t.exps))) || return nothing
+    # the minimal polynomial's degree is at most the product of the radical indices:
+    # nested cube roots (Cardano) make it large and its coefficients huge
+    _radical_degree_bound(e) <= 16 || return nothing
+    v = try _evalc(e) catch; return nothing end
+    abs(imag(v)) < 1e-12 * max(1, abs(v)) || return nothing
+    t = Sym(:_mp_t)
+    p = try minimal_polynomial(e, t) catch err; err isa InterruptException && rethrow(); return nothing end
+    P = try Poly{SymNumber}(expand(p), [t]) catch; return nothing end
+    degree(P, t) == 1 || return nothing
+    c1, c0 = coeff(p, t, 1), coeff(p, t, 0)
+    cancel(-c0 / c1)
 end
 

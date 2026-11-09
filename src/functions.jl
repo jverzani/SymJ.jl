@@ -109,8 +109,12 @@ function _try_numeric(f, args)
     end
 end
 
-_fn_operation(name::Symbol) =
-    (r = get(FUNCTION_RULES, name, nothing); r === nothing || r.julia === nothing ? SymFunction(name) : r.julia)
+function _fn_operation(name::Symbol)
+    f = get(_NAMED_OPS, name, nothing)
+    f === nothing || return f
+    r = get(FUNCTION_RULES, name, nothing)
+    r === nothing || r.julia === nothing ? SymFunction(name) : r.julia
+end
 
 ## helpers for rules
 
@@ -205,6 +209,20 @@ function _trig_of_inverse(f::Symbol, a::Sym)
     g === :asin && return f === :cos ? sqrt(1 - u^2) : f === :tan ? u / sqrt(1 - u^2) : nothing
     g === :acos && return f === :sin ? sqrt(1 - u^2) : f === :tan ? sqrt(1 - u^2) / u : nothing
     f === :sin ? u / sqrt(1 + u^2) : f === :cos ? inv(sqrt(1 + u^2)) : nothing
+end
+
+# u with a = i u, u free of im (a product with the factor im), or nothing: for simplify's
+# sin(iu) = i sinh(u), cos(iu) = cosh(u), tan(iu) = i tanh(u) (sin(t [0 1; -1 0])
+# showed im*sin(im*t); found in the review of SymPy #18631). Not an automatic rule: as
+# one, compile-time evaluation of the sin and sinh rules did not finish.
+function _im_multiple(a::Sym)
+    a.kind == MUL || return nothing
+    any(i -> _eq(a.args[i]^a.exps[i], IM), eachindex(a.args)) || return nothing      # (im is (-1)^(1/2))
+    u = expand(a / IM)
+    # (im inside a product is the factor (-1)^(1/2), which has() does not see: with one
+    # left in u, sin and sinh rewrote each other without end)
+    _has_node(u, t -> _eq(t, IM) || (t.kind == MUL && any(i -> _eq(t.args[i]^t.exps[i], IM), eachindex(t.args)))) && return nothing
+    u
 end
 
 register_function!(:sin; julia = sin,
@@ -479,6 +497,21 @@ for (f, g, jump) in ((:floor, floor, round), (:ceil, ceil, round), (:trunc, trun
                     re, ip = real(a), imag(a)
                     (has(re, IM) || has(ip, IM)) && return nothing
                     return apply_function(f, Sym[re]) + IM * apply_function(f, Sym[ip])
+                end
+            end
+            # integer-valued terms out: floor(floor(x) + 1) = floor(x) + 1, as floor(G + r)
+            # = G + floor(r) for G a floor, ceil or integer (componentwise for complex
+            # values too); not trunc or round (SymPy #18689)
+            if f in (:floor, :ceil) && a.kind == ADD
+                intv(t) = t.kind == FN && t.name in (:floor, :ceil) && length(t.args) == 1
+                ix = [i for i in eachindex(a.args) if intv(a.args[i]) && isexact(a.coefs[i]) && _isint(a.coefs[i])]
+                n0 = isexact(a.num) && _isint(a.num) ? Sym(a.num) : ZERO
+                if !isempty(ix) || !iszero(n0)
+                    G = n0 + _add_many(Sym(a.coefs[i]) * a.args[i] for i in ix)
+                    rest = expand(a - G)
+                    if !_eq(rest, a)
+                        return G + apply_function(f, Sym[rest])
+                    end
                 end
             end
             # floor(floor(u)/m) = floor(u/m) for an integer m > 0, ceil alike (SymPy #27400)

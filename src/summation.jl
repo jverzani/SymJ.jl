@@ -77,6 +77,22 @@ function summation(f, k::Sym, a, b; assume = nothing)
         d = expand(bs - a)
         d.kind == NUMBER && isexact(d.num) && !_isint(d.num) && (bs = a + floor(d))
     end
+    # a piece at a point k = c: the rest summed, and the point's difference added when c
+    # is in the range (piecewise(i = 0 => 1, true => 0) from 0 to n is 1; SymPy #18388)
+    pt = _point_piece(f, k)
+    if pt !== nothing
+        c, v1, rest = pt
+        lo = expand(c - a); hi = bs === nothing ? ONE : expand(bs - c)
+        # (c at an end of the range is a term whenever the range is not empty, as the rest
+        # of the sum takes it to be)
+        inside = iszero(lo) || (bs !== nothing && iszero(hi)) ||
+                 ((lo.kind == NUMBER && lo.num > N0) && (bs === nothing || (hi.kind == NUMBER && hi.num > N0)))
+        outside = (lo.kind == NUMBER && lo.num < N0) || (bs !== nothing && hi.kind == NUMBER && hi.num < N0)
+        if inside || outside
+            r = _summation(rest, k, a, bs, assume)
+            return inside ? _sum_parts(r, v1 - subs(rest, k => c)) : r
+        end
+    end
     r = _summation(f, k, a, bs, assume)
     # an infinite series from a small positive integer left unevaluated: from 0, less the
     # first terms (Σ_{k≥1} 2^k/k! = e² - 1; SymPy #20464)
@@ -1371,3 +1387,19 @@ function _alternating_part(f::Sym, k::Sym)
     (_ispolyin(n, [k]) && _ispolyin(d, [k]) && has(d, k)) || return nothing
     R
 end
+
+# f = piecewise(k = c => v1, rest…) with c free of k: (c, v1, the rest as a piecewise)
+function _point_piece(f::Sym, k::Sym)
+    (f.kind == FN && f.name === :piecewise && length(f.args) >= 4) || return nothing
+    c1, v1 = f.args[1], f.args[2]
+    (c1.kind == FN && get(_COND_RELS, c1.name, nothing) === :eq) || return nothing
+    q = _relation_of(c1)
+    d = expand(q.lhs - q.rhs)
+    co = coeff(d, k, 1)
+    (has(co, k) || iszero(co) || has(expand(d - co * k), k)) && return nothing
+    c = cancel(-(d - co * k) / co)
+    has(v1, k) && (v1 = subs(v1, k => c))
+    rest = length(f.args) == 4 && f.args[3] == ONE ? f.args[4] : apply_function(:piecewise, f.args[3:end])
+    (c, v1, rest)
+end
+

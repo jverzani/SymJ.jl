@@ -18,6 +18,8 @@ using PrecompileTools: @setup_workload, @compile_workload
 # the answer's numbers floats again, not 27-digit fractions; found in the review)
 function RischIntegrate.integrate(ex::Sym, x::Sym; assume = nothing, kw...)
     r = _unwrap(_indefinite(ex, x; assume, kw...))
+    # exp(c log u) as u^c, the integrand's own form (xⁿ log x had exp(n log x) back)
+    r isa Sym && (r = SymJ._exp_log_powers(r))
     r isa Sym && !SymJ._isexactex(ex) ? SymJ._floatify(r) : r
 end
 
@@ -143,7 +145,13 @@ function RischIntegrate.integrate(ex::Union{Sym,SymJ.Cases}, xab::Tuple, more::T
     for t in more
         v = SymJ._definite_integral(v, t, assume, antider; principal_value)
     end
-    drop_removable_singularities ? SymJ._drop_removable(v) : v
+    v = drop_removable_singularities ? SymJ._drop_removable(v) : v
+    # (floats in the integrand: the value's numbers floats, as for the antiderivative)
+    if ex isa Sym && !SymJ._isexactex(ex)
+        fl(w) = w isa Sym ? SymJ._floatify(w) : w
+        v = v isa SymJ.Cases ? SymJ._map_cases(fl, v) : fl(v)
+    end
+    v
 end
 
 # RischIntegrate's special functions on expressions, so answers with them are expressions

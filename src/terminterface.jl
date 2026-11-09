@@ -14,6 +14,22 @@ function TermInterface.operation(x::Sym)
 end
 TermInterface.head(x::Sym) = operation(x)
 
+# The operation of a function whose numeric method has another name (_num_factorial for
+# factorial): a function of the function's own name, so that a consumer matching by name
+# (GruntzLimit's factorial, lambertw; SymPy #19379, #18992, #18969) finds it. On Syms it
+# builds the node, on numbers it evaluates.
+module _NamedOps
+import ..SymJ
+for f in (:factorial, :binomial, :lambertw, :harmonic, :li, :heaviside, :dirac)
+    @eval function $f(args...)
+        any(a -> a isa SymJ.Sym, args) && return SymJ.apply_function($(QuoteNode(f)), SymJ.Sym[SymJ.Sym(a) for a in args])
+        SymJ.FUNCTION_RULES[$(QuoteNode(f))].julia(args...)
+    end
+end
+end
+const _NAMED_OPS = Dict{Symbol,Function}(f => getfield(_NamedOps, f) for f in
+    (:factorial, :binomial, :lambertw, :harmonic, :li, :heaviside, :dirac))
+
 # For POW and FN the node's own vector is returned; treat it as read-only.
 function TermInterface.arguments(x::Sym)
     k = x.kind

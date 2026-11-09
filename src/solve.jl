@@ -413,6 +413,28 @@ const _WEIERSTRASS_FNS = (:sin, :cos, :tan, :cot, :sec, :csc)
 
 # the one argument of trigonometric functions, all of them among sin, cos, tan, cot, sec,
 # csc; nothing otherwise
+function _multiple_angle_form(n::Sym, bad::Vector{Sym}, x::Sym)
+    all(b -> b.kind == FN && b.name in _WEIERSTRASS_FNS && length(b.args) == 1, bad) || return nothing
+    cs = SymNumber[]
+    for b in bad
+        c = cancel(b.args[1] / x)
+        (c.kind == NUMBER && isexact(c.num) && !iszero(c.num)) || return nothing
+        push!(cs, c.num)
+    end
+    L = reduce(lcm, (_denominator(c) for c in cs); init = big(1))
+    ns = [BigInt(_numerator(c * SymNumber(L))) for c in cs]
+    G = reduce(gcd, ns)
+    ks = [k ÷ G for k in ns]
+    maximum(abs, ks) <= 12 || return nothing
+    W = Sym(Symbol("_mw", objectid(x)))
+    w = x * Sym(SymNumber(G) / SymNumber(L))
+    n2 = n
+    for (b, k) in zip(bad, ks)
+        n2 = subs(n2, b => expand_trig(apply_function(b.name, Sym[Sym(SymNumber(k)) * W])))
+    end
+    (n2, w, W) |> t -> (subs(t[1], t[3] => t[2]), t[2])
+end
+
 function _common_trig_arg(bad::Vector{Sym})
     all(b -> b.kind == FN && b.name in _WEIERSTRASS_FNS && length(b.args) == 1, bad) || return nothing
     w = bad[1].args[1]
@@ -462,6 +484,19 @@ function _solve_weierstrass(eq::Relation, n::Sym, x::Sym, w::Sym)
     ws = Sym[PI]
     for r in ts
         u = 2atan(r)
+        # 2atan(r) as atan(2r/(1 - r²)) (± π past |r| = 1) when smaller: 2atan(√10/3 - 1/3)
+        # is atan(3) (SymPy #19102)
+        rv = try N(r) catch; nothing end
+        if rv isa Real && !isapprox(abs(rv), 1) && !_hassymbol(r)
+            # (in the field of r's radicals, denominators rationalized: √10 terms cancel to 3)
+            q = try Sym(_AlgF(_algnorm(2r)) * inv(_AlgF(_algnorm(1 - r^2)))) catch err
+                err isa InterruptException && rethrow(); nothing
+            end
+            if q isa Sym                                  # (not w: that is the argument)
+                c = atan(q) + (abs(rv) < 1 ? ZERO : rv > 0 ? PI : -PI)
+                _nodes(c) < _nodes(u) && (u = c)
+            end
+        end
         v = try N(u) catch; nothing end
         v isa Real && v < 0 && (u += 2PI)
         any(s -> _eq(s, u), ws) || push!(ws, u)
@@ -522,6 +557,11 @@ function _solve_through(eq::Relation, n::Sym, x::Sym, bad::Vector{Sym})
             # sin, cos, tan, … of one argument: through t = tan(w/2)
             w = _common_trig_arg(bad)
             w === nothing || return _solve_weierstrass(eq, n, x, w)
+            # rational multiples c x of x: each f(c x) = f(k w), w = x·g for the largest
+            # g with every c/g an integer k, expanded in sin w, cos w (sin x + cos(x/2) = 0
+            # in w = x/2; SymPy #18315)
+            mw = _multiple_angle_form(n, bad, x)
+            mw === nothing || return _solve_weierstrass(eq, mw[1], x, mw[2])
             throw(ArgumentError(
                 "solve: $eq involves $x through several functions ($(join(bad, ", "))); not supported yet"))
         end
@@ -602,6 +642,14 @@ end
 # where its condition holds and no earlier one does (SymPy #27037); nested ones in the
 # recursion. Conditions left with parameters are decided (cases). nothing if there is none.
 function _solve_piecewise(eq::Relation, x::Sym)
+    # a piecewise inside a piecewise's piece: folded into one first (SymPy #18359)
+    e0 = eq.lhs - eq.rhs
+    if _has_node(e0, t -> t.kind == FN && t.name === :piecewise && any(a -> _hasfn(a, :piecewise), t.args))
+        f = try piecewise_fold(e0, x) catch err; err isa ArgumentError || rethrow(); nothing end
+        if f isa Sym && !_eq(f, e0)
+            return _solve_piecewise(Relation(:eq, f, ZERO), x)
+        end
+    end
     P = nothing
     _replace_walk(eq.lhs - eq.rhs) do t
         P === nothing && t.kind == FN && t.name === :piecewise && has(t, x) && (P = t)
@@ -1055,6 +1103,14 @@ function _invert(g::Sym, r::Sym, x::Sym)
         name === :sin && return [(t, a) for a in _periods_in_range(t, _one_period(asin(r), PI - asin(r)), 2PI, x)]
         name === :cos && return [(t, a) for a in _periods_in_range(t, _one_period(acos(r), 2PI - acos(r)), 2PI, x)]
         name === :tan && return [(t, a) for a in _periods_in_range(t, [atan(r)], PI, x)]
+        # cot t = r: t = acot r, π/2 for r = 0 (SymPy #19115)
+        name === :cot && return [(t, a) for a in _periods_in_range(t, [iszero(r) ? PI / 2 : acot(r)], PI, x)]
+        # heaviside(t) = 1/2 at t = 0; 0 or 1 hold on half-lines (SymPy #18939)
+        if name === :heaviside
+            r == Sym(1 // 2) && return [(t, ZERO)]
+            (iszero(r) || isone(r)) && throw(ArgumentError("solve: heaviside($t) = $r holds on a set of $x ($t $(isone(r) ? ">" : "<") 0), not at points; solve the inequality $t $(isone(r) ? "≫" : "≪") 0"))
+            r.kind == NUMBER && return Tuple{Sym,Sym}[]
+        end
         name === :log && return [(t, exp(r))]
         name === :conj && return [(t, conj(r))]               # (SymPy #20305)
         name === :asin && return [(t, sin(r))]
