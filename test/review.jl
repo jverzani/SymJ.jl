@@ -856,8 +856,8 @@ end
     @test series(1 / (n + 1), n, Sym(Inf), 3) == series(1 / (n + 1), n, Inf, 3)
     @test series(exp(1 / n), n, limit(x, x => Inf), 3) == series(exp(1 / n), n, Inf, 3)
     # float matrices: a pivot tolerance (#17218)
-    @test rank(Sym[0.8 -0.8 -0.4; -0.3 0.9 -0.4; -0.5 -0.1 0.8]) == 2
-    @test size(nullspace(Sym[0.8 -0.8 -0.4; -0.3 0.9 -0.4; -0.5 -0.1 0.8]), 2) == 1
+    @test SymJ.LinearAlgebra.rank(Sym[0.8 -0.8 -0.4; -0.3 0.9 -0.4; -0.5 -0.1 0.8]) == 2
+    @test size(SymJ.LinearAlgebra.nullspace(Sym[0.8 -0.8 -0.4; -0.3 0.9 -0.4; -0.5 -0.1 0.8]), 2) == 1
     # |x|/x is undefined at 0: no root there (#17438)
     @test solve(x^2 - 1 + abs(x) / x ~ 0, x; assume = (x ∈ ℝ,)) == [-sqrt(Sym(2))]
     @test solve(x + abs(x) / x ~ 1, x; assume = (x ∈ ℝ,)) == Sym[]

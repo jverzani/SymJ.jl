@@ -163,7 +163,7 @@ import PolyLog as PL
         @test ∫(abs(x - 1), (x, 0, 3)) == 5 // 2 && ∫(abs(x), x) == P(x ≪ 0 => -x^2 / 2, true => x^2 / 2)
         @test ∫(H(x - a), x) == P(x ≪ a => 0, true => x - a)                               # a parameter
         @test ∫(cos(x) * D(x - 1), x) == cos(Sym(1)) * H(x - 1) && ∫(exp(x) * D(2x - 2), x) == E / 2 * H(x - 1)
-        @test ∫(x^2 * D(x - 2, 1), x) == -4H(x - 2)                                       # δ′: -g′(a)
+        @test ∫(x^2 * D(x - 2, 1), x) == 4D(x - 2) - 4H(x - 2)                            # δ′: g(a)δ - g′(a)H (SymPy #17383)
         # δ(u(x)) = Σ δ(x - r)/|u′(r)| over the simple real roots of a polynomial u (SymPy #29001)
         @test ∫(D(x^2 - 1) * x^2, (x, -3, 3)) == 1
         @test ∫(D(x^2 - 1) * x^2, (x, 0, 3)) == 1 // 2
