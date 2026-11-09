@@ -801,3 +801,40 @@ end
     @test length(solve([x^2 ~ -4, y ~ x], [x, y]; assume = (x ∈ ℝ,))) == 0
 end
 
+@testset "missing cases (SymPy review, round 9)" begin
+    @syms x y t z n i b
+    IM, PI = SymJ.IM, SymJ.PI
+    # limits through factorial, binomial, lambertw by name (#19379, #18992, #18969)
+    @test SymJ.summation(factorial(n) / factorial(n + 2), n, 1, Inf) == Sym(1) // 2
+    @test limit(x / factorial(x)^(1 / x), x => Inf) == SymJ.E
+    @test limit(lambertw(x) / log(x), x => Inf) == 1
+    # cot inverted; heaviside's set refused clearly (#19115, #18939)
+    @test solve(cot(x) ~ 0, x) == [PI / 2]
+    @test_throws ArgumentError solve(SymJ.heaviside(x) ~ 1, x)
+    @test solve(SymJ.heaviside(x) ~ Sym(1) // 2, x) == [Sym(0)]
+    # roots of 3cos b = sin b tidied; multiple angles (#19102, #18315)
+    @test solve(3cos(b) ~ sin(b), b) == [atan(Sym(3)), atan(Sym(3)) + PI]
+    @test all(r -> abs(N(sin(r) + cos(r / 2))) < 1e-12, solve(sin(x) + cos(x / 2) ~ 0, x))
+    @test length(solve(sin(x) + cos(x / 2) ~ 0, x)) == 4
+    # exponential systems (#17941)
+    @test solve([3exp(x) - 2exp(y) ~ 17, 5exp(x) + 3exp(y) ~ 41], [x, y]) == [Dict(x => log(Sym(7)), y => log(Sym(2)))]
+    # real/imag of log of a complex constant; conj recombined (#17948, #18271)
+    @test real(log(2 + 3IM)) == log(sqrt(Sym(13)))
+    @test imag(log(1 + IM)) == PI / 4
+    @test simplify(conj(z) - (real(z) - IM * imag(z))) == 0
+    # abs merged; a piecewise as abs; floor of floor + 1 (#18840, #19167, #18689)
+    @test simplify(abs(t * abs(x) / x)^2) == abs(t)^2
+    @test simplify(SymJ.piecewise(x ≪ 0 => -x, x ≧ 0 => x)) == abs(x)
+    @test floor(floor(x) + 1) == floor(x) + 1
+    # factorial's poles; sin of an imaginary multiple under simplify (extras)
+    @test_throws SymJ.DivisionByZero factorial(Sym(-3))
+    @test simplify(sin(IM * t) / sinh(t)) == IM
+    @test simplify(cos(IM * t) - cosh(t)) == 0
+    # a sum with a point condition (#18388)
+    @test SymJ.summation(SymJ.piecewise(i ⩵ 0 => 1, true => 0), i, 0, n) == 1
+    @test SymJ.summation(SymJ.piecewise(i ⩵ 0 => 2, true => 1), i, 0, n) == n + 2
+    # a rational radical constant; a second simplify pass (#18475, #18231)
+    @test simplify(-48 * sqrt(4 + 2sqrt(Sym(5))) / (1 + sqrt(Sym(5)))^(Sym(3) // 2)) == -24
+    @test simplify((cos(x - PI * cos(x)) - cos(x + PI * cos(x))) * cos(x)) == sin(2x) * sin(PI * cos(x))
+end
+

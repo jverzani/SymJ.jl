@@ -269,6 +269,28 @@ transforms). Of the rest, in rough order of value for calculus-level use:
      matrix expressions, `apart` with an extension or RootSum, noncommutative symbols,
      ImageSet/ProductSet, `collect`, `diff` of equations, integer factorization of
      numbers (`factor(12)`).
+12. **Gaps from the ninth SymPy review (#17909–#19408)**, none a wrong answer:
+   - solve: the 5-equation symmetric system x_i = 1/(1 + Σ others) (a zero hidden in
+     nested complex radicals is taken as an identity; #19038); parameter cases e = 1,
+     c = 0 of a system with a symbolic exponent (round-9 extra); nested trigonometric
+     equations give the outer roots of one period only (sin(sin x) = 0; #18022).
+   - rsolve: irreducible cubic characteristic polynomials fail its own check (#17990);
+     coefficients with cos θ reach the numeric gcd (#18751).
+   - dsolve: a parametric 2×2 constant-coefficient system fails its check (#18562).
+   - gcd and cancel over algebraic extensions (x² + 1 and x + i; #18391).
+   - definite integrals: ∫₀^∞ cos(πx/2)cos x/(1 - x²) (#18796); a rational function in
+     parameters over ℝ splits on whether √(-g²) is real, with "known only numerically"
+     cases (#19046; g, K > 0 is right).
+   - simplify: min/max shifts (min(0, n - 1 - c) + min(c, n - 1); #18643); -a/a for a
+     sum a with radicals is not cancelled automatically (#18799); merging Or of
+     relations under assumptions (n = 0 | n ≥ 1 as n ≥ 0 for integer n; #18389).
+   - limits of harmonic(n) (GruntzLimit has no rule for it).
+   - From the first pass: sets (Interval/FiniteSet/ImageSet objects), Diophantine
+     equations, modular roots, Fourier transforms and series, numeric root finding
+     (2^x + 3^x = 5^x), boolean simplification, Smith normal form, matrix symbols and
+     block matrices, KroneckerDelta, multinomial, Bessel ODEs, B-splines, companion
+     matrices, noncommutative symbols, AccumBounds, Poly over GF(p), BigFloat inputs
+     (Sym(BigFloat) rounds to Float64).
 
 Done since the first audit: trigonometric and logarithmic expansion, gamma and combinatorial simplification, LaTeX output (a Latexify extension), resultants and Gröbner
 bases (polynomial systems are solved), real and imaginary parts and `conj`, and

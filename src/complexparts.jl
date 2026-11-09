@@ -88,6 +88,13 @@ function _part(u::Sym, part::Int)
         return part == 1 ? u : ZERO                         # real(abs(z)) = abs(z)
     elseif u.kind == FN && u.name === :conj && length(u.args) == 1
         return part == 1 ? apply_function(:real, u.args) : -apply_function(:imag, u.args)
+    elseif u.kind == FN && u.name === :log && length(u.args) == 1 && !_hassymbol(u.args[1])
+        # log z of a complex constant: log|z| and arg z (principal; SymPy #17948)
+        z = u.args[1]
+        zp = _const_parts(z)
+        if zp !== nothing && !iszero(expand(zp[2]))
+            return part == 1 ? log(abs(z)) : angle(z)
+        end
     end
     # real for every value of its symbols (abs(z)^2, conj(z) z): no assumptions
     _isreal(u, Assumptions()) === true && return part == 1 ? u : ZERO
