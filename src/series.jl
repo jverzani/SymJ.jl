@@ -676,6 +676,14 @@ reciprocal of a sum with such factors, as `1/(1 + exp(x))` at `Inf`.
 function series(ex, x::Sym, x0 = 0, n::Real = 6)
     _isnamed(x) || throw(ArgumentError("series: $x is not a symbol"))
     ex = _sinc_elementary(Sym(ex))
+    # a symbolic ±∞ (what limit returns) is the point at infinity, not a finite point
+    # Inf + t (series(1/(n+1), n, Sym(Inf)) gave 0; SymPy #16777)
+    if x0 isa Sym && x0.kind == NUMBER
+        v = _jlnum(x0.num)
+        v isa Real && isinf(v) && (x0 = v)
+    end
+    x0 isa Sym && x0.kind != NUMBER && !_hassymbol(x0) && (try isinf(N(x0)) catch; false end) &&
+        throw(ArgumentError("series: the point $x0 is infinite; use Inf or -Inf"))
     sub = x0 isa Real && isinf(x0) ? (x0 > 0 ? inv(_T) : -inv(_T)) : Sym(x0) + _T
     ext = subs(ex, x => sub)
     order = Rational{Int}(rationalize(n))

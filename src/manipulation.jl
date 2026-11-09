@@ -827,6 +827,17 @@ until two evaluations agree, and the result is that value rounded to `Float64`.
 """
 function N(ex::Sym)
     z = _checked_value(ex, _evalc(ex))
+    if !isfinite(z)
+        # an infinity: the real value when there is one (expinti(0) is -Inf, not the
+        # complex -Inf + Inf*im; SymPy #17395)
+        r = try
+            _ev(ex, _Named(NamedTuple()), Float64, Ref{Union{Nothing,Sym}}(nothing))
+        catch err
+            err isa InterruptException && rethrow()
+            nothing
+        end
+        r isa Real && return r
+    end
     iszero(imag(z)) ? real(z) : z
 end
 N(x::Number) = x

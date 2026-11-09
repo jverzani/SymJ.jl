@@ -163,7 +163,7 @@ import PolyLog as PL
         @test ∫(abs(x - 1), (x, 0, 3)) == 5 // 2 && ∫(abs(x), x) == P(x ≪ 0 => -x^2 / 2, true => x^2 / 2)
         @test ∫(H(x - a), x) == P(x ≪ a => 0, true => x - a)                               # a parameter
         @test ∫(cos(x) * D(x - 1), x) == cos(Sym(1)) * H(x - 1) && ∫(exp(x) * D(2x - 2), x) == E / 2 * H(x - 1)
-        @test ∫(x^2 * D(x - 2, 1), x) == -4H(x - 2)                                       # δ′: -g′(a)
+        @test ∫(x^2 * D(x - 2, 1), x) == 4D(x - 2) - 4H(x - 2)                            # δ′: g(a)δ - g′(a)H (SymPy #17383)
         # δ(u(x)) = Σ δ(x - r)/|u′(r)| over the simple real roots of a polynomial u (SymPy #29001)
         @test ∫(D(x^2 - 1) * x^2, (x, -3, 3)) == 1
         @test ∫(D(x^2 - 1) * x^2, (x, 0, 3)) == 1 // 2
@@ -607,6 +607,14 @@ import PolyLog as PL
         pdf = SymJ.piecewise((0 ≦ x) & (x ≪ 1) => 1 // 2, (x ≧ 1) & (x ≪ 2) => 0, (x ≧ 2) & (x ≪ 3) => 1 // 2, true => 0)
         F = RischIntegrate.integrate(pdf, (x, 0, x))
         @test solve(SymJ.piecewise(x ≧ 0 => F, true => 0) ~ 1 // 2, x) isa SymJ.SymSet
+    end
+
+    @testset "wrong answers (SymPy review, round 10)" begin
+        # the boundary terms of a dirac derivative (#17383)
+        d1 = SymJ.apply_function(:dirac, Sym[x, Sym(1)])
+        @test RischIntegrate.integrate(exp(x) * d1, x) == SymJ.dirac(x) - SymJ.heaviside(x)
+        @syms z
+        @test RischIntegrate.integrate(exp(x) * d1, (x, -1, z)) == SymJ.dirac(z) - SymJ.heaviside(z)
     end
 
     @testset "asymptotic series at ±∞: exponential and oscillating factors" begin

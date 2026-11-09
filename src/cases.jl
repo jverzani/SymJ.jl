@@ -654,6 +654,8 @@ function _solve_abs_split(e::Relation, x::Sym, B::Assumptions)
         rs isa AbstractVector || return nothing
         for r in rs
             _decide(Relation(op, expand(subs(u, x => r)), ZERO), B) || continue
+            # not where the equation is undefined: |x|/x = 1 at x = 0 (SymPy #17438)
+            _defined_at(g, x, r) || continue
             any(o -> iszero(expand(o - r)), out) || push!(out, r)
         end
     end

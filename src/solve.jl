@@ -1179,10 +1179,39 @@ function _periods_in_range(t::Sym, as::Vector{Sym}, P::Sym, x::Sym)
     (I.lo === nothing || I.hi === nothing || _hassymbol(I.lo) || _hassymbol(I.hi)) && return as
     any(_hassymbol, as) && return as
     k = diff(t, x)
-    (k.kind == NUMBER && !iszero(k.num)) || return as
-    c = expand(t - k * x)
-    _hassymbol(c) && return as
-    ends = sort([Float64(N(k * I.lo + c)), Float64(N(k * I.hi + c))])
+    if k.kind == NUMBER && !iszero(k.num)
+        c = expand(t - k * x)
+        _hassymbol(c) && return as
+        ends = sort([Float64(N(k * I.lo + c)), Float64(N(k * I.hi + c))])
+    else
+        # t monotone in x there: the angles between its values at the ends; t unbounded
+        # (log x as x → 0+): infinitely many roots, not those of one period (sin(log x) = 0
+        # on (0, 1] gave [1] alone; SymPy #17579)
+        tl = try limit(t, x => I.lo; dir = :+) catch; return as end
+        th = try limit(t, x => I.hi; dir = :-) catch; return as end
+        vl, vh = try (N(tl), N(th)) catch; return as end
+        (vl isa Real && vh isa Real) || return as
+        (isinf(vl) || isinf(vh)) && throw(ArgumentError(
+            "solve: $t is unbounded for $x in the assumed interval: infinitely many solutions"))
+        # its range: the values at the ends and at the critical points inside
+        vals = Float64[vl, vh]
+        m = _signs(k, A)
+        if !(m !== nothing && (m & _NEG == 0 || m & _POS == 0))
+            cs = try _solve_generic(k ~ 0, x) catch; return as end
+            cs isa AbstractVector || return as
+            lo, hi = Float64(N(I.lo)), Float64(N(I.hi))
+            for cp in cs
+                _hassymbol(cp) && return as
+                w = try _evalc(cp) catch; return as end
+                abs(imag(w)) > 1e-12 * max(1, abs(w)) && continue
+                lo <= real(w) <= hi || continue
+                tv = try N(subs(t, x => cp)) catch; return as end
+                tv isa Real || return as
+                push!(vals, Float64(tv))
+            end
+        end
+        ends = [minimum(vals), maximum(vals)]
+    end
     p = Float64(N(P))
     out = Sym[]
     for a in as
@@ -1228,7 +1257,15 @@ function _satisfies(eq::Relation, x::Sym, r::Sym)
         rethrow()
     end
     (iszero(d) || iszero(cancel(d))) && return true
-    _hassymbol(d) && return _holds_somewhere(d, r)
+    if _hassymbol(d)
+        _holds_somewhere(d, r) && return true
+        # a residual c·u^p vanishes exactly where u = 0: a case of the parameters, not a
+        # spurious root (√(z - x) + √(y - x) = 0 has z = x when y = x)
+        u = _vanishing_base(d)
+        A = _SOLVE_ASSUME[]
+        (u === nothing || A === nothing) && return false
+        return _decide(Relation(:eq, u, ZERO), A)
+    end
     v = try N(d) catch; return true end
     abs(v) <= 1e-9 * max(1, abs(N(r)))
 end
@@ -1241,6 +1278,27 @@ end
 # 1.38e-23 in an exponent's denominator (E2 - E1 times 7·10²²) cancels to noise (#25792).
 const _SAMPLE_VALUES = (37 // 100, -61 // 100, 143 // 100, -189 // 100, 731 // 10000, 271 // 100,
                         -317 // 100, 83 // 100, 53 // 10, -29 // 100)
+
+# u when d is c·u^p (c a nonzero number, p > 0) and u a polynomial in its symbols
+function _vanishing_base(d::Sym)
+    e = d
+    for _ in 1:4
+        if e.kind == MUL && length(e.args) == 1 && _positive_number(e.exps[1])
+            e = e.args[1]
+        elseif e.kind == POW && _positive_number(e.args[2])
+            e = e.args[1]
+        else
+            break
+        end
+    end
+    (_eq(e, d) || !_hassymbol(e) || !_ispoly_in_all(e)) ? nothing : e
+end
+_ispoly_in_all(e::Sym) = try
+    Poly{SymNumber}(e, sort!(collect(free_symbols(e)); lt = _lt)); true
+catch err
+    err isa ArgumentError || rethrow()
+    false
+end
 
 function _holds_somewhere(d::Sym, r::Sym)
     syms = collect(free_symbols(d))
@@ -1452,7 +1510,13 @@ function _ferrari(e, d, c, b, a)                             # a x⁴ + b x³ + 
     p = (8a * c - 3b^2) / (8a^2)
     q = (b^3 - 4a * b * c + 8a^2 * d) / (8a^3)
     shift = -b / (4a)
-    if _iszero_value(q)                                      # biquadratic in y = x - shift
+    # symbolic coefficients in a solve: the degenerate points (q = 0, Δ0 = 0, S = 0) are
+    # cases, not skipped; the general formula is wrong there (½x⁴ + x² - 1 from the
+    # generic quartic gave ±i twice; SymPy #17563)
+    A = _SOLVE_ASSUME[]
+    sym = A !== nothing && any(_hassymbol, (a, b, c, d, e))
+    iszero_(t) = sym && _hassymbol(t) ? _decide(Relation(:eq, numerator(cancel(t)), ZERO), A) : _iszero_value(t)
+    if iszero_(q)                                            # biquadratic in y = x - shift
         r = (-3b^4 + 256a^3 * e - 64a^2 * b * d + 16a * b^2 * c) / (256a^4)
         out = Sym[]
         for y2 in _quadratic(r, p, ONE), sgn in (-1, 1)
@@ -1462,14 +1526,22 @@ function _ferrari(e, d, c, b, a)                             # a x⁴ + b x³ + 
     end
     Δ0 = c^2 - 3b * d + 12a * e
     Δ1 = 2c^3 - 9b * c * d + 27b^2 * e + 27a * d^2 - 72a * c * e
-    Q = ((Δ1 + sqrt(Δ1^2 - 4Δ0^3)) / 2)^(1 // 3)
-    _iszero_value(Q) && (Q = ((Δ1 - sqrt(Δ1^2 - 4Δ0^3)) / 2)^(1 // 3))
-    S = sqrt(-2p / 3 + (Q + Δ0 / Q) / (3a)) / 2
-    for _ in 1:2                                             # S ≠ 0 for some cube root of Q
-        _iszero_value(S) || break
-        Q *= _OMEGA
-        S = sqrt(-2p / 3 + (Q + Δ0 / Q) / (3a)) / 2
+    if sym && iszero_(Δ0)                                     # Q = Δ1^(1/3), no Δ0/Q
+        Q = Δ1^(1 // 3)
+        T = Q
+    else
+        Q = ((Δ1 + sqrt(Δ1^2 - 4Δ0^3)) / 2)^(1 // 3)
+        _iszero_value(Q) && (Q = ((Δ1 - sqrt(Δ1^2 - 4Δ0^3)) / 2)^(1 // 3))
+        T = Q + Δ0 / Q
     end
+    S2 = -2p / 3 + T / (3a)                                  # (2S)²
+    for _ in 1:2                                             # S ≠ 0 for some cube root of Q
+        iszero_(S2) || break
+        Q *= _OMEGA
+        T = sym && iszero_(Δ0) ? Q : Q + Δ0 / Q
+        S2 = -2p / 3 + T / (3a)
+    end
+    S = sqrt(S2) / 2
     u, v = sqrt(-4S^2 - 2p + q / S) / 2, sqrt(-4S^2 - 2p - q / S) / 2
     [shift - S - u, shift - S + u, shift + S - v, shift + S + v]
 end

@@ -77,7 +77,13 @@ function apply_function(name::Symbol, args::Vector{Sym})
         # branch cut (asin(-17.0 + 0im) is not -asin(17.0 + 0im)).
         if rule.julia !== nothing && _float_args(args)
             v = _try_numeric(rule.julia, args)
-            v === nothing && (v = _try_numeric_complex(rule.julia, args))
+            if v === nothing
+                v = _try_numeric_complex(rule.julia, args)
+                # no real value and a complex infinity: a pole, as for exact arguments
+                # (gamma(-1.0) gave -Inf - Inf*im; SymPy #16847)
+                v !== nothing && !isfinite(try _evalc(v) catch; 0.0 end) &&
+                    throw(DivisionByZero("$name($(join(args, ", "))): a pole"))
+            end
             v === nothing || return v
         end
         if rule.eval !== nothing

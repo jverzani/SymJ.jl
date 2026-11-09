@@ -685,11 +685,18 @@ function _integrate_dirac(t::Sym, x::Sym)
         iszero(expand(subs(gl, x => a) - subs(gr, x => a))) || return nothing
         g = gr
     end
+    # by parts: Σ (-1)^j g^(j)(x) δ^(k-1-j)(u)/m^(j+1), then (-1)^k g^(k)(a)/(m^k |m|) H
+    # (the δ terms were dropped: ∫ eˣ δ′(x) dx is δ(x) - H(x); SymPy #17383)
     gk = g
-    for _ in 1:k
+    out = ZERO
+    for j in 0:(k - 1)
+        o = k - 1 - j
+        δ = o == 0 ? apply_function(:dirac, Sym[u]) : apply_function(:dirac, Sym[u, Sym(o)])
+        gj = o == 0 ? subs(gk, x => a) : gk                  # g δ(u) = g(a) δ(u)
+        out += (-1)^j * gj * δ / m^(j + 1)
         gk = diff(gk, x)
     end
-    (-1)^k * subs(gk, x => a) / (m^k * abs(m)) * heaviside(x - a)
+    out + (-1)^k * subs(gk, x => a) / (m^k * abs(m)) * heaviside(x - a)
 end
 
 function _dirac_out_of_pieces(e::Sym, x::Sym)
