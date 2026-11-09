@@ -874,3 +874,35 @@ end
     @test N(SymJ.apply_function(:expinti, Sym[Sym(0)])) == -Inf
 end
 
+@testset "crashes and hangs (SymPy review, round 10)" begin
+    @syms x y z a b Δ ω G
+    LA = SymJ.LinearAlgebra
+    # inequalities against ±∞ (#16582)
+    @test isempty(solve(x ≪ -Inf, x).intervals)
+    @test solve(x ≪ Inf, x) == solve(x ≫ -Inf, x)
+    @test length(solve(1 / x ≪ Inf, x).intervals) == 2
+    # subs on And, Or and memberships (#17530, #16627)
+    @test string(subs((x ≪ 0) | (y ≪ 0), y => z)) == "x ≪ 0 | z ≪ 0"
+    @test subs((x ∈ ℤ) & (y ≫ 0), x => 3) == (y ≫ 0)
+    @test subs((x ∈ ℤ) & (y ≫ 0), x => Sym(1) // 2) === false
+    # symbolic eigenvectors through nested radicals: the adjugate, quickly (#17732)
+    M = Sym[-Δ G 0 G; G ω G 0; 0 -G Δ -G; -G 0 -G -ω]
+    V = LA.eigvecs(M)
+    @test size(V) == (4, 4)
+    vals = (Δ => Sym(3) // 10, ω => Sym(7) // 10, G => Sym(1) // 5)
+    ev = LA.eigvals(M)
+    @test maximum(abs(N(subs(e, vals...))) for e in (M * V[:, 1] - ev[1] * V[:, 1])) < 1e-12
+    # exponentials of a + b with exp(a), exp(b): one generator each (#17130)
+    @test LA.rank(Sym[exp(a) exp(a + b); 1 exp(b)]) == 1
+    @test SymJ.jordan_form(Sym[exp(a)+exp(b) exp(a)-exp(b); exp(a)-exp(b) exp(a)+exp(b)]) isa Tuple
+    # a Poly in a relation; irrational constants; numeric values without a method
+    @test solve(SymJ.Poly(x^2 - 1, x) ~ 0, x) == [-1, 1]
+    @test Sym(Base.MathConstants.golden) == (1 + sqrt(Sym(5))) / 2
+    @test N(Sym(Base.MathConstants.catalan)) ≈ Float64(Base.MathConstants.catalan) rtol = 1e-14
+    @test N(Sym(Base.MathConstants.eulergamma)) ≈ Float64(Base.MathConstants.eulergamma) rtol = 1e-14
+    @test_throws ArgumentError N(SymJ.apply_function(:polygamma, Sym[IM, PI]))
+    # a power of a polynomial = 0: its base, not its expansion (#17867)
+    @test solve((x + 2)^(10^6) ~ 0, x) == [-2]
+    @test solve((x - 1)^50 * (x^2 + 1)^30 ~ 0, x) == [1, -IM, IM]
+end
+

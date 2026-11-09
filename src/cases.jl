@@ -716,6 +716,43 @@ function _single_x_atom(n::Sym, x::Sym)
 end
 
 function _solve_case(e::Relation, x::Sym, B::Assumptions)
+    fs = _power_factors_zero(e, x)
+    if fs !== nothing
+        out = Sym[]
+        for b in fs
+            rs = _solve_case(Relation(:eq, b, ZERO), x, B)
+            rs isa AbstractVector || return _solve_case_full(e, x, B)
+            for r in rs
+                any(o -> iszero(expand(o - r)), out) || push!(out, r)
+            end
+        end
+        return _sort_roots!(out)
+    end
+    _solve_case_full(e, x, B)
+end
+
+# b₁^k₁ ⋯ bₘ^kₘ = 0 with the kᵢ positive integers and the bᵢ polynomials in x: the bases'
+# roots, without expanding the powers ((x + 2)^10000 = 0 took minutes; SymPy #17867);
+# nothing otherwise
+function _power_factors_zero(e::Relation, x::Sym)
+    e.op === :eq && iszero(e.rhs) || return nothing
+    g = e.lhs
+    pairs = g.kind == POW ? [(g.args[1], g.args[2])] : g.kind == MUL ? collect(zip(g.args, g.exps)) : return nothing
+    any(((b, k),) -> k.kind == NUMBER && _isint(k.num) && k.num > SymNumber(1), pairs) || return nothing
+    bs = Sym[]
+    deg = 0
+    for (b, k) in pairs
+        (k.kind == NUMBER && _isint(k.num) && k.num > N0) || return nothing
+        has(b, x) || continue
+        _ispoly_in(b, x) || return nothing
+        push!(bs, b)
+        deg += degree(Poly{Sym}(b, [x]), x) * _toint(k.num)
+    end
+    # (only where the expansion is large: small ones keep the usual path and its order)
+    isempty(bs) || deg <= 64 ? nothing : bs
+end
+
+function _solve_case_full(e::Relation, x::Sym, B::Assumptions)
     if _has_fn(e.lhs - e.rhs, (:abs,))
         r = _solve_abs_split(e, x, B)
         r === nothing || return r

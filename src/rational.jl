@@ -206,7 +206,14 @@ function _conj_cancel(R::Poly{SymNumber}, S::Poly{SymNumber}, gs::Vector{Sym}, r
         g = _gcd_poly(g, A; method = gcd_method)
         g.monos[1] == 0 && return nothing
     end
-    divexact(Rn, g), divexact(Sn, g)
+    # (over radical generators the gcd need not divide: then no gain, not an error; the
+    # eigenvectors of a 4×4 in Δ, ω, G raised "division is not exact"; SymPy #17732)
+    try
+        divexact(Rn, g), divexact(Sn, g)
+    catch err
+        (err isa ArgumentError && occursin("not exact", err.msg)) || rethrow()
+        nothing
+    end
 end
 _isrationalsqrt(a::Sym) = a.kind == POW && a.args[2] == HALF && a.args[1].kind == NUMBER &&
     isexact(a.args[1].num) && a.args[1].num > N0

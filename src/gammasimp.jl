@@ -218,3 +218,23 @@ for f in (:simplify_gamma, :simplify_rational, :simplify_powers, :simplify_trig,
     @eval $f(r::Relation; kws...) = Relation(r.op, $f(r.lhs; kws...), $f(r.rhs; kws...))
 end
 subs(r::Relation, ps::Pair...) = Relation(r.op, subs(r.lhs, ps...), subs(r.rhs, ps...))
+# on conjunctions, disjunctions and memberships of relations, part by part; a part that
+# becomes true or false decides or drops out ((x + y > 0) | (x - y < 0) was a
+# MethodError; SymPy #17530, #16627)
+function subs(m::Membership, ps::Pair...)
+    v = subs(m.x, ps...)
+    r = try v in m.set catch; nothing end
+    r isa Bool && !_hassymbol(v) ? r != m.negated : Membership(v, m.set, m.negated)
+end
+function subs(f::FactAnd, ps::Pair...)
+    gs = Any[subs(g, ps...) for g in f.facts]
+    any(g -> g === false, gs) && return false
+    gs = Any[g for g in gs if g !== true]
+    isempty(gs) ? true : length(gs) == 1 ? only(gs) : FactAnd(gs)
+end
+function subs(f::FactOr, ps::Pair...)
+    gs = Any[subs(g, ps...) for g in f.facts]
+    any(g -> g === true, gs) && return true
+    gs = Any[g for g in gs if g !== false]
+    isempty(gs) ? false : length(gs) == 1 ? only(gs) : FactOr(gs)
+end
