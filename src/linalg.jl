@@ -564,39 +564,62 @@ function _exp_powers(A::AbstractMatrix)
     hyp = (sinh, cosh, tanh, coth, sech, csch)
     any(e -> _has_fn(e, (:sinh, :cosh, :tanh, :coth, :sech, :csch)) || _has_epow(e), S) || return S, nothing
     X = Sym[_has_fn(e, (:sinh, :cosh, :tanh, :coth, :sech, :csch)) ? rewrite(e, hyp => exp) : e for e in S]
-    # the exponents, c u with c rational
+    # the exponents as sums of c u with c rational (exp(a + b) is exp(a) exp(b): with a + b
+    # its own atom, a zero pivot was taken; SymPy #17130), each u a generator
     groups = Dict{Sym,Vector{Rational{BigInt}}}()
+    multi = false
     for e in X
         _replace_walk(e) do t
             if t.kind == POW && t.args[1] === E
-                g = t.args[2]
-                c = g.kind == MUL ? g.num : N1
-                isexact(c) || return nothing
-                u = g.kind == MUL ? g / Sym(c) : g
-                push!(get!(groups, u, Rational{BigInt}[]), Rational{BigInt}(_numerator(c), _denominator(c)))
+                ts, _ = _exp_terms(t.args[2])
+                length(ts) > 1 && (multi = true)
+                for (u, c) in ts
+                    push!(get!(groups, u, Rational{BigInt}[]), c)
+                end
             end
             nothing
         end
     end
     # (also a product holding e as a base: exp(q)^k is E^(kq) as built)
-    any(v -> length(unique(abs.(v))) >= 2 || any(c -> !isone(abs(c)), v), values(groups)) || return S, nothing
+    multi || any(v -> length(unique(abs.(v))) >= 2 || any(c -> !isone(abs(c)), v), values(groups)) || return S, nothing
     ws = Dict{Sym,Tuple{Sym,BigInt}}()
     for (u, cs) in groups
         ws[u] = (Sym(Symbol("_expw", length(ws) + 1)), reduce(lcm, (denominator(c) for c in cs); init = big(1)))
     end
     to_w(e) = _replace_walk(e) do t
         t.kind == POW && t.args[1] === E || return nothing
-        g = t.args[2]
-        c = g.kind == MUL ? g.num : N1
-        isexact(c) || return nothing
-        u = g.kind == MUL ? g / Sym(c) : g
-        haskey(ws, u) || return nothing
-        w, N = ws[u]
-        w^Int(Rational{BigInt}(_numerator(c), _denominator(c)) * N)
+        ts, rest = _exp_terms(t.args[2])
+        all(((u, _),) -> haskey(ws, u), ts) || return nothing
+        out = iszero(rest) ? ONE : exp(rest)
+        for (u, c) in ts
+            w, N = ws[u]
+            out *= w^Int(c * N)
+        end
+        out
     end
     Y = Sym[cancel(to_w(e)) for e in X]
     any(e -> any(u -> has(e, u) && _has_epow(e), keys(ws)), Y) && return S, nothing
     Y, [w => exp(u / N) for (u, (w, N)) in ws]
+end
+
+# an exponent as (terms (u, c) with c rational, the rest): 2a - b/3 + 1 is
+# ([(a, 2), (b, -1/3)], 1); a term with an inexact coefficient stays in the rest
+function _exp_terms(g::Sym)
+    ts = Tuple{Sym,Rational{BigInt}}[]
+    rest = ZERO
+    parts = g.kind == ADD ? [(c, t) for (c, t) in zip(g.coefs, g.args)] : [(N1, g)]
+    g.kind == ADD && (rest = Sym(g.num))
+    for (c, t) in parts
+        k = t.kind == MUL ? t.num : N1
+        u = t.kind == MUL ? t / Sym(k) : t
+        q = c * k
+        if isexact(q) && u.kind != NUMBER
+            push!(ts, (u, Rational{BigInt}(_numerator(q), _denominator(q))))
+        else
+            rest += Sym(c) * t
+        end
+    end
+    ts, rest
 end
 
 """
@@ -988,22 +1011,49 @@ end
 # nested radicals (Ferrari's), took minutes (SymPy #24057). nothing otherwise.
 function _eigvec_adjugate(A::AbstractMatrix, v::Sym, m::Int)
     # (square roots alone, as for a quadratic's roots, are fine through the null space)
-    (m == 1 && v.kind != NUMBER && !_hassymbol(v) && (_has_high_root(v) || _hasfn(v, :cos) || _hasfn(v, :acos))) ||
-        return nothing
+    # with symbols: an eigenvalue in nested radicals (Ferrari's biquadratic case), the
+    # column taken when it is nonzero at sample values of the symbols, as a symbolic pivot
+    # is taken to be nonzero (the null space ran past 6 GB for a 4×4 in Δ, ω, G; SymPy
+    # #17732)
+    sym = _hassymbol(v)
+    m == 1 && v.kind != NUMBER || return nothing
+    if sym
+        _nested_radical(v) || return nothing
+    else
+        (_has_high_root(v) || _hasfn(v, :cos) || _hasfn(v, :acos)) || return nothing
+    end
     S = Sym[Sym(a) for a in A]
-    any(_hassymbol, S) && return nothing
+    !sym && any(_hassymbol, S) && return nothing
     n = size(S, 1)
     n >= 2 || return nothing
     t = Sym(Symbol("_eigt"))
     B = S - t * LinearAlgebra.I(n)
+    syms = sym ? _sort_by_name!(collect(free_symbols(v) ∪ reduce(∪, (free_symbols(a) for a in S); init = Set{Sym}()))) : Sym[]
+    samples = [[s => Sym(_SAMPLE_VALUES[mod1(k + 3j, length(_SAMPLE_VALUES))]) for (j, s) in enumerate(syms)] for k in 1:3]
+    function nonzero(u)
+        sym || return !all(c -> abs(_evalc(c)) < 1e-9 * max(1, abs(_evalc(v)))^n, u)
+        for vals in samples
+            ws = try [_evalc(subs(c, vals...)) for c in u] catch; continue end
+            sc = try abs(_evalc(subs(v, vals...))) catch; continue end
+            all(isfinite, ws) || continue
+            any(w -> abs(w) > 1e-9 * max(1, sc)^n, ws) && return true
+        end
+        false
+    end
     for j in 1:n
         col = Sym[(isodd(i + j) ? -1 : 1) * LinearAlgebra.det(B[setdiff(1:n, j), setdiff(1:n, i)]) for i in 1:n]
         u = Sym[expand(subs(c, t => v)) for c in col]
-        all(c -> abs(_evalc(c)) < 1e-9 * max(1, abs(_evalc(v)))^n, u) && continue
+        nonzero(u) || continue
         return u
     end
     nothing
 end
+# a radical with a radical in its base (√(a + √b))
+# (a radical is a power b^q or a product's factor with q a fraction)
+_radical_bases(t::Sym) = t.kind == POW && _isfrac(t.args[2]) ? Sym[t.args[1]] :
+    t.kind == MUL ? Sym[b for (b, q) in zip(t.args, t.exps) if _isfrac(q)] : Sym[]
+_isfrac(q::Sym) = q.kind == NUMBER && isexact(q.num) && !isone(_denominator(q.num))
+_nested_radical(e::Sym) = _has_node(e, t -> any(b -> _has_node(b, u -> !isempty(_radical_bases(u))), _radical_bases(t)))
 
 """
     eigen(A::AbstractMatrix{Sym})

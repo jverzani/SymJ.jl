@@ -118,6 +118,7 @@ end
 # floor(u) = n ⇔ n ≤ u < n + 1 and ceil(u) = n ⇔ n - 1 < u ≤ n, n an integer (no
 # solutions otherwise), for an equation c floor(u) + d = 0 with c, d constants
 function _solve_floor(eq::Relation, x::Sym, assume)
+    _has_fn(eq.lhs - eq.rhs, (:floor, :ceil)) || return nothing     # (no expanding first)
     g = expand(eq.lhs - eq.rhs)
     F = nothing
     _replace_walk(g) do t

@@ -642,7 +642,14 @@ function _ev(ex::Sym, a, F, var)
     vs = map(x -> _intarg(x) ? _toint(x.num) : _ev(x, a, F, var), ex.args)
     ex.name in _HUGE_ARG_FNS && length(vs) == 1 && _huge_bigfloat(vs[1]) &&
         throw(HugeArgumentError(ex.name, vs[1]))
-    r = rule.julia(vs...)
+    # no numeric method for these argument types (polygamma of a complex order): an
+    # ArgumentError, not a MethodError
+    r = try
+        rule.julia(vs...)
+    catch err
+        (err isa MethodError && (err.f === rule.julia || (err.f isa Function && nameof(err.f) === ex.name))) || rethrow()
+        throw(ArgumentError("$(ex.name) has no numeric value at $(join(ex.args, ", "))"))
+    end
     # integer arguments (kept as Ints for orders, besselj(2, x)) in a BigFloat evaluation:
     # a Float64 result is computed again at the working precision, log(6) included (it
     # was log(6.0) widened, so a zero 6log2 + 6log3 - 6log6 had a sign; SymPy #20897)
@@ -950,7 +957,12 @@ function _evalc(ex::Sym)::ComplexF64
             err isa DomainError || rethrow()
         end
     end
-    rule.julia(vals...)
+    try
+        rule.julia(vals...)
+    catch err
+        (err isa MethodError && (err.f === rule.julia || (err.f isa Function && nameof(err.f) === ex.name))) || rethrow()
+        throw(ArgumentError("$(ex.name) has no numeric value at $(join(ex.args, ", "))"))
+    end
 end
 
 # An exact integer given directly to a function stays an Int when evaluated, as in

@@ -140,6 +140,8 @@ Base.show(io::IO, ::MIME"text/plain", S::SymSet) = show(io, S)
 _real_roots(rs) = filter(r -> (v = try _evalc(r) catch; return false end; abs(imag(v)) <= 1e-10 * max(1, abs(v))), rs)
 
 function _solve_inequality(r::Relation, x::Sym)
+    S = _inequality_with_infinity(r, x)
+    S === nothing || return S
     e = r.lhs - r.rhs
     # a piecewise function of x: piece by piece, each on its condition's set less the
     # earlier ones' (piecewise(x > 10 => 1, x ≤ 10 => 0) > 0 is x > 10; SymPy #19718)
@@ -174,6 +176,21 @@ function _solve_inequality(r::Relation, x::Sym)
         val = rc(x => w)
         val isa Bool ? val : false
     end) |> S -> SymSet(S.intervals, x)
+end
+
+# f ⋈ ±∞ with f finite: f < ∞ wherever f is defined, f < -∞ nowhere, and so on (x < -Inf
+# raised DivisionByZero; SymPy #16582)
+function _inequality_with_infinity(r::Relation, x::Sym)
+    _isinfpt(r.lhs) == _isinfpt(r.rhs) && return nothing
+    inf, f, op = _isinfpt(r.rhs) ? (r.rhs, r.lhs, r.op) :
+        (r.lhs, r.rhs, get(Dict(:lt => :gt, :le => :ge, :gt => :lt, :ge => :le), r.op, r.op))
+    op in (:lt, :le, :gt, :ge) || return nothing
+    (_has_node(f, _isinfpt) || !has(f, x)) && return nothing
+    holds = (op in (:lt, :le)) == (Float64(inf.num) > 0)
+    holds || return _set_from(Sym[], (v, atpoint) -> false) |> S -> SymSet(S.intervals, x)
+    d = denominator(cancel(f))
+    ps = has(d, x) ? _real_roots(_solve_eq(d ~ 0, x)) : Sym[]
+    _set_from(ps, (v, atpoint) -> !(atpoint && any(p -> p == v, ps))) |> S -> SymSet(S.intervals, x)
 end
 
 function _solve_inequality_pieces(r::Relation, x::Sym)

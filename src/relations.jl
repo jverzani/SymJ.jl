@@ -66,6 +66,20 @@ end
 for (S, T) in ((Sym, Sym), (Sym, Number), (Number, Sym))
     @eval Base.:~(a::$S, b::$T) = Eq(a, b)
 end
+# a Poly in a relation stands for its expression (solve(Poly(x^2 - 1, x) ~ 0, x) was a
+# MethodError)
+for f in (:Eq, :Lt, :Le, :Gt, :Ge, :Ne, :~)
+    F = f === :~ ? :(Base.:~) : f
+    @eval $F(a::Poly, b::Union{Sym,Number}) = $F(Sym(a), b)
+    @eval $F(a::Union{Sym,Number}, b::Poly) = $F(a, Sym(b))
+    @eval $F(a::Poly, b::Poly) = $F(Sym(a), Sym(b))
+end
+
+# the golden ratio and Catalan's constant exactly (ψ₁(1/4) = π² + 8G); Euler's γ is -ψ(1)
+# (types.jl); other irrationals have no exact form here (Sym(golden) was a MethodError)
+Sym(::Irrational{:φ}) = (1 + sqrt(Sym(5))) / 2
+Sym(::Irrational{:catalan}) = (apply_function(:polygamma, Sym[ONE, Sym(1 // 4)]) - PI^2) / 8
+Sym(x::Irrational) = throw(ArgumentError("Sym: no exact form of $x; use Sym(Float64($x)) for its value"))
 
 # `<`, `≤`, `>`, `≥` compare expressions as numbers (a Bool), so they work for
 # constants; for anything with a symbol, an error pointing to the symbolic operator.
