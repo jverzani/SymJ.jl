@@ -621,11 +621,32 @@ function _csign(k::Sym)::Union{Nothing,Int}
     v = try _evalc(k) catch; return nothing end
     scale = max(1.0, abs(v))
     abs(imag(v)) > 1e-12 * scale && return nothing
+    _isreal_const(k) === true || return nothing        # (a tiny imaginary part is not 0)
     abs(real(v)) > 1e-12 * scale && return Int(sign(real(v)))
     iszero(expand(k)) ? 0 : nothing
 end
-_isreal_const(k::Sym) = (v = try _evalc(k) catch; return nothing end;
-    abs(imag(v)) <= 1e-12 * max(1.0, abs(v)) ? true : false)
+# real when it evaluates over the reals, or when its imaginary part stays at rounding
+# level as the precision grows: a relatively tiny imaginary part is not zero
+# (imag((1 - e^(-40))^i) ≈ -4e-18; SymPy #17450)
+function _isreal_const(k::Sym)
+    v = try _evalc(k) catch; return nothing end
+    abs(imag(v)) <= 1e-12 * max(1.0, abs(v)) || return false
+    _real_evaluation(k) && return true
+    for p in (512, 2048)
+        w = _bigvalue(k, p)
+        w === nothing && return nothing
+        abs(imag(w)) > max(abs(w), big(2.0)^(-p)) * big(2.0)^(64 - p) && return false
+    end
+    true
+end
+_real_evaluation(k::Sym) = try
+    setprecision(BigFloat, 128) do
+        _ev(k, _Named(NamedTuple()), BigFloat, Ref{Union{Nothing,Sym}}(nothing)) isa Real
+    end
+catch err
+    err isa InterruptException && rethrow()
+    false
+end
 
 # the possible signs of e (a mask), or nothing when e is not known to be real
 function _signs(e::Sym, A::Assumptions)::Union{Nothing,UInt8}

@@ -838,3 +838,39 @@ end
     @test simplify((cos(x - PI * cos(x)) - cos(x + PI * cos(x))) * cos(x)) == sin(2x) * sin(PI * cos(x))
 end
 
+@testset "wrong answers (SymPy review, round 10)" begin
+    @syms x y z n a c0 c1 c2 c3 c4
+    IM, PI = SymJ.IM, SymJ.PI
+    # tiny constants are not 0; hidden zeros still are (#17450, #22604)
+    @test simplify(exp(-Sym(300))) == 1 / exp(Sym(300))
+    @test simplify((sqrt(Sym(2)) - 1)^300) == (sqrt(Sym(2)) - 1)^300
+    @test simplify(sqrt((3 + sqrt(Sym(5))) / 2) - (1 + sqrt(Sym(5))) / 2) == 0
+    @test inv(Sym[sqrt(Sym(2)) exp(-Sym(400)); 0 1])[1, 2] == -sqrt(Sym(2)) / (2exp(Sym(400)))
+    @test SymJ._hasfn(imag((1 - exp(-Sym(40)))^IM), :imag)
+    # the generic quartic at a degenerate point: q = 0 is a case (#17563)
+    r = solve(c4 * x^4 + c3 * x^3 + c2 * x^2 + c1 * x + c0 ~ 0, x)
+    s = r(c4 => 1 // 2, c3 => 0, c2 => 1, c1 => 0, c0 => -1)
+    @test maximum(abs(N(v^4 / 2 + v^2 - 1)) for v in s) < 1e-12
+    @test length(unique(N.(s))) == 4
+    # series at a symbolic infinity (#16777)
+    @test series(1 / (n + 1), n, Sym(Inf), 3) == series(1 / (n + 1), n, Inf, 3)
+    @test series(exp(1 / n), n, limit(x, x => Inf), 3) == series(exp(1 / n), n, Inf, 3)
+    # float matrices: a pivot tolerance (#17218)
+    @test rank(Sym[0.8 -0.8 -0.4; -0.3 0.9 -0.4; -0.5 -0.1 0.8]) == 2
+    @test size(nullspace(Sym[0.8 -0.8 -0.4; -0.3 0.9 -0.4; -0.5 -0.1 0.8]), 2) == 1
+    # |x|/x is undefined at 0: no root there (#17438)
+    @test solve(x^2 - 1 + abs(x) / x ~ 0, x; assume = (x ∈ ℝ,)) == [-sqrt(Sym(2))]
+    @test solve(x + abs(x) / x ~ 1, x; assume = (x ∈ ℝ,)) == Sym[]
+    # trig of a nonlinear argument on an assumed interval: every root, or an error (#17579)
+    @test_throws ArgumentError solve(sin(log(x)) ~ 0, x; assume = (x ≫ 0, x ≦ 1))
+    @test length(solve(cos(x^2) ~ 0, x; assume = (x ≧ 0, x ≦ 3))) == 3
+    @test length(solve(cos(x^2) ~ 0, x; assume = (x ≧ -3, x ≦ 3))) == 6
+    # a residual vanishing for some parameters: a case, not a dropped root
+    r = solve(sqrt(z - x) + sqrt(y - x) ~ 0, z)
+    @test r(y => x) == [x]
+    @test r(y => 2, x => 1) == Sym[]
+    # float poles raise as exact ones; N of an infinity is real when it can be (#16847)
+    @test_throws SymJ.DivisionByZero SymJ.SpecialFunctionsSupport.SF.gamma(Sym(-1.0))
+    @test N(SymJ.apply_function(:expinti, Sym[Sym(0)])) == -Inf
+end
+

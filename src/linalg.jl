@@ -27,11 +27,43 @@ Base.:*(a::_AlgF, b::_AlgF) = _AlgF(_algnorm(a.v * b.v))
 Base.inv(a::_AlgF) = _AlgF(_algnorm(cancel(1 / a.v)))
 Base.iszero(a::_AlgF) = iszero(a.v) || iszero(cancel(a.v)) || _const_zero(a.v)
 # a constant in nested radicals that is 0 though the forms do not cancel
-# (√((3+√5)/2) against (1+√5)/2·…): its value at 512 bits below 1e-100 (SymPy #22604)
+# (√((3+√5)/2) against (1+√5)/2·…; SymPy #22604). Its value at 512 bits must be tiny,
+# and tiny alone is not zero (exp(-300), erf(30) - 1, (√2 - 1)^300 are not; SymPy
+# #17450): a product or power is 0 only when a factor is, and a sum only when its value
+# stays at the rounding level of its terms as the precision grows, where a true value
+# settles.
 function _const_zero(e::Sym)
     (_hassymbol(e) || !_isexactex(e)) && return false
     w = _bigvalue(e, 512)
-    w !== nothing && abs(w) < big(10.0)^-100
+    (w !== nothing && abs(w) < big(10.0)^-100) || return false
+    _const_zero_form(e)
+end
+function _const_zero_form(e::Sym)
+    k = e.kind
+    k == NUMBER && return iszero(e.num)
+    k == MUL && return any(i -> _positive_number(e.exps[i]) && _const_zero(e.args[i]), eachindex(e.args))
+    k == POW && return _positive_number(e.args[2]) && _const_zero(e.args[1])
+    k == FN && e.name === :exp && return false
+    for p in (1024, 2048, 4096)
+        v = _bigvalue(e, p)
+        v === nothing && return false
+        s = _term_scale(e, p)
+        s === nothing && return false
+        abs(v) > s * big(2.0)^(64 - p) && return false        # above rounding: a value
+    end
+    true
+end
+_positive_number(x::Sym) = x.kind == NUMBER && x.num > N0
+# the size of a sum's largest term (rounding in the sum is relative to it); 1 otherwise
+function _term_scale(e::Sym, p::Int)
+    e.kind == ADD || return big(1.0)
+    s = abs(_leaf(e.num, BigFloat))
+    for (t, c) in zip(e.args, e.coefs)
+        v = _bigvalue(t, p)
+        v === nothing && return nothing
+        s = max(s, abs(v) * abs(_leaf(c, BigFloat)))
+    end
+    max(s, big(2.0)^(-p))
 end
 Base.zero(::Type{_AlgF}) = _AlgF(ZERO)
 Base.one(::Type{_AlgF}) = _AlgF(ONE)
@@ -487,11 +519,25 @@ function _rref_field(A::AbstractMatrix)
     m, n = size(M)
     r = 1
     pivots = Int[]
+    # floating-point numbers: the largest pivot, and entries at rounding level are 0 (a
+    # singular float matrix reduced to the identity, rank 3 for rank 2; SymPy #17218)
+    fl = eltype(M) <: SymNumber && any(t -> !isexact(t), M)
+    tol = fl ? 64 * max(m, n) * eps(Float64) * maximum(t -> abs(Float64(t)), M; init = 0.0) : 0.0
     for c in 1:n
         r > m && break
-        p = findfirst(i -> !iszero(M[i, c]), r:m)
-        p === nothing && continue
-        p += r - 1
+        if fl
+            p = argmax(i -> abs(Float64(M[i, c])), r:m)
+            if abs(Float64(M[p, c])) <= tol
+                for i in r:m
+                    M[i, c] = zero(M[i, c])
+                end
+                continue
+            end
+        else
+            p = findfirst(i -> !iszero(M[i, c]), r:m)
+            p === nothing && continue
+            p += r - 1
+        end
         p != r && ((M[r, :], M[p, :]) = (M[p, :], M[r, :]))
         piv = inv(M[r, c])
         for j in 1:n
@@ -503,6 +549,7 @@ function _rref_field(A::AbstractMatrix)
             for j in 1:n
                 M[i, j] -= f * M[r, j]
             end
+            fl && (M[i, c] = zero(M[i, c]))
         end
         push!(pivots, c)
         r += 1

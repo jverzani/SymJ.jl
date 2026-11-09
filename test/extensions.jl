@@ -609,6 +609,14 @@ import PolyLog as PL
         @test solve(SymJ.piecewise(x ≧ 0 => F, true => 0) ~ 1 // 2, x) isa SymJ.SymSet
     end
 
+    @testset "wrong answers (SymPy review, round 10)" begin
+        # the boundary terms of a dirac derivative (#17383)
+        d1 = SymJ.apply_function(:dirac, Sym[x, Sym(1)])
+        @test RischIntegrate.integrate(exp(x) * d1, x) == SymJ.dirac(x) - SymJ.heaviside(x)
+        @syms z
+        @test RischIntegrate.integrate(exp(x) * d1, (x, -1, z)) == SymJ.dirac(z) - SymJ.heaviside(z)
+    end
+
     @testset "asymptotic series at ±∞: exponential and oscillating factors" begin
         @syms y
         S(f, x0, n) = Sym(series(f, x, x0, n))
