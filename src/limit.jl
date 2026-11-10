@@ -329,6 +329,20 @@ function _sign_known(v::Sym, assume)
     m === _POS ? 1 : m === _NEG ? -1 : m === _ZER ? 0 : nothing
 end
 
+# arithmetic on Cases whose values are expressions: case by case (1/c, where c is the
+# Cases of an integral, fell through to vector division; SymPy #16182)
+function _cases_values_op(f, cs::Cases)
+    all(c -> c.second isa Union{Sym,Number,Exception}, cs.cases) ||
+        throw(ArgumentError("arithmetic on Cases needs expressions as the values, not $(eltype(cs))"))
+    _map_cases(v -> f(Sym(v)), cs)
+end
+for op in (:+, :-, :*, :/, :^), T in (:Number, :Sym)       # (each type: no ambiguity with Number / AbstractVector)
+    @eval Base.$op(cs::Cases, a::$T) = _cases_values_op(v -> $op(v, a), cs)
+    @eval Base.$op(a::$T, cs::Cases) = _cases_values_op(v -> $op(a, v), cs)
+end
+Base.:-(cs::Cases) = _cases_values_op(-, cs)
+series(cs::Cases, x::Sym, x0 = 0, n::Real = 6) = _cases_values_op(v -> series(v, x, x0, n), cs)
+
 """
     subs(cs::Cases, x => v, ...)
 

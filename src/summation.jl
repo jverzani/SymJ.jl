@@ -105,7 +105,8 @@ function summation(f, k::Sym, a, b; assume = nothing)
     # an infinite series from a small positive integer left unevaluated: from 0, less the
     # first terms (Σ_{k≥1} 2^k/k! = e² - 1; SymPy #20464)
     if bs === nothing && r isa Sym && _hasfn(r, :Sum) && a.kind == NUMBER && _isint(a.num) && N1 <= a.num <= SymNumber(20)
-        r0 = try _summation(f, k, ZERO, nothing, assume) catch err; err isa ArgumentError || rethrow(); nothing end
+        # (a summand undefined at 0, 1/k: no retry, not a DivisionByZero; SymPy #14909)
+        r0 = try _summation(f, k, ZERO, nothing, assume) catch err; (err isa ArgumentError || _isdivzero(err)) || rethrow(); nothing end
         if r0 isa Sym && !_hasfn(r0, :Sum)
             head = try _direct_sum(f, k, 0, _toint(a.num) - 1) catch err; _isdivzero(err) || rethrow(); nothing end
             head isa Sym && return simplify(r0 - head)
@@ -460,6 +461,11 @@ function _hypergeometric_series(f::Sym, k::Sym, a::Sym)
     roots_n = dn == 0 ? Sym[] : [expand(-r) for r in _solve_generic(n ~ 0, k)]
     roots_d = dd == 0 ? Sym[] : [expand(-r) for r in _solve_generic(d ~ 0, k)]
     (length(roots_n) == dn && length(roots_d) == dd) || return nothing
+    # ratio z (k + 1)/(k + 2): t₀ zᵏ/(k + 1), Σ = -t₀ log(1 - z)/z (Σ_{n≥1} xⁿ/n = -log(1 - x),
+    # Σ 1/(n 2ⁿ) = log 2; SymPy #14909), |z| < 1
+    if dn == 1 && dd == 1 && roots_n == [ONE] && roots_d == [Sym(2)]
+        return simplify(-t0 * log(1 - z) / z)
+    end
     i1 = findfirst(==(ONE), roots_d)
     i1 === nothing && return nothing                 # the (k + 1) of k!
     deleteat!(roots_d, i1)

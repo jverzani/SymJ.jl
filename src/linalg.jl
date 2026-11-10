@@ -25,7 +25,19 @@ Base.:-(a::_AlgF, b::_AlgF) = _AlgF(_algnorm(a.v - b.v))
 Base.:-(a::_AlgF) = _AlgF(-a.v)
 Base.:*(a::_AlgF, b::_AlgF) = _AlgF(_algnorm(a.v * b.v))
 Base.inv(a::_AlgF) = _AlgF(_algnorm(cancel(1 / a.v)))
-Base.iszero(a::_AlgF) = iszero(a.v) || iszero(cancel(a.v)) || _const_zero(a.v)
+# (a constant clearly nonzero numerically is not 0: cancel on Cardano's nested cube roots,
+# for each pivot of an eigenvector system, took minutes; SymPy #16245)
+# (and a constant is decided by its value at rising precision, _const_zero, without cancel)
+function Base.iszero(a::_AlgF)
+    iszero(a.v) && return true
+    _hassymbol(a.v) || return !_clearly_nonzero(a.v) && _const_zero(a.v)
+    iszero(cancel(a.v))
+end
+function _clearly_nonzero(e::Sym)
+    _hassymbol(e) && return false
+    v = try _evalc(e) catch; return false end
+    isfinite(v) && abs(v) > 1e-6
+end
 # a constant in nested radicals that is 0 though the forms do not cancel
 # (√((3+√5)/2) against (1+√5)/2·…; SymPy #22604). Its value at 512 bits must be tiny,
 # and tiny alone is not zero (exp(-300), erf(30) - 1, (√2 - 1)^300 are not; SymPy
@@ -803,6 +815,24 @@ end
 
 # (eigenvalue, algebraic multiplicity) pairs, from the factored characteristic polynomial
 function _eigen_mult(A::AbstractMatrix)
+    # a triangular matrix: its diagonal, without the characteristic polynomial (a 10×10 in
+    # 20 symbols expanded to 312k characters and factoring it never finished; SymPy #15395)
+    n = size(A, 1)
+    # (from 5×5 up, where the polynomial gets large; small ones keep factor's order)
+    if n == size(A, 2) && n >= 5
+        T = Sym[Sym(a) for a in A]
+        lower = all(iszero(T[i, j]) for i in 1:n for j in (i + 1):n)
+        upper = all(iszero(T[i, j]) for j in 1:n for i in (j + 1):n)
+        if lower || upper
+            out = Pair{Sym,Int}[]
+            for i in 1:n
+                d = T[i, i]
+                k = findfirst(q -> iszero(expand(q.first - d)), out)
+                k === nothing ? push!(out, d => 1) : (out[k] = d => out[k].second + 1)
+            end
+            return out
+        end
+    end
     λ = Sym(Symbol("_eigλ"))
     p = factor(charpoly(A, λ))
     fs = p.kind == MUL ? collect(zip(p.args, p.exps)) : p.kind == POW ? [(p.args[1], p.args[2])] : [(p, ONE)]
@@ -1010,6 +1040,7 @@ function LinearAlgebra.eigvecs(A::AbstractMatrix{Sym})
     # float λ failed; SymPy #20351)
     em = _eigen_mult(A)
     Fl = any(((v, _),) -> !_isexactex(v), em) ? _float_eigen(A; inexact_values = true) : nothing
+    _check_eig_size(em)
     for (v, m) in em
         # (a float eigenvalue: the numeric eigenvector for it; exact ones exactly)
         if Fl !== nothing && !_isexactex(v)
@@ -1079,6 +1110,16 @@ _radical_bases(t::Sym) = t.kind == POW && _isfrac(t.args[2]) ? Sym[t.args[1]] :
 _isfrac(q::Sym) = q.kind == NUMBER && isexact(q.num) && !isone(_denominator(q.num))
 _nested_radical(e::Sym) = _has_node(e, t -> any(b -> _has_node(b, u -> !isempty(_radical_bases(u))), _radical_bases(t)))
 
+# eigenvalues so large (a quartic's radicals in symbols, 100k characters) that their
+# eigenvectors cannot usefully be formed: an error, not a computation that does not end
+# (SymPy #15076)
+function _check_eig_size(em)
+    for (v, _) in em
+        _hassymbol(v) && _nodes(v) > 3000 && throw(ArgumentError(
+            "eigvecs: the eigenvalues are radical expressions too large ($(_nodes(v)) nodes) for symbolic eigenvectors; substitute numbers for the symbols first"))
+    end
+end
+
 """
     eigen(A::AbstractMatrix{Sym})
 
@@ -1096,6 +1137,7 @@ function LinearAlgebra.eigen(A::AbstractMatrix{Sym})
     # matrix: the eigenvectors numerically too (exactly, the null space of A - λI with a
     # float λ failed; SymPy #20351)
     em = _eigen_mult(A)
+    _check_eig_size(em)
     Fl = any(((v, _),) -> !_isexactex(v), em) ? _float_eigen(A; inexact_values = true) : nothing
     for (v, m) in em
         # (a float eigenvalue: the numeric eigenvector for it; exact ones exactly)
