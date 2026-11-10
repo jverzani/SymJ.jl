@@ -310,7 +310,7 @@ function _subs_node(r::Sym, K::Sym, w::Sym)
     elseif K.kind == ADD && r.kind == ADD
         return something(_subs_sum(r, K, w), r)
     elseif K.kind == MUL && r.kind == MUL
-        return something(_subs_prod(r, K, w), r)
+        return something(_subs_prod(r, K, w), _subs_prod_scaled(r, K, w), r)
     elseif K.kind == MUL && r.kind == ADD && length(K.args) == 1 && _isone(K.exps[1]) && isexact(K.num)
         # c t as a term of a sum, stored as the coefficient c of t: 2x + 4 with 2x => z
         t = K.args[1]
@@ -327,6 +327,30 @@ function _subs_node(r::Sym, K::Sym, w::Sym)
         return hit ? Sym(r.num) + _add_many(terms) : r
     end
     r
+end
+
+# the target K => w once in the product r whose sum factors are numeric multiples of K's:
+# 7(x + y)/z is stored as (7x + 7y)/z, and (x + y)/z => t gives 7t (SymPy #17225); nothing
+# otherwise
+function _subs_prod_scaled(r::Sym, K::Sym, w::Sym)
+    any(b -> b.kind == ADD, K.args) || return nothing
+    used = falses(length(r.args))
+    coef = Sym(r.num) / Sym(K.num)
+    for (B, P) in zip(K.args, K.exps)
+        j = findfirst(eachindex(r.args)) do i
+            used[i] && return false
+            _eq(r.exps[i], P) || return false
+            _eq(r.args[i], B) && return true
+            (B.kind == ADD && r.args[i].kind == ADD) || return false
+            λ = cancel(r.args[i] / B)
+            λ.kind == NUMBER && !iszero(λ.num)
+        end
+        j === nothing && return nothing
+        used[j] = true
+        _eq(r.args[j], B) || (coef *= cancel(r.args[j] / B)^P)
+    end
+    rest = prod((pow(r.args[i], r.exps[i]) for i in eachindex(r.args) if !used[i]); init = ONE)
+    coef * w * rest
 end
 
 # b^q with the target B^P => w: w^n b^(q - nP), or nothing

@@ -617,6 +617,17 @@ import PolyLog as PL
         @test RischIntegrate.integrate(exp(x) * d1, (x, -1, z)) == SymJ.dirac(z) - SymJ.heaviside(z)
     end
 
+    @testset "missing cases (SymPy review, round 10)" begin
+        @syms t s
+        # Frullani integrals; no false divergence from opposite infinite terms (#17058)
+        @test RischIntegrate.integrate((atan(4x) - atan(2x)) / x, (x, 0, Inf)) == PI * log(Sym(2)) / 2
+        @test RischIntegrate.integrate((exp(-2x) - exp(-5x)) / x, (x, 0, Inf)) == log(Sym(5) / 2)
+        # the bound variable of ∫₀ᵗ may be t itself (#17094)
+        u = SymFunction(:u)
+        @test SymJ.laplace_transform(RischIntegrate.integrate(u(t), (t, 0, t)), t, s) ==
+              SymJ.apply_function(:LaplaceTransform, Sym[u(t), t, s]) / s
+    end
+
     @testset "asymptotic series at ±∞: exponential and oscillating factors" begin
         @syms y
         S(f, x0, n) = Sym(series(f, x, x0, n))

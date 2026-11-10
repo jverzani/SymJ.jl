@@ -716,6 +716,16 @@ end
 # logarithms, Σ uᵢ log bᵢ = Σ vⱼ log cⱼ (2^x 3^(x²) = 6: x log 2 + x² log 3 = log 6;
 # SymPy #27330). Candidates checked in the original equation; nothing if not of this form.
 function _solve_exp_bases(eq::Relation, x::Sym)
+    # a T₁ + b T₂ = 0 with a, b of opposite signs: a T₁ = -b T₂, each side positive
+    # (-2^(3x/11) e^(x/11) + π^(x/11) = 0; SymPy #17604)
+    g = eq.lhs - eq.rhs
+    if g.kind == ADD && iszero(g.num) && length(g.args) == 2 && !(iszero(eq.rhs) && eq.lhs.kind != ADD)
+        (c1, c2), (t1, t2) = g.coefs, g.args
+        if isexact(c1) && isexact(c2) && sign(c1) != sign(c2)
+            p1, p2 = c1 > N0 ? (Sym(c1) * t1, -Sym(c2) * t2) : (Sym(c2) * t2, -Sym(c1) * t1)
+            _eq(p1, eq.lhs) && _eq(p2, eq.rhs) || return _solve_exp_bases(Relation(:eq, p1, p2), x)
+        end
+    end
     function logsum(e::Sym)
         if e.kind == NUMBER
             (isexact(e.num) || isfloat(e.num)) && e.num > N0 || return nothing
@@ -1104,6 +1114,11 @@ function _invert(g::Sym, r::Sym, x::Sym)
         name === :sin && return [(t, a) for a in _periods_in_range(t, _one_period(asin(r), PI - asin(r)), 2PI, x)]
         name === :cos && return [(t, a) for a in _periods_in_range(t, _one_period(acos(r), 2PI - acos(r)), 2PI, x)]
         name === :tan && return [(t, a) for a in _periods_in_range(t, [atan(r)], PI, x)]
+        # csc t = r and sec t = r: sin t = 1/r, cos t = 1/r; never 0 (SymPy #17536)
+        if name === :csc || name === :sec
+            iszero(r) && return Tuple{Sym,Sym}[]
+            return _invert(apply_function(name === :csc ? :sin : :cos, Sym[t]), inv(r), x)
+        end
         # cot t = r: t = acot r, π/2 for r = 0 (SymPy #19115)
         name === :cot && return [(t, a) for a in _periods_in_range(t, [iszero(r) ? PI / 2 : acot(r)], PI, x)]
         # heaviside(t) = 1/2 at t = 0; 0 or 1 hold on half-lines (SymPy #18939)

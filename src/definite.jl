@@ -699,6 +699,40 @@ function _mark_poly(t::Sym)
     nothing
 end
 
+# Frullani: ∫₀^∞ (f(ax) - f(bx))/x dx = (f(0) - f(∞)) log(b/a), a, b > 0, for f continuous
+# on [0, ∞) with finite limits; f among functions that are (atan, tanh, erf, e^(-t))
+# (∫₀^∞ (atan 4x - atan 2x)/x = π log(2)/2; SymPy #17058). nothing otherwise.
+const _FRULLANI_FNS = (:atan, :tanh, :erf, :exp)
+function _frullani(g::Sym, x::Sym)
+    h = expand(g * x)
+    (h.kind == ADD && iszero(h.num) && length(h.args) == 2) || return nothing
+    c1, c2 = h.coefs
+    c1 == -c2 || return nothing
+    ks, name = Sym[], nothing
+    for t in h.args
+        if t.kind == POW && t.args[1] === E
+            name === nothing || name === :exp || return nothing
+            name, u = :exp, t.args[2]
+        elseif t.kind == FN && length(t.args) == 1 && t.name in _FRULLANI_FNS
+            name === nothing || name === t.name || return nothing
+            name, u = t.name, t.args[1]
+        else
+            return nothing
+        end
+        k = cancel(u / x)
+        (k.kind == NUMBER && isexact(k.num)) || return nothing
+        name === :exp ? (k.num < N0 || return nothing) : (k.num > N0 || return nothing)
+        push!(ks, name === :exp ? -k : k)
+    end
+    f(t) = name === :exp ? exp(-t) : apply_function(name, Sym[t])
+    tt = Sym(:_frullani_t)
+    f0 = subs(f(tt), tt => ZERO)
+    finf = try limit(f(tt), tt => Inf) catch; return nothing end
+    (_isinfpt(finf) || _hassymbol(finf)) && return nothing
+    a, b = ks[1], ks[2]                                 # c1 (f(a x) - f(b x))
+    simplify(Sym(c1) * (f0 - finf) * log(b / a))
+end
+
 # Σ cᵢ vᵢ, the vᵢ finite or ±∞
 function _sum_values(terms, A::Assumptions)
     fin, infs = ZERO, Int[]
@@ -1191,6 +1225,8 @@ function _definite_fallback(g::Sym, x::Sym, l::Sym, h::Sym, antider, A, pv::Bool
     if half
         v = _gamma_moment(g, x, A)
         v === nothing || return v
+        v = _frullani(g, x)
+        v === nothing || return v
     end
     (line || half) || return nothing
     one(t) = try
@@ -1203,6 +1239,10 @@ function _definite_fallback(g::Sym, x::Sym, l::Sym, h::Sym, antider, A, pv::Bool
         iszero(g.num) || return nothing                  # a constant: divergent
         vs = [one(Sym(c) * t) for (c, t) in zip(g.coefs, g.args)]
         all(v -> v isa Sym, vs) || return nothing
+        # terms divergent with opposite signs say nothing of the sum: not decided here,
+        # not "∞ - ∞" (∫₀^∞ (atan(4x) - atan(2x))/x converges; SymPy #17058)
+        sg = [_infsign(v) for v in vs if _isinfpt(v)]
+        allequal(sg) || return nothing
         return _sum_values([(1, v) for v in vs], A)
     end
     c, t = _split_kfree(g, x)

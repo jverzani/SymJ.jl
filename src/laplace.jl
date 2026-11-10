@@ -74,7 +74,8 @@ function _lap_unknown(term::Sym, t::Sym, s::Sym)
         rest = cf * prod((b^q for (j, (b, q)) in enumerate(fs) if j != i); init = ONE)
         if length(g.args) == 2 && _eq(g.args[2], t)
             return rest * _lap(g.args[1], t, s) / s
-        elseif length(g.args) == 4 && iszero(g.args[3]) && _eq(g.args[4], t) && !_eq(g.args[2], t)
+        # (the bound variable may be t itself, as in ∫₀ᵗ u(t) dt; SymPy #17094)
+        elseif length(g.args) == 4 && iszero(g.args[3]) && _eq(g.args[4], t)
             return rest * _lap(subs(g.args[1], g.args[2] => t), t, s) / s
         end
         return nothing

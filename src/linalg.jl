@@ -1240,6 +1240,13 @@ function LinearAlgebra.svd(A::AbstractMatrix{Sym}; full::Bool = false, assume = 
         return LinearAlgebra.SVD(Matrix(_adjoint(F.Vt)), F.S, Matrix(_adjoint(F.U)))
     end
     A = Sym[Sym(a) for a in A]
+    # numbers with floats among them: numerically (the singular values of a float 4×4,
+    # roots of a quartic, were refused; SymPy #17332, #17333)
+    if !any(_hassymbol, A) && any(e -> !_isexactex(e), A)
+        Z = map(_evalc, A)
+        F = LinearAlgebra.svd(all(z -> iszero(imag(z)), Z) ? real.(Z) : Z; full)
+        return LinearAlgebra.SVD(map(Sym, F.U), map(Sym, F.S), map(Sym, F.Vt))
+    end
     parts = _svd_parts(A)
     r = length(parts)
     vs = [p[2] for p in parts]

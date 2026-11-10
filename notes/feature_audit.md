@@ -292,6 +292,26 @@ transforms). Of the rest, in rough order of value for calculus-level use:
      matrices, noncommutative symbols, AccumBounds, Poly over GF(p), BigFloat inputs
      (Sym(BigFloat) rounds to Float64).
 
+13. **Gaps from the tenth SymPy review (#16409–#17908, #30903–#31016)**, none a wrong
+   answer:
+   - solve: trigonometric systems that do not decouple (sin x sin y = 0, cos x cos y =
+     1; #16618); (7^x)^x as 7^(x²) only for real x (#17452); a system of 38 solved
+     equations passes the case limit, and its generic leaf is "too many cases" (#17186;
+     keeping the generic side past the limit made a round-5 parametric system run on).
+   - piecewise conditions that are memberships (x ∈ ℤ; #17112).
+   - dsolve: Bessel and other special-function ODEs (#17397, #17592).
+   - simplify: contiguous relations of ₂F₁ (#17702); (x + y)² and (-x - y)² have
+     different canonical forms (== is structural; #17768).
+   - infinities in the complex plane (Inf + im, directional limits; #17701); exp(Inf*k)
+     with k > 0 under refine.
+   - patterns: a sum of two linear fractions does not match its pattern (#16774).
+   - GruntzLimit: binomial with two arguments, li2, impolylog (handed off).
+   - From the first pass: symbolic sets (ImageSet, ProductSet, Range, intersections,
+     symbolic intervals), matrix expressions (MatrixSymbol, Hadamard), orthogonal and
+     Euler polynomials, B-splines, Fresnel and Marcum Q functions, RisingFactorial,
+     frac, noncommutative symbols, modular and discrete-log equations, PDEs, CRootOf,
+     function_range/continuous_domain, change of variables in derivatives (dsubs).
+
 Done since the first audit: trigonometric and logarithmic expansion, gamma and combinatorial simplification, LaTeX output (a Latexify extension), resultants and Gröbner
 bases (polynomial systems are solved), real and imaginary parts and `conj`, and
 simplification under assumptions (`refine`, `simplify`).

@@ -289,7 +289,14 @@ function _resultant_poly(p::Poly{SymNumber}, q::Poly{SymNumber}, x::Sym; method:
     (iszero(p) || iszero(q)) && return zero(p)
     m, n = _maxdegs(p)[i], _maxdegs(q)[i]
     (m == 0 || n == 0) && return n == 0 ? q^m : p^n
-    (any(isfloat, p.coefs) || any(isfloat, q.coefs)) && return _res_float(p, q, i, m, n)
+    if any(isfloat, p.coefs) || any(isfloat, q.coefs)
+        count(>(0), max.(_maxdegs(p), _maxdegs(q))) == 1 && return _res_float(p, q, i, m, n)
+        # several variables: over the rationals the floats stand for, floats again after
+        # (SymPy #16646)
+        ex(P) = Poly{SymNumber}(_exactfloats(Sym(P); short = true), P.gens)
+        R = _resultant_poly(ex(p), ex(q), x; method)
+        return Poly{SymNumber}(_floatify(Sym(R)), R.gens)
+    end
     A, la = _int_scaled(p)
     B, lb = _int_scaled(q)
     R = if method === :subresultant || (method === :auto && _res_use_subres(A, B, i, m, n))

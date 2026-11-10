@@ -56,8 +56,8 @@
     # assumptions: complex characteristic roots give cosines and sines
     @syms k m
     @test D(y''(x) ~ -(k / m) * y(x), y(x)) == (y(x) ~ C1 / exp(sqrt(-k * m) * x / m) + C2 * exp(sqrt(-k * m) * x / m))
-    @test D(y''(x) ~ -(k / m) * y(x), y(x); assume = (k ≫ 0, m ≫ 0)) == (y(x) ~ C1 * cos(sqrt(k * m) * x / m) + C2 * sin(sqrt(k * m) * x / m))
-    @test assuming(() -> D(y''(x) ~ -(k / m) * y(x), y(x)), k ≫ 0, m ≫ 0) == (y(x) ~ C1 * cos(sqrt(k * m) * x / m) + C2 * sin(sqrt(k * m) * x / m))
+    @test D(y''(x) ~ -(k / m) * y(x), y(x); assume = (k ≫ 0, m ≫ 0)) == (y(x) ~ C1 * cos(sqrt(k) * x / sqrt(m)) + C2 * sin(sqrt(k) * x / sqrt(m)))
+    @test assuming(() -> D(y''(x) ~ -(k / m) * y(x), y(x)), k ≫ 0, m ≫ 0) == (y(x) ~ C1 * cos(sqrt(k) * x / sqrt(m)) + C2 * sin(sqrt(k) * x / sqrt(m)))
     @test D(y''(x) + 2a * y'(x) + (a^2 + k^2) * y(x) ~ 0, y(x); assume = (a ∈ ℝ, k ≫ 0)) == (y(x) ~ (C1 * cos(k * x) + C2 * sin(k * x)) / exp(a * x))
     @test D(y''(x) ~ k * y(x), y(x); assume = (k ≫ 0,)) == (y(x) ~ C1 / exp(sqrt(k) * x) + C2 * exp(sqrt(k) * x))
     # autonomous, y'' = f(y, y'): p = y' as a function of y

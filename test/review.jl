@@ -906,3 +906,61 @@ end
     @test solve((x - 1)^50 * (x^2 + 1)^30 ~ 0, x) == [1, -IM, IM]
 end
 
+@testset "missing cases (SymPy review, round 10)" begin
+    @syms x y z t a b n m L i mu σ
+    IM, PI = SymJ.IM, SymJ.PI
+    LA = SymJ.LinearAlgebra
+    # poles of inverse functions (#17143)
+    @test_throws SymJ.DivisionByZero acsc(Sym(0))
+    @test_throws SymJ.DivisionByZero acoth(Sym(1))
+    @test_throws SymJ.DivisionByZero atan(IM)
+    # csc and sec inverted (#17536)
+    @test solve(csc(2PI / x) ~ 0, x) == Sym[]
+    @test solve(sec(x) ~ 2, x) == [PI / 3, 5PI / 3]
+    # a real x is finite (#17113)
+    @test refine(x ≪ Inf; assume = (x ∈ ℝ,)) === true
+    @test refine(x ≫ Inf; assume = (x ∈ ℝ,)) === false
+    # float matrices: singular values numerically (#17332)
+    @test N(LA.svdvals(Sym[1.0 2.0; 3.0 4.0])[1]) ≈ 5.464985704219043
+    # a scaled sum factor matches (#17225)
+    @test subs(7 * (x + y) / z, (x + y) / z => t) == 7t
+    # |a|^p |b|^q merged and cancelled (#17292)
+    @test simplify(abs(x^2 - 1) / abs(x - 1)) == abs(x + 1)
+    # positive factors out of radicals (#17634)
+    @test simplify(sqrt(a * b) / sqrt(b); assume = (b ≫ 0,)) == sqrt(a)
+    @test simplify(sqrt(1 - x^2) / sqrt(1 - x); assume = (x ≪ 1, x ≫ -1)) == sqrt(x + 1)
+    # exponentials on two sides of a difference (#17604)
+    @test solve(-2^(3x / 11) * exp(x / 11) + PI^(x / 11) ~ 0, x) == [0]
+    # inverse of a periodic function at a constant (#17300, #17208)
+    @test atan(tan(Sym(5))) == 5 - 2PI
+    @test asin(sin(Sym(2))) == PI - 2
+    @test log(exp(IM * PI / 3)) == IM * PI / 3
+    # max and min decided (#16926)
+    @test max(x, x + 1) == x + 1
+    @test refine(max(n, log(n) / log(Sym(2))); assume = (n ∈ ℤ, n ≫ 0)) == n
+    # a symbolic point condition in a sum (#16532)
+    f = SymFunction(:f)
+    @test SymJ.summation(SymJ.piecewise(Ne(m, n) => 0, true => L) * f(n), n, 0, Inf; assume = (m ∈ ℤ, m ≧ 0)) == L * f(m)
+    # f(x) f(conj x) is real (#16500)
+    @test simplify(imag(cot(x) * cot(conj(x)))) == 0
+    # sin/cos as tan (#16499)
+    @test SymJ.rewrite(sin(x) / cos(x), tan) == tan(x)
+    # iⁿ as an exponential (#16797)
+    @test simplify(IM^n - exp(IM * PI * n / 2)) == 0
+    # inverse hyperbolic constants through logs (#16730)
+    @test simplify(log(Sym(3) / 2) - 2atanh(Sym(2)) + 2atanh(Sym(3))) == 0
+    # a common factor free of the unknown function (#17397)
+    u = SymFunction(:u)
+    @test SymJ.dsolve(x * (diff(u(x), x, 2) + u(x)) ~ 0, u(x)) == SymJ.dsolve(diff(u(x), x, 2) + u(x) ~ 0, u(x))
+    # an initial value problem: the candidate valid near the point (#16880)
+    @test SymJ.dsolve(diff(f(x), x) ~ sqrt(f(x)), f(x), f(0) => 1) == (f(x) ~ (x / 2 + 1)^2)
+    # resultants of float polynomials in several variables (#16646)
+    @syms cc
+    @test N(subs(SymJ.resultant(0.5y + cc^2 - 1.0, m - cc + 3, cc), y => 1, m => 2)) ≈ 24.5
+    # the content of sum factors (#17233)
+    @test simplify(diff(exp(-(x - mu)^2 / (2σ^2)) / (sqrt(2PI) * σ^2), mu)) ==
+          -sqrt(Sym(2)) * (mu - x) / (2sqrt(PI) * σ^4 * exp((x - mu)^2 / (2σ^2)))
+    # an equality condition in its piece's value (#16690)
+    @test simplify(SymJ.piecewise(y ⩵ 0 => x * y, true => x)) == SymJ.piecewise(y ⩵ 0 => 0, true => x)
+end
+
