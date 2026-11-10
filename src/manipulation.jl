@@ -98,9 +98,18 @@ end
     has(ex, x)
 
 Does `x` occur as a subexpression of `ex`? (Matches whole nodes only, and the powers
-`b^e` that a product holds as factors, so `has(-im, im)` and `has(x*sqrt(y), sqrt(y))`.)
+`b^e` that a product holds as factors, so `has(-im, im)` and `has(x*sqrt(y), sqrt(y))`;
+and a number is found where a sum or a product stores it, as `has(x - 1, -1)` and
+`has(3x, 3)`.)
 """
-has(ex::Sym, x::Sym) = _eq(ex, x) || _hasfactor(ex, x) || any(a -> has(a, x), ex.args) || any(a -> has(a, x), ex.exps)
+has(ex::Sym, x::Sym) = _eq(ex, x) || _hasfactor(ex, x) || (x.kind == NUMBER && _hasstorednum(ex, x.num)) ||
+    any(a -> has(a, x), ex.args) || any(a -> has(a, x), ex.exps)
+
+# a sum's constant and coefficients and a product's coefficient, not the implicit 0 and 1
+# (has(x - 1, -1) was false; SymPy #16054)
+_hasstorednum(ex::Sym, n::SymNumber) =
+    (ex.kind == ADD && ((!iszero(ex.num) && ex.num == n) || any(c -> !isone(c) && c == n, ex.coefs))) ||
+    (ex.kind == MUL && !isone(ex.num) && ex.num == n)
 
 # a product stores b^e as the pair (b, e): a power x is one of its factors
 _hasfactor(ex::Sym, x::Sym) = ex.kind == MUL && x.kind == POW &&
