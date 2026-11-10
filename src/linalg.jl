@@ -562,8 +562,17 @@ end
 function _exp_powers(A::AbstractMatrix)
     S = Sym[Sym(a) for a in A]
     hyp = (sinh, cosh, tanh, coth, sech, csch)
-    any(e -> _has_fn(e, (:sinh, :cosh, :tanh, :coth, :sech, :csch)) || _has_epow(e), S) || return S, nothing
+    trig = (sin, cos, tan, cot, sec, csc)
+    tnames = (:sin, :cos, :tan, :cot, :sec, :csc)
+    any(e -> _has_fn(e, (:sinh, :cosh, :tanh, :coth, :sech, :csch)) || _has_epow(e) || _has_fn(e, tnames), S) || return S, nothing
     X = Sym[_has_fn(e, (:sinh, :cosh, :tanh, :coth, :sech, :csch)) ? rewrite(e, hyp => exp) : e for e in S]
+    # trigonometric functions of linear combinations as exp(i u): cos(x/4 + y/4) and
+    # cos(x/4 - y/4) are related through exp(ix/4), exp(iy/4), which a rank must see (a
+    # singular 4×4 of such cosines had rank 4 and an empty null space; SymPy #15585). Only
+    # when two arguments share an atom
+    if any(e -> _has_fn(e, tnames), X) && _trig_args_related(X, tnames)
+        X = Sym[_has_fn(e, tnames) ? expand(rewrite(e, trig => exp)) : e for e in X]
+    end
     # the exponents as sums of c u with c rational (exp(a + b) is exp(a) exp(b): with a + b
     # its own atom, a zero pivot was taken; SymPy #17130), each u a generator
     groups = Dict{Sym,Vector{Rational{BigInt}}}()
@@ -600,6 +609,21 @@ function _exp_powers(A::AbstractMatrix)
     Y = Sym[cancel(to_w(e)) for e in X]
     any(e -> any(u -> has(e, u) && _has_epow(e), keys(ws)), Y) && return S, nothing
     Y, [w => exp(u / N) for (u, (w, N)) in ws]
+end
+
+# do the arguments of the trigonometric functions in the entries share a symbol, in
+# different combinations?
+function _trig_args_related(X::AbstractArray{Sym}, names)
+    args = Set{Sym}()
+    for e in X
+        _replace_walk(e) do t
+            t.kind == FN && t.name in names && length(t.args) == 1 && push!(args, expand(t.args[1]))
+            nothing
+        end
+    end
+    length(args) >= 2 || return false
+    A = collect(args)
+    any(i -> any(j -> !_eq(A[i], A[j]) && !isempty(intersect(free_symbols(A[i]), free_symbols(A[j]))), (i + 1):length(A)), eachindex(A))
 end
 
 # an exponent as (terms (u, c) with c rational, the rest): 2a - b/3 + 1 is

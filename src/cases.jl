@@ -716,6 +716,18 @@ function _single_x_atom(n::Sym, x::Sym)
 end
 
 function _solve_case(e::Relation, x::Sym, B::Assumptions)
+    # c uⁿ + r = 0 with u linear in x and r free of x: through w = u, exactly ((1 + x)^30
+    # = 3/2 was expanded and solved numerically; SymPy #15296)
+    pw = _linear_base_power(e, x)
+    if pw !== nothing
+        u, n, cf, r = pw
+        W = Sym(Symbol("_lin_base_w"))
+        ws = _solve_case(Relation(:eq, cf * W^n + r, ZERO), W, B)
+        if ws isa AbstractVector
+            a1 = coeff(u, x, 1); a0 = expand(u - a1 * x)
+            return _sort_roots!(Sym[expand((w - a0) / a1) for w in ws])
+        end
+    end
     fs = _power_factors_zero(e, x)
     if fs !== nothing
         out = Sym[]
@@ -729,6 +741,33 @@ function _solve_case(e::Relation, x::Sym, B::Assumptions)
         return _sort_roots!(out)
     end
     _solve_case_full(e, x, B)
+end
+
+# (u, n, c, r) when e is c uⁿ + r = 0, u = a x + b (a ≠ 0, not just x), n ≥ 2 an integer,
+# c and r free of x; nothing otherwise
+function _linear_base_power(e::Relation, x::Sym)
+    e.op === :eq || return nothing
+    g = e.lhs - e.rhs
+    terms = g.kind == ADD ? [(Sym(c) * t) for (c, t) in zip(g.coefs, g.args)] : [g]
+    r = g.kind == ADD ? Sym(g.num) : ZERO
+    hit = nothing
+    for t in terms
+        has(t, x) || (r += t; continue)
+        hit === nothing || return nothing
+        hit = t
+    end
+    hit === nothing && return nothing
+    cf, p = hit.kind == MUL ? (Sym(hit.num), hit / Sym(hit.num)) : (ONE, hit)
+    if p.kind == MUL && length(p.args) == 1
+        p = p.args[1]^p.exps[1]
+    end
+    p.kind == POW || return nothing
+    u, n = p.args
+    (n.kind == NUMBER && _isint(n.num) && n.num >= SymNumber(2)) || return nothing
+    _isnamed(u) && return nothing
+    (_ispoly_in(u, x) && degree(Poly{Sym}(u, [x]), x) == 1) || return nothing
+    has(coeff(u, x, 1), x) && return nothing
+    (u, _toint(n.num), cf, r)
 end
 
 # b₁^k₁ ⋯ bₘ^kₘ = 0 with the kᵢ positive integers and the bᵢ polynomials in x: the bases'

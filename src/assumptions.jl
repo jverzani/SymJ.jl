@@ -356,6 +356,13 @@ _subsfact(f::FactAnd, sub) = FactAnd(Any[_subsfact(g, sub) for g in f.facts])
 _subsfact(f::FactOr, sub) = FactOr(Any[_subsfact(g, sub) for g in f.facts])
 
 _named(e::Sym) = sort!(collect(free_symbols(e) ∪ free_parameters(e)); lt = _lt)
+# the symbols of e that occur outside function calls
+function _bare_symbols(e::Sym)
+    out = Set{Sym}()
+    visit(t) = t.kind == FN ? nothing : (_isnamed(t) ? push!(out, t) : (foreach(visit, t.args); t.kind == MUL && foreach(visit, t.exps)))
+    visit(e)
+    out
+end
 _ismarkedreal(A, x) = get(A.dom, x, _CR) <= _RR || haskey(A.sets, x)
 _markreal!(A, x) = (A.dom[x] = min(get(A.dom, x, _CR), _RR))
 _restrict!(A, x, S::SymSet) = (A.sets[x] = haskey(A.sets, x) ? A.sets[x] ∩ S : S; _markreal!(A, x))
@@ -437,8 +444,14 @@ function _add_fact!(A::Assumptions, f)
     # nonlinear in symbols not known to be real is not used (only decided)
     r.op === :eq && !all(x -> _ismarkedreal(A, x), vs) && any(t -> !_isnamed(t), keys(_linform(d)[1])) &&
         throw(ArgumentError("$r: a nonlinear equation in symbols that may be complex is not supported as an assumption"))
-    foreach(x -> _markreal!(A, x), vs)
-    if length(vs) == 1 && r.op !== :eq
+    # an order fact makes real the symbols it holds outside function calls (x² + y > 0);
+    # one inside real, imag, abs, exp, … only (real(c) > 0) is not made real by it: the
+    # fact is about that atom (SymPy #14978)
+    bare = _bare_symbols(d)
+    for x in vs
+        (r.op === :eq || x in bare) && _markreal!(A, x)
+    end
+    if length(vs) == 1 && r.op !== :eq && only(vs) in bare
         x = only(vs)
         S = try _solve_inequality(Relation(r.op, d, ZERO), x) catch; nothing end
         if S !== nothing

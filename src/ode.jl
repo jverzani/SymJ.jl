@@ -1069,6 +1069,14 @@ function _ode_ics(P::_ODE, kind::Symbol, S::Sym, Cs, conds)
     allequal(c[2] for c in conds) && (S = _from_point(S, x, conds[1][2]))
     if kind === :explicit
         eqs = [_ode_tidy(subs(diff(S, x, o), x => a)) ~ v for (o, a, v) in conds]
+        # a point where the general solution is singular (log 0 at x = ±1 for Legendre's
+        # equation): its constants are not found by substituting; an error, not the general
+        # solution with the conditions dropped (SymPy #15113)
+        for (e, (o, a, _)) in zip(eqs, conds)
+            _has_node(e.lhs, t -> (t.kind in (NUMBER, MUL, ADD) && isfloat(t.num) && !isfinite(Float64(t.num))) ||
+                                  (t.kind == ADD && any(c -> isfloat(c) && !isfinite(Float64(c)), t.coefs))) &&
+                throw(ArgumentError("dsolve: x = $a is a singular point of the general solution $S; give the conditions at a regular point"))
+        end
         used = [C for C in Cs if has(S, C)]
         # one constant: the equation's solve, which takes C in exp, tan, …; a system's
         # needs it polynomial

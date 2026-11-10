@@ -628,6 +628,19 @@ import PolyLog as PL
               SymJ.apply_function(:LaplaceTransform, Sym[u(t), t, s]) / s
     end
 
+    @testset "wrong answers (SymPy review, round 11)" begin
+        @syms w t
+        f = SymFunction(:f)
+        # initial conditions at a singular point: an error, not free constants (#15113)
+        L = (1 - x^2) * diff(f(x), x, 2) - 2x * diff(f(x), x) + 2f(x) ~ 0
+        @test_throws ArgumentError SymJ.dsolve(L, f(x), f(-1) => -1, f(1) => 1)
+        @test SymJ.dsolve(L, f(x), f(0) => 0, f(Sym(1) // 2) => Sym(1) // 2) == (f(x) ~ x)
+        # a Gaussian with a complex coefficient: decided on its real part (#15292)
+        @test N(RischIntegrate.integrate(exp(-(1 - IM) * x^2), (x, 0, Inf))) ≈ sqrt(pi) / (2sqrt(1 - im))
+        # a parameter declared complex is not taken real (#16242)
+        @test_throws ArgumentError RischIntegrate.integrate(exp(-t * (1 + IM * w)), (t, 0, Inf); assume = (w ∈ ℂ,))
+    end
+
     @testset "asymptotic series at ±∞: exponential and oscillating factors" begin
         @syms y
         S(f, x0, n) = Sym(series(f, x, x0, n))

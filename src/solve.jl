@@ -1565,34 +1565,78 @@ end
 ## numeric roots: Aberth–Ehrlich iteration
 
 function _numeric_roots(c::Vector{Sym})
-    a = ComplexF64[_evalc(ci) for ci in c]
-    while length(a) > 1 && iszero(a[end])
-        pop!(a)
+    setprecision(BigFloat, 256) do
+        C = Complex{BigFloat}
+        B = C[(v = _bigvalue(ci, 256); v === nothing ? C(_evalc(ci)) : C(v)) for ci in c]
+        while length(B) > 1 && iszero(B[end])
+            pop!(B)
+        end
+        n = length(B) - 1
+        n == 0 && return Sym[]
+        realcoefs = all(b -> iszero(imag(b)), B)
+        m = B ./ B[end]                                      # monic, exactly enough
+        # coefficients beyond Float64's range (420-digit ones overflowed to Inf and every
+        # root was NaN; SymPy #15355): the iteration in BigFloat; else in Float64
+        nzm = [abs(b) for b in m if !iszero(b)]
+        wide = any(b -> !(1e-290 < b < 1e290), nzm) || maximum(nzm) / minimum(nzm) > 1e80 || n >= 16
+        z = wide ? _aberth(m, 1e-60) : C.(_aberth(ComplexF64.(m), 1e-15))
+        # each root polished by Newton's method at 256 bits on the exact coefficients: the
+        # roots of (1 + x)^30 - 3/2 expanded were off by 5e-5 (SymPy #15296)
+        dm = [k * m[k + 1] for k in 1:n]
+        for k in eachindex(z)
+            for _ in 1:8                           # (nested: a break ends this root only)
+                d = evalpoly(z[k], dm)
+                iszero(d) && break
+                δ = evalpoly(z[k], m) / d
+                z[k] -= δ
+                abs(δ) <= big(2.0)^-240 * max(1, abs(z[k])) && break
+            end
+        end
+        # a real polynomial's complex roots in exact conjugate pairs (the last digits of
+        # 0.35247154603172637 and …626 kept dsolve from pairing them)
+        if realcoefs
+            used = falses(n)
+            for k in 1:n
+                (used[k] || imag(z[k]) <= 0) && continue
+                js = [j for j in 1:n if !used[j] && j != k && imag(z[j]) < 0]
+                isempty(js) && continue
+                j = js[argmin([abs(z[j] - conj(z[k])) for j in js])]
+                abs(z[j] - conj(z[k])) <= big(10.0)^-30 * max(1, abs(z[k])) || continue
+                z[j] = conj(z[k]); used[j] = used[k] = true
+            end
+        end
+        map(z) do t
+            # (exact coefficients, irreducible: simple roots, polished to ~1e-70; floats may
+            # carry a double root, whose imaginary residue stays near √eps)
+            tol = realcoefs && all(_isexactex, c) ? big(10.0)^-40 : big(10.0)^-12
+            r, i = Float64(real(t)), Float64(imag(t))
+            abs(imag(t)) <= tol * max(1, abs(t)) ? Sym(r) : Sym(r) + Sym(i) * IM
+        end
     end
+end
+
+# Aberth–Ehrlich iteration for the roots of the monic polynomial with coefficients a
+# (constant first), to relative steps below tol
+function _aberth(a::Vector{T}, tol) where {T}
     n = length(a) - 1
-    n == 0 && return Sym[]
-    a ./= a[end]                                             # monic
     # Fujiwara's root bound, 2 max |aₙ₋ₖ|^(1/k): Cauchy's, 1 + max |aₖ|, is far larger for a
     # high degree, and its n-th power overflows (u^181 + u^74 - 50 gave NaN)
     R = 2 * maximum(abs(a[n + 1 - k])^(1 / k) for k in 1:n)
-    R > 0 || (R = 1.0)
-    z = [R * cis(2π * (k + 0.25) / n) for k in 0:(n - 1)]
-    p(t) = evalpoly(t, a)
-    dp(t) = evalpoly(t, [k * a[k+1] for k in 1:n])
+    R > 0 || (R = one(R))
+    z = T[R * cis(2 * real(T)(π) * (k + 0.25) / n) for k in 0:(n - 1)]
+    da = [k * a[k+1] for k in 1:n]
     for _ in 1:500
-        δmax = 0.0
+        δmax = zero(real(T))
         for k in 1:n
-            w = p(z[k]) / dp(z[k])
-            s = sum(1 / (z[k] - z[j]) for j in 1:n if j != k; init = 0.0im)
+            w = evalpoly(z[k], a) / evalpoly(z[k], da)
+            s = sum(1 / (z[k] - z[j]) for j in 1:n if j != k; init = zero(T))
             δ = w / (1 - w * s)
             z[k] -= δ
-            δmax = max(δmax, abs(δ) / max(1.0, abs(z[k])))
+            δmax = max(δmax, abs(δ) / max(1, abs(z[k])))
         end
-        δmax < 1e-15 && break
+        δmax < tol && break
     end
-    map(z) do t
-        abs(imag(t)) <= 1e-12 * max(1.0, abs(t)) ? Sym(real(t)) : Sym(real(t)) + Sym(imag(t)) * IM
-    end
+    z
 end
 
 # numeric (constant) roots sorted: real ones first, by real then imaginary part

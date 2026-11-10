@@ -36,6 +36,13 @@ function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Boo
         _hassymbol(e) && union!(ps, free_symbols(e))
     end
     delete!(ps, x)
+    # a parameter declared complex (w ∈ ℂ, w ∉ ℝ) is not made real: refused, since the
+    # convergence conditions here are for real parameters (∫₀^∞ e^(-t(1 + iw)) came out
+    # with no condition Im w < 1, and w ∉ ℝ crashed; SymPy #16242)
+    for p in ps
+        (get(A0.notin, p, Int8(0)) >= _RR || get(A0.dom, p, _RR) == _CR) &&
+            throw(ArgumentError("integrate: a definite integral with the complex parameter $p is not supported (its convergence depends on Im $p)"))
+    end
     f, lo, hi = (_realsyms(e, [x; collect(ps)]) for e in (Sym(f), lo, hi))
     isempty(ps) || (A0 = _with_fact(A0, FactAnd(Any[p ∈ ℝ for p in _sort_by_name!(collect(ps))])))
     v = _by_cases(A0) do A
@@ -208,7 +215,14 @@ function _gaussian_definite(f::Sym, x::Sym, lo::Sym, hi::Sym, A::Assumptions)
     Q === nothing && return nothing
     a, b, c0 = -coeff(Q, x, 2), coeff(Q, x, 1), coeff(Q, x, 0)
     c *= exp(c0)
-    if !_decide(Relation(:gt, a, ZERO), A)          # a ≤ 0: the integrand does not decay
+    # a complex a: convergent for Re a > 0 (and, for n = 0, Re a = 0, a ≠ 0: Fresnel), with
+    # the same formulas on the principal branch; ∫₀^∞ e^(-(1 - i)x²) was ∞ (SymPy #15292)
+    if _isreal(a, A) !== true
+        ra = expand(real(a))
+        conv = _holds(Relation(:gt, ra, ZERO), A) === true ||
+               (n == 0 && iszero(ra) && _holds(Relation(:ne, a, ZERO), A) === true)
+        conv || return nothing
+    elseif !_decide(Relation(:gt, a, ZERO), A)          # a ≤ 0: the integrand does not decay
         (_isreal(b, A) === true && _isreal(c, A) === true) ||
             throw(ArgumentError("integrate: $f diverges for $a ≤ 0"))
         sg = _signs(c, A)

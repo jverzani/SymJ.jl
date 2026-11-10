@@ -120,7 +120,9 @@ function limit(f, xx0::Pair; dir = :both, assume = nothing)
     signs = Pair{Sym,Symbol}[]
     if A !== nothing
         for p in _named(f)
-            _eq(p, x) || get(A.notin, p, Int8(0)) < _RR ||
+            # (declared complex, p ∈ ℂ, as well as p ∉ ℝ: taken real, ∫₀^∞ e^(-t(1 + iw)) lost
+            # its condition Im w < 1; SymPy #16242)
+            _eq(p, x) || (get(A.notin, p, Int8(0)) < _RR && get(A.dom, p, _RR) != _CR) ||
                 throw(ArgumentError("limit: the other symbols are taken to be real, and $p is not"))
         end
         sub = [k => v for (k, v) in A.subst if !_eq(k, x)]

@@ -964,3 +964,33 @@ end
     @test simplify(SymJ.piecewise(y ⩵ 0 => x * y, true => x)) == SymJ.piecewise(y ⩵ 0 => 0, true => x)
 end
 
+@testset "wrong answers (SymPy review, round 11)" begin
+    @syms x y c
+    IM = SymJ.IM
+    LA = SymJ.LinearAlgebra
+    # a fact on real(c) or imag(c) does not make c real (#14978)
+    @test SymJ._hasfn(refine(imag(c); assume = (real(c) ≫ 0,)), :imag)
+    @test refine(real(c) ≫ 0; assume = (real(c) ≫ 0,)) === true
+    @test refine(imag(c) ≫ 0; assume = (imag(c) ≫ 0,)) === true
+    @test solve(c^2 ~ -1, c; assume = (real(c) ≫ -1,)) == [-IM, IM]
+    @test refine(imag(x); assume = (x ≫ 0,)) == 0
+    # huge coefficients: roots in BigFloat, not NaN (#15355)
+    r = solve(x^5 - big(10)^400 * x + 1 ~ 0, x)
+    @test all(v -> !isnan(abs(N(v))), r)
+    @test length(solve(x^5 - big(10)^400 * x + 1 ~ 0, x; assume = (x ∈ ℝ,))) == 3
+    # (u)^n = c through its base, exactly; numeric roots polished (#15296)
+    @test solve((1 + x)^5 ~ 3 // 2, x; assume = (x ∈ ℝ,)) == [(Sym(3) / 2)^(1 // 5) - 1]
+    @test maximum(abs(N((1 + v)^30 - 3 // 2)) for v in solve((1 + x)^30 ~ 3 // 2, x)) < 1e-12
+    q = solve(x^5 - x + 1 ~ 0, x)
+    @test count(v -> imag(N(v)) != 0 && any(w -> N(w) == conj(N(v)), q), q) == 4    # exact conjugate pairs
+    # relations among cosines in a rank (#15585)
+    @syms z
+    M = Sym[1 cos(x/4+y/4) cos(x/4+z/4) cos(y/4+z/4); cos(x/4+y/4) 1 cos(y/4-z/4) cos(x/4-z/4);
+            cos(x/4+z/4) cos(y/4-z/4) 1 cos(x/4-y/4); cos(y/4+z/4) cos(x/4-z/4) cos(x/4-y/4) 1]
+    @test LA.rank(M) == 2
+    @test size(LA.nullspace(M), 2) == 2
+    # has sees the numbers a node stores (#16054)
+    @test has(x - 1, Sym(-1))
+    @test has(3x, Sym(3))
+end
+
