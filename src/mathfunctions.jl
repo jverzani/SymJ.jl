@@ -276,6 +276,15 @@ function _extreme_rule(name::Symbol, better)
             end
         end
         best === nothing || push!(rest, best)
+        # arguments differing by a real number: the larger (smaller) alone (max(x, x + 1)
+        # is x + 1; SymPy #16926)
+        keep = trues(length(rest))
+        for i in eachindex(rest), j in eachindex(rest)
+            (i == j || !keep[i] || !keep[j]) && continue
+            d = expand(rest[i] - rest[j])
+            d.kind == NUMBER && isreal(d.num) && !iszero(d.num) && better(d.num, zero(d.num)) && (keep[j] = false)
+        end
+        rest = rest[keep]
         length(rest) == 1 && return rest[1]
         sort!(rest; lt = _lt)
         length(rest) == length(args) && all(_eq.(rest, args)) && return nothing

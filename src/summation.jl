@@ -88,6 +88,14 @@ function summation(f, k::Sym, a, b; assume = nothing)
         inside = iszero(lo) || (bs !== nothing && iszero(hi)) ||
                  ((lo.kind == NUMBER && lo.num > N0) && (bs === nothing || (hi.kind == NUMBER && hi.num > N0)))
         outside = (lo.kind == NUMBER && lo.num < N0) || (bs !== nothing && hi.kind == NUMBER && hi.num < N0)
+        # a symbolic point: inside when the assumptions put it on the range's integers
+        if !inside && !outside && _hassymbol(lo)
+            A = _assumptions(assume)
+            if A !== nothing && _isinteger(lo, A) === true && _holds(Relation(:ge, lo, ZERO), A) === true &&
+               (bs === nothing || _holds(Relation(:ge, hi, ZERO), A) === true)
+                inside = true
+            end
+        end
         if inside || outside
             r = _summation(rest, k, a, bs, assume)
             return inside ? _sum_parts(r, v1 - subs(rest, k => c)) : r
@@ -1390,8 +1398,23 @@ end
 
 # f = piecewise(k = c => v1, rest…) with c free of k: (c, v1, the rest as a piecewise)
 function _point_piece(f::Sym, k::Sym)
+    # a factor of a product: g piecewise(…) as piecewise(… => g v)
+    if f.kind == MUL
+        i = findfirst(j -> f.args[j].kind == FN && f.args[j].name === :piecewise && _isone(f.exps[j]), eachindex(f.args))
+        i === nothing && return nothing
+        pw = f.args[i]
+        g = f / pw
+        r = _point_piece(pw, k)
+        r === nothing && return nothing
+        c, v1, rest = r
+        return (c, v1 * subs(g, k => c), rest * g)
+    end
     (f.kind == FN && f.name === :piecewise && length(f.args) >= 4) || return nothing
     c1, v1 = f.args[1], f.args[2]
+    # k ≠ c => v, else w: the point piece second (SymPy #16532)
+    if length(f.args) == 4 && f.args[3] == ONE && c1.kind == FN && get(_COND_RELS, c1.name, nothing) === :ne
+        return _point_piece(apply_function(:piecewise, Sym[apply_function(:Eq, c1.args), f.args[4], ONE, v1]), k)
+    end
     (c1.kind == FN && get(_COND_RELS, c1.name, nothing) === :eq) || return nothing
     q = _relation_of(c1)
     d = expand(q.lhs - q.rhs)

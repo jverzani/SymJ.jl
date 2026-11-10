@@ -292,16 +292,45 @@ function _table_value(table, a::Sym)
     nothing
 end
 
+# atan(tan c), asin(sin c), acos(cos c) for a real constant c: c moved into the principal
+# range by a multiple of the period (atan(tan 5) = 5 - 2π; SymPy #17300); nothing when the
+# value is at the range's edge (decided only approximately) or not of this form
+function _inv_periodic(name::Symbol, a::Sym)
+    (a.kind == FN && length(a.args) == 1) || return nothing
+    (name, a.name) in ((:atan, :tan), (:asin, :sin), (:acos, :cos)) || return nothing
+    u = a.args[1]
+    _hassymbol(u) && return nothing
+    v = try _evalc(u) catch; return nothing end
+    (isfinite(v) && abs(imag(v)) <= 1e-14 * max(1, abs(v))) || return nothing
+    c = real(v)
+    near(t, s) = abs(t - s) < 1e-9
+    if name === :atan
+        k = round(Int, c / π)
+        r = c - k * π
+        (near(r, π / 2) || near(r, -π / 2)) && return nothing
+        return k == 0 ? u : expand(u - k * PI)
+    end
+    k = round(Int, c / (2π))
+    r = c - 2k * π                                          # in [-π, π]
+    w = k == 0 ? u : expand(u - 2k * PI)
+    (near(abs(r), π) || near(r, 0.0) || near(abs(r), π / 2)) && return nothing
+    name === :acos && return r > 0 ? w : -w
+    abs(r) < π / 2 ? w : r > 0 ? PI - w : -PI - w
+end
+
 register_function!(:asin; julia = asin,
-    eval = _unary(a -> something(_table_value(_ASIN_VALUES, a), _odd(:asin, a), Some(nothing))),
+    eval = _unary(a -> something(_table_value(_ASIN_VALUES, a), _inv_periodic(:asin, a), _odd(:asin, a), Some(nothing))),
     diff = (args, i) -> inv(sqrt(1 - args[1]^2)))
 
 register_function!(:acos; julia = acos,
-    eval = _unary(a -> (θ = _table_value(_ASIN_VALUES, a); θ === nothing ? nothing : PI / 2 - θ)),
+    eval = _unary(a -> (θ = _table_value(_ASIN_VALUES, a); θ === nothing ? _inv_periodic(:acos, a) : PI / 2 - θ)),
     diff = (args, i) -> -inv(sqrt(1 - args[1]^2)))
 
 register_function!(:atan; julia = atan,
-    eval = _unary(a -> something(_table_value(_ATAN_VALUES, a), _odd(:atan, a), Some(nothing))),
+    eval = _unary(a -> begin
+        (_eq(a, IM) || _eq(a, -IM)) && throw(DivisionByZero("atan($a): a pole"))
+        something(_table_value(_ATAN_VALUES, a), _inv_periodic(:atan, a), _odd(:atan, a), Some(nothing))
+    end),
     diff = (args, i) -> inv(1 + args[1]^2))
 
 register_function!(:sinh; julia = sinh,
@@ -325,7 +354,10 @@ register_function!(:acosh; julia = acosh,
     diff = (args, i) -> inv(sqrt(args[1] - 1) * sqrt(args[1] + 1)))
 
 register_function!(:atanh; julia = atanh,
-    eval = _unary(a -> iszero(a) ? ZERO : _odd(:atanh, a)),
+    eval = _unary(a -> begin
+        a.kind == NUMBER && isexact(a.num) && abs(a.num) == N1 && throw(DivisionByZero("atanh($a): a pole"))
+        iszero(a) ? ZERO : _odd(:atanh, a)
+    end),
     diff = (args, i) -> inv(1 - args[1]^2))
 
 register_function!(:abs; julia = abs,
@@ -347,6 +379,17 @@ register_function!(:log; julia = log,
             a.kind == NUMBER && isexact(a.num) && iszero(a.num) && return Sym(-Inf)
             if a.kind == POW && a.args[1] === E && a.args[2].kind == NUMBER
                 return a.args[2]                 # log(e^r) == r for real r
+            end
+            # log(e^z), z a constant: z with its imaginary part moved into (-π, π] by a
+            # multiple of 2π (log(e^(iπ/3)) = iπ/3; SymPy #17208)
+            if a.kind == POW && a.args[1] === E && !_hassymbol(a.args[2])
+                z = a.args[2]
+                v = try _evalc(z) catch; ComplexF64(NaN) end
+                if isfinite(v)
+                    k = round(Int, imag(v) / (2π))
+                    r = imag(v) - 2π * k
+                    abs(abs(r) - π) > 1e-9 && return k == 0 ? z : expand(z - 2k * PI * IM)
+                end
             end
             # the principal value at an exact negative number or ±im: log(-c) = log(c) + iπ
             a.kind == NUMBER && isexact(a.num) && a.num < N0 && return log(Sym(-a.num)) + IM * PI
@@ -399,7 +442,9 @@ end
 # f(a) = g(1/a), with g an existing inverse function
 function _invrecip_rule(name::Symbol, g::Symbol, parity::Symbol, atzero)
     _unary(function (a)
-        iszero(a) && return atzero
+        # a pole at 0 (acsc, asec, acsch, asech), as csc(0) is one (acsc(0) stayed, and N
+        # gave NaN; SymPy #17143)
+        iszero(a) && (atzero === nothing ? throw(DivisionByZero("$name(0): a pole")) : return atzero)
         r = apply_function(g, Sym[inv(a)])
         _hasfn(r, g) || return r
         # :odd_nonzero: odd for a nonzero number only (a symbol may be 0)

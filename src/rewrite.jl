@@ -156,7 +156,41 @@ function rewrite(ex, target::Function)
         r = _polar_exp(e)
         r === nothing || return r
     end
+    # to tan (tanh): sin(u)^p cos(u)^(-p) is tan(u)^p first, not through the half angle
+    # (rewrite(sin(x)/cos(x), tan) gave 2tan(x/2)/(1 - tan(x/2)^2); SymPy #16499)
+    # b^u for a constant b ≠ e and a symbolic u: exp(u log b), the principal value
+    # (iⁿ = exp(iπn/2); SymPy #16797)
+    target === exp && (e = _const_pow_exp(e))
+    target === tan && (e = _ratio_as(e, :sin, :cos, :tan))
+    target === tanh && (e = _ratio_as(e, :sinh, :cosh, :tanh))
     _rewrite_to(e, _rewrite_table(target), nothing)
+end
+_const_pow_exp(e::Sym) = _replace_walk(e) do n
+    if n.kind == POW && !_hassymbol(n.args[1]) && n.args[1] !== E && _hassymbol(n.args[2])
+        return exp(expand(n.args[2] * log(n.args[1])))
+    elseif n.kind == MUL && any(i -> !_hassymbol(n.args[i]) && n.args[i] !== E && _hassymbol(n.exps[i]), eachindex(n.args))
+        return Sym(n.num) * prod((!_hassymbol(b) && b !== E && _hassymbol(q) ? exp(expand(q * log(b))) : b^q
+                                  for (b, q) in zip(n.args, n.exps)); init = ONE)
+    end
+    nothing
+end
+function _ratio_as(e::Sym, s::Symbol, c::Symbol, t::Symbol)
+    _replace_walk(e) do n
+        n.kind == MUL || return nothing
+        out, hit = Sym(n.num), false
+        used = falses(length(n.args))
+        for (i, (b, p)) in enumerate(zip(n.args, n.exps))
+            (used[i] || !(b.kind == FN && b.name === s && length(b.args) == 1)) && continue
+            j = findfirst(j -> !used[j] && n.args[j].kind == FN && n.args[j].name === c &&
+                               _eq(n.args[j].args[1], b.args[1]) && _eq(n.exps[j], -p), eachindex(n.args))
+            j === nothing && continue
+            out *= apply_function(t, b.args)^p
+            used[i] = used[j] = true
+            hit = true
+        end
+        hit || return nothing
+        out * prod((n.args[i]^n.exps[i] for i in eachindex(n.args) if !used[i]); init = ONE)
+    end
 end
 
 function _polar_exp(e::Sym)

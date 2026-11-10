@@ -79,6 +79,15 @@ function refine(r::Relation; assume = nothing)
     # an infinite side: compared as it is, not through l - r (∞ - ∞ is NaN, so ∞ ≤ ∞ was
     # false and ∞ = ∞ became NaN = NaN; SymPy #19245)
     if _isinfpt(l) || _isinfpt(rr)
+        # a real (so finite) side against ±∞: decided (x < ∞ for real x; SymPy #17113)
+        if _isinfpt(l) != _isinfpt(rr)
+            f, inf = _isinfpt(rr) ? (l, rr) : (rr, l)
+            if !_has_node(f, _isinfpt) && _isreal(f, A) === true
+                s = Float64(inf.num) > 0 ? 1 : -1
+                fl, fr = _isinfpt(rr) ? (0.0, s * Inf) : (s * Inf, 0.0)   # f stands for 0
+                return _REL_INFO[r.op][2](fl, fr)
+            end
+        end
         (_hassymbol(l) || _hassymbol(rr)) && return Relation(r.op, l, rr)
         a, b = _evalc(l), _evalc(rr)
         (isreal(a) && isreal(b)) || return r.op === :eq ? a == b : r.op === :ne ? a != b : Relation(r.op, l, rr)
@@ -169,6 +178,19 @@ function _refine_rule(e::Sym, A::Assumptions)
     end
     k == FN && e.name === :atan2 && return _refine_atan2(e.args[1], e.args[2], A)
     k == FN && e.name === :And && return _refine_and(e, A)
+    # max and min without the arguments the assumptions show dominated (max(x, 0) = x
+    # for x > 0; SymPy #16926)
+    if k == FN && e.name in (:max, :min) && length(e.args) >= 2
+        op = e.name === :max ? :ge : :le
+        keep = trues(length(e.args))
+        for i in eachindex(e.args), j in eachindex(e.args)
+            (i == j || !keep[i] || !keep[j]) && continue
+            d = expand(e.args[i] - e.args[j])
+            (_isreal(e.args[i], A) === true && _isreal(e.args[j], A) === true) || continue
+            _holds(Relation(op, d, ZERO), A) === true && (keep[j] = false)
+        end
+        all(keep) || return count(keep) == 1 ? e.args[findfirst(keep)] : apply_function(e.name, e.args[keep])
+    end
     # floor(u) = n where n ≤ u < n + 1 by the assumptions, ceil alike, for small n
     # (floor(-1/x) = -1 for an integer x > 0; SymPy #21429)
     if k == FN && e.name in (:floor, :ceil) && length(e.args) == 1 && _hassymbol(e.args[1]) && _isreal(e.args[1], A) === true
@@ -766,6 +788,16 @@ function _simplify(e::Sym, A::Assumptions)
         u = _im_multiple(t.args[1])
         u === nothing ? nothing : t.name === :sin ? IM * sinh(u) : t.name === :cos ? cosh(u) : IM * tanh(u)
     end)
+    # a power of a constant with a symbolic exponent beside exponentials: all as exp
+    # (iⁿ - exp(iπn/2) = 0; SymPy #16797)
+    _has_epow(e) && _has_node(e, t -> t.kind == POW && !_hassymbol(t.args[1]) && t.args[1] !== E && _hassymbol(t.args[2])) &&
+        consider(x -> rewrite(x, exp))
+    # positive factors out of radicals, sums factored first, so they can cancel:
+    # √(ab)/√b = √a for b > 0, √(1 - x²)/√(1 - x) = √(1 + x) for -1 < x < 1 (SymPy #17634)
+    !isempty(A.facts) && _has_node(e, t -> !isempty(_radical_bases(t))) && consider(x -> _split_positive_radicals(x, A))
+    # the integer content of a product's sum factors in its coefficient: -√2(2μ - 2x)/4 is
+    # √2(x - μ)/2 (SymPy #17233)
+    e.kind == MUL && any(b -> b.kind == ADD, e.args) && consider(_sum_contents_out)
     # |a||b| = |ab| (|t/x||x| = |t|; SymPy #18840)
     _count_fn(e, :abs) >= 2 && consider(_merge_abs)
     # conj(u) = re u - i im u, beside real and imag parts (SymPy #18271)
@@ -774,6 +806,9 @@ function _simplify(e::Sym, A::Assumptions)
             t.kind == FN && t.name === :conj && length(t.args) == 1 ?
                 apply_function(:real, t.args) - IM * apply_function(:imag, t.args) : nothing
         end)
+    # a piece under s = c (s a symbol) has s = c in its value: piecewise(y = 0 => xy, …)
+    # is piecewise(y = 0 => 0, …) (SymPy #16690)
+    _has_fn(e, (:piecewise,)) && consider(_pw_eq_subs)
     # piecewise(u < 0 => -u, u ≥ 0 => u) is |u| (SymPy #19167)
     _has_fn(e, (:piecewise,)) && consider(_pw_as_abs)
     # Σ_a^b f - Σ_a^c f with b - c a small integer: the terms between (SymPy #19685)
@@ -1002,7 +1037,11 @@ function _simplify_const(e::Sym, A::Assumptions)
               (x; assume) -> simplify_hyperbolic(x), (x; assume) -> expand_trig(x),
               (x; assume) -> _unit_powers(x), (x; assume) -> cancel(simplify_radicals(x; assume)),
               (x; assume) -> simplify_log(cancel(_log_quotients(x)); assume),
-              (x; assume) -> _trig_unity_zero(x))
+              (x; assume) -> _trig_unity_zero(x),
+              # inverse hyperbolic functions as logs, the logs combined (log(3/2) -
+              # 2atanh(2) + 2atanh(3) is 0; SymPy #16730)
+              (x; assume) -> _has_fn(x, (:atanh, :acoth, :asinh, :acosh)) ?
+                  simplify_log(cancel(_log_quotients(expand(rewrite(x, log)))); assume) : x)
         c = try g(e; assume = A) catch err; err isa InterruptException && rethrow(); e end
         c = try expand(c) catch; c end
         _nodes(c) < _nodes(best) && (best = c)
@@ -2136,20 +2175,97 @@ function _merge_abs(e::Sym)
     isempty(e.args) && return e
     e = _rebuild_node(e, Sym[_merge_abs(a) for a in e.args])
     e.kind == MUL || return e
-    groups = Dict{Sym,Vector{Int}}()
+    # |a|^p |b|^q = |a^p b^q| for integers p, q, cancelled inside: |x² - 1|/|x - 1| is
+    # |x + 1| (SymPy #17292)
+    ix = Int[]
     for (i, (b, q)) in enumerate(zip(e.args, e.exps))
         b.kind == FN && b.name === :abs && length(b.args) == 1 && q.kind == NUMBER && isexact(q.num) && _isint(q.num) &&
-            push!(get!(groups, q, Int[]), i)
+            push!(ix, i)
     end
-    any(ix -> length(ix) >= 2, values(groups)) || return e
+    length(ix) >= 2 || return e
+    inner = prod(e.args[i].args[1]^e.exps[i] for i in ix)
+    any(i -> _toint(e.exps[i].num) < 0, ix) && (inner = cancel(inner))
     used = falses(length(e.args))
-    out = Sym(e.num)
-    for (q, ix) in groups
-        length(ix) >= 2 || continue
-        out *= abs(prod(e.args[i].args[1] for i in ix))^q
-        used[ix] .= true
+    used[ix] .= true
+    # (an integer power inside as a power of |u|: |t|², not |t²|)
+    ab = inner.kind == POW && inner.args[2].kind == NUMBER && _isint(inner.args[2].num) ?
+         abs(inner.args[1])^inner.args[2] : abs(inner)
+    Sym(e.num) * ab * prod((b^q for (u, b, q) in zip(used, e.args, e.exps) if !u); init = ONE)
+end
+
+function _pw_eq_subs(e::Sym)
+    _replace_walk(e) do t
+        (t.kind == FN && t.name === :piecewise) || return nothing
+        args = copy(t.args)
+        hit = false
+        for i in 1:2:length(args)
+            eqs = Pair{Sym,Sym}[]
+            c = args[i]
+            cs = c.kind == FN && c.name === :And ? c.args : Sym[c]
+            for d in cs
+                (d.kind == FN && get(_COND_RELS, d.name, nothing) === :eq) || continue
+                l, r = d.args
+                _isnamed(l) && !has(r, l) ? push!(eqs, l => r) : _isnamed(r) && !has(l, r) && push!(eqs, r => l)
+            end
+            isempty(eqs) && continue
+            v = subs(args[i + 1], eqs...)
+            _eq(v, args[i + 1]) || (args[i + 1] = v; hit = true)
+        end
+        hit ? apply_function(:piecewise, args) : nothing
     end
-    out * prod((b^q for (u, b, q) in zip(used, e.args, e.exps) if !u); init = ONE)
+end
+
+function _split_positive_radicals(e::Sym, A::Assumptions)
+    function split(b::Sym, q::Sym)
+        (q.kind == NUMBER && isexact(q.num) && !isone(_denominator(q.num))) || return nothing
+        f = b.kind == ADD && _hassymbol(b) ? (try factor(b) catch err; err isa InterruptException && rethrow(); b end) : b
+        f.kind == MUL || return nothing
+        out, rest, hit = ONE, Sym(f.num), false
+        for (c, p) in zip(f.args, f.exps)
+            if _isreal(p, A) === true && _ispos(c, A)
+                out *= c^expand(p * q); hit = true
+            elseif p.kind == NUMBER && _isint(p.num) && _ispos(-c, A)
+                out *= (-c)^expand(p * q); hit = true
+                isodd(_toint(p.num)) && (rest = -rest)
+            else
+                rest *= c^p
+            end
+        end
+        hit ? out * rest^q : nothing
+    end
+    _replace_walk(e) do t
+        if t.kind == POW
+            return split(t.args[1], t.args[2])
+        elseif t.kind == MUL && any(q -> q.kind == NUMBER && isexact(q.num) && !isone(_denominator(q.num)), t.exps)
+            r = Sym(t.num)
+            for (b, q) in zip(t.args, t.exps)
+                v = split(b, q)
+                r *= v === nothing ? b^q : v
+            end
+            return r
+        end
+        nothing
+    end
+end
+
+function _sum_contents_out(e::Sym)
+    e.kind == MUL || return e
+    c = Sym(e.num)
+    out = ONE
+    for (b, p) in zip(e.args, e.exps)
+        if b.kind == ADD && p.kind == NUMBER && _isint(p.num) && all(isexact, b.coefs) && isexact(b.num)
+            ns = [_numerator(q) for q in b.coefs]
+            iszero(b.num) || push!(ns, _numerator(b.num))
+            g = gcd(reduce(gcd, ns), _denominator(c.num))       # (only what cancels)
+            if g > 1
+                c *= Sym(g)^p
+                out *= expand(b / g)^p
+                continue
+            end
+        end
+        out *= b^p
+    end
+    c * out
 end
 
 # a piecewise function of two pieces, u < 0 (or u ≤ 0) => -u and the rest => u, as |u|

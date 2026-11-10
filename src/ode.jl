@@ -93,10 +93,25 @@ SymJ.dsolve([u'(t) ~ v(t), v'(t) ~ -u(t)], [u(t), v(t)], u(0) => 1, v(0) => 0)
 # [u(t) ~ cos(t), v(t) ~ -sin(t)]
 ```
 """
+# g(x) h(y, y′, …) = 0 is h = 0 where g ≠ 0: factors free of the unknown function divided
+# out (x(u″ + u) = 0; SymPy #17397)
+function _ode_drop_factors(eq::Relation, yx::Sym)
+    g = eq.lhs - eq.rhs
+    f = g.kind == MUL ? g : (try factor(g) catch err; err isa InterruptException && rethrow(); g end)
+    f.kind == MUL || return eq
+    keep = [(b, q) for (b, q) in zip(f.args, f.exps) if has(b, yx)]
+    # (only polynomial factors dropped: exp(-t) taken out of a Laplace problem left a worse one)
+    all(((b, q),) -> has(b, yx) || (_ispoly_in_all(b) && q.kind == NUMBER), zip(f.args, f.exps)) || return eq
+    (length(keep) == length(f.args) && isone(f.num)) && return eq
+    length(keep) == 1 && _isone(keep[1][2]) || return eq
+    keep[1][1] ~ 0
+end
+
 function dsolve(eq::Relation, yx::Sym, ics::Pair...; series::Union{Nothing,Integer} = nothing, x0 = nothing,
                 method::Symbol = :auto, assume = nothing)
     assume === nothing || return with(() -> dsolve(eq, yx, ics...; series, x0, method), _ASSUMING => _assumptions(assume))
     method in (:auto, :laplace) || throw(ArgumentError("dsolve: method is :auto or :laplace, not $method"))
+    eq = _ode_drop_factors(eq, yx)
     P = _ode_parse(eq, yx)
     Cs = _ode_constants(P.n, eq)
     series === nothing || return yx ~ _ode_series(P, Cs, series, x0, [_ode_ic(p, P) for p in ics])
@@ -157,12 +172,32 @@ function dsolve(eq::Relation, yx::Sym, ics::Pair...; series::Union{Nothing,Integ
                 _ode_ics(P, alt..., Cs, conds)
         end
         kind, S, c = r
+        if kind === :several
+            # the candidates that solve the equation on both sides of the initial point
+            # ((x/2 - 1)² meets f(0) = 1 but not f′ = √f near 0; SymPy #16880)
+            a = conds[1][2]
+            T = [t for t in S if _ode_holds_near(eq, yx, P.x, t, a)]
+            isempty(T) && throw(ArgumentError("dsolve: no solution satisfies the initial conditions"))
+            length(T) == 1 || return [yx ~ t for t in T]
+            kind, S = :explicit, T[1]
+        end
     end
     if kind === :implicit && isempty(ics) && P.n == 1
         bs = _ode_quadratic_branches(P, S, c, Cs)
         bs === nothing || return [yx ~ b for b in bs]
     end
     kind === :explicit ? (yx ~ S) : (subs(S, P.ys[1] => yx) ~ c)
+end
+
+# does y = t solve eq at a ± 1/100 (numerically)?
+function _ode_holds_near(eq::Relation, yx::Sym, x::Sym, t::Sym, a::Sym)
+    F = SymFunction(yx.name)
+    r = try subs(eq.lhs - eq.rhs, F => (z -> subs(t, x => z))) catch err; err isa InterruptException && rethrow(); return true end
+    for δ in (Sym(1 // 100), Sym(-1 // 100))
+        v = try _evalc(subs(r, x => a + δ)) catch; continue end
+        (isfinite(v) && abs(v) > 1e-9) && return false
+    end
+    true
 end
 
 # an implicit solution φ = C quadratic in y: its two branches y = …, each a solution
@@ -1040,7 +1075,8 @@ function _ode_ics(P::_ODE, kind::Symbol, S::Sym, Cs, conds)
                _solve_generic(eqs, used)
         isempty(sols) && throw(ArgumentError("dsolve: no solution satisfies the initial conditions"))
         T = [_ode_tidy(subs(S, sol...)) for sol in sols]
-        length(unique(T)) == 1 || throw(ArgumentError("dsolve: several solutions satisfy the initial conditions: $(join(T, ", "))"))
+        T = unique(T)
+        length(T) == 1 || return (:several, T, ZERO)
         return (:explicit, T[1], ZERO)
     end
     # implicit φ(x, y) = C: the constants from y(a) = v and the derivatives at a (by

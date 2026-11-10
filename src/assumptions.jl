@@ -1039,9 +1039,11 @@ function _unpair_conj(ts::Vector{Sym})
     while i <= length(out)
         t = out[i]
         b, k = t.kind == POW ? (t.args[1], t.args[2]) : (t, ONE)
-        if b.kind == FN && b.name === :conj && length(b.args) == 1 && k.kind == NUMBER &&
-           isexact(k.num) && isone(_denominator(k.num))
-            j = findfirst(s -> _eq(s, b.args[1]^k), out)
+        # (b's conjugate by the rules: cot(conj(x)) pairs with cot(x); SymPy #16500)
+        cb = b.kind == FN && b.name === :conj && length(b.args) == 1 ? b.args[1] :
+             b.kind == FN && length(b.args) == 1 && b.name in _CONJ_COMMUTES && _hasfn(b.args[1], :conj) ? _conj(b) : nothing
+        if cb !== nothing && k.kind == NUMBER && isexact(k.num) && isone(_denominator(k.num))
+            j = findfirst(s -> _eq(s, cb^k), out)
             if j !== nothing
                 deleteat!(out, sort([i, j]))
                 i = 1
