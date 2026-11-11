@@ -389,7 +389,9 @@ function _gauss_jordan(A::Matrix{C}, b::Vector{C}, vars::Vector{Sym}, ::Type{Sym
         for j in free
             iszero(M[i, j]) || (v -= Sym(M[i, j]) * vars[j])
         end
-        sol[vars[c]] = cancel(v)
+        # (a large component, already normalized entry by entry: cancel's gcd over the
+        # radicals of Cardano's roots took most of a minute; SymPy #16245)
+        sol[vars[c]] = _nodes(v) <= 400 ? cancel(v) : v
     end
     sol
 end

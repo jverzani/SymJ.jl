@@ -994,3 +994,30 @@ end
     @test has(3x, Sym(3))
 end
 
+@testset "crashes and hangs (SymPy review, round 11)" begin
+    @syms x n a
+    LA = SymJ.LinearAlgebra
+    # Σ xⁿ/n: no DivisionByZero from the retry at 0; -log(1 - x) (#14909)
+    @test SymJ.summation(x^n / n, n, 1, Inf) == -log(1 - x)
+    @test SymJ.summation(1 / (n * 2^n), n, 1, Inf) == log(Sym(2))
+    # ℤ ⊆ ℝ (#16268)
+    @test ℤ ⊆ ℝ
+    @test !(ℂ ⊆ ℝ)
+    # a triangular matrix: its diagonal (#15395)
+    @syms A B C D
+    @syms E F
+    @test LA.eigvals(Sym[-(A+B) 0 0 0 0; A -C 0 0 0; B C -D 0 0; 0 0 D -E 0; 0 0 0 E -F]) == [-A - B, -C, -D, -E, -F]
+    # a linear system with Cardano's roots: quickly, and right (#16245)
+    M = Sym[15 -4 1; -10 12 -6; 20 4 -2]
+    @syms x1 x2 x3
+    λ = LA.eigvals(M)[1]
+    s = only(solve(collect(M * [x1, x2, x3] .~ λ * [x1, x2, x3]), [x1, x2, x3]))
+    v = [N(subs(s[q], x3 => 1)) for q in (x1, x2, x3)]
+    @test maximum(abs.(N.(M) * v - N(λ) * v)) < 1e-10
+    # eigenvalues too large for symbolic eigenvectors: an error, not a hang (#15076)
+    @syms y z
+    Mc = Sym[1 cos(x/4+y/4) cos(x/4+z/4) cos(y/4+z/4); cos(x/4+y/4) 1 cos(y/4-z/4) cos(x/4-z/4);
+             cos(x/4+z/4) cos(y/4-z/4) 1 cos(x/4-y/4); cos(y/4+z/4) cos(x/4-z/4) cos(x/4-y/4) 1]
+    @test_throws ArgumentError LA.eigen(Mc)
+end
+

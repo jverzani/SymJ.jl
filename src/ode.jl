@@ -318,6 +318,9 @@ end
 # exp(a + c log(u)) = u^c exp(a), and the solution simplified where smaller
 function _ode_tidy(e::Sym)
     e = _ode_signs(_explog(_empty_integrals(e)))
+    # (a large solution is left as it is: simplify's gcds on a circuit's constants in five
+    # parameters did not finish on Julia 1.13; SymPy #16125)
+    _nodes(e) > 600 && return e
     s = try simplify(e) catch; e end
     _nodes(s) <= _nodes(e) ? s : e
 end
@@ -1431,10 +1434,24 @@ function _odesys_ics(S, yxs, Cs, t, ics)
         j === nothing && throw(ArgumentError("dsolve: an initial condition is y(a) => v or y'(a) => v for an unknown y; got $(p)"))
         push!(eqs, _ode_tidy(subs(diff(S[j], t, c[2]), t => c[3])) ~ Sym(p.second))
     end
-    sols = _solve_generic(eqs, Cs)
+    # radicals of parameter expressions (√((R1 RC - L)² - 4 L C …) of a circuit) as fresh
+    # symbols while the constants are solved for: linear over rational functions, quickly;
+    # each inversion over the radicals factored a 5-parameter radicand (SymPy #16125)
+    rads = Sym[]
+    for e in eqs
+        _replace_walk(e.lhs) do u
+            (u.kind == POW && _isfrac(u.args[2]) && _hassymbol(u.args[1]) && !any(r -> _eq(r, u), rads)) && push!(rads, u)
+            nothing
+        end
+    end
+    ws = [Sym(Symbol("_ode_rad", i)) for i in eachindex(rads)]
+    back = [w => r for (w, r) in zip(ws, rads)]
+    eqs2 = isempty(rads) ? eqs : [subs(e.lhs, (r => w for (r, w) in zip(rads, ws))...) ~ e.rhs for e in eqs]
+    sols = _solve_generic(eqs2, Cs)
     isempty(sols) && throw(ArgumentError("dsolve: no solution satisfies the initial conditions"))
     length(sols) == 1 || throw(ArgumentError("dsolve: the initial conditions don't fix the constants"))
-    [_ode_tidy(subs(s, sols[1]...)) for s in S]
+    sol = isempty(rads) ? sols[1] : Dict(k => subs(v, back...) for (k, v) in sols[1])
+    [_ode_tidy(subs(s, sol...)) for s in S]
 end
 
 ## series solutions

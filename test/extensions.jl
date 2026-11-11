@@ -641,6 +641,20 @@ import PolyLog as PL
         @test_throws ArgumentError RischIntegrate.integrate(exp(-t * (1 + IM * w)), (t, 0, Inf); assume = (w ∈ ℂ,))
     end
 
+    @testset "crashes and hangs (SymPy review, round 11)" begin
+        @syms a t RC C R1 L Vs V0 I0
+        # arithmetic and series on Cases (#16182)
+        cs = RischIntegrate.integrate(1 / (a + x), (x, 0, 1))
+        @test (1 / cs)(a => 1) == 1 / log(Sym(2))
+        # a circuit with symbolic initial values: the constants through symbols for the
+        # radicals (#16125)
+        V, II = SymFunction(:V), SymFunction(:II)
+        r = SymJ.dsolve([diff(V(t), t) ~ -V(t) / RC + II(t) / C, diff(II(t), t) ~ -R1 / L * II(t) - V(t) / L + Vs / L],
+                        [V(t), II(t)], V(0) => V0, II(0) => I0)
+        vals = (RC => 2, C => 3, R1 => 5, L => 7, Vs => 11, V0 => 1, I0 => 2)
+        @test N(subs(subs(r[1].rhs, vals...), t => 0)) ≈ 1
+    end
+
     @testset "asymptotic series at ±∞: exponential and oscillating factors" begin
         @syms y
         S(f, x0, n) = Sym(series(f, x, x0, n))

@@ -50,6 +50,8 @@ struct Membership
     set::NumberSet
     negated::Bool
 end
+# ℤ ⊆ ℚ ⊆ ℝ ⊆ ℂ (ℤ ⊆ ℝ was a MethodError; SymPy #16268)
+Base.issubset(a::NumberSet, b::NumberSet) = a.rank <= b.rank
 Base.:!(m::Membership) = Membership(m.x, m.set, !m.negated)
 Base.:(==)(a::Membership, b::Membership) = a.set == b.set && a.negated == b.negated && _eq(a.x, b.x)
 Base.hash(m::Membership, h::UInt) = hash(m.x, hash(m.set.rank, hash(m.negated, h)))
