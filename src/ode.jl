@@ -318,6 +318,9 @@ end
 # exp(a + c log(u)) = u^c exp(a), and the solution simplified where smaller
 function _ode_tidy(e::Sym)
     e = _ode_signs(_explog(_empty_integrals(e)))
+    # (a large solution is left as it is: simplify's gcds on a circuit's constants in five
+    # parameters did not finish on Julia 1.13; SymPy #16125)
+    _nodes(e) > 600 && return e
     s = try simplify(e) catch; e end
     _nodes(s) <= _nodes(e) ? s : e
 end

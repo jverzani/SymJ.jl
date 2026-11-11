@@ -409,7 +409,9 @@ end
 # π^1.5); nothing when b has symbols or is negative under a fractional power
 function _floatpow(b::Sym, e::SymNumber)::Union{Sym,Nothing}
     (_hassymbol(b) || _hasparameter(b)) && return nothing
-    bv = try N(b) catch; return nothing end
+    # (behind an inference barrier: N reaches the evaluator and every function's rules, and
+    # back into arithmetic; inferring *(Int64, Sym) ran past 2501 frames on Julia 1.13)
+    bv = try Base.inferencebarrier(N)(b) catch; return nothing end
     bv isa Real || return nothing
     ef = Float64(e)
     bv < 0 && !isinteger(ef) && return nothing
