@@ -65,12 +65,17 @@ function solve(eqs::AbstractVector{<:Relation}, vars::Union{AbstractVector,Tuple
     end
 end
 
-# a solution against the assumptions about the unknowns: a real one's value real, one in a
-# set within it (numbers only; one with symbols kept)
+# a solution against the assumptions about the unknowns: a real one's value real, an integer
+# or rational one's such, one in a set within it (numbers only; one with symbols kept)
 function _system_sol_ok(s::AbstractDict, vars::Vector{Sym}, A)
     for v in vars
         w = get(s, v, v)
         (_eq(w, v) || _hassymbol(w)) && continue
+        # an integer or rational unknown (x ∈ ℤ: x + y = 1, x - y = 0 has no solution;
+        # SymPy #14170)
+        dom = get(A.dom, v, _CR)
+        dom <= _ZR && _isinteger(w, Assumptions()) === false && return false
+        dom <= _QR && _isrational(w, Assumptions()) === false && return false
         z = try _evalc(w) catch; continue end
         if _isreal(v, A) === true
             abs(imag(z)) > 1e-10 * max(1, abs(z)) && return false

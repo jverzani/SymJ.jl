@@ -456,16 +456,22 @@ function _subs_bound(ex::Sym, d::Dict{Sym,Sym}, build)
     f, v, a, b = ex.args
     df = haskey(d, v) ? Dict(k => w for (k, w) in d if !_eq(k, v)) : d
     if any(((k, w),) -> has(f, k) && has(w, v), df)
-        used = union(free_symbols(f), (free_symbols(w) for w in values(df))...)
-        nm = string(v.name)
-        w = Sym(Symbol(nm, "′"))
-        while w in used
-            nm *= "′"
-            w = Sym(Symbol(nm, "′"))
-        end
+        w = _fresh_bound(v, f, df)
         f, v = _subs(f, Dict(v => w)), w
     end
     build(ex.name, Sym[_subs(f, df), v, _subs(a, d), _subs(b, d)])
+end
+
+# a symbol v′ (v′′, …) for a bound v, free in f and in the values of d
+function _fresh_bound(v::Sym, f::Sym, d)
+    used = union(free_symbols(f), (free_symbols(w) for w in values(d))...)
+    nm = string(v.name)
+    w = Sym(Symbol(nm, "′"))
+    while w in used
+        nm *= "′"
+        w = Sym(Symbol(nm, "′"))
+    end
+    w
 end
 function _subs_derivative(ex::Sym, d::Dict{Sym,Sym})
     f, v = ex.args[1], ex.args[2]
@@ -477,13 +483,22 @@ function _subs_derivative(ex::Sym, d::Dict{Sym,Sym})
     if any(((k, w),) -> held(k, w), inner)
         inner = Dict{Sym,Sym}(k => w for (k, w) in inner if !held(k, w))
     end
+    # a value containing v would be captured by it (∂f(x, y)/∂y with x => y is ∂₂f(y, y),
+    # not d/dy f(y, y); SymPy #13795): v renamed first, the derivative taken at the point v
+    # (a call in v replaced, f(x) => sin(x), is the function's definition, not a capture)
+    if any(((k, w),) -> has(f, k) && !has(k, v) && has(w, v), inner)
+        t = _fresh_bound(v, f, inner)
+        pt = length(ex.args) == 3 ? _subs(ex.args[3], d) : get(d, v, v)
+        return apply_function(:Derivative, Sym[_subs(_subs(f, Dict(v => t)), inner), t, pt])
+    end
     fs = _subs(f, inner)
     if length(ex.args) == 3
         return apply_function(:Derivative, Sym[fs, v, _subs(ex.args[3], d)])
     end
     w = get(d, v, nothing)
     w === nothing && return apply_function(:Derivative, Sym[fs, v])
-    w.kind == SYMBOL && return apply_function(:Derivative, Sym[_subs(fs, Dict(v => w)), w])
+    # renamed only to a symbol not already in f (y => x in ∂f(x, y)/∂y is ∂₂f(x, x))
+    w.kind == SYMBOL && !has(fs, w) && return apply_function(:Derivative, Sym[_subs(fs, Dict(v => w)), w])
     apply_function(:Derivative, Sym[fs, v, w])
 end
 
@@ -902,6 +917,10 @@ function _checked_value(ex::Sym, z::ComplexF64)
         w = _bigvalue(ex, p)
         w === nothing && return z
         wf = ComplexF64(w)
+        # two zeros settle nothing: a cancellation can be below each precision (1 - erf(15)
+        # is 7.2e-100, 0 in Float64 and at 256 bits; SymPy #14637), so 0 is kept only
+        # when every precision gives it
+        iszero(wf) && (prev = wf; continue)
         (wf == prev || abs(wf - prev) <= tol * max(abs(wf), abs(prev))) && return wf
         prev, tol = wf, 8eps()
     end

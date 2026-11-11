@@ -363,6 +363,10 @@ function _ilap_float(F::Sym, s::Sym, t::Sym)
     nc = [ComplexF64(_evalc(c)) for c in _xcoeffs(P[1])]
     dc = [ComplexF64(_evalc(c)) for c in _xcoeffs(P[2])]
     (length(dc) >= 2 && length(nc) < length(dc)) || return nothing
+    # a repeated pole, decided exactly: Float64 roots of (s - 0.5)⁴ spread by eps^(1/4),
+    # past any tolerance (SymPy #14326); the exact transform handles it
+    _, sqf = _factor_squarefree_poly(P[2])
+    any(fm -> fm.second > 1, sqf) && return nothing
     ps = [ComplexF64(_evalc(r)) for r in _numeric_roots(Sym[Sym(real(c)) for c in dc])]
     scale = maximum(abs, ps; init = 1.0)
     for i in eachindex(ps), j in (i + 1):length(ps)

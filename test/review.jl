@@ -997,8 +997,8 @@ end
 @testset "crashes and hangs (SymPy review, round 11)" begin
     @syms x n a
     LA = SymJ.LinearAlgebra
-    # Σ xⁿ/n: no DivisionByZero from the retry at 0; -log(1 - x) (#14909)
-    @test SymJ.summation(x^n / n, n, 1, Inf) == -log(1 - x)
+    # Σ xⁿ/n: no DivisionByZero from the retry at 0; -log(1 - x) for |x| < 1 (#14909)
+    @test any(cv -> cv.second == -log(1 - x), SymJ.summation(x^n / n, n, 1, Inf))
     @test SymJ.summation(1 / (n * 2^n), n, 1, Inf) == log(Sym(2))
     # ℤ ⊆ ℝ (#16268)
     @test ℤ ⊆ ℝ
@@ -1058,3 +1058,45 @@ end
     @test SymJ.gather(1 + 1 / (x * y + x), x) == 1 + 1 / (x * (y + 1))
 end
 
+
+@testset "wrong answers (SymPy review, round 12)" begin
+    @syms x y w n s t
+    f = SymFunction(:f)
+    # power series of radius 1 by cases: past |z| = 1 they diverge (#14213)
+    @test SymJ.summation(Sym(3)^n / n, n, 1, Inf) == Inf
+    @test_throws ArgumentError SymJ.summation((-1)^(n - 1) * Sym(3)^n / n, n, 1, Inf)
+    @test_throws ArgumentError SymJ.summation(x^n / n, n, 1, Inf; assume = (x ≫ 2,))
+    @test SymJ.summation(x^n / n, n, 1, Inf) isa SymJ.Cases
+    @test SymJ.summation(1 / (n * Sym(2)^n), n, 1, Inf) == log(Sym(2))
+    @test SymJ.summation((-1)^(n - 1) / n, n, 1, Inf) == log(Sym(2))
+    @test SymJ.summation(binomial(2n, n), n, 0, Inf) == Inf
+    @test SymJ.summation(binomial(2n, n) / Sym(8)^n, n, 0, Inf) == sqrt(Sym(2))
+    @test SymJ.summation((-1)^n * binomial(2n, n) / Sym(4)^n, n, 0, Inf) == sqrt(Sym(2)) / 2
+    @test SymJ.summation(x^n * binomial(2n, n), n, 0, Inf) isa SymJ.Cases
+    # a term undefined at the start of the range: no sum (#14410)
+    @test_throws SymJ.DivisionByZero SymJ.summation(3 - 1 / sqrt(x), x, 0, Inf)
+    @test SymJ.summation(3 - 1 / sqrt(x), x, 1, Inf) == Inf
+    # cos(∞) is no pole: left as it is (#13499)
+    @test SymJ._hasfn(subs(cos(x), x => Inf), :cos)
+    # a negative order of differentiation (#13873)
+    @test_throws ArgumentError diff(sin(x), x, -1)
+    # 1^∞ is indeterminate, not the float 1.0 (#13914)
+    @test kind(Sym(1)^Sym(Inf)) == POW
+    # substitution into a derivative captures no variable (#13795)
+    @test subs(diff(f(x, y), y), y => x) == SymJ.apply_function(:Derivative, Sym[f(x, y), y, x])
+    yp = Sym(Symbol("y′"))
+    @test subs(diff(f(x, y), y), x => y) == SymJ.apply_function(:Derivative, Sym[f(y, yp), yp, y])
+    @test subs(diff(f(x), x), x => y) == diff(f(y), y)
+    # a repeated pole with float coefficients (#14326)
+    @test SymJ.inverse_laplace_transform(6 / (s - 0.5)^4, s, t) == t^3 * exp(t / 2)
+    # integer and rational unknowns of a system (#14170)
+    @test isempty(solve([x + y ~ 1, x - y ~ 0], [x, y]; assume = (x ∈ ℤ, y ∈ ℤ)))
+    @test solve([x + y ~ 2, x - y ~ 0], [x, y]; assume = (x ∈ ℤ, y ∈ ℤ)) == [Dict(x => 1, y => 1)]
+    @test isempty(solve([x^2 ~ 2, y ~ 1], [x, y]; assume = (x ∈ ℚ,)))
+    # back-substitution at 256 bits: no points with residuals to 1e34 (#14799)
+    S = solve([x^2 + y^2 + w^2 ~ 1, x^5 + y - 3 // 10 ~ 0, x * y * w ~ 1 // 100], [x, y, w])
+    @test length(S) == 22
+    res(d) = (z = [ComplexF64(N(d[v])) for v in (x, y, w)];
+              maximum(abs, (z[1]^2 + z[2]^2 + z[3]^2 - 1, z[1]^5 + z[2] - 0.3, z[1] * z[2] * z[3] - 0.01)))
+    @test maximum(res, S) < 1e-12
+end

@@ -641,6 +641,26 @@ import PolyLog as PL
         @test_throws ArgumentError RischIntegrate.integrate(exp(-t * (1 + IM * w)), (t, 0, Inf); assume = (w ∈ ℂ,))
     end
 
+    @testset "wrong answers (SymPy review, round 12)" begin
+        @syms t a
+        f, g = SymFunction(:f), SymFunction(:g)
+        ∫ = RischIntegrate.integrate
+        # an antiderivative that jumps at points not located, or a log crossing its cut:
+        # no value, not half of it (#13609; RischNotImplemented with some versions)
+        @test_throws Exception ∫(exp(2IM * PI * t) / (exp(2IM * PI * t) - 1 // 2), (t, 0, 1))
+        # F' ≠ f on a branch cut: no value (#14147)
+        @test_throws ArgumentError ∫(asin(x), (x, 0, 9))
+        @test_throws ArgumentError ∫(acos(x), (x, 2, 3))
+        @test ∫(asin(x), (x, 0, 1)) == PI / 2 - 1
+        @test ∫(sqrt(x), (x, -1, 1)) == Sym(2) / 3 + 2IM / 3
+        @test ∫(1 / (x + IM), (x, -1, 1)) == log(1 + IM) - log(IM - 1)
+        # g'(x) is not the unknown's derivative (#13691); ∫ g'(x) dx = g(x)
+        @test SymJ.dsolve(diff(f(x), x) ~ a * diff(g(x), x), f(x)) == (f(x) ~ Sym(:C1) + a * g(x))
+        @test ∫(diff(g(x), x), (x, 0, 1)) == g(1) - g(0)
+        # 1 - erf(15): a cancellation below 256 bits (#14637)
+        @test N(1 - SF.erf(Sym(15))) ≈ 7.212994172451207e-100 rtol = 1e-10
+    end
+
     @testset "crashes and hangs (SymPy review, round 11)" begin
         @syms a t RC C R1 L Vs V0 I0
         # arithmetic and series on Cases (#16182)

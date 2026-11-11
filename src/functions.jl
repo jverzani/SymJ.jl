@@ -80,9 +80,15 @@ function apply_function(name::Symbol, args::Vector{Sym})
             if v === nothing
                 v = _try_numeric_complex(rule.julia, args)
                 # no real value and a complex infinity: a pole, as for exact arguments
-                # (gamma(-1.0) gave -Inf - Inf*im; SymPy #16847)
-                v !== nothing && !isfinite(try _evalc(v) catch; 0.0 end) &&
-                    throw(DivisionByZero("$name($(join(args, ", "))): a pole"))
+                # (gamma(-1.0) gave -Inf - Inf*im; SymPy #16847); at an infinite argument
+                # no pole: left unevaluated, as tan(Inf) is (cos(Inf); SymPy #13499)
+                if v !== nothing
+                    if !all(a -> isfinite(_evalc(a)), args)
+                        v = nothing
+                    elseif !isfinite(try _evalc(v) catch; 0.0 end)
+                        throw(DivisionByZero("$name($(join(args, ", "))): a pole"))
+                    end
+                end
             end
             v === nothing || return v
         end
