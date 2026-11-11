@@ -523,7 +523,10 @@ function _antiderivative(antider, f::Sym, x::Sym, A; numeric::Bool = false)
     F = antider(f, x, A)
     numeric && !(F isa Sym) && applicable(F, 0.0) && return F
     (F isa Sym && !_hasfn(F, :Integral)) || throw(ArgumentError("integrate: no antiderivative found for $f"))
-    _hassymbol(F - x) ? simplify(F; assume = A) : F
+    _hassymbol(F - x) || return F
+    # (a large antiderivative only refined: simplify's factor of the Borwein integrals'
+    # 64 Si/Ci terms ran for minutes, while their limits take a second; RischIntegrate #130)
+    _nodes(F) > 500 ? _refine(F, A) : simplify(F; assume = A)
 end
 
 # set by the RischIntegrate extension: (F, x, lo, hi) -> an expression for the numeric

@@ -664,6 +664,18 @@ import PolyLog as PL
         @test RischIntegrate.integrate(x^n * exp(-x) * log(x), (x, 0, Inf)) isa SymJ.Cases
     end
 
+    @testset "Borwein integrals: a large antiderivative only refined" begin
+        # (RischIntegrate's step TX, from its #130, gives the antiderivatives; before it,
+        # these are NotElementary and the tests are skipped)
+        Bs(k) = prod(sin(x / i) / (x / i) for i in 1:2:(2k - 1))
+        tx = try RischIntegrate.integrate(Bs(3), x) isa Sym catch; false end
+        if tx
+            @test RischIntegrate.integrate(Bs(7), (x, 0, Inf)) == PI / 2
+            @test RischIntegrate.integrate(Bs(8), (x, 0, Inf)) ==
+                  Sym(467807924713440738696537864469 // 935615849440640907310521750000) * PI
+        end
+    end
+
     @testset "asymptotic series at ±∞: exponential and oscillating factors" begin
         @syms y
         S(f, x0, n) = Sym(series(f, x, x0, n))
