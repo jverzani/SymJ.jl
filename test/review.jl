@@ -1100,3 +1100,34 @@ end
               maximum(abs, (z[1]^2 + z[2]^2 + z[3]^2 - 1, z[1]^5 + z[2] - 0.3, z[1] * z[2] * z[3] - 0.01)))
     @test maximum(res, S) < 1e-12
 end
+
+@testset "crashes and hangs (SymPy review, round 12)" begin
+    @syms x y z a b k n th
+    LA = SymJ.LinearAlgebra
+    # sums and derivatives of Cases (#14235, #14211)
+    r = SymJ.summation(SymJ.summation(a^n * b^k, k, 0, Inf), n, 0, Inf)
+    @test any(cv -> cv.second isa Sym && iszero(simplify(cv.second - 1 / ((1 - a) * (1 - b)))), r)
+    d = diff(SymJ.summation(x^k, k, 0, Inf), x)
+    @test any(cv -> cv.second isa Sym && iszero(simplify(cv.second - 1 / (1 - x)^2)), d)
+    # cse of a matrix and of a tuple of matrices, in their shapes (#14118)
+    reps, red = SymJ.cse(Sym[x+y (x+y)^2; z x+y])
+    @test length(reps) == 1
+    @test size(red) == (2, 2)
+    reps2, red2 = SymJ.cse((Sym[x+y (x+y)^2; z x+y], Sym[x + y, 2]))
+    @test red2[2] == Sym[first(reps2[1]), 2]
+    # the 1- and ∞-norms of a symbolic matrix (#13985)
+    @test LA.opnorm(Sym[1 -2; 3 4], 1) == 6
+    @test LA.opnorm(Sym[1 -2; 3 4], Inf) == 7
+    # a series simplified keeps its order term; numer_denom of one is an error (#14622)
+    @test simplify(series(sin(x) / x, x, 0, 5)) isa SymJ.SymSeries
+    @test_throws ArgumentError numer_denom(series(sin(x) / x, x, 0, 5))
+    # e^(-18000000x) is not factored as a polynomial of that degree (#14300)
+    s = solve(1 - exp(-18000000x) ~ y, x)
+    @test s isa SymJ.Cases
+    @test factor(exp(2x) - 1) == (exp(x) + 1) * (exp(x) - 1)
+    # constant residuals of radical roots decided numerically (#13625): two real roots
+    # and two complex ones
+    rs = solve(sin(th) + cos(th) + sin(th) * cos(th) ~ 0, th)
+    @test length(rs) == 4
+    @test maximum(r -> (v = ComplexF64(N(r)); abs(sin(v) + cos(v) + sin(v) * cos(v))), rs) < 1e-12
+end

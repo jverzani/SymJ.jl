@@ -776,6 +776,17 @@ function LinearAlgebra.norm(v::AbstractArray{Sym}, p::Real = 2)
     _add_many(abs(a)^p for a in v)^(1 / Sym(p))
 end
 LinearAlgebra.normalize(v::AbstractArray{Sym}, p::Real = 2) = v ./ LinearAlgebra.norm(v, p)
+# the 1- and ∞-norms: the largest column and row sums of |aᵢⱼ| (the generic methods add in
+# Float64; SymPy #13985); others as LinearAlgebra computes them
+function LinearAlgebra.opnorm(A::AbstractMatrix{Sym}, p::Real = 2)
+    if p == 1 || p == Inf
+        isempty(A) && return ZERO
+        sums = p == 1 ? [_add_many(abs(A[i, j]) for i in axes(A, 1)) for j in axes(A, 2)] :
+                        [_add_many(abs(A[i, j]) for j in axes(A, 2)) for i in axes(A, 1)]
+        return reduce(max, sums)
+    end
+    invoke(LinearAlgebra.opnorm, Tuple{AbstractMatrix,Real}, A, p)
+end
 
 ## eigenvalues and eigenvectors
 

@@ -757,6 +757,15 @@ function subs(s::SymSeries, ps::Pair...)
     end
     s
 end
+# a series' coefficients simplified, its order kept (simplify took Sym(s), the truncated
+# expression, dropping O(xⁿ) unannounced; SymPy #14622)
+function simplify(s::SymSeries; assume = nothing)
+    sc(q::_PS) = _PS(q.e, Sym[simplify(c; assume) for c in q.c], q.o)
+    SymSeries(s.x, s.x0, sc(s.ps), s.n, _Piece[_Piece(q.G, q.k, q.H, sc(q.p)) for q in s.pcs])
+end
+numer_denom(s::SymSeries) = throw(ArgumentError(
+    "numer_denom: a series has no numerator and denominator; use numer_denom(Sym(s)) for the truncated expression"))
+
 function _series_scale(s::SymSeries, v::Sym)
     bad() = throw(ArgumentError("subs: a series about 0 takes $(s.x) => c*$(s.x)^m (m > 0); use subs(Sym(s), …) for the truncated expression"))
     (s.x0 isa Sym && iszero(s.x0) && isempty(s.pcs)) || bad()

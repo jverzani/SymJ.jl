@@ -342,6 +342,35 @@ for op in (:+, :-, :*, :/, :^), T in (:Number, :Sym)       # (each type: no ambi
 end
 Base.:-(cs::Cases) = _cases_values_op(-, cs)
 series(cs::Cases, x::Sym, x0 = 0, n::Real = 6) = _cases_values_op(v -> series(v, x, x0, n), cs)
+# (the derivative of a sum with cases, Σ xᵏ; SymPy #14211)
+Base.diff(cs::Cases, x::Sym, args...) = _cases_values_op(v -> diff(v, x, args...), cs)
+
+# Σ over k of each case's value, its conditions assumed; a case with its own cases
+# within gives one case for each (Σₙ Σₖ aⁿbᵏ; SymPy #14235). Conditions on k: an error.
+function summation(cs::Cases, k::Sym, a, b; assume = nothing)
+    any(((conds, _),) -> any(c -> any(s -> _eq(s, k), _factsyms(c)), conds), cs) &&
+        throw(ArgumentError("summation: the cases depend on the index $k"))
+    out = Pair{Vector{Any},Any}[]
+    for (conds, v) in cs
+        if v isa Exception
+            push!(out, conds => v)
+            continue
+        end
+        A = assume === nothing ? Tuple(conds) : (Tuple(assume)..., conds...)
+        r = try summation(Sym(v), k, a, b; assume = A) catch err
+            (err isa ArgumentError || _isdivzero(err)) || rethrow()
+            err
+        end
+        if r isa Cases
+            for (c2, w) in r
+                push!(out, Any[conds; c2] => w)
+            end
+        else
+            push!(out, conds => r)
+        end
+    end
+    Cases{Any}(out)
+end
 
 """
     subs(cs::Cases, x => v, ...)

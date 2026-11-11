@@ -123,6 +123,10 @@ function _factor_exp_powers(ex::Sym; gcd_method::Symbol = :auto)
     end
     # (or one c with a numerator of 2 or more: e^(2x) - 1 = (e^x - 1)(e^x + 1))
     gs = [g for (g, cs) in groups if length(unique(cs)) >= 2 || abs(_numerator(only(unique(cs)))) >= 2]
+    # no polynomial of a degree past 1000 in the generator: e^(-18000000x) as t^18000000
+    # ran for minutes (SymPy #14300)
+    deg(cs) = (q = reduce(lcm, (_denominator(c) for c in cs); init = big(1)); maximum(abs(_numerator(c)) * (q ÷ _denominator(c)) for c in cs))
+    any(g -> deg(groups[g]) > 1000, gs) && return nothing
     isempty(gs) && return nothing
     reps = Dict{Tuple{Sym,Sym},Tuple{Sym,BigInt}}()
     used = ex
