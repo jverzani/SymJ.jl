@@ -227,8 +227,10 @@ function _ode_parse(eq::Relation, yx::Sym)
     x = yx.args[1]
     F = lhs(eq) - rhs(eq)
     ders = Dict{Sym,Int}()
-    order(e) = _eq(e, yx) ? 0 : (e.kind == FN && e.name === :Derivative && length(e.args) == 2 && _eq(e.args[2], x) &&
-                                 (o = order(e.args[1]); o === nothing ? nothing : o + 1))
+    # (nothing, not false, for another function: g'(x) is no y'; SymPy #13691)
+    order(e) = _eq(e, yx) ? 0 :
+               (e.kind == FN && e.name === :Derivative && length(e.args) == 2 && _eq(e.args[2], x)) ?
+               (o = order(e.args[1]); o === nothing ? nothing : o + 1) : nothing
     function walk(e)
         o = e.kind == FN ? order(e) : nothing
         if o isa Int

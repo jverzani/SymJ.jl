@@ -23,7 +23,8 @@ function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Boo
     # terms with an unknown function of x are held, ∫ₐᵇ f(x) dx, the rest integrated
     rest, held = _split_opaque(Sym(f), x)
     if !isempty(held)
-        H = _add_many(c * _mkfn_node(:Integral, Sym[g, x, Sym(xab[2]), Sym(xab[3])]) for (c, g) in held)
+        H = _add_many(c * (_isderiv_in(g, x) ? subs(g.args[1], x => Sym(xab[3])) - subs(g.args[1], x => Sym(xab[2])) :
+                           _mkfn_node(:Integral, Sym[g, x, Sym(xab[2]), Sym(xab[3])])) for (c, g) in held)
         iszero(rest) && return H
         v = _definite_integral(rest, xab, assume, antider; principal_value)
         return v isa Cases ? _map_cases(w -> w + H, v) : v + H
@@ -366,7 +367,16 @@ function _definite(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A::Assumptions, pv
     end
     # F may jump where f is smooth: 2atan(√(A²-1) tan(t/2)/(A-1))/√(A²-1) for 1/(A - cos t)
     # at t = π (#26283); split there too (a point where F is continuous changes nothing)
-    F isa Sym && (S = _same_points(vcat(S, _jump_points(F, x, lo, hi))))
+    if F isa Sym
+        J, located = _jump_points(F, x, lo, hi)
+        S = _same_points(vcat(S, J))
+        # (no value rather than F(b) - F(a) from an F that is no antiderivative on [lo, hi])
+        c = _sampled_check(F, f, x, lo, hi, S, !located)
+        c === :branch && throw(ArgumentError(
+            "integrate: the antiderivative of $f does not match it on the interval (a branch cut)"))
+        c === :jump && throw(ArgumentError(
+            "integrate: the antiderivative of $f jumps on the interval at points that cannot be located"))
+    end
     if isempty(S) && !_isinfpt(lo) && !_isinfpt(hi)
         F isa Sym || return _numeric_difference(F, f, lo, hi)
         return _sum_values([(1, _endvalue(F, x, hi, :-, A)), (-1, _endvalue(F, x, lo, :+, A))], A)
@@ -793,6 +803,9 @@ function _singular_points(f::Sym, x::Sym, lo::Sym, hi::Sym)
     unique(pts)
 end
 
+# g = u'(x), the derivative in x of an expression u (∫ g dx = u)
+_isderiv_in(g::Sym, x::Sym) = g.kind == FN && g.name === :Derivative && length(g.args) == 2 && _eq(g.args[2], x)
+
 # f = rest + Σ cᵢ gᵢ, the gᵢ the terms with an unknown function of x (f(x), a derivative
 # of one, a held Sum or Integral), cᵢ their factors free of x: the integrator does not
 # take those (RischNotImplemented on SymFunction; SymPy #25457, #26116, #26249), so
@@ -821,14 +834,71 @@ _has_opaque(e::Sym, x::Sym) = has(e, x) &&
      any(a -> _has_opaque(a, x), e.args) || (e.kind == MUL && any(a -> _has_opaque(a, x), e.exps)))
 
 # the singular points of an antiderivative F, where it may jump; none when they cannot be
-# located (F is then trusted to be continuous, as before)
+# located (F is then trusted to be continuous unless sampling finds a jump, _sampled_check);
+# with whether they were located
 function _jump_points(F::Sym, x::Sym, lo::Sym, hi::Sym)
     try
-        _singular_points(F, x, lo, hi)
+        _singular_points(F, x, lo, hi), true
     catch err
         err isa ArgumentError || rethrow()
-        Sym[]
+        Sym[], false
     end
+end
+
+# F checked against f by sampling a finite numeric [lo, hi] (F and f in x alone): :branch
+# when F' ≠ f somewhere (with the principal branches, x asin(x) + √(1 - x²) is no
+# antiderivative of asin(x) for x > 1, where d/dx asin(x) = i/√(x² - 1); SymPy #14147),
+# :jump when F jumps at a point not among S (a log whose complex argument crosses its
+# cut, or an atan whose singular points could not be located; SymPy #13609), else :ok.
+# Jumps are sought where F is complex, or always when `unlocated`.
+function _sampled_check(F::Sym, f::Sym, x::Sym, lo::Sym, hi::Sym, S, unlocated::Bool)
+    (_hassymbol(lo) || _hassymbol(hi) || _isinfpt(lo) || _isinfpt(hi)) && return :ok
+    (all(p -> _eq(p, x), _named(F)) && all(p -> _eq(p, x), _named(f))) || return :ok
+    a, b = minmax(real(_evalc(lo)), real(_evalc(hi)))
+    (isfinite(a) && isfinite(b) && a < b) || return :ok
+    val(e, t) = try ComplexF64(_evalc(subs(e, x => Sym(t)))) catch; ComplexF64(NaN) end
+    nonreal(z) = isfinite(z) && abs(imag(z)) > 1e-9 * (1 + abs(z))
+    # (points off the middle and the ends, where singular points tend to be)
+    ts = [a + (b - a) * (i - 0.5 + 0.1234) / 7.25 for i in 1:7]
+    fs = [val(f, t) for t in ts]
+    Fs = [val(F, t) for t in ts]
+    complexF = any(nonreal, Fs) || any(nonreal, fs)
+    if any(nonreal, fs)
+        for (t, ft) in zip(ts, fs)
+            isfinite(ft) || continue
+            dq(h) = (val(F, t + h) - val(F, t - h)) / 2h
+            h = 1e-5 * (1 + abs(t))
+            d1, d2 = dq(h), dq(h / 16)
+            (isfinite(d1) && isfinite(d2)) || continue
+            # (a mismatch that persists as h shrinks: not a jump inside [t - h, t + h])
+            abs(d1 - ft) > 1e-4 * (1 + abs(ft)) && abs(d2 - d1) <= 1e-3 * (1 + abs(d1)) && return :branch
+        end
+    end
+    (complexF || unlocated) || return :ok
+    n = 128
+    us = [a + (b - a) * (i - 0.5) / n for i in 1:n]
+    vs = [val(F, u) for u in us]
+    count(isfinite, vs) < n ÷ 2 && return :ok
+    scale = 1 + maximum(abs, filter(isfinite, vs))
+    ds = [abs(vs[i + 1] - vs[i]) for i in 1:(n - 1)]
+    fin = sort(filter(isfinite, ds))
+    isempty(fin) && return :ok
+    med = fin[max(1, end ÷ 2)]
+    Sv = [real(_evalc(p)) for p in S if !_hassymbol(p)]
+    for i in 1:(n - 1)
+        (isfinite(ds[i]) && ds[i] > 20med + 1e-9scale) || continue
+        l, r, fl, fr = us[i], us[i + 1], vs[i], vs[i + 1]
+        for _ in 1:60
+            m = (l + r) / 2
+            fm = val(F, m)
+            isfinite(fm) || break
+            abs(fm - fl) >= abs(fr - fm) ? ((r, fr) = (m, fm)) : ((l, fl) = (m, fm))
+        end
+        abs(fr - fl) > 1e-6 * scale || continue
+        any(p -> abs(p - (l + r) / 2) <= 1e-6 * (1 + abs(p)), Sv) && continue   # split there already
+        return :jump
+    end
+    :ok
 end
 
 function _zero_sets!(out, e::Sym, x::Sym)

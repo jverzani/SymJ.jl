@@ -19,6 +19,7 @@ diff(sin(x * y), x, y)       # -x*y*sin(x*y) + cos(x*y)
 """
 function Base.diff(ex::Sym, x::Sym, n::Integer = 1)
     _isnamed(x) || throw(ArgumentError("can only differentiate with respect to a symbol or parameter, got $x"))
+    n < 0 && throw(ArgumentError("diff: the order must be nonnegative, got $n"))   # (SymPy #13873)
     for _ in 1:n
         ex = _diff(ex, x)
     end

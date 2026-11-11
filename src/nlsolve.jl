@@ -521,7 +521,15 @@ function _backsub(G::Vector{Sym}, vars::Vector{Sym}, k::Int, sol::Dict{Sym,Sym},
     ct = _xcontent(qs[1], x)
     ct !== nothing && any(v -> has(ct, v), vars) && push!(degen, ct)
     out = Dict{Sym,Sym}[]
-    for r in _solve1(qs[1], x)
+    rs = _solve1(qs[1], x)
+    # numeric roots and no parameters: this level and the rest at 256 bits
+    if any(r -> !_isexactex(r), rs) && all(r -> !_hassymbol(r), rs) &&
+       all(v -> haskey(sol, v), vars[(k+1):end]) && all(v -> _isexactex(v) && !_hassymbol(v), values(sol)) &&
+       all(g -> all(p -> any(v -> _eq(p, v), vars), _named(g)), G)
+        big = _backsub_big(G, vars, k, Dict{Sym,Complex{BigFloat}}(v => Complex{BigFloat}(_bigvalue(w, 256)) for (v, w) in sol))
+        big === nothing || return [merge(sol, b) for b in big]
+    end
+    for r in rs
         all(q -> _satisfies(q ~ 0, x, r), qs[2:end]) || continue
         # where r's denominator vanishes, the formula does not give the solutions
         den = numer_denom(r)[2]
@@ -529,6 +537,69 @@ function _backsub(G::Vector{Sym}, vars::Vector{Sym}, k::Int, sol::Dict{Sym,Sym},
         s = copy(sol)
         s[x] = r
         append!(out, _backsub(G, vars, k - 1, s, degen))
+    end
+    out
+end
+
+# levels k, k-1, …, 1 of the back-substitution numerically at 256 bits, from the values
+# above: Float64 roots substituted into a lex basis lose their accuracy level by level
+# (x² + y² + w² = 1, x⁵ + y = 3/10, xyw = 1/100 gave x = -5.3e4 for -0.035, residuals
+# to 1e34; SymPy #14799). The new values as Float64 numbers; nothing when a level
+# cannot be done this way (a free unknown, a vanishing polynomial).
+function _backsub_big(G::Vector{Sym}, vars::Vector{Sym}, k::Int, vals::Dict{Sym,Complex{BigFloat}})
+    setprecision(BigFloat, 256) do
+        out = _backsub_big_rec(G, vars, k, vals)
+        out === nothing && return nothing
+        [Dict{Sym,Sym}(v => (abs(imag(z)) <= big(10.0)^-40 * max(1, abs(z)) ? Sym(Float64(real(z))) :
+                             Sym(Float64(real(z))) + Sym(Float64(imag(z))) * IM)
+                       for (v, z) in d if !haskey(vals, v)) for d in out]
+    end
+end
+
+function _backsub_big_rec(G, vars, k, vals)
+    k == 0 && return [vals]
+    x = vars[k]
+    above = [v for v in vars[(k+1):end]]
+    nt = _Named(NamedTuple{Tuple(v.name for v in above)}(Tuple(vals[v] for v in above)))
+    C = Complex{BigFloat}
+    cs = Vector{C}[]
+    for g in G
+        _mainvar(g, vars) == k || continue
+        P = try Poly{Sym}(g, [x]) catch; return nothing end
+        c = zeros(C, degree(P, x) + 1)
+        for (ev, cf) in zip(exponent_vectors(P), coefficients(P))
+            c[ev[1] + 1] = C(_ev(Sym(cf), nt, C, Ref{Union{Nothing,Sym}}(nothing)))
+        end
+        scale = maximum(abs, c)
+        tol = big(10.0)^-50 * max(1, scale)
+        while length(c) > 1 && abs(c[end]) <= tol
+            pop!(c)
+        end
+        if length(c) == 1
+            abs(c[1]) <= tol && continue                  # vanishes here
+            return Dict{Sym,C}[]                          # a nonzero constant: no solution
+        end
+        push!(cs, c)
+    end
+    isempty(cs) && return nothing                         # x free
+    sort!(cs; by = length)
+    m = cs[1] ./ cs[1][end]
+    n = length(m) - 1
+    z = _aberth(m, 1e-60)
+    dm = [j * m[j + 1] for j in 1:n]
+    for j in eachindex(z), _ in 1:8
+        d = evalpoly(z[j], dm)
+        iszero(d) && break
+        z[j] -= evalpoly(z[j], m) / d
+    end
+    out = Dict{Sym,C}[]
+    for r in z
+        # the other polynomials of the level vanish at r, relative to their terms' size
+        all(c -> abs(evalpoly(r, c)) <= big(10.0)^-30 * max(1, sum(abs(c[j]) * abs(r)^(j - 1) for j in eachindex(c))), cs[2:end]) || continue
+        any(u -> abs(u[x] - r) <= big(10.0)^-40 * max(1, abs(r)), out) && continue   # (a repeated root once)
+        sub = _backsub_big_rec(G, vars, k - 1, merge(vals, Dict(x => r)))
+        sub === nothing && return nothing
+        append!(out, sub)
     end
     out
 end

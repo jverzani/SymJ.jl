@@ -101,6 +101,20 @@ function summation(f, k::Sym, a, b; assume = nothing)
             return inside ? _sum_parts(r, v1 - subs(rest, k => c)) : r
         end
     end
+    # a term undefined at the first integers of the range: no sum (Σ_{x≥0} (3 - 1/√x) was
+    # ∞, its x = 0 term a pole; SymPy #14410), as a direct sum of the terms would say
+    if a.kind == NUMBER && _isint(a.num) && has(f, k)
+        j0 = _toint(a.num)
+        j1 = bs !== nothing && bs.kind == NUMBER && _isint(bs.num) ? min(_toint(bs.num), j0 + 10) : j0 + 10
+        for j in j0:j1
+            try
+                subs(f, k => Sym(j))
+            catch err
+                _isdivzero(err) || rethrow()
+                throw(DivisionByZero("summation: the term at $k = $j is undefined"))
+            end
+        end
+    end
     r = _summation(f, k, a, bs, assume)
     # an infinite series from a small positive integer left unevaluated: from 0, less the
     # first terms (Σ_{k≥1} 2^k/k! = e² - 1; SymPy #20464)
@@ -309,7 +323,7 @@ function _known_sum(f::Sym, k::Sym, a::Sym, b, assume)
         bt === nothing || return iszero(a) ? bt :
             expand(bt - _add_many(subs(f, k => Sym(j)) for j in 0:(_toint(a.num) - 1)))
     end
-    b === nothing && return _hypergeometric_series(f, k, a)
+    b === nothing && return _hypergeometric_series(f, k, a, assume)
     nothing
 end
 
@@ -398,6 +412,34 @@ function _geometric_infinite(s::Sym, p::Sym, r::Sym, assume)
         inside ? simplify(isempty(B.subst) ? s : subs(s, B.subst...)) : ArgumentError("the series diverges")
     end
 end
+# the value val(z, t₀) of a power series Σ t₀ cₖ zᵏ of radius 1, by cases: that for |z| < 1, edge(z, t₀)
+# on |z| = 1 (a value, nothing to leave the sum, or an error), and past it a divergent
+# series: to ±∞ for real z > 1 when pos (the terms of one sign), else an ArgumentError
+function _radius_one(val, t0::Sym, z::Sym, assume, pos::Bool, edge)
+    if !_hassymbol(z)
+        v = abs(_evalc(z))
+        v < 1 - 1e-12 && return simplify(val(z, t0))
+        v <= 1 + 1e-12 && return edge(z, t0)
+        pos && return _divergent(t0, z)
+        throw(ArgumentError("summation: the series diverges"))
+    end
+    A = _assumptions(assume)
+    A === nothing && (A = Assumptions())
+    for p in _named(z)
+        _ismarkedreal(A, p) || get(A.notin, p, Int8(0)) >= _RR || (A = Assumptions(A, Membership(p, ℝ, false)))
+    end
+    _by_cases(A) do B
+        zz = isempty(B.subst) ? z : subs(z, B.subst...)
+        tt = isempty(B.subst) ? t0 : subs(t0, B.subst...)
+        if !_hassymbol(zz)
+            r = try _radius_one(val, tt, zz, (), pos, edge) catch e; (e isa ArgumentError || _isdivzero(e)) || rethrow(); e end
+            return r === nothing ? ArgumentError("summation: no closed form found where |$z| = 1") : r
+        end
+        inside = _decide(Relation(:gt, zz, -ONE), B) && _decide(Relation(:lt, zz, ONE), B)
+        inside ? simplify(val(zz, tt)) : ArgumentError("the series diverges")
+    end
+end
+
 # |r| ≥ 1: to ±∞ for r ≥ 1 and a numeric polynomial factor of one sign, else no sum
 function _divergent(p::Sym, r::Sym)
     if r.kind == NUMBER && r.num >= N1 && !_hassymbol(p)
@@ -447,7 +489,7 @@ end
 # z/(k + 1) (0F0: exp(z)), z (k + α)/(k + 1) (1F0: (1 - z)^-α), or z/((k + 1)(k + b))
 # with b = 1/2 or 3/2 (0F1: cosh, sinh of 2sqrt(z), cos, sin for z < 0), shifted to start
 # at a
-function _hypergeometric_series(f::Sym, k::Sym, a::Sym)
+function _hypergeometric_series(f::Sym, k::Sym, a::Sym, assume = ())
     ρ = _hyper_ratio(f, k)
     ρ === nothing && return nothing
     ρ = cancel(subs(ρ, k => k + a))
@@ -464,7 +506,10 @@ function _hypergeometric_series(f::Sym, k::Sym, a::Sym)
     # ratio z (k + 1)/(k + 2): t₀ zᵏ/(k + 1), Σ = -t₀ log(1 - z)/z (Σ_{n≥1} xⁿ/n = -log(1 - x),
     # Σ 1/(n 2ⁿ) = log 2; SymPy #14909), |z| < 1
     if dn == 1 && dd == 1 && roots_n == [ONE] && roots_d == [Sym(2)]
-        return simplify(-t0 * log(1 - z) / z)
+        # (converges on |z| = 1 except at z = 1, to +∞ there for t₀ > 0)
+        val(w, t) = -t * log(1 - w) / w
+        return _radius_one(val, t0, z, assume, true,
+                           (w, t) -> _iszero_value(w - 1) ? _divergent(t, ONE) : simplify(val(w, t)))
     end
     i1 = findfirst(==(ONE), roots_d)
     i1 === nothing && return nothing                 # the (k + 1) of k!
@@ -472,7 +517,18 @@ function _hypergeometric_series(f::Sym, k::Sym, a::Sym)
     if isempty(roots_n) && isempty(roots_d)
         return simplify(t0 * exp(z))                                     # 0F0
     elseif length(roots_n) == 1 && isempty(roots_d)
-        return simplify(t0 * (1 - z)^(-roots_n[1]))                     # 1F0, |z| < 1
+        α = roots_n[1]
+        # (a polynomial for α = 0, -1, …; +∞ past |z| = 1 for α > 0, t₀ > 0; on |z| = 1 not decided)
+        (α.kind == NUMBER && _isint(α.num) && α.num <= 0) && return simplify(t0 * (1 - z)^(-α))
+        αv = _hassymbol(α) ? nothing : _evalc(α)
+        αr = αv !== nothing && abs(imag(αv)) < 1e-14 ? real(αv) : nothing
+        pos = αr !== nothing && αr > 0
+        # on |z| = 1 the binomial series converges for α < 1 (z ≠ 1) and α < 0 (z = 1), to
+        # its value there (Abel); else it diverges, to +∞ at z = 1 for α > 0
+        edge(w, t) = αr === nothing ? nothing :
+            _iszero_value(w - 1) ? (αr < 0 ? ZERO : pos ? _divergent(t, ONE) : nothing) :
+            αr < 1 ? simplify(t * (1 - w)^(-α)) : throw(ArgumentError("summation: the series diverges"))
+        return _radius_one((w, t) -> t * (1 - w)^(-α), t0, z, assume, pos, edge)   # 1F0
     elseif isempty(roots_n) && length(roots_d) == 1 && roots_d[1] in (Sym(1 // 2), Sym(3 // 2))
         # 0F1(; b; z): cosh, sinh of 2 sqrt(z), or cos, sin of 2w for z = -w^2
         half = roots_d[1] == Sym(1 // 2)
