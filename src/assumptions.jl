@@ -947,7 +947,22 @@ end
 
 function _fnmask(e::Sym, A::Assumptions)
     f = e.name
+    # binomial(n, k) ≥ 0 for integers n, k ≥ 0, > 0 when k ≤ n as well (SymPy #13617)
+    if f === :binomial && length(e.args) == 2
+        n, k = e.args
+        ints = _isinteger(n, A) === true && _isinteger(k, A) === true
+        (ints && _holds(Relation(:ge, n, ZERO), A) === true && _holds(Relation(:ge, k, ZERO), A) === true) || return nothing
+        return _holds(Relation(:ge, n - k, ZERO), A) === true ? _POS : (_ZER | _POS)
+    end
     length(e.args) == 1 || return nothing
+    # n! > 0 for an integer n ≥ 0, Γ(u) > 0 for u > 0 (SymPy #13616)
+    if f === :factorial
+        _isinteger(e.args[1], A) === true && _holds(Relation(:ge, e.args[1], ZERO), A) === true && return _POS
+        return nothing
+    elseif f === :gamma
+        _holds(Relation(:gt, e.args[1], ZERO), A) === true && return _POS
+        return nothing
+    end
     u = e.args[1]
     if f === :abs
         return _isnonzero(u, A) === true ? _POS : (_ZER | _POS)

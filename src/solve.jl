@@ -276,11 +276,12 @@ function _floatify(e::Sym)
         return Sym(f(e.num)) + _add_many((_isN1(abs(c)) ? Sym(c) : Sym(f(c))) * _floatify(a) for (c, a) in zip(e.coefs, e.args))
     elseif k == MUL
         c = _isN1(abs(e.num)) ? Sym(e.num) : Sym(f(e.num))
-        # (exp(-600t) stays exp, not 2.718281828459045^(-600t))
-        fb(a) = a === E ? E : _floatify(a)
+        # (exp(-600t) stays exp, not 2.718281828459045^(-600t); im = (-1)^(1/2) stays im, not
+        # sqrt(-1.0), SymPy #14371)
+        fb(a) = a === E || _eq(a, MINUS_ONE) ? a : _floatify(a)
         return c * prod((fb(a)^x for (a, x) in zip(e.args, e.exps)); init = ONE)
     elseif k == POW
-        return (e.args[1] === E ? E : _floatify(e.args[1]))^e.args[2]
+        return (e.args[1] === E || _eq(e.args[1], MINUS_ONE) ? e.args[1] : _floatify(e.args[1]))^e.args[2]
     elseif k == FN
         # (an unknown function's arguments are its own: f(2) stays f(2), not f(2.0), which
         # is another expression; SymPy #22524)

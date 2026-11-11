@@ -168,6 +168,15 @@ const _ABS_EVAL = FUNCTION_RULES[:abs].eval
 register_function!(:abs; julia = abs, diff = FUNCTION_RULES[:abs].diff,
     eval = function (args)
         a = args[1]
+        # |b^q| = |b|^re(q) e^(-im(q) arg b), b off the positive axis and q nonreal, constants
+        # (SymPy #14274)
+        if length(args) == 1 && a.kind == POW && !_hassymbol(a) && !_eq(a.args[1], E)
+            b, q = a.args
+            pb, pq, ab = _const_parts(b), _const_parts(q), _angle(b)
+            if pb !== nothing && pq !== nothing && ab !== nothing && !iszero(ab) && !iszero(expand(pq[2]))
+                return abs(b)^expand(pq[1]) * exp(-expand(pq[2]) * ab)
+            end
+        end
         if length(args) == 1 && a.kind != NUMBER && !_hassymbol(a)
             p = _const_parts(a)
             p !== nothing && !iszero(expand(p[2])) && return sqrt(expand(p[1]^2 + p[2]^2))

@@ -669,6 +669,19 @@ import PolyLog as PL
         @test N(v) ≈ -0.5604789635702104 rtol = 1e-10
     end
 
+    @testset "missing cases (SymPy review, round 12)" begin
+        @syms y z sg
+        f = SymFunction(:f)
+        ∫ = RischIntegrate.integrate
+        # values of an unknown function free of x are constants (#14796)
+        @test ∫(f(x) + f(1) + 10, x) == (f(1) + 10) * x + SymJ.apply_function(:Integral, Sym[f(x), x])
+        # a Gaussian times cos or sin of a linear argument (#14573)
+        @test ∫(cos(x) * exp(-x^2 / (2sg^2)), (x, -Inf, Inf); assume = (sg ≫ 0,)) == sqrt(2PI) * sg * exp(-sg^2 / 2)
+        @test ∫(sin(2x + 1) * exp(-x^2), (x, -Inf, Inf)) == sqrt(PI) * sin(Sym(1)) / SymJ.E
+        # an iterated integral with the outer variables in their intervals (#14096)
+        @test ∫(1 / (1 + x + y + z)^2, (x, 0, 1), (y, 0, 1), (z, 0, 1)) == log(Sym(19683) // 16384)
+    end
+
     @testset "crashes and hangs (SymPy review, round 11)" begin
         @syms a t RC C R1 L Vs V0 I0
         # arithmetic and series on Cases (#16182)

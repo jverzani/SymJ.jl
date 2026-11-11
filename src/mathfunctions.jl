@@ -233,6 +233,16 @@ for (f, g) in ((:mod, floor), (:rem, trunc))
         eval = function (args)
             length(args) == 2 || throw(ArgumentError("$f takes two arguments"))
             a, b = args
+            # mod(u, m) ≡ u (mod m): an inner mod by the same modulus, under an integer
+            # coefficient, is its argument (mod(mod(x + 1, 2) + 1, 2) = mod(x, 2); SymPy #13543)
+            if f === :mod && !iszero(b)
+                inner(t) = t.kind == FN && t.name === :mod && length(t.args) == 2 && _eq(t.args[2], b)
+                inner(a) && return a
+                if a.kind == ADD && any(((k, t),) -> _isint(k) && inner(t), zip(a.coefs, a.args))
+                    return mod(Sym(a.num) + _add_many(Sym(k) * (_isint(k) && inner(t) ? t.args[1] : t)
+                                                      for (k, t) in zip(a.coefs, a.args)), b)
+                end
+            end
             if f === :mod && a.kind == ADD && _hassymbol(a) && !_hassymbol(b) && !iszero(b)
                 # mod(u + c, b) = mod(u + c - qb, b) for c/b rational, 0 ≤ c - qb < b
                 c = _add_many(Sym(k) * t for (k, t) in zip(a.coefs, a.args) if !_hassymbol(t)) + Sym(a.num)
