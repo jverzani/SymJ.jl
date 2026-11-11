@@ -365,6 +365,19 @@ function pow(b::Sym, e::Sym)
         end
         return _mkpow_node(b, e)
     end
+    # (-1)^q, and ((-1)^r)^q for r in (-1, 1] (i = (-1)^(1/2)), for a constant q off the real
+    # line: e^(iπrq), the principal value, so i^i = e^(-π/2) (SymPy #14262). (Its test
+    # numeric, behind an inference barrier, and the power built as a node: a call of pow
+    # and _const_parts here made loading the package image overflow the stack.)
+    if !_hassymbol(e) && has(e, IM) &&
+       ((bk == NUMBER && _isN1(-b.num)) || (bk == POW && b.args[1].kind == NUMBER && _isN1(-b.args[1].num) &&
+                                            b.args[2].kind == NUMBER && isexact(b.args[2].num)))
+        v = Base.inferencebarrier(_imag_value)(e)
+        if v !== nothing && v != 0
+            r = bk == NUMBER ? ONE : b.args[2]
+            return _mkpow_node(E, Base.inferencebarrier(expand)(mul(mul(mul(IM, PI), r), e)))
+        end
+    end
     if bk == NUMBER
         _isN1(b.num) && return ONE
         # n^(u p/q) with n a perfect q-th power: 256^(x/2) = 16^x (SymPy #24090)
@@ -566,3 +579,6 @@ Base.sum(xs::AbstractArray{Sym}) = _add_many(xs)
 """
 Base.sqrt(x::Sym) = pow(x, HALF)
 Base.exp(x::Sym) = pow(E, x)
+
+# the imaginary part of a constant's value, or nothing
+_imag_value(e::Sym) = (v = try _evalc(e) catch; nothing end; v isa Number ? Float64(imag(v)) : nothing)

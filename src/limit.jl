@@ -93,6 +93,17 @@ function limit(f, xx0::Pair; dir = :both, assume = nothing)
     dir = dir in (:+, +, "+") ? :+ : dir in (:-, -, "-") ? :- : dir in (:both, "both") ? :both :
         throw(ArgumentError("limit: dir must be :both, :+ or :-, not $(repr(dir))"))
     f = _sinc_elementary(Sym(f))
+    # harmonic numbers of an argument in x as digamma, which Gruntz takes: H(u) = ψ(u + 1) + γ
+    # (SymPy #14204, #14125)
+    if _hasfn(f, :harmonic)
+        f = _replace_walk(f) do t
+            (t.kind == FN && t.name === :harmonic && length(t.args) == 1 && has(t.args[1], x)) ?
+                apply_function(:digamma, Sym[t.args[1] + 1]) + Sym(Base.MathConstants.eulergamma) : nothing
+        end
+    end
+    # a sum left unevaluated in x: no limit taken of it (SymPy #14196)
+    _has_node(f, t -> t.kind == FN && t.name in (:Sum, :Product) && has(t, x)) &&
+        throw(ArgumentError("limit: an unevaluated sum or product in $x; its limit is not known"))
     # ₂F₁ of an argument in x, which Gruntz does not take: by its expansion where the
     # argument tends (SymPy #24879)
     if _hasfn(f, :_₂F₁) && _HYP_DEPTH[] == 0

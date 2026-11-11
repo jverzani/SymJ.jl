@@ -336,6 +336,12 @@ transforms). Of the rest, in rough order of value for calculus-level use:
    - parametric definite integrals whose antiderivative has the parameters in its
      denominators: ∫₀^π 1/(a²cos²x + b²sin²x) with a, b > 0 (#14394) splits into many
      cases, each taking endpoint limits (a = 2, b = 3 gives π/6 in 3 s).
+   - finite trigonometric sums Σ_{k=1}^{n} cos(kt), sin(kt) and Σ binomial(n, m) sin(mx)
+     cos((n-m)x) (#14137, #14412): the exponential route leaves i in its closed form.
+   - cancel with float coefficients (#13805): no approximate gcd.
+   - the Beta integral folded onto [0, 1], ∫₀¹ (x^(p-1) + x^(q-1))/(1 + x)^(p+q) (#14549).
+   - rationalizing denominators with cube and higher roots (#14184).
+   - bounds such as n! ≥ n (#13616): refine knows signs only (n! > 0).
 
 Done since the first audit: trigonometric and logarithmic expansion, gamma and combinatorial simplification, LaTeX output (a Latexify extension), resultants and Gröbner
 bases (polynomial systems are solved), real and imaginary parts and `conj`, and

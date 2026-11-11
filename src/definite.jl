@@ -202,11 +202,15 @@ function _gaussian_definite(f::Sym, x::Sym, lo::Sym, hi::Sym, A::Assumptions)
     fs = f.kind == MUL ? [(u, q) for (u, q) in zip(f.args, f.exps)] : f.kind == POW ? [(f.args[1], f.args[2])] : [(f, ONE)]
     c = f.kind == MUL ? Sym(f.num) : ONE
     n, Q = 0, nothing
+    trig = nothing                     # (:cos or :sin, k, φ) for a factor cos(kx + φ), sin(kx + φ)
     for (u, q) in fs
         if !has(u, x) && !has(q, x)
             c *= u^q
         elseif _eq(u, x) && q.kind == NUMBER && _isint(q.num) && q.num >= N0
             n += _toint(q.num)
+        elseif trig === nothing && whole && u.kind == FN && u.name in (:cos, :sin) && _isone(q) &&
+               _ispoly_in(u.args[1], x) && degree(Poly{Sym}(expand(u.args[1]), [x]), x) == 1
+            trig = (u.name, coeff(expand(u.args[1]), x, 1), coeff(expand(u.args[1]), x, 0))
         elseif u === E && Q === nothing && _ispoly_in(q, x) && degree(Poly{Sym}(expand(q), [x]), x) == 2
             Q = expand(q)
         else
@@ -214,6 +218,23 @@ function _gaussian_definite(f::Sym, x::Sym, lo::Sym, hi::Sym, A::Assumptions)
         end
     end
     Q === nothing && return nothing
+    # cos(kx + φ) e^Q, sin(kx + φ) e^Q: through e^(±i(kx + φ)), two Gaussians, over the
+    # line (∫ cos(x) e^(-x²/(2σ²)) = √(2π) σ e^(-σ²/2); SymPy #14573)
+    if trig !== nothing
+        (n == 0 && whole) || return nothing
+        nm, k, φ = trig
+        g(s) = _gaussian_definite(exp(Q + s * IM * k * x), x, lo, hi, A)
+        gp, gm = g(1), g(-1)
+        (gp isa Sym && gm isa Sym) || return nothing
+        v = nm === :cos ? (exp(IM * φ) * gp + exp(-IM * φ) * gm) / 2 : (exp(IM * φ) * gp - exp(-IM * φ) * gm) / (2IM)
+        r = simplify(c * v; assume = A)
+        # (e^(±i) pairs as cos and sin: √π sin(1)/e, not -i(√π e^(i - 1) - …)/2)
+        if has(r, IM)
+            r2 = simplify(rewrite(r, cos); assume = A)
+            has(r2, IM) || (r = r2)
+        end
+        return r
+    end
     a, b, c0 = -coeff(Q, x, 2), coeff(Q, x, 1), coeff(Q, x, 0)
     c *= exp(c0)
     # a complex a: convergent for Re a > 0 (and, for n = 0, Re a = 0, a ≠ 0: Fresnel), with

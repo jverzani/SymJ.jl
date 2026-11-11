@@ -1131,3 +1131,49 @@ end
     @test length(rs) == 4
     @test maximum(r -> (v = ComplexF64(N(r)); abs(sin(v) + cos(v) + sin(v) * cos(v))), rs) < 1e-12
 end
+
+@testset "missing cases (SymPy review, round 12)" begin
+    @syms x y z n m k t
+    LA = SymJ.LinearAlgebra
+    # the principal root is never negative (#14815)
+    @test refine(sqrt(x) ≪ 0; assume = (x ∈ ℝ,)) === false
+    @test refine(sqrt(x) ≪ 0) === false
+    # divergence of series with no closed form (#14579, #14112, #14111)
+    @test SymJ.summation(sqrt(x), x, 1, Inf) == Inf
+    @test SymJ.summation(1 / sqrt(n), n, 1, Inf) == Inf
+    @test SymJ.summation(1 / log(log(n)), n, 22, Inf) == Inf
+    @test SymJ._hasfn(SymJ.summation((-1)^n / sqrt(n), n, 1, Inf), :Sum)
+    # \ for a non-square matrix: least squares, least norm (#14548)
+    @test Sym[2 1; 1 0; 1 0] \ Sym[3, 1, 1] == Sym[1, 1]
+    @test Sym[1 1 0; 0 1 1] \ Sym[1, 1] == Sym[1 // 3, 2 // 3, 1 // 3]
+    # im stays im when numbers are floated (#14371)
+    @test !occursin("sqrt(-1.0)", string(apart(z^2 / (z + 2 + 1.0im)^2, z)))
+    # exp of a real matrix with complex eigenvalues: real entries (#14330)
+    @test exp(Sym[1 -1; 1 1]) == Sym[cos(Sym(1))*SymJ.E -sin(Sym(1))*SymJ.E; sin(Sym(1))*SymJ.E cos(Sym(1))*SymJ.E]
+    @test exp(t * Sym[1 -1; 1 1])[1, 1] == cos(t) * exp(t)
+    # |b^q| for constant b and q, i^q (#14274, #14260, #14262)
+    @test abs((4 + 5IM)^(6 + 7IM)) == 68921 * exp(-7atan(Sym(5) // 4))
+    @test refine(abs(IM^n); assume = (n ∈ ℝ,)) == 1
+    @test IM^IM == exp(-PI / 2)
+    @test simplify(log(IM^IM)) == -PI / 2
+    # harmonic numbers in limits, as digamma (#14204, #14125); an unevaluated sum refused (#14196)
+    @test limit(SymJ.summation(1 / k, k, n, 2n), n => Inf) == log(Sym(2))
+    @test limit(n^2 * (SymJ.harmonic(n) - log(n + 1 // 2) - Sym(MathConstants.eulergamma)), n => Inf) == Sym(1) // 24
+    @test_throws ArgumentError limit(SymJ.summation(m^k, m, 1, n) / n^(k + 1), n => Inf; assume = (k ∈ ℤ, k ≫ 0))
+    # telescoping sums; harmonic numbers of shifted arguments combined (#14195)
+    @test SymJ.summation(log(m + 1) - log(m), m, 1, n) == log(n + 1)
+    @test SymJ.summation(sqrt(m) - sqrt(m - 1), m, 1, n) == sqrt(n)
+    @test SymJ.summation(1 / m - 1 / (m + 1), m, 1, n) == 1 - 1 / (n + 1)
+    # an empty harmonic sum (#14185)
+    @test SymJ.harmonic(0, n) == 0
+    # the binomial theorem in two variables (#14142)
+    @test SymJ.summation(binomial(n, m) * x^m * y^(n - m), m, 0, n) == (x + y)^n
+    # u(x) δ(x - a) = u(a) δ(x - a) (#13996)
+    @test simplify(x * SymJ.dirac(x)) == 0
+    @test simplify(x^2 * SymJ.dirac(x - 2)) == 4SymJ.dirac(x - 2)
+    # signs of binomial and factorial (#13617, #13616)
+    @test refine(binomial(n, k) ≧ 0; assume = (n ∈ ℤ, n ≧ 0, k ∈ ℤ, k ≧ 0)) === true
+    @test refine(factorial(n) ≫ 0; assume = (n ∈ ℤ, n ≧ 0)) === true
+    # a mod by the same modulus inside a mod (#13543)
+    @test mod(mod(x + 1, 2) + 1, 2) == mod(x, 2)
+end

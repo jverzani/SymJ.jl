@@ -94,7 +94,20 @@ function refine(r::Relation; assume = nothing)
         return _REL_INFO[r.op][2](real(a), real(b))
     end
     v = _holds(Relation(r.op, expand(l - rr), ZERO), A)
-    v === nothing ? Relation(r.op, l, rr) : v
+    v === nothing || return v
+    # the relation reduced to a simpler equivalent one: √x < 0 is false, the principal
+    # root never negative, with or without assumptions (SymPy #14815)
+    g = _reduce_fact(Relation(r.op, l, rr))
+    if g isa Relation && !(g.op === r.op && _eq(expand(g.lhs - g.rhs), expand(l - rr)))
+        if !_hassymbol(g.lhs) && !_hassymbol(g.rhs)
+            a, b = _evalc(g.lhs), _evalc(g.rhs)
+            isreal(a) && isreal(b) && return _REL_INFO[g.op][2](real(a), real(b))
+        else
+            w = _holds(Relation(g.op, expand(g.lhs - g.rhs), ZERO), A)
+            w === nothing || return w
+        end
+    end
+    Relation(r.op, l, rr)
 end
 
 function _refine(e::Sym, A::Assumptions)
@@ -284,6 +297,16 @@ function _refine_rule(e::Sym, A::Assumptions)
             # |exp(w)| = exp(real(w)); otherwise sqrt(re^2 + im^2) from u's parts
             if u.kind == POW && _eq(u.args[1], E)
                 return exp(_refine_node(real(u.args[2]), A))
+            end
+            # |b^q| = |b|^re(q) e^(-im(q) arg b) for a constant b off the positive axis, q's
+            # parts known (|i^n| = 1 for real n; SymPy #14260)
+            if u.kind == POW && !_hassymbol(u.args[1]) && !_eq(u.args[1], E)
+                b, q = u.args
+                ab = _angle(b)
+                if ab !== nothing && !iszero(ab)
+                    p = _reim(q, A)
+                    p === nothing || return abs(b)^p[1] * exp(-p[2] * ab)
+                end
             end
             if _isreal(u, A) !== true && (p = _reim(u, A)) !== nothing
                 m2 = expand(p[1]^2 + p[2]^2)
@@ -802,6 +825,8 @@ function _simplify(e::Sym, A::Assumptions)
     # (max(2a, 2b) = 2max(a, b), max(a + c, b + c) = c + max(a, b), max(-a, -b) =
     # -min(a, b); SymPy #24578)
     _has_fn(e, (:max, :min)) && consider(_extreme_common)
+    # u(x) δ(x - a) = u(a) δ(x - a): x δ(x) = 0 (SymPy #13996)
+    _has_fn(e, (:dirac,)) && consider(_dirac_sift)
     # erfc(u) = 1 - erf(u): erf(x) + erfc(x) = 1 (SymPy #28900)
     _has_fn(e, (:erfc,)) && consider(_erfc_to_erf)
     # conj(w) w = abs(w)^2
@@ -2391,3 +2416,24 @@ function _rational_by_minpoly(e::Sym)
     cancel(-c0 / c1)
 end
 
+
+# in each product with a factor δ(c(v - a)) (to the first power, v a symbol, c and a free
+# of v), the other factors at v = a, where they are finite
+function _dirac_sift(e::Sym)
+    _replace_walk(e) do t
+        t.kind == MUL || return nothing
+        i = findfirst(j -> t.args[j].kind == FN && t.args[j].name === :dirac && length(t.args[j].args) == 1 &&
+                          _isone(t.exps[j]), eachindex(t.args))
+        i === nothing && return nothing
+        g = t.args[i].args[1]
+        vs = [v for v in _named(g) if _ispoly_in(g, v) && degree(Poly{Sym}(expand(g), [v]), v) == 1]
+        isempty(vs) && return nothing
+        v = vs[1]
+        a = -coeff(expand(g), v, 0) / coeff(expand(g), v, 1)
+        rest = t / t.args[i]
+        has(rest, v) || return nothing
+        r = try subs(rest, v => a) catch err; _isdivzero(err) || rethrow(); return nothing end
+        _finite_value(r) || _hassymbol(r) || return nothing
+        r * t.args[i]
+    end
+end

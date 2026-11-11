@@ -482,7 +482,16 @@ end
 # A \ b exactly, through the LU factorization (Julia's generic `\` would pivot by
 # comparing magnitudes)
 function Base.:\(A::AbstractMatrix{Sym}, b::AbstractVecOrMat)
-    size(A, 1) == size(A, 2) || throw(ArgumentError("\\ for a non-square matrix of expressions is not supported"))
+    # non-square, as Julia's \ for numbers: the least squares solution (more rows) or the
+    # one of least norm (more columns), exactly, through the normal equations; a
+    # consistent system's solution (SymPy #14548). Rank deficient: SingularException.
+    if size(A, 1) > size(A, 2)
+        Ah = adjoint(A)
+        return Matrix{Sym}(Ah * A) \ (Ah * b)
+    elseif size(A, 1) < size(A, 2)
+        Ah = adjoint(A)
+        return Ah * (Matrix{Sym}(A * Ah) \ b)
+    end
     # polynomial entries: Cramer's rule, the determinants fraction-free (Bareiss); the
     # rational functions of Gauss–Jordan took a gcd at every step (SymPy #25302, #24679)
     # (rational entries: each row of [A b] times the lcm of its denominators first, which
@@ -1467,7 +1476,19 @@ function _matfun(f, A::AbstractMatrix{Sym})
         end
         i += k
     end
-    map(simplify, P * F * inv(P))
+    R = map(simplify, P * F * inv(P))
+    # a real constant B: exp, sin and cos of a B have real power series in a, so the
+    # complex eigenvalues' terms are the real parts' (e cos 1, not exp(1 - i)/2 + exp(1 + i)/2;
+    # SymPy #14330), found for a real stand-in for a and continued
+    if (f === exp || f === sin || f === cos) && (isone(a) || _isnamed(a)) &&
+       !any(e -> _hassymbol(e) || has(e, IM), B) && any(e -> has(e, IM), R)
+        s = isone(a) ? a : Sym(Symbol("_matfun_s"))
+        R = map(R) do e
+            r = isone(a) ? simplify(real(e)) : simplify(real(subs(e, a => s)); assume = (s ∈ ℝ,))
+            has(r, IM) || _hasfn(r, :real) ? e : (isone(a) ? r : subs(r, s => a))
+        end
+    end
+    R
 end
 
 """

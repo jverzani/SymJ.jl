@@ -29,7 +29,7 @@
     # the binomial theorem with a polynomial factor, exact for every n ≥ 0 (SymPy #29731)
     @test Σ(binomial(n, k) * (-1)^(n - k) * k, k, 0, n) == SymJ.piecewise((n ~ 1) => 1, true => 0)
     @test Σ(binomial(n, k) * (-1)^(n - k) * k / factorial(n), k, 0, n) == SymJ.piecewise((n ~ 1) => 1, true => 0)
-    @test Σ(binomial(n, k) * (-1)^(n - k), k, 0, n) == (-1)^n * Sym(0)^n
+    @test Σ(binomial(n, k) * (-1)^(n - k), k, 0, n) == Sym(0)^n
     @test Σ(binomial(n, k) * k * 3^k, k, 0, n) == 3n * 4^(n - 1)
     # a constant ratio whose power does not cancel: (-1)^k x^k is (-x)^k, x^(2k) is (x^2)^k
     let x = Sym(:x)

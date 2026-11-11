@@ -155,6 +155,12 @@ function _summation(f::Sym, k::Sym, a::Sym, b, assume)
     r === nothing || return r
     # linearity
     if f.kind == ADD
+        # telescoping first, a finite range: Σ (g(k + j) - g(k)) by its ends (Σ log(m + 1) -
+        # log(m) is log(n + 1), not two unevaluated sums; SymPy #14195)
+        if b !== nothing
+            r = _telescope(f, k, a, b)
+            r === nothing || return r
+        end
         terms = [Sym(c) * t for (c, t) in zip(f.coefs, f.args)]
         iszero(f.num) || push!(terms, Sym(f.num))
         parts = [_summation(t, k, a, b, assume) for t in terms]
@@ -179,7 +185,9 @@ function _summation(f::Sym, k::Sym, a::Sym, b, assume)
             end
         end
         any(p -> p isa Cases, parts) && return _sum_cases(parts)
-        return _add_many(parts)
+        # (harmonic numbers of shifted arguments combined: H(n) - H(n + 1) is -1/(n + 1))
+        r = _add_many(parts)
+        return _count_fn(r, :harmonic) >= 2 ? _harmonic_combine(r) : r
     end
     c, t = _split_kfree(f, k)
     if !isone(c)
@@ -241,6 +249,12 @@ function _summation(f::Sym, k::Sym, a::Sym, b, assume)
                 return _has_fn(r, (:exp,)) && (t = simplify(rewrite(r, cos); assume); _nodes(t) <= _nodes(r)) ? t : r
             end
         end
+    end
+    # no closed form: a series whose terms do not tend to 0, or behave as c/k, diverges
+    # (Σ √k, Σ 1/√k, Σ 1/log(log k) are ∞; SymPy #14579, #14112, #14111)
+    if b === nothing
+        d = _divergence_at_infinity(f, k, assume)
+        d === nothing || return d
     end
     _summation_unevaluated(f, k, a, b)
 end
@@ -482,6 +496,17 @@ function _binomial_theorem(f::Sym, k::Sym, n::Sym)
     end
     P = expand(P)
     Pf = try factor(P) catch; P end
+    # a factor uⁿ of p (n the integer upper bound): uⁿ(1 + x)ⁿ = (u(1 + x))ⁿ, so
+    # Σ binomial(n, k) xᵏ y^(n-k) is (x + y)ⁿ, not (x/y + 1)ⁿ yⁿ (SymPy #14142)
+    if d == 0
+        fs = Pf.kind == MUL ? collect(zip(Pf.args, Pf.exps)) : Pf.kind == POW ? [(Pf.args[1], Pf.args[2])] : Tuple{Sym,Sym}[]
+        j = findfirst(((u, q),) -> _eq(q, n), fs)
+        if j !== nothing
+            u = fs[j][1]
+            w = cancel(u * (1 + x))
+            numer_denom(w)[2] == ONE && return cancel(Pf / u^n) * w^n
+        end
+    end
     (1 + x)^(n - d) * Pf
 end
 
@@ -1276,6 +1301,40 @@ _digamma_factor(t::Sym) = _isfn1(t, :digamma) ? t : t.kind == MUL ?
 
 # harmonic numbers whose arguments differ by integers written with the smallest one:
 # H(n + 2) = H(n + 1) + 1/(n + 2)
+# Σ_{k=a}^{b} f for f a sum of pairs c g(k + j) - c g(k), j = 1, …, 4: c (Σ_{i=1}^{j}
+# g(b + i) - Σ_{i=0}^{j-1} g(a + i)); nothing unless every term pairs off
+function _telescope(f::Sym, k::Sym, a::Sym, b::Sym)
+    iszero(f.num) || return nothing
+    ts = collect(zip(f.coefs, f.args))
+    length(ts) >= 2 && iseven(length(ts)) || return nothing
+    used = falses(length(ts))
+    out = ZERO
+    for i in eachindex(ts)
+        used[i] && continue
+        ci, ti = ts[i]
+        has(ti, k) || return nothing
+        found = false
+        for jj in eachindex(ts)
+            (jj == i || used[jj]) && continue
+            cj, tj = ts[jj]
+            cj == -ci || continue
+            for j in 1:4
+                for (c, g, h) in ((ci, tj, ti), (cj, ti, tj))   # c g(k + j) - c g(k), h = g(k + j)
+                    if _eq(expand(subs(g, k => k + j)), h)
+                        out += Sym(c) * (_add_many(subs(g, k => b + m) for m in 1:j) - _add_many(subs(g, k => a + m) for m in 0:(j - 1)))
+                        used[i] = used[jj] = found = true
+                        break
+                    end
+                end
+                found && break
+            end
+            found && break
+        end
+        found || return nothing
+    end
+    simplify(out)
+end
+
 function _harmonic_combine(e::Sym)
     hs = Sym[]
     _collect_fn!(hs, e, :harmonic)
@@ -1383,6 +1442,7 @@ register_function!(:harmonic; julia = _harmonic_float,
         n = args[1]
         m = length(args) == 2 ? args[2] : ONE
         length(args) == 2 && isone(m) && return harmonic(n)
+        iszero(n) && return ZERO                     # an empty sum, any order (SymPy #14185)
         (m.kind == NUMBER && _isint(m.num) && m.num >= N1) || return nothing
         (n.kind == NUMBER && _isint(n.num) && n.num >= N0 && _toint(n.num) <= 10_000) || return nothing
         p = _toint(m.num)

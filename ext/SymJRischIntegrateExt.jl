@@ -61,6 +61,16 @@ function _indefinite(ex::Sym, x::Sym; assume = nothing, kw...)
     if A !== nothing && _has_oracle() && !haskey(kw, :sign)
         kw = (; sign = SymJ._sign_oracle(A), kw...)
     end
+    # values of unknown functions free of x (f(1)) are constants: symbols in their place
+    # while integrating (RischIntegrate takes no SymFunction; SymPy #14796)
+    ucs = SymJ._unknown_consts!(Sym[], ex, x)
+    if !isempty(ucs)
+        ps = [c => Sym(Symbol("ω_f", i)) for (i, c) in enumerate(ucs)]
+        r = _indefinite(subs(ex, ps...), x; assume, kw...)
+        back = [p.second => p.first for p in ps]
+        r isa SymJ.Cases && return SymJ._map_cases(v -> v isa Sym ? subs(v, back...) : v, r)
+        return r isa Sym ? subs(r, back...) : r
+    end
     # terms with an unknown function of x: held as ∫ f(x) dx, the rest integrated
     rest, held = SymJ._split_opaque(ex, x)
     if !isempty(held)
@@ -142,9 +152,27 @@ end
 function RischIntegrate.integrate(ex::Union{Sym,SymJ.Cases}, xab::Tuple, more::Tuple...; assume = nothing,
                                   principal_value::Bool = false, drop_removable_singularities::Bool = false, kw...)
     antider = (f, x, A) -> _indefinite(f, x; assume = A, kw...)
-    v = SymJ._definite_integral(ex, xab, assume, antider; principal_value)
-    for t in more
-        v = SymJ._definite_integral(v, t, assume, antider; principal_value)
+    # each integral with the outer variables in their intervals (numeric ends): the inner
+    # one's cases for z < -y - 2 drop out for y, z in (0, 1) (SymPy #14096)
+    function within(ts)
+        facts = Any[]
+        for t in ts
+            length(t) == 3 || continue
+            y, a, b = Sym(t[1]), Sym(t[2]), Sym(t[3])
+            (SymJ._hassymbol(a) || SymJ._hassymbol(b)) && continue
+            lo, hi = SymJ._less(b, a, SymJ.Assumptions()) ? (b, a) : (a, b)
+            SymJ._isinfpt(lo) || push!(facts, SymJ.Relation(:ge, y, lo))
+            SymJ._isinfpt(hi) || push!(facts, SymJ.Relation(:le, y, hi))
+        end
+        isempty(facts) && return assume
+        A = SymJ._assumptions(assume)
+        A === nothing && (A = SymJ.Assumptions())
+        B = SymJ._with_fact(A, SymJ.FactAnd(facts))
+        B === nothing ? assume : B                      # (contradicting ones: as given)
+    end
+    v = SymJ._definite_integral(ex, xab, within(more), antider; principal_value)
+    for (i, t) in enumerate(more)
+        v = SymJ._definite_integral(v, t, within(more[(i + 1):end]), antider; principal_value)
     end
     v = drop_removable_singularities ? SymJ._drop_removable(v) : v
     # (floats in the integrand: the value's numbers floats, as for the antiderivative)
