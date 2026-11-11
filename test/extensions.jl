@@ -243,7 +243,7 @@ import PolyLog as PL
         # Gaussian integrals with a parameter (SymPy #28485)
         @test ∫(exp(-a * x^2), (x, -Inf, Inf); assume = (a ≫ 0,)) == sqrt(PI) / sqrt(a)
         @test ∫(x^2 * exp(-a * x^2), (x, 0, Inf); assume = (a ≫ 0,)) == sqrt(PI) / (4a^(3 // 2))
-        @test ∫(exp(-a * x^2 + b * x), (x, -Inf, Inf); assume = (a ≫ 0,)) == sqrt(PI / a) * exp(b^2 / (4a))
+        @test iszero(simplify(∫(exp(-a * x^2 + b * x), (x, -Inf, Inf); assume = (a ≫ 0,)) - sqrt(PI / a) * exp(b^2 / (4a)); assume = (a ≫ 0,)))
         @test ∫(exp(-a * x^2), (x, -Inf, Inf))(a => -1) == Inf
         # erfc(u) = 1 - erf(u) (SymPy #28900, #28894)
         @test simplify(SF.erf(x) + SF.erfc(x)) == 1
@@ -567,7 +567,7 @@ import PolyLog as PL
         # a case where the integrand is not defined (b = 0): an error for that case (#19672)
         r = RischIntegrate.integrate(exp(-(x - a)^2 / b), (x, -Inf, Inf))
         @test r isa SymJ.Cases
-        @test any(cv -> cv.second == sqrt(b * PI), r)
+        @test any(cv -> cv.second isa Sym && iszero(simplify(cv.second - sqrt(b * PI); assume = (b ≫ 0,))), r)   # (√b √π or √(bπ))
         # abs of functions with a pole: no division by zero (#20755)
         @test RischIntegrate.integrate(abs(1 / x), (x, 1, 2)) == log(Sym(2))
         @test RischIntegrate.integrate(abs(atan(1 / x)), (x, -1, 1)) == log(Sym(2)) + PI / 2
