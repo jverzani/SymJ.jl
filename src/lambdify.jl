@@ -97,7 +97,16 @@ function lambdify_expr(ex, vars::Union{Tuple,AbstractVector})
     Expr(:->, Expr(:tuple, args...), Expr(:block, lift, cg.stmts..., result))
 end
 
-_outputs(ex::Union{Tuple,AbstractArray}) = Sym[Sym(e) for e in ex]
+# (flattened: a matrix, or a tuple of matrices; SymPy #14118)
+_outputs(ex::Union{Tuple,AbstractArray}) = reduce(vcat, (_outputs(e) for e in ex); init = Sym[])
+
+# vals (as _outputs flattened ex) in ex's shape
+function _shape_like(ex, vals::Vector{Sym}, i::Ref{Int} = Ref(0))
+    ex isa Tuple && return Tuple(_shape_like(e, vals, i) for e in ex)
+    ex isa AbstractArray && return reshape(Sym[_shape_like(e, vals, i) for e in vec(collect(ex))], size(ex))
+    i[] += 1
+    vals[i[]]
+end
 _outputs(ex::Poly) = Sym[Sym(ex)]
 _outputs(ex) = Sym[Sym(ex)]
 
@@ -347,5 +356,5 @@ function cse(ex; prefix = :t)
     if !isempty(names)
         reps = [t => subs(r, names...) for (t, r) in reps]
     end
-    reps, ex isa Tuple ? Tuple(reduced) : ex isa AbstractArray ? reshape(reduced, size(ex)) : only(reduced)
+    reps, ex isa Union{Tuple,AbstractArray} ? _shape_like(ex, reduced) : only(reduced)
 end

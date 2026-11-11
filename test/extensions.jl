@@ -661,6 +661,14 @@ import PolyLog as PL
         @test N(1 - SF.erf(Sym(15))) ≈ 7.212994172451207e-100 rtol = 1e-10
     end
 
+    @testset "crashes and hangs (SymPy review, round 12)" begin
+        # Si and Ci have no BigFloat methods: N keeps the Float64 value (#14716)
+        # (∫ from 1/2 to 1 of log(x + 5)cos(πx))
+        Si(u) = SymJ.apply_function(:sinint, Sym[u])
+        v = log(Sym(2) // 11) / PI - Si(11PI / 2) / PI + Si(6PI) / PI
+        @test N(v) ≈ -0.5604789635702104 rtol = 1e-10
+    end
+
     @testset "crashes and hangs (SymPy review, round 11)" begin
         @syms a t RC C R1 L Vs V0 I0
         # arithmetic and series on Cases (#16182)

@@ -330,6 +330,12 @@ transforms). Of the rest, in rough order of value for calculus-level use:
      coordinate systems, number theory (discrete log, divisor functions, diophantine),
      Legendre functions, finite-field factoring, differentiating with respect to a
      function, Boolean logic, ConditionSet, nsolve from a point, matrix symbols.
+15. **Gaps from the twelfth SymPy review (#13409–#14908)**:
+   - large symbolic linear systems: the 18-equation chain in 28 parameters (#14694) spends
+     minutes in multivariate gcds during Gauss–Jordan elimination.
+   - parametric definite integrals whose antiderivative has the parameters in its
+     denominators: ∫₀^π 1/(a²cos²x + b²sin²x) with a, b > 0 (#14394) splits into many
+     cases, each taking endpoint limits (a = 2, b = 3 gives π/6 in 3 s).
 
 Done since the first audit: trigonometric and logarithmic expansion, gamma and combinatorial simplification, LaTeX output (a Latexify extension), resultants and Gröbner
 bases (polynomial systems are solved), real and imaginary parts and `conj`, and

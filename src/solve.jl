@@ -1309,7 +1309,14 @@ function _satisfies(eq::Relation, x::Sym, r::Sym)
         _isdivzero(err) && return false
         rethrow()
     end
-    (iszero(d) || iszero(cancel(d))) && return true
+    iszero(d) && return true
+    if !_hassymbol(d)
+        # a constant: its value decides, as cancel would (cancel of a quartic's nested
+        # radical roots ran for minutes; SymPy #13625)
+        v = try N(d) catch; return true end
+        return abs(v) <= 1e-9 * max(1, abs(N(r)))
+    end
+    iszero(cancel(d)) && return true
     if _hassymbol(d)
         _holds_somewhere(d, r) && return true
         # a residual c·u^p vanishes exactly where u = 0: a case of the parameters, not a

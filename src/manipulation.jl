@@ -936,7 +936,9 @@ function _bigvalue(ex::Sym, p::Int)
                 return w
             catch err
                 err isa DomainError && F === BigFloat && continue
-                err isa Union{DomainError,MethodError,ArgumentError,InexactError,OverflowError} && return nothing
+                # (ErrorException: SpecialFunctions' sinint and cosint are "not implemented
+                # for BigFloat"; the Float64 value is kept, SymPy #14716)
+                err isa Union{DomainError,MethodError,ArgumentError,InexactError,OverflowError,ErrorException} && return nothing
                 rethrow()
             end
         end
