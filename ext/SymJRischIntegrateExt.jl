@@ -194,7 +194,10 @@ end
 function __init__()
     SymJ._SYMBOLIC_ON[] = _symbolic_on
     reg(name; kw...) = _hasri(name) && SymJ.register_function!(name; julia = getfield(RischIntegrate, name), kw...)
-    reg(:clausen2; diff = (args, i) -> _cl1(args[1]))
+    # Cl₂(kπ) = 0 for integers k (sin(jkπ) = 0 in its series; ∫₀^(π/2) log sin x came out
+    # with clausen2(π) left in; SymPy #16084)
+    reg(:clausen2; diff = (args, i) -> _cl1(args[1]),
+        eval = args -> (r = SymJ.cancel(args[1] / SymJ.PI); r.kind == SymJ.NUMBER && SymJ.isexact(r.num) && SymJ._isint(r.num) ? SymJ.ZERO : nothing))
     reg(:clausen; diff = _dclausen)
     reg(:repolylog; diff = _dpolylog(true))
     reg(:impolylog; diff = _dpolylog(false))

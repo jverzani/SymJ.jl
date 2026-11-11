@@ -326,6 +326,14 @@ Canonical power (what `b^e` calls). Integer powers of products and powers are
 distributed; numeric powers are evaluated exactly, extracting perfect powers from
 radicals (`8^(1/2) == 2*2^(1/2)`).
 """
+# (behind inference barriers, as _floatpow's N: the evaluator and the realness test reach
+# back into arithmetic, and inferring pow through them runs past Julia 1.13's frame limit)
+function _negative_real_const(b::Sym)
+    v = try Base.inferencebarrier(_evalc)(b)::ComplexF64 catch; return false end
+    (isfinite(v) && real(v) < -1e-9 * abs(v) && abs(imag(v)) <= 1e-12 * abs(v)) || return false
+    Base.inferencebarrier(_isreal_const)(b) === true
+end
+
 function pow(b::Sym, e::Sym)
     bk = b.kind
     if e.kind == NUMBER
@@ -349,6 +357,11 @@ function pow(b::Sym, e::Sym)
             # sqrt(4a) = 2 sqrt(a) and sqrt(2a + 2b) = sqrt(2) sqrt(a + b)
             c = _positive_content(b)
             c === nothing || return mul(_numpow(c, en), pow(_scale(b, inv(c)), e))
+            # √u for a negative real constant sum u: i √(-u) (√(-√3 - 2) = i √(√3 + 2), as
+            # √(-2) = i √2; round-11 review)
+            if en == SymNumber(1 // 2) && bk == ADD && !_hassymbol(b) && _negative_real_const(b)
+                return mul(IM, pow(_scale(b, SymNumber(-1)), e))
+            end
         end
         return _mkpow_node(b, e)
     end

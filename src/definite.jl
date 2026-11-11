@@ -1210,6 +1210,18 @@ end
 # line is sign(a) √(π/(2|a|))); and n(x)/x² with n(0) = 0 by parts, ∫ n'(x)/x dx with the
 # boundary terms -n/x (∫ (cos(x²) - cos x)/x² dx = π - √(2π); SymPy #22487). nothing when
 # none applies. depth bounds the parts.
+# c log(sin x) or c log(cos x) over [0, π/2] (-π log 2/2) or [0, π] (-π log 2); nothing
+function _definite_known_logtrig(g::Sym, x::Sym, l::Sym, h::Sym)
+    c, t = g.kind == MUL && length(g.args) == 1 && _isone(g.exps[1]) ? (Sym(g.num), g.args[1]) : (ONE, g)
+    (t.kind == FN && t.name === :log && length(t.args) == 1) || return nothing
+    u = t.args[1]
+    (u.kind == FN && u.name in (:sin, :cos) && _eq(u.args[1], x)) || return nothing
+    iszero(l) || return nothing
+    _eq(h, PI / 2) && return -c * PI * log(Sym(2)) / 2
+    _eq(h, PI) && u.name === :sin && return -c * PI * log(Sym(2))
+    nothing
+end
+
 function _definite_fallback(g::Sym, x::Sym, l::Sym, h::Sym, antider, A, pv::Bool, depth::Int)
     line = _isinfpt(l) && _infsign(l) < 0 && _isinfpt(h) && _infsign(h) > 0
     half = iszero(l) && _isinfpt(h) && _infsign(h) > 0
@@ -1220,6 +1232,27 @@ function _definite_fallback(g::Sym, x::Sym, l::Sym, h::Sym, antider, A, pv::Bool
         if L isa Sym && !_hassymbol(L)
             _isinfpt(L) && !has(L, IM) && return L
             (L.kind == NUMBER && !iszero(L.num) && isreal(L.num)) && return L.num > N0 ? Sym(Inf) : Sym(-Inf)
+        end
+    end
+    # a finite interval [a, b]: x q(x) with q(a + b - x) = q(x) integrates to (a + b)/2 ∫ q
+    # (∫₀^π x sin x/(1 + cos² x) = π²/4; SymPy #16396); and the known ∫ log sin, log cos
+    # over [0, π/2] and [0, π] (-π log 2/2, -π log 2; SymPy #16084)
+    if !_isinfpt(l) && !_isinfpt(h) && !_hassymbol(l) && !_hassymbol(h) && depth >= 1
+        v = _definite_known_logtrig(g, x, l, h)
+        v === nothing || return v
+        if g.kind == MUL && any(i -> _eq(g.args[i], x) && _isone(g.exps[i]), eachindex(g.args))
+            q = g / x
+            s = expand(l + h)
+            sym = has(q, x) && (try iszero(simplify(subs(q, x => s - x) - q)) catch err; err isa InterruptException && rethrow(); false end)
+            if sym
+                w = try
+                    _definite(q, x, l, h, antider, A, pv)
+                catch err
+                    err isa InterruptException && rethrow()
+                    _definite_fallback(q, x, l, h, antider, A, pv, depth - 1)
+                end
+                w isa Sym && return simplify(s / 2 * w)
+            end
         end
     end
     # over (-∞, ∞): ∫₀^∞ (f(x) + f(-x)) dx when that sum is simpler (e^(-x²)/(1 + eˣ) has
@@ -1309,7 +1342,9 @@ function _gamma_moment(g::Sym, x::Sym, A)
     (q.kind == NUMBER && q.num > N0) || return nothing
     _decide(Relation(:gt, a, ZERO), A) || return nothing
     pv = _decide(Relation(:gt, p + 1, ZERO), A)
-    pv === true || return nothing
+    # p ≤ -1: the integral diverges at 0; that case says so (an ArgumentError, a case's
+    # value) rather than the whole failing with no elementary antiderivative (SymPy #15432)
+    pv === true || throw(ArgumentError("integrate: the integral does not converge at 0 for $p ≤ -1"))
     s = Sym(Symbol("_gm_s"))
     F = apply_function(:gamma, Sym[s / q]) / (q * a^(s / q))
     for _ in 1:k

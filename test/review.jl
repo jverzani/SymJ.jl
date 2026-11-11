@@ -846,7 +846,7 @@ end
     @test simplify((sqrt(Sym(2)) - 1)^300) == (sqrt(Sym(2)) - 1)^300
     @test simplify(sqrt((3 + sqrt(Sym(5))) / 2) - (1 + sqrt(Sym(5))) / 2) == 0
     @test inv(Sym[sqrt(Sym(2)) exp(-Sym(400)); 0 1])[1, 2] == -sqrt(Sym(2)) / (2exp(Sym(400)))
-    @test SymJ._hasfn(imag((1 - exp(-Sym(40)))^IM), :imag)
+    @test N(imag((1 - exp(-Sym(40)))^IM)) ≈ sin(log1p(-exp(-40.0))) rtol = 1e-10   # ≈ -4.2e-18, not 0
     # the generic quartic at a degenerate point: q = 0 is a case (#17563)
     r = solve(c4 * x^4 + c3 * x^3 + c2 * x^2 + c1 * x + c0 ~ 0, x)
     s = r(c4 => 1 // 2, c3 => 0, c2 => 1, c1 => 0, c0 => -1)
@@ -1019,5 +1019,42 @@ end
     Mc = Sym[1 cos(x/4+y/4) cos(x/4+z/4) cos(y/4+z/4); cos(x/4+y/4) 1 cos(y/4-z/4) cos(x/4-z/4);
              cos(x/4+z/4) cos(y/4-z/4) 1 cos(x/4-y/4); cos(y/4+z/4) cos(x/4-z/4) cos(x/4-y/4) 1]
     @test_throws ArgumentError LA.eigen(Mc)
+end
+
+@testset "missing cases (SymPy review, round 11)" begin
+    @syms x y z n a F t c
+    IM, PI = SymJ.IM, SymJ.PI
+    SF = SymJ.SpecialFunctionsSupport.SF
+    # log of a power of |u|; mod of integer coefficients (#15854, #15493)
+    @test simplify(log(abs(x)^2) / log(abs(x))) == 2
+    @test refine(mod(3n, 2); assume = (n ∈ ℤ,)) == mod(n, 2)
+    # Hurwitz ζ and ψ at half-integers (round-11 review)
+    @test SF.zeta(Sym(2), Sym(1) // 2) == PI^2 / 2
+    @test SF.zeta(Sym(2), Sym(3) // 2) == PI^2 / 2 - 4
+    @test N(SF.digamma(Sym(1) // 2)) ≈ -0.5772156649015329 - 2log(2)
+    # √ of a negative constant sum: i √(-u)
+    @test sqrt(-sqrt(Sym(3)) - 2) == IM * sqrt(sqrt(Sym(3)) + 2)
+    # dsolve's constants avoid function names (#15056)
+    C1 = SymFunction(:C1)
+    @test SymJ.dsolve(diff(C1(t), t) ~ c * C1(t), C1(t)) == (C1(t) ~ Sym(:C2) * exp(c * t))
+    # |u| = 0 over ℂ; a power equal to 1; a base with parameters (#15731)
+    @test solve(abs(x - 2) ~ 0, x) == [2]
+    @test solve((x^2 - 7x + 11)^(x^2 - 13x + 42) ~ 1, x) == [2, 3, 4, 5, 6, 7]
+    @test solve(x^x ~ 1, x) == [1]
+    @test solve(y^x ~ z, x) isa SymJ.Cases
+    # angle with a positive real part (#15945)
+    @test refine(angle(a + IM * F); assume = (a ≫ 0, F ∈ ℝ)) == atan(F / a)
+    # constants inside function arguments simplified (#15129)
+    @test simplify(acos(cos(Sym(1) // 50) * cos(Sym(1) // 25) + sin(Sym(1) // 50) * sin(Sym(1) // 25))) == Sym(1) // 50
+    # rational powers of integers merged by primes (#15669)
+    @test simplify(Sym(2)^(Sym(4) // 5) * Sym(4)^(Sym(3) // 5)) == 4
+    # parts of constant complex powers (#16348)
+    @test real(IM^IM) == exp(-PI / 2)
+    @test imag(sqrt(IM)) == sqrt(Sym(2)) / 2
+    # conjugate roots of unity paired (#15594)
+    u = SymFunction(:u)
+    @test SymJ.dsolve(diff(u(x), x, 5) - u(x) ~ 0, u(x)) isa Relation
+    # gather inside denominators (#15394)
+    @test SymJ.gather(1 + 1 / (x * y + x), x) == 1 + 1 / (x * (y + 1))
 end
 

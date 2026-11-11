@@ -1127,6 +1127,12 @@ function gather(ex, xs::AbstractVector)
     for t in _terms(e)
         m = _monomial(t, vs)
         if m === nothing
+            # a quotient with x in its denominator: numerator and denominator gathered
+            # (1/(xy + x) as 1/((y + 1)x); SymPy #15394)
+            n, d = numer_denom(t)
+            if d.kind == ADD && any(v -> has(d, v), vs)
+                t = gather(n, vs) / gather(d, vs)
+            end
             rest += t
             continue
         end

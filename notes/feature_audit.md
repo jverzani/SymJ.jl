@@ -312,6 +312,25 @@ transforms). Of the rest, in rough order of value for calculus-level use:
      frac, noncommutative symbols, modular and discrete-log equations, PDEs, CRootOf,
      function_range/continuous_domain, change of variables in derivatives (dsubs).
 
+14. **Gaps from the eleventh SymPy review (#14909–#16408)**:
+   - dsolve: f′² = g(f) not split into f′ = ±√g (and f′ = f^(3/2)'s 4/(C - x)² is
+     rejected by the numeric check on the branch where it fails; #15889); Abel ODEs
+     (#16387); conditions at a singular point of the general solution are refused rather
+     than taken as limits (Legendre, f(±1); #15113).
+   - solve: mixed polynomial–trigonometric equations (x = sin x, even over ℝ; #15989).
+   - simplify: the atan half-angle identity atan(√((1 - D)/(1 + D))) = acos(D)/2 (#15940).
+   - gcd and cancel over ℚ(i) and the Gaussian integers (#15358); matrix functions with
+     irreducible cubic eigenvalues (#15362).
+   - Σ_{n≥2} xⁿ/n stays unevaluated (the n ≥ 1 sum is −log(1 − x)); Lerch Φ in general.
+   - nullspace through exp(iu) (#15585) gives its vectors in exponential, not trig, form;
+     symbolic eigenvectors with eigenvalues past 3000 nodes are refused (#15076).
+   - numeric roots are Float64: a root below 1e-308 (x⁵ − 10⁴⁰⁰x + 1) prints as 0.0.
+   - RischIntegrate and GruntzLimit items handed off (round11/prompts).
+   - From the first pass: nonlinear and variable-coefficient ODE systems, sympy.vector
+     coordinate systems, number theory (discrete log, divisor functions, diophantine),
+     Legendre functions, finite-field factoring, differentiating with respect to a
+     function, Boolean logic, ConditionSet, nsolve from a point, matrix symbols.
+
 Done since the first audit: trigonometric and logarithmic expansion, gamma and combinatorial simplification, LaTeX output (a Latexify extension), resultants and Gröbner
 bases (polynomial systems are solved), real and imaginary parts and `conj`, and
 simplification under assumptions (`refine`, `simplify`).

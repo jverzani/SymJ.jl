@@ -1103,6 +1103,8 @@ function _invert(g::Sym, r::Sym, x::Sym)
                 _decide(Relation(:ge, r, ZERO), A) || return Tuple{Sym,Sym}[]
                 return [(abs(b), r^inv(q))]
             end
+            # |t| = 0 only at t = 0, in ℂ too (round-11 review); |t| = r > 0 is a curve
+            iszero(r) && return [(t, ZERO)]
             throw(ArgumentError("solve: cannot invert abs($t) for $x: in the complex numbers |$t| = $r is a curve; assume $x ∈ ℝ"))
         end
         # sign(t) = 0 exactly where t = 0; another value is a set of t (an inequality)
@@ -1143,6 +1145,25 @@ function _invert(g::Sym, r::Sym, x::Sym)
     elseif k == POW
         b, e = g.args
         if !has(b, x)                                       # b^t = r: t = log(r)/log(b)
+            # a base with parameters: b = 1 and b = 0 are cases (1^t = r and 0^t = r hold
+            # for every t or none, not at log(r)/log(b); round-11 review)
+            A = _SOLVE_ASSUME[]
+            if iszero(b)                                    # 0^t = r
+                (iszero(r) || (A !== nothing && _decide(Relation(:eq, r, ZERO), A))) &&
+                    throw(ArgumentError("solve: 0^$e = 0 holds wherever the real part of $e is positive, not at points"))
+                return Tuple{Sym,Sym}[]
+            end
+            if A !== nothing && _hassymbol(b)
+                if _decide(Relation(:eq, b, ONE), A)
+                    _decide(Relation(:eq, r, ONE), A) && throw(_identity_error(x, g ~ r))
+                    return Tuple{Sym,Sym}[]
+                end
+                if _decide(Relation(:eq, b, ZERO), A)
+                    _decide(Relation(:eq, r, ZERO), A) &&
+                        throw(ArgumentError("solve: 0^$e = 0 holds wherever the real part of $e is positive, not at points"))
+                    return Tuple{Sym,Sym}[]
+                end
+            end
             iszero(r) && return Tuple{Sym,Sym}[]
             # a negative base and a real t: b^t is real only at integers, where |b|^t = |r|
             # and the parity gives r's sign ((-2)^x = -8 at x = 3; log(-8)/log(-2) is not
@@ -1168,6 +1189,22 @@ function _invert(g::Sym, r::Sym, x::Sym)
             return [(e, log(r) / log(b))]
         elseif iszero(r) && has(e, x)                       # b^e = 0: b = 0 (where e > 0,
             return [(b, ZERO)]                              # as the roots are checked; SymPy #20205)
+        elseif isone(r) && has(e, x)
+            # b^e = 1 with x in both: b = 1, e = 0, or b = -1 at an even e (the roots are
+            # checked in the equation; (x² - 7x + 11)^(x² - 13x + 42) = 1; SymPy #15731)
+            out = Tuple{Sym,Sym}[]
+            add!(v) = any(o -> iszero(expand(o[2] - v)), out) || push!(out, (x, v))
+            ok(f) = r -> try f(r) catch err; err isa InterruptException && rethrow(); false end
+            for v in _solve_generic(b ~ 1, x)
+                add!(v)
+            end
+            for v in _solve_generic(e ~ 0, x)                # (not where b = 0: 0^0)
+                ok(r -> !iszero(simplify(subs(b, x => r))))(v) && add!(v)
+            end
+            for v in _solve_generic(b ~ -1, x)               # e an even integer there
+                ok(r -> (w = simplify(subs(e, x => r)); w.kind == NUMBER && _isint(w.num) && iseven(_toint(w.num))))(v) && add!(v)
+            end
+            return out
         elseif !has(e, x) && e.kind == NUMBER && isexact(e.num)   # t^(p/q) = r
             return [(b, r^inv(e))]
         elseif !has(e, x)                                   # t^1.11 = r, t^a = r: the principal root
