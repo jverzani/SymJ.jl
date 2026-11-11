@@ -665,11 +665,10 @@ import PolyLog as PL
     end
 
     @testset "Borwein integrals: a large antiderivative only refined" begin
-        # (RischIntegrate's step TX, from its #130, gives the antiderivatives; before it,
-        # these are NotElementary and the tests are skipped)
+        # (RischIntegrate's step TX, from its #130, gives the antiderivatives quickly;
+        # before it, k = 7 runs for an hour, so the tests are skipped)
         Bs(k) = prod(sin(x / i) / (x / i) for i in 1:2:(2k - 1))
-        tx = try RischIntegrate.integrate(Bs(3), x) isa Sym catch; false end
-        if tx
+        if isdefined(RischIntegrate, :integrate_trig_products)
             @test RischIntegrate.integrate(Bs(7), (x, 0, Inf)) == PI / 2
             @test RischIntegrate.integrate(Bs(8), (x, 0, Inf)) ==
                   Sym(467807924713440738696537864469 // 935615849440640907310521750000) * PI
