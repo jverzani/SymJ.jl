@@ -252,6 +252,13 @@ end
 _ode_constants(n::Int, eq::Relation) = _ode_constants(n, [eq])
 function _ode_constants(n::Int, eqs::AbstractVector)
     used = Set(s.name for eq in eqs for s in free_symbols(lhs(eq) - rhs(eq)))
+    # and the names of functions (an unknown C1(t) and a constant C1; SymPy #15056)
+    for eq in eqs
+        _replace_walk(lhs(eq) - rhs(eq)) do t
+            t.kind == FN && push!(used, t.name)
+            nothing
+        end
+    end
     out = Sym[]
     i = 1
     while length(out) < n
@@ -605,7 +612,11 @@ function _ode_basis(a::Vector{Sym}, x::Sym)
             # a conjugate pair, once
             β = _ode_tidy(abs(im_))
             A === nothing || (β = refine(β; assume = A))
-            any(p -> _eq(p[1], re) && _eq(p[2], β), pairs) && continue
+            # (constants compared by value: cos(8π/5) ± i sin(8π/5) is the pair of 2π/5; the
+            # forms differ; SymPy #15594)
+            same(u, v) = _eq(u, v) || (!_hassymbol(u) && !_hassymbol(v) &&
+                                        (try isapprox(N(u), N(v); atol = 1e-12) catch; false end))
+            any(p -> same(p[1], re) && same(p[2], β), pairs) && continue
             push!(done, ρ, conj(ρ))
             push!(pairs, (re, β))
             for j in 0:(m - 1)

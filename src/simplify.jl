@@ -178,6 +178,29 @@ function _refine_rule(e::Sym, A::Assumptions)
     end
     k == FN && e.name === :atan2 && return _refine_atan2(e.args[1], e.args[2], A)
     k == FN && e.name === :And && return _refine_and(e, A)
+    # angle(u) with Re u > 0: atan(Im u/Re u) (angle(a + iF) for a > 0, F real; SymPy
+    # #15945)
+    if k == FN && e.name === :angle && length(e.args) == 1 && _hassymbol(e.args[1])
+        u = e.args[1]
+        re, im_ = _refine(real(u), A), _refine(imag(u), A)
+        if !_has_fn(re, (:real, :imag)) && !_has_fn(im_, (:real, :imag)) && _ispos(re, A)
+            return atan(cancel(im_ / re))
+        end
+    end
+    # mod(Σ cᵢ tᵢ + c₀, m) for integers m > 0, cᵢ and integer-valued tᵢ: the cᵢ, c₀ mod m
+    # (mod(3n, 2) = mod(n, 2) for integer n; SymPy #15493)
+    if k == FN && e.name === :mod && length(e.args) == 2
+        u, m = e.args
+        if m.kind == NUMBER && _isint(m.num) && m.num > N0 && _hassymbol(u)
+            terms = u.kind == ADD ? collect(zip(u.coefs, u.args)) : u.kind == MUL ? [(u.num, u / Sym(u.num))] : [(N1, u)]
+            c0 = u.kind == ADD ? u.num : N0
+            if isexact(c0) && _isint(c0) && all(((c, t),) -> isexact(c) && _isint(c) && _isinteger(t, A) === true, terms)
+                M = _toint(m.num)
+                v = Sym(mod(_toint(c0), M)) + _add_many(Sym(mod(_toint(c), M)) * t for (c, t) in terms)
+                _eq(v, u) || return apply_function(:mod, Sym[v, m])
+            end
+        end
+    end
     # max and min without the arguments the assumptions show dominated (max(x, 0) = x
     # for x > 0; SymPy #16926)
     if k == FN && e.name in (:max, :min) && length(e.args) >= 2
@@ -683,6 +706,9 @@ end
 function _simplify(e::Sym, A::Assumptions)
     e = _exact_int_exponents(e)
     if !_hassymbol(e) && e.kind != NUMBER
+        # function arguments first, as for expressions with symbols: acos(cos a cos b +
+        # sin a sin b) has cos(a - b) inside (SymPy #15129)
+        e = _map_fn_args(a -> _simplify(a, A), e)
         # a constant in radicals that is 0 though no form cancels (it numerically 0 at 512
         # bits; SymPy #20427)
         w = try _evalc(e) catch; nothing end
@@ -798,6 +824,10 @@ function _simplify(e::Sym, A::Assumptions)
     # the integer content of a product's sum factors in its coefficient: -√2(2μ - 2x)/4 is
     # √2(x - μ)/2 (SymPy #17233)
     e.kind == MUL && any(b -> b.kind == ADD, e.args) && consider(_sum_contents_out)
+    # rational powers of integers in a product merged by their primes: 2^(4/5) 4^(3/5) is
+    # 2^(4/5 + 6/5) = 4 (SymPy #15669)
+    _has_node(e, t -> t.kind == MUL && count(i -> _int_rational_power(t.args[i], t.exps[i]), eachindex(t.args)) >= 2) &&
+        consider(_merge_prime_powers)
     # |a||b| = |ab| (|t/x||x| = |t|; SymPy #18840)
     _count_fn(e, :abs) >= 2 && consider(_merge_abs)
     # conj(u) = re u - i im u, beside real and imag parts (SymPy #18271)
@@ -1037,7 +1067,7 @@ function _simplify_const(e::Sym, A::Assumptions)
               (x; assume) -> simplify_hyperbolic(x), (x; assume) -> expand_trig(x),
               (x; assume) -> _unit_powers(x), (x; assume) -> cancel(simplify_radicals(x; assume)),
               (x; assume) -> simplify_log(cancel(_log_quotients(x)); assume),
-              (x; assume) -> _trig_unity_zero(x),
+              (x; assume) -> _trig_unity_zero(x), (x; assume) -> _merge_prime_powers(x),
               # inverse hyperbolic functions as logs, the logs combined (log(3/2) -
               # 2atanh(2) + 2atanh(3) is 0; SymPy #16730)
               (x; assume) -> _has_fn(x, (:atanh, :acoth, :asinh, :acosh)) ?
@@ -2246,6 +2276,40 @@ function _split_positive_radicals(e::Sym, A::Assumptions)
         end
         nothing
     end
+end
+
+_int_rational_power(b::Sym, q::Sym) = b.kind == NUMBER && isexact(b.num) && _isint(b.num) && b.num > N1 &&
+    q.kind == NUMBER && isexact(q.num) && !_isint(q.num)
+# the prime factors of n by trial division to 1000, or nothing when a larger one remains
+function _small_prime_factors(n::Integer)
+    out = Dict{Int,Int}()
+    m = BigInt(n)
+    for p in 2:1000
+        while iszero(mod(m, p))
+            out[p] = get(out, p, 0) + 1
+            m = div(m, p)
+        end
+        m == 1 && return out
+    end
+    nothing
+end
+_merge_prime_powers(e::Sym) = _replace_walk(e) do t
+    t.kind == MUL || return nothing
+    ix = [i for i in eachindex(t.args) if _int_rational_power(t.args[i], t.exps[i])]
+    length(ix) >= 2 || return nothing
+    acc = Dict{Int,SymNumber}()
+    for i in ix
+        f = _small_prime_factors(_toint(t.args[i].num))
+        f === nothing && return nothing
+        for (p, k) in f
+            acc[p] = get(acc, p, N0) + SymNumber(k) * t.exps[i].num
+        end
+    end
+    out = Sym(t.num)
+    for (p, q) in acc
+        out *= Sym(p)^Sym(q)
+    end
+    out * prod((t.args[i]^t.exps[i] for i in eachindex(t.args) if !(i in ix)); init = ONE)
 end
 
 function _sum_contents_out(e::Sym)

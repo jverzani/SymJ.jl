@@ -47,6 +47,17 @@ function _const_parts(e::Sym)
             p === nothing && return nothing
             return (exp(p[1]) * cos(p[2]), exp(p[1]) * sin(p[2]))
         end
+        # b^q, q not an integer, b negative or complex or q complex: exp(q log b) with log b
+        # in parts (i^i = e^(-π/2), √i = e^(iπ/4); SymPy #16348)
+        if !(q.kind == NUMBER && isexact(q.num) && isone(_denominator(q.num))) &&
+           (has(b, IM) || (b.kind == NUMBER && b.num < N0) || has(q, IM))
+            lb = log(b)
+            pl = _hasfn(lb, :log) && !_realconst(lb) ? nothing : _const_parts(lb)
+            if pl !== nothing
+                w = exp(expand(q * lb))
+                _eq(w, e) || return _const_parts(w)
+            end
+        end
         if q.kind == NUMBER && isexact(q.num) && isone(_denominator(q.num)) && q.num > N0 && q.num <= SymNumber(8)
             p = _const_parts(b)                             # small positive integer powers
             p === nothing && return nothing

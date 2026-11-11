@@ -380,6 +380,11 @@ register_function!(:log; julia = log,
             if a.kind == POW && a.args[1] === E && a.args[2].kind == NUMBER
                 return a.args[2]                 # log(e^r) == r for real r
             end
+            # log(|u|^q) = q log|u| for a real number q: |u| ≥ 0 (log(|x|²)/log|x| is 2;
+            # SymPy #15854)
+            if a.kind == POW && _isfn1(a.args[1], :abs) && a.args[2].kind == NUMBER && isreal(a.args[2].num)
+                return a.args[2] * log(a.args[1])
+            end
             # log(e^z), z a constant: z with its imaginary part moved into (-π, π] by a
             # multiple of 2π (log(e^(iπ/3)) = iπ/3; SymPy #17208)
             if a.kind == POW && a.args[1] === E && !_hassymbol(a.args[2])

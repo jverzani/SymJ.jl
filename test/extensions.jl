@@ -655,6 +655,15 @@ import PolyLog as PL
         @test N(subs(subs(r[1].rhs, vals...), t => 0)) ≈ 1
     end
 
+    @testset "missing cases (SymPy review, round 11)" begin
+        @syms n
+        # x q(x) with q symmetric about the middle; log sin over [0, π/2] (#16396, #16084)
+        @test RischIntegrate.integrate(x * sin(x) / (1 + cos(x)^2), (x, 0, PI)) == PI^2 / 4
+        @test N(RischIntegrate.integrate(log(sin(x)), (x, 0, PI / 2))) ≈ -pi * log(2) / 2
+        # xⁿ e^(-x) log x with no assumption: Cases, divergence in its own case (#15432)
+        @test RischIntegrate.integrate(x^n * exp(-x) * log(x), (x, 0, Inf)) isa SymJ.Cases
+    end
+
     @testset "asymptotic series at ±∞: exponential and oscillating factors" begin
         @syms y
         S(f, x0, n) = Sym(series(f, x, x0, n))

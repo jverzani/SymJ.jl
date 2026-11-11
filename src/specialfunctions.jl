@@ -62,11 +62,42 @@ end
 # Γ, ψ and ψ⁽ᵐ⁾ have poles at 0, -1, -2, …: an error, as tan(π/2) is (SymPy #23156)
 _gamma_pole(name, a) = throw(SymJ.DivisionByZero("$name($a): a pole"))
 _nonpos_int(a::Sym) = isint(a) && a.num <= SymNumber(0)
-digamma_value(args) = (length(args) == 1 && _nonpos_int(args[1]) && _gamma_pole(:digamma, args[1]); nothing)
+# ψ at integers and half-integers through ψ(1) (= -γ, SymJ's form of Euler's constant):
+# ψ(k) = ψ(1) + H(k - 1), ψ(k + 1/2) = ψ(1) - 2log 2 + Σ_{j<k} 1/(j + 1/2) (round-11 review)
+function digamma_value(args)
+    length(args) == 1 || return nothing
+    a = args[1]
+    _nonpos_int(a) && _gamma_pole(:digamma, a)
+    (a.kind == NUMBER && SymJ.isexact(a.num) && a.num > SymNumber(0)) || return nothing
+    q = SymJ._rat(a.num)
+    ψ1 = SymJ._mkfn_node(:digamma, Sym[SymJ.ONE])
+    if denominator(q) == 1 && 2 <= q <= 50
+        return ψ1 + sum(Sym(1 // j) for j in 1:(Int(q) - 1))
+    elseif denominator(q) == 2 && q <= 50
+        k = Int(q - 1 // 2)
+        return ψ1 - 2log(Sym(2)) + sum((Sym(1 // 1) / (Sym(j) + Sym(1 // 2)) for j in 0:(k - 1)); init = Sym(0))
+    end
+    nothing
+end
 
 # ζ(2n) = (-1)^(n+1) B_2n (2π)^2n / (2 (2n)!), for a few n
 const ZETA_EVEN = Dict(2 => PI^2 / 6, 4 => PI^4 / 90, 6 => PI^6 / 945, 8 => PI^8 / 9450)
 function zeta_value(args)
+    # the Hurwitz ζ(s, a), s ≥ 2 an integer, at a positive integer or half-integer a:
+    # ζ(s, 1/2) = (2ˢ - 1) ζ(s), ζ(s, a + 1) = ζ(s, a) - a⁻ˢ (ζ(2, 1/2) = π²/2; round-11 review)
+    if length(args) == 2
+        s_, a = args
+        (isint(s_) && s_.num >= SymNumber(2) && a.kind == NUMBER && SymJ.isexact(a.num) && a.num > SymNumber(0)) || return nothing
+        n, q = _toint(s_.num), SymJ._rat(a.num)
+        q <= 50 || return nothing
+        z = SymJ.apply_function(:zeta, Sym[s_])
+        if denominator(q) == 1
+            return z - sum((Sym(1 // j)^n for j in 1:(Int(q) - 1)); init = Sym(0))
+        elseif denominator(q) == 2
+            return (Sym(2)^n - 1) * z - sum((Sym(2 // (2j + 1))^n for j in 0:(Int(q - 1 // 2) - 1)); init = Sym(0))
+        end
+        return nothing
+    end
     length(args) == 1 && isint(args[1]) || return nothing
     n = _toint(args[1].num)
     # ζ(-n) = -B_(n+1)/(n + 1) for n ≥ 1: 0 for even n
