@@ -257,6 +257,9 @@ function piecewise(ex::Sym)
     elseif e.name === :sign && length(e.args) == 1
         return piecewise(a ≪ 0 => -1, (a ~ 0) => 0, true => 1)
     elseif e.name === :abs && length(e.args) == 1
+        # |z| is ±z only for real z: an argument with an imaginary constant
+        # (|1 + exp(2πix)|) stays an abs unless it is real for real symbols
+        _abs_splits(a) || return e
         return piecewise(a ≪ 0 => -a, true => a)
     elseif e.name in (:max, :min) && length(e.args) == 2
         b = e.args[2]
@@ -265,6 +268,32 @@ function piecewise(ex::Sym)
     e
 end
 piecewise(x::Number) = Sym(x)
+
+# abs(a) splits as ±a: a real for real symbols, or with no non-real constant in it (log(x)
+# is real where it is defined)
+function _abs_splits(a::Sym)
+    _has_nonreal_const(a) || return true
+    A = Assumptions()
+    for s in free_symbols(a)
+        A = _with_fact(A, s ∈ ℝ)
+        A === nothing && return false
+    end
+    _isreal(a, A) === true
+end
+# (i is the factor (-1)^(1/2) of a product)
+function _has_nonreal_const(a::Sym)
+    _hassymbol(a) || return _isreal_const(a) === false
+    (any(c -> !isreal(c), a.coefs) || !isreal(a.num)) && return true
+    a.kind == MUL || return any(_has_nonreal_const, a.args)
+    for (b, q) in zip(a.args, a.exps)
+        if _hassymbol(b) || _hassymbol(q)
+            (_has_nonreal_const(b) || _has_nonreal_const(q)) && return true
+        elseif _isreal_const(b^q) === false
+            return true
+        end
+    end
+    false
+end
 
 function piecewise(cs::Cases)
     ps = Pair[]

@@ -365,6 +365,8 @@ function _definite(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A::Assumptions, pv
     v === nothing || return v
     v = _definite_param_pieces(f, x, lo, hi, antider, A, pv)
     v === nothing || return v
+    v = _definite_whole_periods(f, x, lo, hi, antider, A, pv)
+    v === nothing || return v
     # over (-a, a), finite: the odd terms, continuous there, integrate to 0 (x³cos(x/2)
     # √(4 - x²), which has no elementary antiderivative; SymPy #23246)
     if !_isinfpt(lo) && !_isinfpt(hi) && iszero(expand(lo + hi)) && !_eq(lo, hi)
@@ -1010,6 +1012,42 @@ function _trig_args!(ks, e::Sym, x::Sym)
     all(a -> _trig_args!(ks, a, x), e.args) && (e.kind != MUL || all(q -> _trig_args!(ks, q, x), e.exps))
 end
 
+# f(x) = h(kx + c), with the parameters only in c and h periodic, over a whole number n of
+# its periods (k(hi - lo) = nP): (n/k) ∫₀ᴾ h, whatever c is (∫₀¹ |cos(π(x - y))| dx = 2/π
+# for every real y). nothing otherwise.
+function _definite_whole_periods(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A, pv::Bool, refined::Bool = false)
+    (_isinfpt(lo) || _isinfpt(hi) || _hassymbol(lo) || _hassymbol(hi)) && return nothing
+    # (|exp(2πix) + exp(2πiy)| in its real form √2 √(cos(2π(x - y)) + 1), the parameters real)
+    if !refined && _has_fn(f, (:abs, :real, :imag, :conj))
+        Ax = _with_fact(A, x ∈ ℝ)
+        fr = Ax === nothing ? f : _refine(f, Ax)
+        v = isequal(fr, f) ? nothing : _definite_whole_periods(fr, x, lo, hi, antider, A, pv, true)
+        v === nothing || return v
+    end
+    fs = setdiff(free_symbols(f), [x])
+    isempty(fs) && return nothing
+    args = _fn_args!(Sym[], f, x)
+    i = findfirst(args) do a
+        k = expand(diff(a, x))
+        !_hassymbol(k) && !iszero(k) && _hassymbol(expand(a - k * x))
+    end
+    i === nothing && return nothing
+    k = expand(diff(args[i], x))
+    c = expand(args[i] - k * x)
+    h = expand(subs(f, x => (x - c) / k))
+    any(v -> has(h, v), fs) && return nothing
+    P = _trig_period(h, x)
+    P === nothing && return nothing
+    # (a shorter period: |cos x| has π)
+    while iszero(expand(subs(h, x => x + P / 2) - h))
+        P = P / 2
+    end
+    n = cancel(k * (hi - lo) / P)
+    (n.kind == NUMBER && isinteger(n.num) && !iszero(n)) || return nothing
+    v = _definite(h, x, ZERO, P, antider, A, pv)
+    v isa Sym ? n / k * v : nothing
+end
+
 # a piecewise integrand (abs, sign, max, min, heaviside, piecewise) over numeric limits:
 # the sum over the intervals between the points inside where a condition changes, each
 # with its pieces fixed. A periodic condition (sin(2x) ≥ 0) changes in every period, and
@@ -1024,12 +1062,13 @@ function _definite_by_pieces(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A, pv::B
     a, b = minmax(a, b)
     # conditions of one sign on [a, b] by bounds (|3 + cos(3x)^5/2 - …| ≥ 1, #27283)
     g = _settle_conditions(g, x, a, b)
-    _haspieces(g, x) || return _definite(g, x, lo, hi, antider, A, pv)
+    _haspieces(g, x) || return isequal(g, f) ? nothing : _definite(g, x, lo, hi, antider, A, pv)
     cuts = _piece_cuts(g, x, a, b)
     cuts === nothing && return nothing
     if isempty(cuts)                         # the pieces are fixed on the interval
         gi = _pieces_at(g, x, Sym(SymNumber(rationalize(BigInt, (a + b) / 2; tol = (b - a) / 8))))
-        return gi === nothing ? nothing : _definite(gi, x, lo, hi, antider, A, pv)
+        # (the same integrand back would only come here again)
+        return gi === nothing || isequal(gi, f) ? nothing : _definite(gi, x, lo, hi, antider, A, pv)
     end
     pts = Sym[(N(lo) <= N(hi) ? lo : hi); cuts; (N(lo) <= N(hi) ? hi : lo)]
     terms = Tuple{Int,Sym}[]
@@ -1226,6 +1265,10 @@ function _definite_param_pieces(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A, pv
     piecewise(pieces...)
 end
 
+# whether e has a trigonometric function of x
+_trig_of(e::Sym, x::Sym) = (e.kind == FN && e.name in _TRIGFNS && has(e, x)) ||
+    any(a -> _trig_of(a, x), e.args) || (e.kind == MUL && any(p -> _trig_of(p, x), e.exps))
+
 # every breakpoint of g in x, numeric or with parameters; nothing when one can't be found
 function _all_breakpoints(e::Sym, x::Sym)
     out = Sym[]
@@ -1234,6 +1277,9 @@ function _all_breakpoints(e::Sym, x::Sym)
         ok[] || return
         if n.kind == FN && (haskey(_COND_RELS, n.name) || n.name === :heaviside) && has(n, x)
             u = haskey(_COND_RELS, n.name) ? n.args[1] - n.args[2] : n.args[1]
+            # a periodic condition (cos(π(x - y)) < 0) changes at infinitely many points,
+            # not the few a solver returns
+            _trig_of(u, x) && (ok[] = false; return)
             rs = try _solve_generic(u ~ 0, x) catch; (ok[] = false; return) end
             rs isa AbstractVector || (ok[] = false; return)
             for r in rs
