@@ -61,6 +61,20 @@ SymNumber(x::Rational) = _frombig(Rational{BigInt}(x))
 SymNumber(x::AbstractFloat) = SymNumber(T_FLOAT, 0, 1, Float64(x), nothing)
 # floats are Float64: a finite value beyond its range is an error, not a silent Inf or 0
 # (Sym(big"1.5e400"); SymPy #21860)
+# a float result of finite operands that left Float64's range (overflow to ±Inf, or a
+# nonzero product or power underflowing to 0): an error, as above, not a value that is
+# off by every digit (a Stirling ratio at n = 1000.0 was 0, ~30.5; SymPy #11004)
+@noinline _float_range_error(op) = throw(ArgumentError(
+    "a floating point $op is outside Float64's range, in which SymJ keeps floats; use exact numbers (rationals, big integers) or N with more digits"))
+@inline function _checked_float(r::Float64, op, xs::Float64...)
+    if !isfinite(r)
+        all(isfinite, xs) && !isnan(r) && _float_range_error(op)
+    elseif iszero(r)
+        all(x -> isfinite(x) && !iszero(x), xs) && _float_range_error(op)
+    end
+    r
+end
+
 function SymNumber(x::BigFloat)
     y = Float64(x)
     ((isfinite(x) && !isfinite(y)) || (!iszero(x) && iszero(y))) && throw(ArgumentError(
@@ -162,7 +176,8 @@ function Base.:*(a::SymNumber, b::SymNumber)
         r = _mul_small(a.n, a.d, b.n, b.d)
         r === nothing || return r
     elseif a.tag == T_FLOAT || b.tag == T_FLOAT
-        return SymNumber(Float64(a) * Float64(b))
+        x, y = Float64(a), Float64(b)
+        return SymNumber(_checked_float(x * y, "product", x, y))
     end
     _frombig(_rat(a) * _rat(b))
 end
@@ -201,7 +216,7 @@ Base.://(a::SymNumber, b::SymNumber) = a / b
 end
 
 function Base.:^(a::SymNumber, k::Integer)
-    a.tag == T_FLOAT && return SymNumber(a.f^k)
+    a.tag == T_FLOAT && return SymNumber(_checked_float(a.f^k, "power", a.f))
     k == 0 && return N1
     if k < 0
         iszero(a) && throw(DivisionByZero("division by zero"))

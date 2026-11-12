@@ -1190,6 +1190,8 @@ function _invert(g::Sym, r::Sym, x::Sym)
             if iszero(b)                                    # 0^t = r
                 (iszero(r) || (A !== nothing && _decide(Relation(:eq, r, ZERO), A))) &&
                     throw(ArgumentError("solve: 0^$e = 0 holds wherever the real part of $e is positive, not at points"))
+                # 0^0 = 1 (0^x = 1 at x = 0 only; it gave none; SymPy #11536)
+                (isone(r) || (A !== nothing && _hassymbol(r) && _decide(Relation(:eq, r, ONE), A))) && return [(e, ZERO)]
                 return Tuple{Sym,Sym}[]
             end
             if A !== nothing && _hassymbol(b)
@@ -1200,6 +1202,7 @@ function _invert(g::Sym, r::Sym, x::Sym)
                 if _decide(Relation(:eq, b, ZERO), A)
                     _decide(Relation(:eq, r, ZERO), A) &&
                         throw(ArgumentError("solve: 0^$e = 0 holds wherever the real part of $e is positive, not at points"))
+                    _decide(Relation(:eq, r, ONE), A) && return [(e, ZERO)]     # 0^0 = 1
                     return Tuple{Sym,Sym}[]
                 end
             end
@@ -1348,6 +1351,17 @@ end
 
 # does r satisfy eq? (exactly, or numerically for constants; kept when undecidable)
 function _satisfies(eq::Relation, x::Sym, r::Sym)
+    # |u| of a real parameter in the root (√(y²(4y² + 4)) is 2|y|√(y² + 1)): decided by
+    # cases on u's sign, so each case's check sees only its own parameters (both roots
+    # ±|y|/√(y² + 1) of x/√(1 - x²) = y held somewhere, each on one side; SymPy #11534)
+    A = _SOLVE_ASSUME[]
+    if A !== nothing && _hassymbol(r)
+        rr = try _refine(r, A) catch err; err isa ArgumentError || rethrow(); r end
+        for u in _abs_args(rr)
+            (_hassymbol(u) && !has(u, x) && _isreal(u, A) === true) || continue
+            _decide(Relation(:ge, u, ZERO), A)
+        end
+    end
     d = try
         subs(eq.lhs - eq.rhs, x => r)
     catch err
@@ -1384,6 +1398,16 @@ end
 const _SAMPLE_VALUES = (37 // 100, -61 // 100, 143 // 100, -189 // 100, 731 // 10000, 271 // 100,
                         -317 // 100, 83 // 100, 53 // 10, -29 // 100)
 
+# the arguments of abs in e
+function _abs_args(e::Sym)
+    out = Sym[]
+    _replace_walk(e) do t
+        t.kind == FN && t.name === :abs && length(t.args) == 1 && !any(o -> _eq(o, t.args[1]), out) && push!(out, t.args[1])
+        nothing
+    end
+    out
+end
+
 # u when d is c·u^p (c a nonzero number, p > 0) and u a polynomial in its symbols
 function _vanishing_base(d::Sym)
     e = d
@@ -1408,8 +1432,15 @@ end
 function _holds_somewhere(d::Sym, r::Sym)
     syms = collect(free_symbols(d))
     tried = false
+    # (samples in the sets the assumptions give the symbols: y > 0 assumed, a root valid
+    # only for y < 0 is spurious; SymPy #11534)
+    A = _SOLVE_ASSUME[]
+    pool(s) = (S = A === nothing ? nothing : get(A.sets, s, nothing);
+               S === nothing ? collect(_SAMPLE_VALUES) : [v for v in _SAMPLE_VALUES if (try Sym(v) in S catch; true end)])
+    pools = [pool(s) for s in syms]
+    any(isempty, pools) && return true
     for k in 1:8
-        vals = [s => Sym(_SAMPLE_VALUES[mod1(k + 3j, length(_SAMPLE_VALUES))]) for (j, s) in enumerate(syms)]
+        vals = [s => Sym(P[mod1(k + 3j, length(P))]) for (j, (s, P)) in enumerate(zip(syms, pools))]
         v, w = try
             N(subs(d, vals...)), N(subs(r, vals...))
         catch
@@ -1523,8 +1554,12 @@ function _cos_minpoly(N::Int)
 end
 
 const _CYCLOTOMIC = Dict{Int,Vector{Rational{BigInt}}}()
+# (a global cache: filled under a lock, reentrant for the recursion, so concurrent solves
+# do not corrupt it; SymPy #10449)
+const _CYCLOTOMIC_LOCK = ReentrantLock()
 # Φ_N's coefficients, low to high: (x^N - 1) / Π_{d | N, d < N} Φ_d
-function _cyclotomic(N::Int)
+_cyclotomic(N::Int) = lock(() -> _cyclotomic_locked(N), _CYCLOTOMIC_LOCK)
+function _cyclotomic_locked(N::Int)
     get!(_CYCLOTOMIC, N) do
         p = zeros(Rational{BigInt}, N + 1)
         p[1], p[end] = -1, 1

@@ -88,11 +88,25 @@ end
 
 # ζ(2n) = (-1)^(n+1) B_2n (2π)^2n / (2 (2n)!), for a few n
 const ZETA_EVEN = Dict(2 => PI^2 / 6, 4 => PI^4 / 90, 6 => PI^6 / 945, 8 => PI^8 / 9450)
+# numerically: Hurwitz's ζ(s, a) = Σ_{k≥0} (k + a)^(-s) for every a, through
+# ζ(s, a) = ζ(s, a + m) + Σ_{j<m} (a + j)^(-s); SpecialFunctions' zeta(s, a) for a < 0 sums
+# ((k + a)²)^(-s/2) instead (N(zeta(0, -3)) was 2.5, not 7/2; SymPy #10592)
+_zeta_num(s) = SF.zeta(s)
+function _zeta_num(s, a)
+    (a isa Real && a <= 0) || return SF.zeta(s, a)
+    # (an integer a: a pole of the term k = -a for Re s > 0; for s ≤ 0 that term is 0^(-s),
+    # 1 at s = 0, which SpecialFunctions leaves out: shifted to a ≥ 1)
+    isinteger(a) && !(s isa Real && s <= 0) && return SF.zeta(s, a)
+    m = isinteger(a) ? Int(-a) + 1 : ceil(Int, -a)
+    SF.zeta(s, a + m) + sum((a + j)^(-s) for j in 0:(m - 1))
+end
+
 function zeta_value(args)
     # the Hurwitz ζ(s, a), s ≥ 2 an integer, at a positive integer or half-integer a:
     # ζ(s, 1/2) = (2ˢ - 1) ζ(s), ζ(s, a + 1) = ζ(s, a) - a⁻ˢ (ζ(2, 1/2) = π²/2; round-11 review)
     if length(args) == 2
         s_, a = args
+        iszero(s_) && return Sym(1 // 2) - a                  # ζ(0, a) = 1/2 - a
         # a negative half-integer through ζ(s, a) = ζ(s, a + 1) + a⁻ˢ (SymPy #12753)
         if isint(s_) && s_.num >= SymNumber(2) && a.kind == NUMBER && SymJ.isexact(a.num) && a.num < SymNumber(0) &&
            denominator(SymJ._rat(a.num)) == 2 && a.num >= SymNumber(-50)
@@ -165,7 +179,7 @@ function __init__()
     reg(:logbeta; diff = (args, i) -> SF.digamma(args[i]) - SF.digamma(args[1] + args[2]))
     reg(:logfactorial; eval = _unary(a -> isint(a) && a.num >= SymNumber(0) ? log(Sym(factorial(big(_toint(a.num))))) : nothing),
         diff = d1(a -> SF.digamma(a + 1)))
-    reg(:zeta; eval = zeta_value,
+    register_function!(:zeta; julia = _zeta_num, eval = zeta_value,
         diff = (args, i) -> length(args) == 2 && i == 2 ? -args[1] * SF.zeta(args[1] + 1, args[2]) : nothing)
     reg(:eta)
 
