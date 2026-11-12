@@ -294,7 +294,15 @@ function _build(flat::Vector{Any})
     # the others, substituted; ≠ last, once it is known which symbols are real
     nes = Any[]
     for f in rels
-        g = _subsfact(f, sub)
+        # a fact undefined at the values given (L0 < F3/w with w = 0: a definite integral's
+        # case on a singular point that is no point there) says nothing: dropped
+        # (DivisionByZero; SymPy #11992, #12568, #12249)
+        g = try
+            _subsfact(f, sub)
+        catch err
+            _isdivzero(err) || rethrow()
+            continue
+        end
         if g isa Relation && g.op === :ne
             push!(nes, g)
         else

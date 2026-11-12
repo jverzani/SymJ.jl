@@ -1241,6 +1241,43 @@ function LinearAlgebra.qr(A::AbstractMatrix{Sym})
     SymQR(Q, R)
 end
 
+## Cholesky
+
+"""
+    cholesky(A::AbstractMatrix{Sym})
+
+The Cholesky factorization `A = Uᴴ U` of a Hermitian positive definite matrix of
+expressions, with exact arithmetic: `U` upper triangular with the square roots of the
+pivots on its diagonal. Symbols are taken to be real, as in [`qr`](@ref
+LinearAlgebra.qr). A pivot that is known not to be positive throws a `PosDefException`.
+Returns a `LinearAlgebra.Cholesky` (`F.U`, `F.L`).
+
+```julia
+cholesky(Sym[4 2; 2 3]).U        # [2 1; 0 sqrt(2)]
+```
+"""
+function LinearAlgebra.cholesky(A::AbstractMatrix{Sym})
+    n = LinearAlgebra.checksquare(A)
+    H = Sym[Sym(a) for a in A]
+    for i in 1:n, j in (i + 1):n
+        iszero(_qrnorm(H[i, j] - (_has_im(H[j, i]) ? conj(H[j, i]) : H[j, i]))) ||
+            throw(ArgumentError("cholesky: the matrix is not Hermitian (entries $i,$j and $j,$i)"))
+    end
+    U = zeros(Sym, n, n)
+    for j in 1:n
+        p = _qrnorm(H[j, j] - _dot(U[1:(j - 1), j], U[1:(j - 1), j]))
+        (iszero(p) || _decide_const(p ≦ 0)) && throw(LinearAlgebra.PosDefException(j))
+        d = simplify(sqrt(p))
+        U[j, j] = d
+        for i in (j + 1):n
+            U[j, i] = _qrnorm((H[j, i] - _dot(U[1:(j - 1), j], U[1:(j - 1), i])) / d)
+        end
+    end
+    LinearAlgebra.Cholesky(U, 'U', 0)
+end
+# a constant relation known to hold (a pivot -1 ≤ 0); false when not known
+_decide_const(r::Relation) = !_hassymbol(r.lhs - r.rhs) && (v = try _decide(r, Assumptions()) catch; false end; v === true)
+
 ## SVD
 
 # Aᴴ: the transpose, entries with i conjugated (symbols taken to be real, as in _dot)

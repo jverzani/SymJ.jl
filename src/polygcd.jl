@@ -76,6 +76,8 @@ function _gcd(a::Poly{C}, b::Poly{C}) where {C}
     a, b = _unify(a, b)
     iszero(a) && return _positive(b)
     iszero(b) && return _positive(a)
+    q = _gcd_constant_quick(a, b)
+    q === nothing || return q
     i = _mainvar(a, b)
     if i == 0
         g = gcd(_numerator(a.coefs[1]), _numerator(b.coefs[1]))
@@ -98,6 +100,38 @@ function _gcd(a::Poly{C}, b::Poly{C}) where {C}
         pa, pb = pb, _primpart_in(r, i)
     end
     _positive(c * _primpart_in(pb, i))
+end
+
+# a gcd known to be a constant without the PRS: when a has a generator v that b lacks
+# and a coefficient of a in v is a number, the gcd (free of v) divides that number, so it
+# is the gcd of all the coefficients (gcd(Q, B - w), w only in the second: the dense
+# recursive PRS over the other generators took minutes; SymPy #13126). nothing otherwise.
+function _gcd_constant_quick(a::Poly{C}, b::Poly{C}) where {C}
+    n = length(a.gens)
+    used(p) = reduce(|, p.monos; init = zero(eltype(p.monos)))
+    ua, ub = used(a), used(b)
+    for (p, up, uo) in ((a, ua, ub), (b, ub, ua))
+        for v in 1:n
+            sh, fm = _shift(p.layout, n, v), _fieldmask(p.layout, v)
+            ((up >> sh) & fm != 0 && (uo >> sh) & fm == 0) || continue
+            # the monomials of p by their power of v: one alone, and that a pure power?
+            cnt = Dict{Int,Int}()
+            pure = Dict{Int,Bool}()
+            for m in p.monos
+                e = Int((m >> sh) & fm)
+                cnt[e] = get(cnt, e, 0) + 1
+                pure[e] = (m & ~(eltype(p.monos)(fm) << sh)) == 0
+            end
+            any(e -> cnt[e] == 1 && pure[e], keys(cnt)) || continue
+            g = big(0)
+            for c in Iterators.flatten((a.coefs, b.coefs))
+                g = gcd(g, big(_numerator(c)))
+                isone(g) && break
+            end
+            return _constpoly(C, a.gens, a.layout, SymNumber(g), _monotype(a))
+        end
+    end
+    nothing
 end
 
 function _integer_scaled(p::Poly{SymNumber})

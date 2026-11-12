@@ -143,8 +143,16 @@ function _decide(f, A::Assumptions)
     throw(_NeedDecision(f))
 end
 
-# true, false or nothing
-function _holds(f, A::Assumptions)
+# true, false or nothing (nothing too for a fact undefined at the values given, F3/w at
+# w = 0, a definite integral's case on a singular point that is no point there; SymPy
+# #11992, #12568, #12249)
+_holds(f, A::Assumptions) = try
+    _holds_(f, A)
+catch err
+    _isdivzero(err) || rethrow()
+    nothing
+end
+function _holds_(f, A::Assumptions)
     if f isa Membership
         q = f.set.rank == _ZR ? _isinteger(f.x, A) : f.set.rank == _RR ? _isreal(f.x, A) :
             f.set.rank == _CR ? true : _isrational(f.x, A)

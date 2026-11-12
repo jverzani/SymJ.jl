@@ -511,6 +511,20 @@ function _backsub(G::Vector{Sym}, vars::Vector{Sym}, k::Int, sol::Dict{Sym,Sym},
     k == 0 && return [sol]
     x = vars[k]
     pairs = [v => sol[v] for v in vars[(k+1):end] if haskey(sol, v)]
+    # an element c x + c0 with c a nonzero number: x = -c0/c at once, c0 substituted
+    # unexpanded; the only x there is (expanding powers of a nested quartic root, then
+    # cancelling radicals to solve, ran for minutes; SymPy #12345)
+    for g in G
+        _mainvar(g, vars) == k || continue
+        P = try Poly{Sym}(g, [x]) catch; continue end
+        degree(P, x) == 1 || continue
+        c = coeff(g, x, 1)
+        (c.kind == NUMBER && !iszero(c.num)) || continue
+        s = copy(sol)
+        c0 = expand(g - c * x)
+        s[x] = isempty(pairs) ? -c0 / c : -subs(c0, pairs...) / c
+        return _backsub(G, vars, k - 1, s, degen)
+    end
     qs = Sym[]
     for g in G
         _mainvar(g, vars) == k || continue
@@ -685,7 +699,7 @@ _isexactex(e::Sym) = e.kind == NUMBER ? isexact(e.num) :
 
 # floating point numbers replaced by the rationals they represent exactly
 _exactnum(n::SymNumber) = isexact(n) ? Sym(n) :
-    (v = N(Sym(n)); v isa Real ? Sym(SymNumber(Rational{BigInt}(v))) :
+    (v = N(Sym(n)); v isa Real && !isfinite(v) ? Sym(n) : v isa Real ? Sym(SymNumber(Rational{BigInt}(v))) :
      throw(ArgumentError("solve: complex floating point coefficients in a nonlinear system are not supported")))
 # (short = true: the shortest rational within rounding, 0.3 as 3/10, not 5404319552844595/2^54)
 function _exactfloats(e::Sym; short::Bool = false)
