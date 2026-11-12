@@ -921,11 +921,23 @@ function _piecewise_fold(g::Sym, x::Sym, A::Assumptions)
         push!(pts, p)
         i < length(bps) && push!(pts, bps[i + 1])
     end
-    vals = Sym[]
+    # (a breakpoint that is a pole has no value: it takes the formula of the interval
+    # after it, which has the pole too)
+    vals = Union{Nothing,Sym}[]
     for p in pts
-        v = _pw_select(g, x, p, A)
+        v = try
+            _pw_select(g, x, p, A)
+        catch err
+            _isdivzero(err) || rethrow()
+            push!(vals, nothing)
+            continue
+        end
         v === nothing && throw(ArgumentError("piecewise_fold: a condition of $g could not be decided at $x = $p"))
         push!(vals, simplify(v; assume = A))
+    end
+    pole = [v === nothing for v in vals]
+    for j in eachindex(vals)
+        pole[j] && (vals[j] = vals[j + 1])
     end
     # merge neighbours: an interval into the piece before it when the formulas agree, a
     # breakpoint when the formula before it gives its value there; a piece that starts
@@ -933,14 +945,16 @@ function _piecewise_fold(g::Sym, x::Sym, A::Assumptions)
     # breakpoint's value. A piece's condition is by its right end: x < b ending with an
     # interval, x ≤ b ending with the point b, true for the last.
     same(u, v) = iszero(simplify(u - v; assume = A))
+    # two formulas' values at b (at a pole of both, the formulas compared)
+    sameat(u, v, b) = try same(subs(u, x => b), subs(v, x => b)) catch err; _isdivzero(err) || rethrow(); same(u, v) end
     ps = Pair[]
     expr, ptval, ptb = nothing, nothing, nothing        # the piece being built
     for (j, v) in enumerate(vals)
         interval = isodd(j)
         b = interval ? nothing : bps[j ÷ 2]
         joins = j == 1 ? true :
-            interval ? (expr !== nothing ? same(expr, v) : same(subs(v, x => ptb), subs(ptval, x => ptb))) :
-            (expr !== nothing && same(subs(expr, x => b), subs(v, x => b)))
+            interval ? (expr !== nothing ? same(expr, v) : sameat(v, ptval, ptb)) :
+            (expr !== nothing && sameat(expr, v, b))
         if !joins
             # close the piece before segment j at the end of segment j - 1
             push!(ps, (isodd(j - 1) ? x ≪ bps[(j - 1 + 1) ÷ 2] : x ≦ bps[(j - 1) ÷ 2]) => (expr === nothing ? ptval : expr))
@@ -949,7 +963,9 @@ function _piecewise_fold(g::Sym, x::Sym, A::Assumptions)
         if interval
             expr === nothing && (expr = v)
         elseif expr === nothing
-            ptval, ptb = subs(v, x => b), b             # (a point's value at the point)
+            # (a point's value at the point; at a pole, the formula)
+            pv = pole[j] ? nothing : try subs(v, x => b) catch err; _isdivzero(err) || rethrow(); nothing end
+            pv === nothing ? (expr = v) : ((ptval, ptb) = (pv, b))
         end
     end
     push!(ps, true => (expr === nothing ? ptval : expr))
@@ -980,8 +996,17 @@ function _pw_breakpoints(g::Sym, x::Sym, A::Assumptions)
     out = Sym[]
     function visit(n::Sym)
         if n.kind == FN && haskey(_COND_RELS, n.name) && has(n, x)
-            rs = _solve_generic(n.args[1] - n.args[2] ~ 0, x)
+            q = n.args[1] - n.args[2]
+            rs = _solve_generic(q ~ 0, x)
             rs isa AbstractVector || throw(ArgumentError("piecewise_fold: the points where $(_relation_of(n)) changes were not found"))
+            # its poles too, where a sign may change ((x - 1)/(x - 5) < 0 changes at 5;
+            # SymPy #12095)
+            d = numer_denom(cancel(q))[2]
+            if has(d, x)
+                ds = _solve_generic(d ~ 0, x)
+                ds isa AbstractVector || throw(ArgumentError("piecewise_fold: the poles of $(_relation_of(n)) were not found"))
+                rs = vcat(rs, ds)
+            end
             for r in rs
                 r = _ode_tidy(r)
                 (_hassymbol(r) || _isreal_const(r) === true) || continue
