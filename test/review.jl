@@ -1211,3 +1211,24 @@ end
     @test 9 in solve(abs((x - 1) / (x - 5)) ≦ 2, x)
     @test solve(abs(x - 1) / abs(x - 5) ≦ 1 // 3, x) == SymJ.SymSet([SymJ.SymInterval(Sym(-1), Sym(2), true, true)])
 end
+
+@testset "crashes and hangs (SymPy review, round 13)" begin
+    @syms x y a b c d e f g w root
+    # a zero polynomial to a power (#12114)
+    @test iszero(SymJ.Poly{SymJ.SymNumber}(Sym(0), [x])^2)
+    # a symbol is no rule for rewrite (#12639)
+    @test_throws ArgumentError SymJ.rewrite(max(a, b), :piecewise)
+    # NaN in a piecewise branch of a system (#12414)
+    @test length(solve([SymJ.piecewise((x ≫ 0) => y^2 - x + 1, true => NaN) ~ 0, x ~ 2], [x, y])) == 2
+    # a symbolic Cholesky factorization (#12500)
+    @test SymJ.LinearAlgebra.cholesky(Sym[4 2; 2 3]).U == Sym[2 1; 0 sqrt(Sym(2))]
+    @test SymJ.LinearAlgebra.cholesky(Sym[4 12 -16; 12 37 -43; -16 -43 98]).U == Sym[2 6 -8; 0 1 5; 0 0 3]
+    @test_throws SymJ.LinearAlgebra.PosDefException SymJ.LinearAlgebra.cholesky(Sym[1 2; 2 1])
+    # a gcd that is a constant because one side lacks a variable (#13126)
+    @test gcd(x * (a + b) + 1, (a + b) * (y + 2)) == 1
+    @test iszero(expand(resultant(x + c, root + x * (a^2 + b * c) + a * b * c, x) - (root - c * (a^2 + b * c) + a * b * c)))
+    # back-substitution through a linear basis element, unexpanded (#12345)
+    @test length(solve([x^2 - y ~ sqrt(Sym(2)), x^2 + x * y - y^2 ~ 0], [x, y])) == 4
+    # a positive-dimensional system: no empty reduce (#12114)
+    @test solve([1 + a * b + d * e ~ 0, 1 + a * c + d * f ~ 0, 1 + b * c + e * f ~ 0, g - a^2 - d^2 ~ 0, g - b^2 - e^2 ~ 0, g - c^2 - f^2 ~ 0], [a, b, c, d, e, f, g]) isa Vector
+end
