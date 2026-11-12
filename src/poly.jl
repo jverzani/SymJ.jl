@@ -602,6 +602,7 @@ function Base.:^(p::Poly{C}, k::Integer) where {C}
     k < 0 && throw(DomainError(k, "negative powers of polynomials are not polynomials"))
     k == 0 && return one(p)
     k == 1 && return p
+    isempty(p.monos) && return p                    # 0^k (SymPy #12114)
     p = _fit_degrees(p, [Int(min(d * big(k), big(typemax(Int)))) for d in _maxdegs(p)])
     degs = _maxdegs(p)
     t = length(p.monos)

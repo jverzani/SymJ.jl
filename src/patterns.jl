@@ -845,7 +845,15 @@ SymJ.rewrite(log(a * b * c), r)          # log(a) + log(b) + log(c)
 function rewrite(ex, rules...; order::Symbol = :post, fixpoint::Bool = true, maxsteps::Integer = 100)
     rs = Rule[]
     for r in rules
-        r isa Rule ? push!(rs, r) : append!(rs, r)
+        if r isa Rule
+            push!(rs, r)
+        elseif r isa AbstractVector && all(q -> q isa Rule, r)
+            append!(rs, r)
+        else
+            # (a Symbol such as :piecewise fell into append! with a MethodError; SymPy #12639)
+            throw(ArgumentError("rewrite: $(repr(r)) is not a rule or a vector of rules" *
+                (r isa Symbol ? "; to rewrite in terms of a function give the function, rewrite(ex, sin) (or use piecewise(ex) for piecewise)" : "")))
+        end
     end
     order in (:post, :pre) || throw(ArgumentError("rewrite: order is :post or :pre, not $order"))
     _rewrite(_RuleSet(rs), _matchsubject(ex), order, fixpoint, maxsteps)

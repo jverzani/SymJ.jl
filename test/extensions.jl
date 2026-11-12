@@ -705,6 +705,17 @@ import PolyLog as PL
         @test RischIntegrate.integrate(x^n * exp(-x) * log(x), (x, 0, Inf)) isa SymJ.Cases
     end
 
+    @testset "crashes and hangs (SymPy review, round 13)" begin
+        @syms x y z c w s L0 r mu
+        # a case's fact undefined at another case's value (w = 0 in F3/w): no DivisionByZero
+        # (#12568, #11992, #12249)
+        @test RischIntegrate.integrate(1 / (1 + x^2 * y^2), (y, 0, z)) isa SymJ.Cases
+        if VERSION >= v"1.12"                                            # (the older RischIntegrate cannot)
+            @test RischIntegrate.integrate(1 / sqrt(c^2 + (3 - w * s)^2), (s, 0, L0)) isa SymJ.Cases
+            @test RischIntegrate.integrate((z - r * mu) / (z^2 + r^2 - 2r * z * mu)^(Sym(3) / 2), (mu, -1, 1)) isa SymJ.Cases
+        end
+    end
+
     @testset "Borwein integrals: a large antiderivative only refined" begin
         # (RischIntegrate's step TX, from its #130, gives the antiderivatives quickly;
         # before it, k = 7 runs for an hour, so the tests are skipped)
