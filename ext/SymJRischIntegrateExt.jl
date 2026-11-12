@@ -93,7 +93,23 @@ function _indefinite(ex::Sym, x::Sym; assume = nothing, kw...)
     catch err
         err isa InterruptException && rethrow()
         pw = SymJ.piecewise(ex)
-        SymJ._haspieces(pw, x) || rethrow()
+        if !SymJ._haspieces(pw, x)
+            # |z| of a complex z with parameters, as for the pieces of |x - y|, for real
+            # parameters: |exp(2πix) + exp(2πiy)| is √2 √(cos(2π(x - y)) + 1). (Only with
+            # RischIntegrate's answers for √(1 + cos x) continuous across its zeros, from
+            # its sign_jump_correction: before, a definite integral over part of a period
+            # took the jump, ∫₀^½ at y = 0.8 came out -0.889, not 0.384.)
+            isdefined(RischIntegrate, :sign_jump_correction) || rethrow()
+            Ar = Ax
+            for s in SymJ.free_symbols(ex)
+                Ar === nothing && break
+                Ar = SymJ._with_fact(Ar, s ∈ SymJ.ℝ)
+            end
+            (Ar === nothing || !SymJ._has_fn(ex, (:abs,))) && rethrow()
+            er = SymJ._refine(ex, Ar)
+            isequal(er, ex) && rethrow()
+            return integ(er)
+        end
         SymJ._integrate_pieces(pw, x, integ)
     end
 end

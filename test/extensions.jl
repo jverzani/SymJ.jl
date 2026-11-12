@@ -716,6 +716,41 @@ import PolyLog as PL
         end
     end
 
+    @testset "abs of complex arguments: |exp(2πix) + exp(2πiy)|" begin
+        @syms y
+        I = RischIntegrate.integrate
+        z = exp(2 * PI * im * x) + exp(2 * PI * im * y)
+        f = abs(z)
+        # |z| is ±z only for real z
+        @test SymJ.piecewise(f) == f
+        @test SymJ.piecewise(abs(x - y)) != abs(x - y)
+        # ∫ over one period of |cos| whatever the shift (0 at y = ±2, negative at 0.7)
+        g = I(abs(cos(PI * (x - y))), (x, 0, 1))
+        for y0 in (-2, 0.7, 1.2, 2)
+            @test N(subs(g, y => y0)) ≈ 2 / π
+        end
+        @test N(subs(I(abs(sin(x - y)), (x, 0, 1)), y => 1 // 2)) ≈ 2 * (1 - cos(0.5))
+        # an antiderivative, for real y, once RischIntegrate's are continuous across the
+        # zeros of 1 + cos x (its sign_jump_correction)
+        if isdefined(RischIntegrate, :sign_jump_correction)
+            F = I(f, x)
+            for (x0, y0) in ((0.1, 0.3), (0.4, 0.75), (0.9, -0.2))
+                @test abs(N(subs(diff(F, x) - f, x => x0, y => y0))) < 1e-12
+            end
+            h = I(f, (x, 0, 1 // 2))
+            @test N(subs(h, y => 0.8)) ≈ (2 - sin(0.3π) - sin(0.2π)) * 2 / π
+        end
+        # √(1 + cos x), from RischIntegrate 1.2
+        if pkgversion(RischIntegrate) >= v"1.2"
+            # (once a stack overflow)
+            @test I(abs(1 + exp(2 * PI * im * x)), (x, 0, 1)) == 4 / PI
+            # the inner integral is 4/π for every y: one period of 2|cos(π(x - y))| (it was 0)
+            @test I(f, (x, 0, 1)) == 4 / PI
+            @test I(f, (x, 0, 1), (y, 0, 1)) == 4 / PI
+            @test I(f, (y, 0, 1), (x, 0, 1)) == 4 / PI
+        end
+    end
+
     @testset "asymptotic series at ±∞: exponential and oscillating factors" begin
         @syms y
         S(f, x0, n) = Sym(series(f, x, x0, n))
