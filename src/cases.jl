@@ -799,6 +799,8 @@ function _solve_case_full(e::Relation, x::Sym, B::Assumptions)
     r = _solve_sum_of_squares(e, x, B)
     r === nothing || return r
     n, d = numer_denom(cancel(e.lhs - e.rhs))
+    # zeros at poles of tan, cot, sec, csc in a denominator: in sin and cos (SymPy #12527)
+    _has_recip_trig(d, x) && return _solve_case_full(Relation(:eq, _recip_trig_sincos(e.lhs - e.rhs, x), ZERO), x, B)
     for f in _param_factors(d, (x,))
         _decide(Relation(:ne, f, ZERO), B) || return Sym[]
     end

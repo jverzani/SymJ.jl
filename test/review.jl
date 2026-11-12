@@ -1177,3 +1177,37 @@ end
     # a mod by the same modulus inside a mod (#13543)
     @test mod(mod(x + 1, 2) + 1, 2) == mod(x, 2)
 end
+
+@testset "wrong answers (SymPy review, round 13)" begin
+    @syms x y z a a1 b1 c1
+    # zeros at the poles of tan, cot, sec, csc in a denominator (#12527)
+    @test solve(1 / tan(x) ~ 0, x) == [PI / 2, 3PI / 2]
+    @test solve(1 / sec(x) ~ 0, x) == [PI / 2, 3PI / 2]
+    @test solve(sin(x) / tan(x) ~ 0, x) == [PI / 2, 3PI / 2]
+    # an unknown call with other functions of its variable (#12129)
+    @test solve(cos(2a) ~ 0, cos(a)) == [-sqrt(Sym(2)) / 2, sqrt(Sym(2)) / 2]
+    @test solve(cos(3a) ~ 0, cos(a)) == [-sqrt(Sym(3)) / 2, 0, sqrt(Sym(3)) / 2]
+    @test_throws ArgumentError solve(sin(2a) ~ 0, sin(a))
+    # a family narrowed by the facts about its free unknowns (#12932)
+    @test isempty(solve([a1 + b1 ~ 0], [a1, b1]; assume = (a1 ≫ 0, b1 ≫ 0)))
+    @test solve([a1 + b1 ~ 0, c1 ~ 1], [a1, b1, c1]; assume = (a1 ≧ 0, b1 ≧ 0)) == [Dict(a1 => 0, b1 => 0, c1 => 1)]
+    # integer unknowns: a family with no integer member (#12546)
+    @test isempty(solve([2x + 4y ~ -3], [x, y]; assume = (x ∈ ℤ, y ∈ ℤ)))
+    @test isempty(solve([2x + 4y + 6z ~ 3], [x, y, z]; assume = (x ∈ ℤ, y ∈ ℤ, z ∈ ℤ)))
+    @test solve([2x + 4y ~ 6], [x, y]; assume = (x ∈ ℤ, y ∈ ℤ)) == [Dict(x => 3 - 2y, y => y)]
+    # |u| in a system whose solutions are families or have parameters (#13306)
+    @test_throws ArgumentError solve([abs(x) + y ~ 1], [x, y]; assume = (x ∈ ℝ, y ∈ ℝ))
+    @test solve([abs(x) + y ~ 1], [x]; assume = (x ∈ ℝ, y ∈ ℝ)) isa SymJ.Cases
+    # complex coefficients in an inequality: real values only where the imaginary part
+    # vanishes (#13105)
+    @test solve((x + im) * (x + 2im) ≪ 0, x) == SymJ.SymSet([SymJ.SymInterval(Sym(0), Sym(0), true, true)])
+    @test isempty(solve(x + im ≪ 0, x))
+    # a symbolic exponent that may vanish: cases (#12774)
+    @test solve(x^a ~ 1, x) isa SymJ.Cases
+    @test solve(x^a ~ 1, x)[2] == ([a ≶ 0] => [1])
+    @test solve(x^a ~ 1, x; assume = (a ≶ 0,)) == [1]
+    # the poles of a condition are breakpoints (#12095)
+    @test solve(abs((x - 1) / (x - 5)) ≦ 1 // 3, x) == SymJ.SymSet([SymJ.SymInterval(Sym(-1), Sym(2), true, true)])
+    @test 9 in solve(abs((x - 1) / (x - 5)) ≦ 2, x)
+    @test solve(abs(x - 1) / abs(x - 5) ≦ 1 // 3, x) == SymJ.SymSet([SymJ.SymInterval(Sym(-1), Sym(2), true, true)])
+end
