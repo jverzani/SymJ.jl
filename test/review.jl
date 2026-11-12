@@ -1232,3 +1232,41 @@ end
     # a positive-dimensional system: no empty reduce (#12114)
     @test solve([1 + a * b + d * e ~ 0, 1 + a * c + d * f ~ 0, 1 + b * c + e * f ~ 0, g - a^2 - d^2 ~ 0, g - b^2 - e^2 ~ 0, g - c^2 - f^2 ~ 0], [a, b, c, d, e, f, g]) isa Vector
 end
+
+@testset "missing cases (SymPy review, round 13)" begin
+    @syms x y z a b n k v
+    # a relation whose sides simplify to one constant is decided (#12522)
+    @test simplify(cos(x)^2 + sin(x)^2 ~ 1) === true
+    # δ(c u) = δ(u)/|c| (#12257)
+    @test simplify(SymJ.dirac(-x) - SymJ.dirac(x)) == 0
+    @test SymJ.dirac(2x - 2) == SymJ.dirac(x - 1) / 2
+    # complex floats multiplied and raised to integer powers (#12154)
+    @test Sym(2.0 + 1.0im)^2 == Sym(3.0 + 4.0im)
+    @test Sym(2.0 + 1.0im) * Sym(1.0 + 3.0im) == Sym(-1.0 + 7.0im)
+    # min/max absorption (#12638)
+    @test min(a, b, max(a, y)) == min(a, b)
+    @test min(1, y, max(4, x)) == min(1, y)
+    @test max(a, min(a, y)) == a
+    # integer multiples of the modulus dropped (#12592)
+    @test mod(3n + z, n) == mod(z, n)
+    @test refine(mod(n * y + z, n); assume = (y ∈ ℤ, n ∈ ℤ)) == mod(z, n)
+    # angle(x + iy) = atan(y, x) for real x, y (#11988)
+    @test simplify(angle(x + y * im) - atan(y, x); assume = (x ∈ ℝ, y ∈ ℝ)) == 0
+    # ψ and ζ(s, a) at negative half-integers (#12753)
+    @test SymJ.SpecialFunctionsSupport.SF.digamma(Sym(-1) // 2) == SymJ.SpecialFunctionsSupport.SF.digamma(Sym(1) // 2) + 2
+    @test simplify(SymJ.summation(1 / ((2v + 1)^2 - 4)^2, v, 0, Inf)) == PI^2 / 64
+    # Σ 1/k^p for symbolic p: ζ(p) (#12994)
+    @test SymJ.summation(1 / k^a, k, 1, Inf; assume = (a ≫ 1,)) == SymJ.SpecialFunctionsSupport.SF.zeta(a)
+    @test SymJ.summation(1 / k^a, k, 1, Inf; assume = (a ≦ 1,)) == Inf
+    # √(c(a + bi)) denested with the rational content split off (#12420)
+    @test simplify(sqrt(Sym(8) + 6IM)) == 3 + IM
+    # solve inverts lambertw (#12783)
+    @test solve(SymJ.lambertw(n) ~ 2, n) == [2exp(Sym(2))]
+    @test isempty(solve(SymJ.lambertw(n) ~ -2, n))
+    # cancel with powers of one exponential as one generator (#12787)
+    @test cancel((exp(2x) - 1) / (exp(x) - 1)) == exp(x) + 1
+    @test cancel((x^(2a) - 1) / (x^a - 1)) == x^a + 1
+    # finite sums of sin and cos of arithmetic arguments (#12107)
+    @test SymJ.summation(sin(k * x), k, 1, n) isa SymJ.Cases
+    @test N(subs(SymJ.summation(cos(2k + 1), k, 0, n), n => 6)) ≈ sum(cos(2j + 1) for j in 0:6)
+end

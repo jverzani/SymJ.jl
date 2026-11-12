@@ -68,6 +68,12 @@ function digamma_value(args)
     length(args) == 1 || return nothing
     a = args[1]
     _nonpos_int(a) && _gamma_pole(:digamma, a)
+    # a negative half-integer through ψ(x) = ψ(x + 1) - 1/x (ψ(-1/2) = ψ(1/2) + 2; SymPy #12753)
+    if a.kind == NUMBER && SymJ.isexact(a.num) && a.num < SymNumber(0) && denominator(SymJ._rat(a.num)) == 2 && a.num >= SymNumber(-50)
+        q = SymJ._rat(a.num)
+        m = Int(1 // 2 - q)
+        return SF.digamma(Sym(1 // 2)) - sum(Sym(1 // 1) / Sym(q + j) for j in 0:(m - 1))
+    end
     (a.kind == NUMBER && SymJ.isexact(a.num) && a.num > SymNumber(0)) || return nothing
     q = SymJ._rat(a.num)
     ψ1 = SymJ._mkfn_node(:digamma, Sym[SymJ.ONE])
@@ -87,6 +93,13 @@ function zeta_value(args)
     # ζ(s, 1/2) = (2ˢ - 1) ζ(s), ζ(s, a + 1) = ζ(s, a) - a⁻ˢ (ζ(2, 1/2) = π²/2; round-11 review)
     if length(args) == 2
         s_, a = args
+        # a negative half-integer through ζ(s, a) = ζ(s, a + 1) + a⁻ˢ (SymPy #12753)
+        if isint(s_) && s_.num >= SymNumber(2) && a.kind == NUMBER && SymJ.isexact(a.num) && a.num < SymNumber(0) &&
+           denominator(SymJ._rat(a.num)) == 2 && a.num >= SymNumber(-50)
+            q = SymJ._rat(a.num)
+            m = Int(1 // 2 - q)
+            return SF.zeta(s_, Sym(1 // 2)) + sum(Sym(q + j)^(-_toint(s_.num)) for j in 0:(m - 1))
+        end
         (isint(s_) && s_.num >= SymNumber(2) && a.kind == NUMBER && SymJ.isexact(a.num) && a.num > SymNumber(0)) || return nothing
         n, q = _toint(s_.num), SymJ._rat(a.num)
         q <= 50 || return nothing

@@ -15,6 +15,10 @@ A symbolic function. Calling it builds an unevaluated application:
 f = SymFunction(:f)     # or `@syms f()`
 f(x, 2)                 # f(x, 2)
 ```
+
+A function is its name: one named like a built-in function (`SymFunction(:gamma)`,
+`@syms sin()`) is that function, with its values and derivatives (`SymFunction(:gamma)(1)`
+is 1).
 """
 struct SymFunction <: AbstractSymbolic
     name::Symbol

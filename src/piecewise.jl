@@ -233,6 +233,14 @@ register_function!(:dirac; julia = _dirac,
         (1 <= length(args) <= 2) || return nothing
         length(args) == 2 && args[2] == ZERO && return dirac(args[1])
         a = args[1]
+        # δ(c u) = δ(u)/|c|, u with leading coefficient 1 (δ(-x) = δ(x), δ(2x - 2) =
+        # δ(x - 1)/2; SymPy #12257)
+        if length(args) == 1 && _hassymbol(a)
+            c = a.kind == MUL ? a.num : a.kind == ADD && !isempty(a.coefs) ? a.coefs[1] : nothing
+            if c !== nothing && isexact(c) && isreal(c) && !iszero(c) && !isone(c)
+                return dirac(expand(a / Sym(c))) / abs(Sym(c))
+            end
+        end
         _hassymbol(a) && return nothing
         s = _csign(a)
         s === nothing || s == 0 ? nothing : ZERO

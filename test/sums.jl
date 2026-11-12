@@ -70,7 +70,8 @@
     @test Σ(1 / factorial(k), k, 0, Inf) == E && Σ(x^k / factorial(k), k, 0, Inf) == exp(x)
     @test Σ((-1)^k * x^(2k) / factorial(2k), k, 0, Inf) == cos(x) && Σ((-1)^k * x^(2k + 1) / factorial(2k + 1), k, 0, Inf) == sin(x)
     @test Σ(x^(2k) / factorial(2k), k, 0, Inf) == cosh(x)
-    @test SymJ._isfn1(Σ(sin(k), k, 1, n), :Sum) || Σ(sin(k), k, 1, n).name === :Sum
+    # (a finite sum of sin(k): closed form, SymPy #12107)
+    @test N(subs(Σ(sin(k), k, 1, n), n => 7)) ≈ sum(sin(j) for j in 1:7)
     # Zeilberger: definite sums of hypergeometric terms with no antidifference
     @syms m
     @test Σ(binomial(n, k)^2, k, 0, n) == binomial(2n, n)

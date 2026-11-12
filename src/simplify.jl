@@ -196,8 +196,19 @@ function _refine_rule(e::Sym, A::Assumptions)
     if k == FN && e.name === :angle && length(e.args) == 1 && _hassymbol(e.args[1])
         u = e.args[1]
         re, im_ = _refine(real(u), A), _refine(imag(u), A)
-        if !_has_fn(re, (:real, :imag)) && !_has_fn(im_, (:real, :imag)) && _ispos(re, A)
-            return atan(cancel(im_ / re))
+        if !_has_fn(re, (:real, :imag)) && !_has_fn(im_, (:real, :imag))
+            _ispos(re, A) && return atan(cancel(im_ / re))
+            # real parts of either sign: the two-argument arctangent (SymPy #11988)
+            _isreal(re, A) === true && _isreal(im_, A) === true && return atan(im_, re)
+        end
+    end
+    # mod(u + k m, m) with k m/m integer-valued: mod(u, m) (mod(n y + z, n) for an integer
+    # y; SymPy #12592)
+    if k == FN && e.name === :mod && length(e.args) == 2 && e.args[1].kind == ADD && _hassymbol(e.args[2])
+        u, m = e.args
+        drop = [_isinteger(cancel(Sym(c) * t / m), A) === true for (c, t) in zip(u.coefs, u.args)]
+        if any(drop)
+            return apply_function(:mod, Sym[Sym(u.num) + _add_many(Sym(c) * t for (c, t, d) in zip(u.coefs, u.args, drop) if !d), m])
         end
     end
     # mod(Σ cᵢ tᵢ + c₀, m) for integers m > 0, cᵢ and integer-valued tᵢ: the cᵢ, c₀ mod m
@@ -624,6 +635,12 @@ function simplify(r::Relation; assume = nothing)
     A = _assumptions(assume)
     A === nothing && (A = Assumptions())
     d = l - rr
+    # sides that simplify to the same constant: decided (cos² + sin² ~ 1 was 0 ~ 0;
+    # SymPy #12522)
+    if !_hassymbol(d)
+        w = _holds(Relation(v.op, expand(d), ZERO), A)
+        w === nothing || return w
+    end
     if v.op === :eq
         # a + i b = 0 with a, b real: a = 0 and b = 0 (X = iY; SymPy #27759)
         parts = _real_imag_split(d, A)
@@ -2126,6 +2143,17 @@ function _complex_sqrt_denest(e::Sym)
             r = _csqrt_parts(t.args[1])
             return r === nothing ? nothing : r
         elseif t.kind == MUL
+            # √c √(a + bi), c a positive rational split off first (√(8 + 6i) is √2 √(4 + 3i)):
+            # rejoined, √(c(a + bi)) (= 3 + i; SymPy #12420)
+            half(q) = q.kind == NUMBER && q.num == SymNumber(1 // 2)
+            ri = [i for (i, (b, q)) in enumerate(zip(t.args, t.exps)) if half(q) && b.kind == NUMBER && isexact(b.num) && b.num > N0]
+            ci = [i for (i, (b, q)) in enumerate(zip(t.args, t.exps)) if half(q) && has(b, IM) && !_hassymbol(b) && b.kind != NUMBER]
+            if length(ri) == 1 && length(ci) == 1
+                r = _csqrt_parts(expand(t.args[ri[1]] * t.args[ci[1]]))
+                if r !== nothing
+                    return Sym(t.num) * r * prod((b^q for (i, (b, q)) in enumerate(zip(t.args, t.exps)) if i != ri[1] && i != ci[1]); init = ONE)
+                end
+            end
             changed = false
             fs = Sym[]
             for (b, q) in zip(t.args, t.exps)

@@ -1158,6 +1158,17 @@ function _invert(g::Sym, r::Sym, x::Sym)
             r.kind == NUMBER && return Tuple{Sym,Sym}[]
         end
         name === :log && return [(t, exp(r))]
+        # W(t) = r: t = r e^r, where r is a value of the principal branch (real ones are
+        # ≥ -1, decided by cases; SymPy #12783)
+        if name === :lambertw
+            A = _SOLVE_ASSUME[]
+            if r.kind == NUMBER && isreal(r.num) && r.num < SymNumber(-1)
+                return Tuple{Sym,Sym}[]
+            elseif A !== nothing && _hassymbol(r) && _isreal(r, A) === true
+                _decide(Relation(:ge, r, Sym(-1)), A) || return Tuple{Sym,Sym}[]
+            end
+            return [(t, r * exp(r))]
+        end
         name === :conj && return [(t, conj(r))]               # (SymPy #20305)
         name === :asin && return [(t, sin(r))]
         name === :acos && return [(t, cos(r))]

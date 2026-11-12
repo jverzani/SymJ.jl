@@ -224,8 +224,20 @@ end
 
 Canonical product of two expressions (what `a * b` calls).
 """
+# a complex floating point number written c + d i (a sum with i alone, a float among c,
+# d): its value, else nothing
+function _cfloatval(b::Sym)
+    (b.kind == ADD && length(b.args) == 1 && _eq(b.args[1], IM)) || return nothing
+    (isfloat(b.num) || isfloat(b.coefs[1])) || return nothing
+    complex(Float64(b.num), Float64(b.coefs[1]))
+end
+
 function mul(a::Sym, b::Sym)
     ka, kb = a.kind, b.kind
+    # complex floats multiplied as numbers ((2.0 + i)(1.0 + 3.0i) = -1.0 + 7.0i; SymPy #12154)
+    if ka == ADD && kb == ADD && (za = _cfloatval(a)) !== nothing && (zb = _cfloatval(b)) !== nothing
+        return Sym(za * zb)
+    end
     if ka == NUMBER
         kb == NUMBER && return Sym(a.num * b.num)
         return _scale(b, a.num)
@@ -343,6 +355,7 @@ function pow(b::Sym, e::Sym)
         bk == NUMBER && return _numpow(b.num, en)
         isfloat(en) && (v = _floatpow(b, en)) !== nothing && return v
         if _isint(en)
+            bk == ADD && (z = _cfloatval(b)) !== nothing && return Sym(z^_toint(en))   # (SymPy #12154)
             bk == MUL && return _mulpow_int(b, e)
             bk == POW && return pow(b.args[1], mul(b.args[2], e))
         elseif isexact(en)
