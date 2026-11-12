@@ -705,6 +705,16 @@ import PolyLog as PL
         @test RischIntegrate.integrate(x^n * exp(-x) * log(x), (x, 0, Inf)) isa SymJ.Cases
     end
 
+    @testset "missing cases (SymPy review, round 13)" begin
+        @syms x a b
+        # B(a, b) with a log factor: ∂B/∂a (#12456)
+        ψ(w) = SymJ.apply_function(:digamma, Sym[w])
+        Γ(w) = SymJ.apply_function(:gamma, Sym[w])
+        @test RischIntegrate.integrate(x^(a - 1) * (1 - x)^(b - 1) * log(x), (x, 0, 1); assume = (a ≫ 0, b ≫ 0)) ==
+              Γ(a) * Γ(b) / Γ(a + b) * (ψ(a) - ψ(a + b))
+        @test N(RischIntegrate.integrate(x^(Sym(1) // 3) * (1 - x)^(Sym(1) // 2) * log(x), (x, 0, 1))) ≈ -0.4528196802991289
+    end
+
     @testset "Borwein integrals: a large antiderivative only refined" begin
         # (RischIntegrate's step TX, from its #130, gives the antiderivatives quickly;
         # before it, k = 7 runs for an hour, so the tests are skipped)

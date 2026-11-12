@@ -58,6 +58,18 @@ function summation(f, k::Sym, a, b; assume = nothing)
         return _sum_parts(summation(g, k, 1, Inf; assume), summation(f, k, 0, Inf; assume))
     end
     a, bs = Sym(a), infb ? nothing : Sym(b)
+    # Σ_{k≥a} 1/k^p for a symbolic p: ζ(p) less the first terms where Re p > 1, divergent
+    # where Re p ≤ 1 (SymPy #12994)
+    if infb && f.kind == POW && _eq(f.args[1], k) && _hassymbol(f.args[2]) && !has(f.args[2], k) &&
+       a.kind == NUMBER && isexact(a.num) && _isint(a.num) && a.num >= N1 && a.num <= SymNumber(50)
+        p = -f.args[2]
+        A0 = something(_assumptions(assume), Assumptions())
+        head = _add_many(Sym(j)^(-p) for j in 1:(_toint(a.num) - 1))
+        r = _by_cases(A0) do B
+            _decide(Relation(:gt, _refine(real(p), B), ONE), B) ? apply_function(:zeta, Sym[p]) - head : Sym(Inf)
+        end
+        return r
+    end
     # pieces, abs and signs of the summand settled on the range a ≤ k ≤ b, k an integer
     # (k ≤ n holds for every term, |x + 9| = x + 9 from 7 on; SymPy #19687)
     if _has_fn(f, (:piecewise, :abs, :sign, :heaviside, :max, :min))
@@ -131,6 +143,26 @@ end
 
 const _DIRECT_TERMS = 1000
 
+# Σ_{k=a}^{b} of sin(ck + d) or cos(ck + d), c and d free of k: with N = b - a + 1 terms,
+# sin(cN/2) sin(c(a + b)/2 + d)/sin(c/2) (cos likewise), where sin(c/2) ≠ 0; N times the
+# first term where it vanishes (c a multiple of 2π: every term the same). nothing for
+# other summands.
+function _trig_arith_sum(f::Sym, k::Sym, a::Sym, b::Sym, assume)
+    (f.kind == FN && f.name in (:sin, :cos) && length(f.args) == 1) || return nothing
+    θ = expand(f.args[1])
+    c = diff(θ, k)
+    (has(c, k) || iszero(c)) && return nothing
+    d = expand(θ - c * k)
+    has(d, k) && return nothing
+    N = b - a + 1
+    mid = c * (a + b) / 2 + d
+    g = apply_function(f.name, Sym[mid])
+    A0 = something(_assumptions(assume), Assumptions())
+    _by_cases(A0) do B
+        _decide(Relation(:ne, sin(c / 2), ZERO), B) ? sin(c * N / 2) * g / sin(c / 2) : N * subs(f, k => a)
+    end
+end
+
 # u + v for sums that may be Cases
 _sum_parts(u, v) = (u isa Cases || v isa Cases) ? _sum_cases(Any[u, v]) : u + v
 
@@ -153,6 +185,8 @@ function _summation(f::Sym, k::Sym, a::Sym, b, assume)
     # the binomial theorem, and series with known sums
     r = _known_sum(f, k, a, b, assume)
     r === nothing || return r
+    # Σ_{k=a}^{b} sin(ck + d), cos(ck + d) (SymPy #12107)
+    b === nothing || (r = _trig_arith_sum(f, k, a, b, assume)) === nothing || return r
     # linearity
     if f.kind == ADD
         # telescoping first, a finite range: Σ (g(k + j) - g(k)) by its ends (Σ log(m + 1) -

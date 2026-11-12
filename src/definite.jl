@@ -74,6 +74,7 @@ function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Boo
                 err isa InterruptException && rethrow()
                 v = _known_definite(g, x, l, h)
                 v === nothing && (v = _bose_fermi_definite(g, x, l, h, A))
+                v === nothing && (v = _beta_log_definite(g, x, l, h, A))
                 # (a Gaussian in real form once refined: |exp(w)|² with w complex; SymPy #26102)
                 if v === nothing
                     Ax = _with_fact(A, x ∈ ℝ)
@@ -155,6 +156,40 @@ function _known_definite(f::Sym, x::Sym, lo::Sym, hi::Sym)
     p, q = Sym((a + N1) / SymNumber(2)), Sym((b + N1) / SymNumber(2))
     gs = (_gamma_exact(p), _gamma_exact(q), _gamma_exact(p + q))
     c * gs[1] * gs[2] / (2gs[3])
+end
+
+# ∫₀¹ c x^(a-1) (1 - x)^(b-1) log(x) dx = c B(a, b)(ψ(a) - ψ(a + b)), with log(1 - x)
+# ψ(b) for ψ(a): ∂B/∂a and ∂B/∂b, for a, b > 0 (decided); nothing otherwise (no
+# elementary antiderivative; SymPy #12456)
+function _beta_log_definite(f::Sym, x::Sym, lo::Sym, hi::Sym, A::Assumptions)
+    (iszero(lo) && isone(hi)) || return nothing
+    fs = f.kind == MUL ? [(Sym(f.num), ONE); [(u, q) for (u, q) in zip(f.args, f.exps)]] :
+         f.kind == POW ? [(f.args[1], f.args[2])] : [(f, ONE)]
+    c, p, q, L = ONE, ZERO, ZERO, nothing
+    omx = expand(1 - x)
+    for (u, e) in fs
+        if !has(u, x) && !has(e, x)
+            c *= u^e
+            continue
+        end
+        has(e, x) && return nothing
+        if _eq(u, x)
+            p += e
+        elseif _eq(expand(u), omx)
+            q += e
+        elseif L === nothing && isone(e) && u.kind == FN && u.name === :log && length(u.args) == 1 &&
+               (_eq(u.args[1], x) || _eq(expand(u.args[1]), omx))
+            L = _eq(u.args[1], x) ? :x : :omx
+        else
+            return nothing
+        end
+    end
+    L === nothing && return nothing
+    a, b = expand(p + 1), expand(q + 1)
+    (_decide(Relation(:gt, a, ZERO), A) && _decide(Relation(:gt, b, ZERO), A)) || return nothing
+    Γ(w) = apply_function(:gamma, Sym[w])
+    ψ(w) = apply_function(:digamma, Sym[w])
+    c * Γ(a) * Γ(b) / Γ(a + b) * (ψ(L === :x ? a : b) - ψ(a + b))
 end
 
 # ∫₀^∞ c xᵖ/(e^(ax) ∓ 1) dx, a > 0 (decided): Γ(p+1) ζ(p+1)/a^(p+1) for -1 (Bose–Einstein,

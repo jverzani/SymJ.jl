@@ -124,6 +124,15 @@ function _cancel(ex::Sym; gcd_method::Symbol = :auto)
     end
     atoms = Set{Sym}()
     (_poly_atoms!(atoms, n) && _poly_atoms!(atoms, d)) || return ex
+    # powers of one base whose symbolic exponents are rational multiples of each other
+    # (exp(2x), exp(x)): as powers of one generator, so they cancel ((exp(2x) - 1)/(exp(x) - 1)
+    # is exp(x) + 1; SymPy #12787)
+    sub = _common_generator_subs(atoms)
+    if sub !== nothing
+        fwd, back = sub
+        r = _cancel(subs(n, fwd...) / subs(d, fwd...); gcd_method)
+        return subs(r, back...)
+    end
     # square roots of rationals last: the leading coefficient, and so the sign
     # normalization, is then decided by the other atoms
     gs = sort!(collect(atoms); lt = (a, b) -> _isrationalsqrt(a) == _isrationalsqrt(b) ? _lt(a, b) : _isrationalsqrt(b))
@@ -143,6 +152,30 @@ function _cancel(ex::Sym; gcd_method::Symbol = :auto)
     Sym(P) / Sym(Q)
 end
 cancel(x::Number; gcd_method::Symbol = :auto) = Sym(x)
+
+# atoms b^e₁, b^e₂, … (symbolic exponents, eᵢ/e₁ rational) as wᵏⁱ for one fresh w = b^g:
+# (substitutions there, and back), or nothing when no base has two such powers
+function _common_generator_subs(atoms)
+    groups = Dict{Sym,Vector{Sym}}()
+    for a in atoms
+        a.kind == POW && _hassymbol(a.args[2]) || continue
+        push!(get!(groups, a.args[1], Sym[]), a)
+    end
+    fwd, back = Pair{Sym,Sym}[], Pair{Sym,Sym}[]
+    for (b, as) in groups
+        length(as) >= 2 || continue
+        e1 = as[1].args[2]
+        rs = [cancel(a.args[2] / e1) for a in as]
+        all(r -> r.kind == NUMBER && isexact(r.num), rs) || continue
+        L = reduce(lcm, (_denominator(r.num) for r in rs); init = 1)
+        w = Sym(Symbol("_cgen", objectid(b)))
+        for (a, r) in zip(as, rs)
+            push!(fwd, a => w^(r * L))
+        end
+        push!(back, w => b^(e1 / L))
+    end
+    isempty(fwd) ? nothing : (fwd, back)
+end
 
 # Square roots of rational numbers are generators like any other atom, so the gcd above
 # does not use sqrt(2)^2 = 2: (x^2 + 2sqrt(2)x + 2)/(x + sqrt(2)) stays as it is. So when

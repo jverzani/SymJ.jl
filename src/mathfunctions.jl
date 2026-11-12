@@ -243,6 +243,13 @@ for (f, g) in ((:mod, floor), (:rem, trunc))
                                                       for (k, t) in zip(a.coefs, a.args)), b)
                 end
             end
+            # terms that are integer multiples of a symbolic modulus dropped (mod(3n + z, n)
+            # = mod(z, n); SymPy #12592)
+            if f === :mod && a.kind == ADD && _hassymbol(b)
+                mult(c, t) = (q = cancel(Sym(c) * t / b); q.kind == NUMBER && isexact(q.num) && _isint(q.num))
+                drop = [mult(c, t) for (c, t) in zip(a.coefs, a.args)]
+                any(drop) && return mod(Sym(a.num) + _add_many(Sym(c) * t for (c, t, d) in zip(a.coefs, a.args, drop) if !d), b)
+            end
             if f === :mod && a.kind == ADD && _hassymbol(a) && !_hassymbol(b) && !iszero(b)
                 # mod(u + c, b) = mod(u + c - qb, b) for c/b rational, 0 ≤ c - qb < b
                 c = _add_many(Sym(k) * t for (k, t) in zip(a.coefs, a.args) if !_hassymbol(t)) + Sym(a.num)
@@ -293,6 +300,16 @@ function _extreme_rule(name::Symbol, better)
             (i == j || !keep[i] || !keep[j]) && continue
             d = expand(rest[i] - rest[j])
             d.kind == NUMBER && isreal(d.num) && !iszero(d.num) && better(d.num, zero(d.num)) && (keep[j] = false)
+        end
+        rest = rest[keep]
+        # absorption: min(r, max(…, s, …)) = min(r, …) when s ≥ r (min(a, max(a, y)) = a),
+        # and max(r, min(…, s, …)) likewise when s ≤ r (SymPy #12638)
+        other = name === :min ? :max : :min
+        keep = trues(length(rest))
+        for (i, m) in enumerate(rest)
+            (m.kind == FN && m.name === other) || continue
+            keep[i] = !any(j -> j != i && keep[j] && any(s -> (d = expand(s - rest[j]);
+                d.kind == NUMBER && isreal(d.num) && !better(d.num, zero(d.num))), m.args), eachindex(rest))
         end
         rest = rest[keep]
         length(rest) == 1 && return rest[1]

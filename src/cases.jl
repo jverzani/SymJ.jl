@@ -313,7 +313,7 @@ function _case_tree(run, A::Assumptions, decided::Dict{Any,Bool}, count::Ref{Int
         err
     end
     count[] += 1
-    count[] > _MAX_CASES && return [Any[] => ArgumentError("too many cases")]
+    count[] > _MAX_CASES && return [Any[] => ArgumentError("too many cases: this case is left unsolved; assumptions that settle its conditions solve it (SymPy #12117)")]
     f = need.f
     g = _reduce_fact(f)
     branches = Pair{Any,Any}[]                       # condition => (assumptions, decided)
