@@ -161,6 +161,21 @@ function _solve_inequality(r::Relation, x::Sym)
         S === nothing && throw(ArgumentError("solve: only polynomial and rational inequalities are supported yet"))
         return S
     end
+    # complex coefficients: n/d = (P + iQ)/|d|² for real x, with P, Q real polynomials; an
+    # order holds only where the value is real, Q = 0 (sampled as real, (x + i)(x + 2i) < 0
+    # held on the whole line; it holds at x = 0 alone; SymPy #13105)
+    if _complex_coefs(n, x) || _complex_coefs(d, x)
+        nr, ni = _reim_poly(n, x)
+        dr, di = _reim_poly(d, x)
+        P, Q, D2 = expand(nr * dr + ni * di), expand(ni * dr - nr * di), expand(dr^2 + di^2)
+        if !iszero(Q)
+            pts = has(Q, x) ? _real_roots(_solve_eq(Q ~ 0, x)) : Sym[]
+            keep = Sym[p for p in pts if !iszero(simplify(subs(D2, x => p))) &&
+                       (val = Relation(r.op, P / D2, ZERO)(x => p); val isa Bool && val)]
+            return SymSet(SymInterval[SymInterval(p, p, true, true) for p in sort(unique(keep); by = _rv)], x)
+        end
+        n, d = P, D2
+    end
     zs = has(n, x) ? _real_roots(_solve_eq(n ~ 0, x)) : Sym[]
     ps = has(d, x) ? _real_roots(_solve_eq(d ~ 0, x)) : Sym[]
     # the zeros of the denominators cancel removed (x = 1 in (x^2 - 1)/(x - 1)) are
@@ -176,6 +191,16 @@ function _solve_inequality(r::Relation, x::Sym)
         val = rc(x => w)
         val isa Bool ? val : false
     end) |> S -> SymSet(S.intervals, x)
+end
+
+# a polynomial in x with a non-real coefficient; its real and imaginary parts for real x
+_complex_coefs(p::Sym, x::Sym) =
+    has(p, x) ? any(k -> _isreal(coeff(p, x, k), Assumptions()) === false, 0:degree(Poly{Sym}(p, [x]), x)) :
+    _isreal(p, Assumptions()) === false
+function _reim_poly(p::Sym, x::Sym)
+    has(p, x) || return (real(p), imag(p))
+    cs = [coeff(p, x, k) for k in 0:degree(Poly{Sym}(p, [x]), x)]
+    (sum(real(c) * x^(k - 1) for (k, c) in enumerate(cs)), sum(imag(c) * x^(k - 1) for (k, c) in enumerate(cs)))
 end
 
 # f ⋈ ±∞ with f finite: f < ∞ wherever f is defined, f < -∞ nowhere, and so on (x < -Inf

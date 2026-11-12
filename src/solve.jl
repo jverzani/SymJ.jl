@@ -49,15 +49,17 @@ coefficient could vanish, the result is a `Cases` value, a list of
 `conditions => solutions` (called with values, `cs(a => 4)`, it gives that case's
 solutions). The cases come from the leading coefficients of a polynomial (the next one
 when it vanishes), from denominators free of `x` (where they vanish the equation is not
-defined: no solutions), and from denominators of the solutions. A case in which every
-value of `x` is a solution holds an error. Assumptions that settle a coefficient give
-the plain answer.
+defined: no solutions), from denominators of the solutions, and from a symbolic
+exponent (`x^a = b` for `a = 0`; for `a ≠ 0` the answer is the principal root `b^(1/a)`,
+not the other roots `b^(1/a) e^(2πik/a)`). A case in which every value of `x` is a
+solution holds an error. Assumptions that settle a coefficient give the plain answer.
 
 ```julia
 solve(a*x + b ~ 0, x)          # a == 0, b == 0 => (every x), a == 0, b != 0 => [], a != 0 => [-b/a]
 solve(a*x + b ~ 0, x; assume = (a ≫ 0,))   # [-b/a]
 solve(exp(a*x) ~ 2, x)         # a == 0 => [], a != 0 => [log(2)/a]
 solve(x^2 ~ a, x)              # [-sqrt(a), sqrt(a)]
+solve(x^a ~ 2, x)              # a == 0 => [], a != 0 => [2^(1/a)]
 ```
 
 With assumptions (`assume = (x ≫ 0,)`, an [`Assumptions`](@ref), or inside
@@ -200,6 +202,18 @@ function _solve_for_calls(f, eqs::Vector{<:Relation}, vars::Vector{Sym}; assume 
     sort!(put; by = p -> -_nodes(p.first))
     sub(e) = subs(subs(e, hold...), put...)
     neweqs = [Relation(eq.op, sub(eq.lhs), sub(eq.rhs)) for eq in eqs]
+    # an equation left free of the unknowns but not of their variables (cos(2a) = 0 for
+    # cos(a)): its other functions of them in terms of the unknowns (cos(2a) = 2cos(a)² - 1),
+    # refused when that leaves the variables still; taken as a constant it gave no solutions (SymPy #12129)
+    argsyms = Set{Sym}(s for c in calls for s in free_symbols(c))
+    lost(q) = !any(t -> has(q.lhs, t) || has(q.rhs, t), newvars) && any(s -> has(q.lhs, s) || has(q.rhs, s), argsyms)
+    if any(lost, neweqs)
+        neweqs = [Relation(eq.op, sub(expand_trig(eq.lhs)), sub(expand_trig(eq.rhs))) for eq in eqs]
+        # (all of them: 2cos(a)sin(a) = 0 for sin(a) has cos(a) = 0 too)
+        stays(q) = any(s -> has(q.lhs, s) || has(q.rhs, s), argsyms)
+        any(stays, neweqs) && throw(ArgumentError(
+            "solve: the equations involve the variables of $(join(calls, ", ")) other than through them; not supported"))
+    end
     # facts about the unknowns (u(x) > 0) as facts about their symbols
     B = assume === nothing ? nothing :
         Assumptions((g isa Membership ? Membership(sub(g.x), g.set, g.negated) : _subsfact(g, sub) for g in assume.facts)...)
@@ -230,7 +244,11 @@ function _solve_eq(eq::Relation, x::Sym)
     _isnamed(x) || throw(ArgumentError("solve: $x is not a symbol"))
     r = _solve_piecewise(eq, x)
     r === nothing || return r
-    n, _ = numer_denom(cancel(eq.lhs - eq.rhs))
+    n, d = numer_denom(cancel(eq.lhs - eq.rhs))
+    # tan, cot, sec, csc of x in a denominator: their poles are zeros of the expression
+    # (1/tan x = cos x/sin x vanishes at π/2), which a numerator taken over them loses;
+    # solved in sin and cos instead (SymPy #12527)
+    _has_recip_trig(d, x) && return _solve_eq(_recip_trig_sincos(eq.lhs - eq.rhs, x) ~ 0, x)
     if !has(n, x)
         iszero(n) && throw(_identity_error(x, eq))
         return Sym[]
@@ -255,6 +273,15 @@ function _solve_eq(eq::Relation, x::Sym)
     end
     _sort_roots!(unique(_in_domain(roots, eq.lhs - eq.rhs, x)))
 end
+
+_recip_trig_sincos(ex::Sym, x::Sym) = _replace_walk(ex) do e
+    (e.kind == FN && e.name in (:tan, :cot, :sec, :csc) && length(e.args) == 1 && has(e.args[1], x)) || return nothing
+    s, c = sin(e.args[1]), cos(e.args[1])
+    e.name === :tan ? s / c : e.name === :cot ? c / s : e.name === :sec ? 1 / c : 1 / s
+end
+_has_recip_trig(e::Sym, x::Sym) =
+    (e.kind == FN && e.name in (:tan, :cot, :sec, :csc) && length(e.args) == 1 && has(e.args[1], x)) ||
+    any(a -> _has_recip_trig(a, x), e.args) || any(a -> _has_recip_trig(a, x), e.exps)
 
 # a floating point exponent somewhere in e (x^1.11: its exact rational has a huge
 # denominator, so those keep their own path)
@@ -1214,6 +1241,12 @@ function _invert(g::Sym, r::Sym, x::Sym)
             A = _SOLVE_ASSUME[]
             _hassymbol(e) && A !== nothing && _isinteger(e, A) === true && throw(ArgumentError(
                 "solve: $g = $r has the roots $(isone(r) ? "" : "($r)^(1/$e) ")exp(2πik/$e) for k = 0, …, |$e| - 1, which depend on $e; substitute a number for $e"))
+            # a vanishing exponent decided by cases: t^0 = 1 for every t (x^a = 1 gave [1]
+            # alone; SymPy #12774)
+            if _hassymbol(e) && A !== nothing && !_decide(Relation(:ne, e, ZERO), A)
+                _decide(Relation(:eq, r, ONE), A) && throw(_identity_error(x, Relation(:eq, g, r)))
+                return Tuple{Sym,Sym}[]
+            end
             return [(b, r^(1 / e))]
         end
     end

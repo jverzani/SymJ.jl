@@ -117,8 +117,9 @@
     @test solve(sin(x) + cos(x) ~ -1, x) == [PI, 3PI / 2]
     @test !any(r -> isequal(r, PI), solve(sin(x) + a * cos(x) ~ a, x))
     @test !any(r -> isequal(r, PI), solve(sin(x) + 2cos(x) * abs(a) ~ 1, x))
-    # a float or symbolic exponent: the principal root (SymPy #28772)
-    @test solve(x^a ~ b, x) == [b^(1 / a)]
+    # a float or symbolic exponent: the principal root (SymPy #28772), for a symbolic
+    # exponent where it is nonzero (SymPy #12774)
+    @test solve(x^a ~ b, x; assume = (a ≶ 0,)) == [b^(1 / a)]
     @test N(solve(x^1.11 ~ 2, x)[1])^1.11 ≈ 2
     # abs for a real unknown: ±r, or the cases of the argument's sign (SymPy #28742)
     @test solve(abs(x) ~ 1, x; assume = (x ∈ ℝ,)) == [-1, 1]

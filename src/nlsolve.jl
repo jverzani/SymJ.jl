@@ -72,12 +72,18 @@ function _solve_abs_system(eqs::Vector{<:Relation}, vars::Vector{Sym})
     a === nothing && return nothing
     u = a.args[1]
     out = Dict{Sym,Sym}[]
+    undecided = false
     for (w, op) in ((u, :ge), (-u, :le))
         es = Relation[Relation(:eq, subs(e.lhs, a => w), subs(e.rhs, a => w)) for e in eqs]
         sols = _solve_generic(es, vars)
         for sol in sols
-            all(v -> !_hassymbol(sol[v]) || _eq(sol[v], v), vars) || continue
-            any(v -> _eq(sol[v], v), vars) && continue          # a free unknown: not decided here
+            # values with parameters or free unknowns hold only where u has the case's sign,
+            # a condition not decided here: refused below (dropped, |x| + y = 1 had no
+            # solutions; SymPy #13306)
+            if any(v -> _eq(sol[v], v) || _hassymbol(sol[v]), vars)
+                undecided = true
+                continue
+            end
             vals = [N(sol[v]) for v in vars]
             all(v -> isreal(v), vals) || continue
             uv = N(subs(u, (v => sol[v] for v in vars)...))
@@ -85,6 +91,8 @@ function _solve_abs_system(eqs::Vector{<:Relation}, vars::Vector{Sym})
             any(o -> all(v -> _eq(o[v], sol[v]), vars), out) || push!(out, sol)
         end
     end
+    undecided && throw(ArgumentError("solve: the solutions of $eqs with $a are families, or depend on parameters, " *
+        "each valid where $u has one sign; not supported (a single equation solved for one unknown gives the cases)"))
     out
 end
 

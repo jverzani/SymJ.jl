@@ -48,8 +48,27 @@ function solve(eqs::AbstractVector{<:Relation}, vars::Union{AbstractVector,Tuple
         A = _assumptions(assume)
         A === nothing && (A = Assumptions())
         vs = Sym[Sym(v) for v in vars]
+        # one equation with |u| in one unknown: the scalar solve's cases on the parameters
+        # (in the system, solutions with parameters hold only on one side of u; SymPy #13306)
+        if length(eqs) == 1 && length(vs) == 1 && _isnamed(only(vs)) && only(eqs).op === :eq &&
+           _has_fn(only(eqs).lhs - only(eqs).rhs, (:abs,))
+            x = only(vs)
+            dicts(rs) = rs isa AbstractVector ? Dict{Sym,Sym}[Dict(x => r) for r in rs] : rs
+            r = solve(only(eqs), x; assume = A)
+            return r isa Cases ? _map_cases(dicts, r) : dicts(r)
+        end
         r = with(() -> solve(eqs, vars), _SYSTEM_ASSUME => A)
-        keep(sols) = sols isa AbstractVector ? filter(s -> !(s isa AbstractDict) || _system_sol_ok(s, vs, A), sols) : sols
+        # (a family in free unknowns narrowed by their facts first: a1 + b1 = 0 with a1, b1 > 0
+        # has none; SymPy #12932, #12546)
+        function keep(sols)
+            sols isa AbstractVector || return sols
+            out = similar(sols, 0)
+            for s in sols
+                t = s isa AbstractDict ? _family_narrow(s, vs, A) : s
+                t === nothing || (t isa AbstractDict && !_system_sol_ok(t, vs, A)) || push!(out, t)
+            end
+            out
+        end
         return r isa Cases ? _map_cases(keep, r) : keep(r)
     end
     vars = Sym[Sym(v) for v in vars]
@@ -87,6 +106,79 @@ function _system_sol_ok(s::AbstractDict, vars::Vector{Sym}, A)
         end
     end
     true
+end
+
+# a solution family (values in free unknowns t, those mapped to themselves) against the
+# facts about the unknowns: nothing when no t satisfies them, the one solution when one t
+# does, else the family. Facts used: each unknown's set (a1 > 0), for the values in one t
+# alone, and integer unknowns, for values affine in integer t's (2x + 4y = -3 has no
+# integer solutions: the values' fractional parts, periodic in the t's, are checked over
+# one period). Values with parameters are left as they are.
+function _family_narrow(s::AbstractDict, vars::Vector{Sym}, A)
+    free = Sym[v for v in vars if _eq(get(s, v, v), v)]
+    isempty(free) && return s
+    vals = Dict{Sym,Sym}(v => Sym(get(s, v, v)) for v in vars)
+    all(w -> _isexactex(w) && all(q -> any(v -> _eq(q, v), vars), _named(w)), values(vals)) || return s
+    # sets: the values of each t allowed
+    for t in free
+        T = get(A.sets, t, nothing)
+        T === nothing && continue                  # (t not known real)
+        for v in vars
+            S = get(A.sets, v, nothing)
+            (S === nothing || _eq(v, t)) && continue
+            w = vals[v]
+            (has(w, t) && all(u -> _eq(u, t) || !has(w, u), free) && _ispoly_in(w, t)) || continue
+            U = try
+                reduce(union, (_set_where(w, I, t) for I in S.intervals); init = SymSet(SymInterval[], t))
+            catch err
+                err isa ArgumentError || rethrow(); nothing
+            end
+            U === nothing && continue
+            T = intersect(T, U)
+        end
+        isempty(T) && return nothing
+        if length(T.intervals) == 1 && (I = only(T.intervals); I.lo !== nothing && I.hi !== nothing && _eq(I.lo, I.hi))
+            p = I.lo
+            vals = Dict{Sym,Sym}(v => expand(subs(w, t => p)) for (v, w) in vals)
+        end
+    end
+    # integers: some integer t's with every integer unknown's value an integer
+    zfree = Sym[t for t in free if any(v -> has(vals[v], t), vars)]
+    zv = Sym[v for v in vars if get(A.dom, v, _CR) <= _ZR && _hassymbol(vals[v])]
+    if !isempty(zv) && all(t -> get(A.dom, t, _CR) <= _ZR, zfree)
+        ok = true
+        D = 1
+        for v in zv
+            w = vals[v]
+            w0 = subs(w, (t => ZERO for t in zfree)...)
+            cs = [subs(w, (u => (_eq(u, t) ? ONE : ZERO) for u in zfree)...) - w0 for t in zfree]
+            aff = iszero(expand(w - w0 - sum(c * t for (c, t) in zip(cs, zfree))))
+            (aff && all(c -> c.kind == NUMBER && _isrational(c, Assumptions()) === true, [w0; cs])) || (ok = false; break)
+            for c in [w0; cs]
+                D = lcm(D, Int(denominator(Rational{BigInt}(N(c)))))
+            end
+        end
+        if ok && D > 1 && Float64(D)^length(zfree) <= 20_000
+            found = false
+            for ks in Iterators.product((0:D-1 for _ in zfree)...)
+                pt = [t => Sym(k) for (t, k) in zip(zfree, ks)]
+                if all(v -> (q = subs(vals[v], pt...); q.kind == NUMBER && _isinteger(q, Assumptions()) === true), zv)
+                    found = true; break
+                end
+            end
+            found || return nothing
+        end
+    end
+    T = typeof(s)
+    T(k => vals[k] for k in keys(s))
+end
+
+# the t with w(t) in I, a set in t
+function _set_where(w::Sym, I::SymInterval, t::Sym)
+    U = SymSet([SymInterval(nothing, nothing, false, false)], t)
+    I.lo === nothing || (U = intersect(U, solve(Relation(I.lclosed ? :ge : :gt, w, I.lo), t)))
+    I.hi === nothing || (U = intersect(U, solve(Relation(I.rclosed ? :le : :lt, w, I.hi), t)))
+    U
 end
 
 # floats among parameters: each float an opaque constant c, the system solved exactly in
