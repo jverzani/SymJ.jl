@@ -342,6 +342,55 @@ transforms). Of the rest, in rough order of value for calculus-level use:
    - the Beta integral folded onto [0, 1], ∫₀¹ (x^(p-1) + x^(q-1))/(1 + x)^(p+q) (#14549).
    - rationalizing denominators with cube and higher roots (#14184).
    - bounds such as n! ≥ n (#13616): refine knows signs only (n! > 0).
+16. **Gaps from the thirteenth SymPy review (#11909–#13408)**:
+   - multivariate factoring of large random products (six variables, degrees 8 and 6;
+     round-13 extra) takes about 50 s.
+   - Gröbner bases of two general bivariate cubics with fourteen parameters (#12071) take
+     more than 3 minutes (FGLM over a parametric field).
+   - double integrals over a disc that need polar coordinates,
+     ∫∫ sin(x² + y²) over x² + y² ≤ 1 (#12645).
+   - From the first pass: trigonometric and parametric inequalities (cos x < 1/2, K > Py;
+     #13290, #13116, #12560), transcendental nonlinear systems (#13272), dsolve systems
+     with variable coefficients or nonlinear ones (#13376, #13060, #11968), numeric
+     evaluation of unevaluated integrals (#13371, #12646), radical forms of cos(rπ)
+     (cos(π/17); #13066), rising and falling factorials (#13233), periodicity (#13207),
+     function_range (#13273), symbolic derivative orders (#12484), differentiating with
+     respect to a function call (#12139), Fourier and Z transforms (#12591, #12502),
+     symbolic Cholesky (#12500), N to a number of digits and chop (#12680, #12209),
+     gcd of radicals (#12794), integrals of floor and ceiling (#12234), the Bessel-I
+     result of ∫₀^∞ e^(-(x-x₀)²)/√x (#12626), Diophantine equations (#11959, #11956,
+     #11955), discrete logarithms and modular equations (#13201, #13178), and the objects
+     SymJ does not have: symbolic sets (FiniteSet, ProductSet, ImageSet, ComplexRegion,
+     symbolic intervals), MatrixSymbol and matrix expressions, IndexedBase and
+     KroneckerDelta, noncommutative symbols, holonomic functions, sequences, formal power
+     series, B-splines, PDE separation, boolean logic expressions, Q.prime.
+17. **Gaps from the fourteenth SymPy review (#10409–#11908)**:
+   - solve: x^(yz) = x, a symbolic exponent against its base, is refused (#10864); real
+     roots of r³ = V with V's sign undecided are not classified (#11379).
+   - eigenvalues of a symmetric 3×3 in Cardano's complex form, not the trigonometric real
+     form (#11514); Aⁿ of a nilpotent matrix with symbolic n gives no cases (#10563).
+   - simplify: asinh of a constant rewritten as a log (#10429); re/im parts recombined
+     into one complex expression (#10822); a complex constant quotient in Cartesian form,
+     (1 - 2i + √3 i)/(2 - √3 + i) = -i (#11193).
+   - cse finds common sums, not common subproducts (#11428).
+   - Σ of incomplete-gamma (hypergeometric) series in closed form (#11643).
+   - From the first pass: holonomic functions (#11284–#11329, #11490, #11541), Diophantine
+     equations and Pell's equation (#11486, #11712, #11697, #10861 and the diop issues),
+     nsolve (#11768, #11860), PDE separation (#11726, #11342), Fourier transforms of
+     distributions and Fourier series (#11772, #10912, #11626), integrals of spherical
+     Bessel functions (#11891), ₁F₂ and its limits (#10802), more special functions
+     (Struve, Kummer U, Jacobi elliptic, Riemann θ, subfactorial, Laguerre; #11579,
+     #10881, #10962, #10961), rising and falling factorials (#11105, #10938), symbolic
+     derivative orders and differentiation with respect to an expression or a derivative
+     (#11762, #11573, #11467, #11737), partial factorization (#11869), rewriting to sums
+     and to real/imaginary parts (#11377, #10897), subs on a Poly (#11447), rsolve in
+     several variables (#11063), dsolve constant names (#11024), finite differences
+     (#11007), factor of an integer (#10596), modular roots and discrete logarithms
+     (#11502, #10886, #11512), sum-of-squares decomposition (#11332), inverses of user
+     functions for solve (#10487), step-by-step solutions (#11088), and the objects SymJ
+     does not have: symbolic sets (Range, ImageSet, ConditionSet, ComplexRegion, product
+     sets), MatrixSymbol and matrix expressions, Indexed, noncommutative symbols, boolean
+     ITE.
 
 Done since the first audit: trigonometric and logarithmic expansion, gamma and combinatorial simplification, LaTeX output (a Latexify extension), resultants and Gröbner
 bases (polynomial systems are solved), real and imaginary parts and `conj`, and
