@@ -20,8 +20,13 @@ GCD(f, g) = gcd(f, g)
 CANCEL(f) = cancel(f)
 APART(f, x) = apart(f, x)
 DIFF(f, x, n) = foldl((e, _) -> diff(e, x), 1:n; init = f)
-SOLVE(l, r, x) = solve(sym(l) ~ sym(r), x)
-LINSOLVE(eqs, vars) = (d = solve([sym(l) ~ sym(r) for (l, r) in eqs], vars); [d[v] for v in vars])
+# where parameters can make a coefficient vanish, solve gives Cases (a == 0 => …,
+# a != 0 => …); the other systems give the generic answer, so it is compared: the case
+# whose conditions are no equations. A system's solutions are a vector of Dicts.
+_isequation(c) = c isa SymJ.Relation && c.op === :eq
+generic(r) = r isa SymJ.Cases ? last(r[findlast(p -> !any(_isequation, p.first), collect(r))]) : r
+SOLVE(l, r, x) = generic(solve(sym(l) ~ sym(r), x))
+LINSOLVE(eqs, vars) = (d = only(generic(solve([sym(l) ~ sym(r) for (l, r) in eqs], vars))); [d[v] for v in vars])
 LIMIT(f, x, x0, dir) = GruntzLimit.gruntz_limit(f, x, x0; dir)
 INTEGRATE(f, x) = RischIntegrate.integrate(f, x)
 UNSOLVED(op, out) = false                          # failures throw

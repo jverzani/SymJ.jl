@@ -386,10 +386,10 @@ weakdeps = ["DynamicPolynomials"]
     GroebnerDynamicPolynomialsExt = "DynamicPolynomials"
 
 [[deps.GruntzLimit]]
-deps = ["ScopedValues", "TermInterface"]
+deps = ["ScopedValues", "SpecialFunctions", "TermInterface"]
 path = "../../../../GruntzLimit"
 uuid = "549ac5eb-4437-4bd1-88f1-51d4e2fa49c9"
-version = "1.0.1"
+version = "1.5.0"
 
 [[deps.HashArrayMappedTries]]
 git-tree-sha1 = "2eaa69a7cab70a52b9687c8bf950a5a93ec895ae"
@@ -723,7 +723,7 @@ version = "1.2.2"
 deps = ["HypergeometricFunctions", "PolyLog", "PrecompileTools", "SpecialFunctions", "TermInterface"]
 path = "../../../../RischIntegrate"
 uuid = "c180fd1b-065d-41df-ac4d-d8d9562c1957"
-version = "1.1.0"
+version = "1.2.0"
 
 [[deps.RuntimeGeneratedFunctions]]
 deps = ["ExprTools", "PrecompileTools", "SHA", "Serialization"]
