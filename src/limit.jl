@@ -59,34 +59,6 @@ function _unknown_consts!(out, e::Sym, x::Sym)
     out
 end
 
-"""
-    limit(f, x => x0; dir = :both, assume = nothing)
-
-The limit of `f` as `x` tends to `x0`: a number, an expression, or `±Inf`. The limit is
-two-sided unless `dir` is `:+` (from above) or `:-` (from below). Computed by Gruntz's
-algorithm ([GruntzLimit](https://github.com/jverzani/GruntzLimit.jl)), which handles
-exponentials and logarithms that cancel in ways numerical evaluation cannot follow.
-
-The other symbols are real numbers, and the answer is the generic one: a constant that
-may vanish is taken to be nonzero. Facts about them can be given with `assume` (or in
-an [`assuming`](@ref) block, see [`Assumptions`](@ref)). When the limit depends on the
-sign of something the facts leave open, the answer is a `Cases` value, one limit for each
-case, which can be called with values (`cs(a => 2)`). The limit is a `Sym`, `Sym(Inf)` or
-`Sym(-Inf)` for an infinite one. A limit that does not exist (`sin(x)` at `Inf`) throws
-a `GruntzError`.
-
-`f` may itself be a `Cases` value (as a definite integral with a variable end gives): the
-cases whose conditions on `x` hold near `x0` are kept, each with its limit (∫₁ᴹ as `M → ∞`
-takes the case `M > 1`).
-
-```julia
-limit(sin(x) / x, x => 0)                    # 1
-limit((1 + 1 / x)^x, x => Inf)               # ℯ
-limit(1 / x, x => 0; dir = :+)               # Inf
-limit(x^a, x => Inf)                         # a < 0 => 0, a == 0 => 1, a > 0 => Inf
-limit(x^a, x => Inf; assume = @assume(a > 1))   # Inf
-```
-"""
 const _LIMIT_FLOATS = ScopedValue(false)
 
 # jₙ(u) (j = true) or yₙ(u) by j₀ = sin u/u, j₁ = sin u/u² - cos u/u, y₀ = -cos u/u,
@@ -117,6 +89,35 @@ function _airy_polynomial(f::Sym, x::Sym)
     k == FN && f.name in (:airyai, :airybi, :airyaiprime, :airybiprime) && return all(a -> _airy_polynomial(a, x), f.args)
     false
 end
+
+"""
+    limit(f, x => x0; dir = :both, assume = nothing)
+
+The limit of `f` as `x` tends to `x0`: a number, an expression, or `±Inf`. The limit is
+two-sided unless `dir` is `:+` (from above) or `:-` (from below). Computed by Gruntz's
+algorithm ([GruntzLimit](https://github.com/jverzani/GruntzLimit.jl)), which handles
+exponentials and logarithms that cancel in ways numerical evaluation cannot follow.
+
+The other symbols are real numbers, and the answer is the generic one: a constant that
+may vanish is taken to be nonzero. Facts about them can be given with `assume` (or in
+an [`assuming`](@ref) block, see [`Assumptions`](@ref)). When the limit depends on the
+sign of something the facts leave open, the answer is a `Cases` value, one limit for each
+case, which can be called with values (`cs(a => 2)`). The limit is a `Sym`, `Sym(Inf)` or
+`Sym(-Inf)` for an infinite one. A limit that does not exist (`sin(x)` at `Inf`) throws
+a `GruntzError`.
+
+`f` may itself be a `Cases` value (as a definite integral with a variable end gives): the
+cases whose conditions on `x` hold near `x0` are kept, each with its limit (∫₁ᴹ as `M → ∞`
+takes the case `M > 1`).
+
+```julia
+limit(sin(x) / x, x => 0)                    # 1
+limit((1 + 1 / x)^x, x => Inf)               # ℯ
+limit(1 / x, x => 0; dir = :+)               # Inf
+limit(x^a, x => Inf)                         # a < 0 => 0, a == 0 => 1, a > 0 => Inf
+limit(x^a, x => Inf; assume = @assume(a > 1))   # Inf
+```
+"""
 function limit(f, xx0::Pair; dir = :both, assume = nothing)
     # floating point input: the answer's numbers floats again (Gruntz works with the
     # rationals the floats stand for; limit(0.36 + 1/k, k => Inf) was 9/25); limits
