@@ -44,6 +44,21 @@ SymJ.summation(1/k^2, k, 1, Inf)        # π^2/6
 function summation(f, k::Sym, a, b; assume = nothing)
     _isnamed(k) || throw(ArgumentError("summation: $k is not a symbol"))
     f = Sym(f)
+    # equalities among the assumptions substituted first (a ~ 1: Σ aⁿ is the number of
+    # terms, not (a^L - 1)/(a - 1), 0/0 there; SymPy #11823)
+    A_ = _assumptions(assume)
+    if A_ !== nothing && !isempty(A_.subst) && !haskey(A_.subst, k)
+        sb = collect(A_.subst)
+        f = subs(f, sb...)
+        a isa Sym && (a = subs(a, sb...))
+        b isa Sym && (b = subs(b, sb...))
+    end
+    # ratios of factorials and gammas in k reduced first (factorial(k + 1/2)/factorial(k -
+    # 1/2) is k + 1/2; the sum was left unevaluated; SymPy #11437)
+    if _has_fn(f, (:factorial, :gamma))
+        g = try simplify_gamma(f) catch err; err isa ArgumentError || rethrow(); f end
+        _nodes(g) < _nodes(f) && (f = g)
+    end
     # a Sym infinity is a bound as Inf is (it was taken as a number: digamma(∞ ± i))
     a isa Sym && _isinfpt(a) && (a = Float64(a.num))
     b isa Sym && _isinfpt(b) && (b = Float64(b.num))
@@ -143,6 +158,32 @@ end
 
 const _DIRECT_TERMS = 1000
 
+# Σ_{k≥a} sin(kθ)/k = (π - θ)/2 and Σ cos(kθ)/k = -log(2 sin(θ/2)) for 0 < θ < 2π (θ free
+# of k, its range decided), less the terms below a (a ≥ 1 a small integer); at θ = 0 the
+# sine series is 0 and the cosine one diverges. nothing for other summands.
+function _trig_over_k_series(f::Sym, k::Sym, a::Sym, assume)
+    (a.kind == NUMBER && isexact(a.num) && _isint(a.num) && N1 <= a.num <= SymNumber(50)) || return nothing
+    (f.kind == MUL && length(f.args) == 2) || return nothing
+    i = findfirst(j -> _eq(f.args[j], k) && f.exps[j] == -ONE, 1:2)
+    i === nothing && return nothing
+    t = f.args[3 - i]
+    (t.kind == FN && t.name in (:sin, :cos) && length(t.args) == 1 && isone(f.exps[3 - i])) || return nothing
+    θ = diff(t.args[1], k)
+    (has(θ, k) || !iszero(expand(t.args[1] - θ * k))) && return nothing
+    A0 = something(_assumptions(assume), Assumptions())
+    c = Sym(f.num)
+    head = _add_many(subs(f, k => Sym(j)) for j in 1:(_toint(a.num) - 1))
+    r = _by_cases(A0) do B
+        _isreal(θ, B) === true || (_hassymbol(θ) ? (_decide(Membership(θ, NumberSet(_RR), false), B) || return nothing) : return nothing)
+        if _decide(Relation(:gt, θ, ZERO), B) && _decide(Relation(:lt, θ, 2PI), B)
+            return c * (t.name === :sin ? (PI - θ) / 2 : -log(2sin(θ / 2))) - head
+        end
+        nothing
+    end
+    r isa Cases && any(p -> p.second === nothing, r) && return nothing
+    r
+end
+
 # Σ_{k=a}^{b} of sin(ck + d) or cos(ck + d), c and d free of k: with N = b - a + 1 terms,
 # sin(cN/2) sin(c(a + b)/2 + d)/sin(c/2) (cos likewise), where sin(c/2) ≠ 0; N times the
 # first term where it vanishes (c a multiple of 2π: every term the same). nothing for
@@ -187,6 +228,8 @@ function _summation(f::Sym, k::Sym, a::Sym, b, assume)
     r === nothing || return r
     # Σ_{k=a}^{b} sin(ck + d), cos(ck + d) (SymPy #12107)
     b === nothing || (r = _trig_arith_sum(f, k, a, b, assume)) === nothing || return r
+    # Σ_{k≥1} sin(kθ)/k, cos(kθ)/k: Fourier series (SymPy #11700)
+    b === nothing && (r = _trig_over_k_series(f, k, a, assume)) !== nothing && return r
     # linearity
     if f.kind == ADD
         # telescoping first, a finite range: Σ (g(k + j) - g(k)) by its ends (Σ log(m + 1) -

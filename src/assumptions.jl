@@ -1055,6 +1055,11 @@ function _isreal(e::Sym, A::Assumptions)::Union{Nothing,Bool}
         end
     elseif e.kind == FN && e.name in _REALFNS && length(e.args) == 1
         return true
+    elseif e.kind == FN && e.name in (:asin, :acos) && length(e.args) == 1
+        # asin u, acos u for u = sin v or cos v, v real: u in [-1, 1], real (asin(sin y) for
+        # real y; SymPy #10598)
+        u = e.args[1]
+        u.kind == FN && u.name in (:sin, :cos) && length(u.args) == 1 && _isreal(u.args[1], A) === true && return true
     elseif e.kind == MUL || e.kind == ADD
         parts = e.kind == MUL ? _unpair_conj([b^x for (b, x) in zip(e.args, e.exps)]) : e.args
         rs = [_isreal(p, A) for p in parts]
@@ -1111,11 +1116,27 @@ function _isinteger(e::Sym, A::Assumptions)::Union{Nothing,Bool}
 end
 const _IN_ISINTEGER = ScopedValue(false)
 # from e's form: integer parts and integer powers of integers
+# a constant built from integers by +, × and positive integer powers
+_intnum(c::SymNumber) = isexact(c) && isone(_denominator(c))
+function _const_int_power(e::Sym)
+    k = e.kind
+    k == NUMBER && return _intnum(e.num)
+    k == POW && return _const_int_power(e.args[1]) && _const_int_power(e.args[2]) &&
+                       !(e.args[2].kind == NUMBER && e.args[2].num < N0) && e.args[2].kind in (NUMBER, POW)
+    k == ADD && return _intnum(e.num) && all(_intnum, e.coefs) && all(_const_int_power, e.args)
+    k == MUL && return _intnum(e.num) && all(i -> e.exps[i].kind == NUMBER && _intnum(e.exps[i].num) && e.exps[i].num > N0 &&
+                                               _const_int_power(e.args[i]), eachindex(e.args))
+    false
+end
+
 function _isinteger_form(e::Sym, A::Assumptions)::Union{Nothing,Bool}
     k = e.kind
     # (a float with an integer value is one: solve(x ~ 1.0, x; assume = (x ∈ ℤ,)) is
     # [1.0]; SymPy #23731)
     k == NUMBER && return isexact(e.num) ? isone(_denominator(e.num)) : (v = Float64(e.num); isfinite(v) && isinteger(v))
+    # an integer to a positive integer power, kept as a power for its size (1342^(87236487262873^5)
+    # is an integer; tan(π(that + 4)) is 0; SymPy #10607)
+    !_hassymbol(e) && _const_int_power(e) && return true
     _hassymbol(e) || return _const_rational(e) === false ? false : nothing
     if _isnamed(e)
         get(A.dom, e, _CR) == _ZR && return true

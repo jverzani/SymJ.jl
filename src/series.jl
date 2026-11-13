@@ -146,6 +146,11 @@ end
 # Σ f^(k)(a0)/k! (a - a0)^k
 function _psapply(name::Symbol, args::Vector{Sym}, N::Rational{Int})
     i = findall(a -> has(a, _T), args)
+    # (a derivative of an unknown function: no series is known; "several arguments" pointed
+    # away from that; SymPy #11313)
+    if name === :Derivative && !isempty(args) && args[1].kind == FN && !haskey(FUNCTION_RULES, args[1].name)
+        throw(ArgumentError("series: $(args[1].name) is an unknown function; no series of its derivative is known"))
+    end
     length(i) == 1 || throw(ArgumentError("series: $name with several arguments depending on the variable"))
     i = only(i)
     a = _ser(args[i], N)
@@ -320,6 +325,16 @@ function _ser(ex::Sym, N::Rational{Int})
         # through sin and cos, so that poles come out of a division (Laurent terms)
         r = get(_SER_REWRITE, ex.name, nothing)
         r !== nothing && length(ex.args) == 1 && return _ser(r(only(ex.args)), N)
+        # asech and acsch where their argument tends to 0: log singularities, through
+        # log((1 + √(1 ∓ u²))/u) (series(asech(x), x, 0, n) raised "singular"; SymPy #10885)
+        if ex.name in (:asech, :acsch) && length(ex.args) == 1
+            u = only(ex.args)
+            us = _ser(u, N)
+            if iszero(_pssplit(us)[2]) && !_pssplit(us)[1]
+                sg = ex.name === :asech ? -1 : 1
+                return _ser(log(1 + sqrt(1 + sg * u^2)) - log(u), N)
+            end
+        end
         return _psapply(ex.name, ex.args, N)
     end
     throw(ArgumentError("series: cannot expand $ex"))

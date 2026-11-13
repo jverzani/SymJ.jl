@@ -26,7 +26,9 @@ function __init__()
     for (f, (p, q)) in FUNCTIONS
         g = getfield(HF, f)
         register_function!(f; julia = g,
-            eval = args -> iszero(args[end]) ? ONE : nothing,           # pFq(α; β; 0) = 1
+            # pFq(α; β; 0) = 1; ₁F₁(a; a; z) = e^z (1/₁F₁(1, 1, x) at 0 went to Gruntz,
+            # which has no ₁F₁; SymPy #11465)
+            eval = args -> iszero(args[end]) ? ONE : (f === :_₁F₁ && SymJ._eq(args[1], args[2])) ? exp(args[3]) : nothing,
             # d/dz pFq(α; β; z) = Πα / Πβ pFq(α + 1; β + 1; z); no closed form in the parameters
             diff = (args, i) -> i == p + q + 1 ?
                 prod(args[1:p]) / prod(args[(p+1):(p+q)]) * g((args[1:(end-1)] .+ 1)..., args[end]) : nothing)

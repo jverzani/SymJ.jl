@@ -87,7 +87,48 @@ limit(x^a, x => Inf)                         # a < 0 => 0, a == 0 => 1, a > 0 =>
 limit(x^a, x => Inf; assume = @assume(a > 1))   # Inf
 ```
 """
+const _LIMIT_FLOATS = ScopedValue(false)
+
+# jₙ(u) (j = true) or yₙ(u) by j₀ = sin u/u, j₁ = sin u/u² - cos u/u, y₀ = -cos u/u,
+# y₁ = -cos u/u² - sin u/u and f_{k+1} = (2k + 1)/u f_k - f_{k-1}
+function _spherical_bessel_elementary(j::Bool, n::Int, u::Sym)
+    f0 = j ? sin(u) / u : -cos(u) / u
+    f1 = j ? sin(u) / u^2 - cos(u) / u : -cos(u) / u^2 - sin(u) / u
+    n == 0 && return f0
+    for k in 1:(n - 1)
+        f0, f1 = f1, (2k + 1) / u * f1 - f0
+    end
+    f1
+end
+
+# x only in polynomials and Airy functions (of such arguments) in f
+function _airy_polynomial(f::Sym, x::Sym)
+    has(f, x) || return true
+    _eq(f, x) && return true
+    k = f.kind
+    k == ADD && return all(a -> _airy_polynomial(a, x), f.args)
+    if k == MUL
+        return all(i -> !has(f.args[i], x) || (f.exps[i].kind == NUMBER && _isint(f.exps[i].num) && f.exps[i].num > N0 &&
+                                                 _airy_polynomial(f.args[i], x)), eachindex(f.args)) &&
+               all(p -> !has(p, x), f.exps)
+    end
+    k == POW && return !has(f.args[2], x) && f.args[2].kind == NUMBER && _isint(f.args[2].num) && f.args[2].num > N0 &&
+                       _airy_polynomial(f.args[1], x)
+    k == FN && f.name in (:airyai, :airybi, :airyaiprime, :airybiprime) && return all(a -> _airy_polynomial(a, x), f.args)
+    false
+end
 function limit(f, xx0::Pair; dir = :both, assume = nothing)
+    # floating point input: the answer's numbers floats again (Gruntz works with the
+    # rationals the floats stand for; limit(0.36 + 1/k, k => Inf) was 9/25); limits
+    # taken inside keep exact numbers
+    (_LIMIT_FLOATS[] || !(f isa Union{Sym,Number}) || _isexactex(Sym(f))) && return _limit(f, xx0, dir, assume)
+    r = with(() -> _limit(f, xx0, dir, assume), _LIMIT_FLOATS => true)
+    r isa Cases ? _map_cases(_limit_floatify, r) : _limit_floatify(r)
+end
+
+_limit_floatify(v) = v isa Sym && !_isinfpt(v) ? _floatify(v) : v
+
+function _limit(f, xx0::Pair, dir, assume)
     x, x0 = Sym(xx0.first), xx0.second
     _isnamed(x) || throw(ArgumentError("limit: $x is not a symbol"))
     dir = dir in (:+, +, "+") ? :+ : dir in (:-, -, "-") ? :- : dir in (:both, "both") ? :both :
@@ -100,6 +141,24 @@ function limit(f, xx0::Pair; dir = :both, assume = nothing)
             (t.kind == FN && t.name === :harmonic && length(t.args) == 1 && has(t.args[1], x)) ?
                 apply_function(:digamma, Sym[t.args[1] + 1]) + Sym(Base.MathConstants.eulergamma) : nothing
         end
+    end
+    # spherical Bessel functions of small integer order in their elementary forms, which
+    # Gruntz takes: j₀(u) = sin u/u, … (SymPy #11776)
+    if _has_fn(f, (:sphericalbesselj, :sphericalbessely))
+        f = _replace_walk(f) do t
+            (t.kind == FN && t.name in (:sphericalbesselj, :sphericalbessely) && length(t.args) == 2 && has(t.args[2], x)) || return nothing
+            n = t.args[1]
+            (n.kind == NUMBER && isexact(n.num) && _isint(n.num) && N0 <= n.num <= SymNumber(10)) || return nothing
+            _spherical_bessel_elementary(t.name === :sphericalbesselj, _toint(n.num), t.args[2])
+        end
+    end
+    # Airy functions are entire: at a finite point, with x only in polynomials and Airy
+    # functions, the limit is the value there (airyai(2), not a Bessel form; arguments ≤ 0
+    # too, which Gruntz refuses)
+    if !(x0 isa Real && isinf(x0)) && !(x0 isa Sym && _isinfpt(x0)) &&
+       _has_fn(f, (:airyai, :airybi, :airyaiprime, :airybiprime)) && _airy_polynomial(f, x)
+        v = try subs(f, x => Sym(x0)) catch err; _isdivzero(err) || rethrow(); nothing end
+        v === nothing || return v
     end
     # a sum left unevaluated in x: no limit taken of it (SymPy #14196)
     _has_node(f, t -> t.kind == FN && t.name in (:Sum, :Product) && has(t, x)) &&

@@ -75,6 +75,8 @@ function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Boo
                 v = _known_definite(g, x, l, h)
                 v === nothing && (v = _bose_fermi_definite(g, x, l, h, A))
                 v === nothing && (v = _beta_log_definite(g, x, l, h, A))
+                v === nothing && (v = _gamma_power_log_definite(g, x, l, h, A))
+                v === nothing && (v = _exp_power_definite(g, x, l, h, A))
                 # (a Gaussian in real form once refined: |exp(w)|² with w complex; SymPy #26102)
                 if v === nothing
                     Ax = _with_fact(A, x ∈ ℝ)
@@ -190,6 +192,79 @@ function _beta_log_definite(f::Sym, x::Sym, lo::Sym, hi::Sym, A::Assumptions)
     Γ(w) = apply_function(:gamma, Sym[w])
     ψ(w) = apply_function(:digamma, Sym[w])
     c * Γ(a) * Γ(b) / Γ(a + b) * (ψ(L === :x ? a : b) - ψ(a + b))
+end
+
+# ∫₀¹ c x^m (-log x)^s dx = c Γ(s + 1)/(m + 1)^(s + 1) for m > -1, s > -1 (decided);
+# log(1/x) = -log x. nothing otherwise (SymPy #11876)
+function _gamma_power_log_definite(f::Sym, x::Sym, lo::Sym, hi::Sym, A::Assumptions)
+    (iszero(lo) && isone(hi)) || return nothing
+    fs = f.kind == MUL ? [(Sym(f.num), ONE); [(u, q) for (u, q) in zip(f.args, f.exps)]] :
+         f.kind == POW ? [(f.args[1], f.args[2])] : [(f, ONE)]
+    c, m, s = ONE, ZERO, nothing
+    for (u, e) in fs
+        if !has(u, x) && !has(e, x)
+            c *= u^e
+            continue
+        end
+        has(e, x) && return nothing
+        if _eq(u, x)
+            m += e
+        elseif s === nothing && u.kind == FN && u.name === :log && length(u.args) == 1 && _eq(u.args[1], 1 / x)
+            s = e                                    # log(1/x)^e
+        elseif s === nothing && u.kind == MUL && isone(-u.num) && length(u.args) == 1 && _eq(u.args[1], log(x)) && isone(u.exps[1])
+            s = e                                    # (-log x)^e
+        else
+            return nothing
+        end
+    end
+    s === nothing && return nothing
+    (_decide(Relation(:gt, m, Sym(-1)), A) && _decide(Relation(:gt, s, Sym(-1)), A)) || return nothing
+    c * apply_function(:gamma, Sym[s + 1]) / (m + 1)^(s + 1)
+end
+
+# ∫₀ᵇ C e^(u₀ - a x^p) dx = C e^(u₀) γ(1/p, a bᵖ)/(p a^(1/p)), a > 0 (decided), p > 0, b > 0
+# a number: the lower incomplete gamma γ(s, z) = Γ(s) - Γ(s, z) (SymPy #11845); nothing
+# otherwise
+function _exp_power_definite(f::Sym, x::Sym, lo::Sym, hi::Sym, A::Assumptions)
+    (iszero(lo) && !_isinfpt(hi) && !_hassymbol(hi)) || return nothing
+    (try N(hi) > 0 catch; false end) || return nothing
+    fs = f.kind == MUL ? [(Sym(f.num), ONE); [(u, q) for (u, q) in zip(f.args, f.exps)]] : [(f, ONE)]
+    C, u = ONE, nothing
+    for (b, e) in fs
+        if !has(b, x) && !has(e, x)
+            C *= b^e
+        elseif b === E && u === nothing
+            u = expand(e)
+        elseif b.kind == POW && b.args[1] === E && u === nothing && !has(e, x)
+            u = expand(b.args[2] * e)
+        else
+            return nothing
+        end
+    end
+    u === nothing && return nothing
+    terms = u.kind == ADD ? [(Sym(c), t) for (c, t) in zip(u.coefs, u.args)] : [(ONE, u)]
+    u0 = u.kind == ADD ? Sym(u.num) : ZERO
+    k, p = nothing, nothing
+    for (c, t) in terms
+        if !has(t, x)
+            u0 += c * t
+            continue
+        end
+        k === nothing || return nothing
+        tt = c * t
+        cf = tt.kind == MUL ? (tt / prod((b^q for (b, q) in zip(tt.args, tt.exps) if has(b, x)); init = ONE)) : ONE
+        xp = expand(tt / cf)
+        xp.kind == POW && _eq(xp.args[1], x) && xp.args[2].kind == NUMBER && isexact(xp.args[2].num) && xp.args[2].num > N0 ||
+            (_eq(xp, x) ? (xp = x^ONE) : return nothing)
+        k, p = cf, (xp.kind == POW ? xp.args[2] : ONE)
+    end
+    (k === nothing || has(k, x) || isone(p)) && return nothing          # (e^(-ax) is elementary)
+    a = -k
+    _decide(Relation(:gt, a, ZERO), A) || return nothing
+    s = 1 / p
+    z = a * hi^p
+    lowerγ = apply_function(:gamma, Sym[s]) - apply_function(:gamma, Sym[s, z])
+    C * exp(u0) * lowerγ / (p * a^s)
 end
 
 # ∫₀^∞ c xᵖ/(e^(ax) ∓ 1) dx, a > 0 (decided): Γ(p+1) ζ(p+1)/a^(p+1) for -1 (Bose–Einstein,

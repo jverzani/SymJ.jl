@@ -153,6 +153,22 @@ function subs(ex::Sym, ps::Pair...)
         isempty(rest) && return ex
         ps = Tuple(rest)
     end
+    # a target b^u with an integer base b: powers c^w of powers c = b^m of it written b^(m w)
+    # first, so they match (subs(4^x - 3*2^x + 2, 2^x => y) is y² - 3y + 2; SymPy #10829)
+    for p in ps
+        t = Sym(p.first)
+        (t.kind == POW && t.args[1].kind == NUMBER && isexact(t.args[1].num) && _isint(t.args[1].num) &&
+         t.args[1].num > SymNumber(1) && _hassymbol(t.args[2])) || continue
+        b = big(_numerator(t.args[1].num))
+        ex = _replace_walk(ex) do q
+            (q.kind == POW && q.args[1].kind == NUMBER && isexact(q.args[1].num) && _isint(q.args[1].num) &&
+             !_eq(q.args[1], t.args[1]) && _hassymbol(q.args[2])) || return nothing
+            c = big(_numerator(q.args[1].num))
+            m = _ilog(c, b)
+            m === nothing && return nothing
+            _mkpow_node(t.args[1], expand(Sym(m) * q.args[2]))
+        end
+    end
     _subs_top(ex, Dict{Sym,Sym}(Sym(p.first) => Sym(p.second) for p in ps))
 end
 
@@ -1003,6 +1019,7 @@ function _evalc(ex::Sym)::ComplexF64
         return _cpow(ex.args[1], ex.args[2])
     end
     ex.name === :piecewise && return _evalc_piecewise(ex)
+    ex.name === :Derivative && length(ex.args) == 3 && return _evalc_derivative(ex)
     rule = get(FUNCTION_RULES, ex.name, nothing)
     (rule === nothing || rule.julia === nothing) && throw(ArgumentError("no numeric method for $(ex.name)"))
     # an exact integer argument stays an Int (an order, a kind: besselh(ν, 1, x))
@@ -1046,6 +1063,36 @@ function _fn_with_ints(f, args)
     end
     # outside the real domain with the integers kept (log(-3)): complex values throughout
     f(map(v -> v isa Int ? complex(float(v)) : v, vals)...)
+end
+
+# Derivative(f, v, a), f perhaps itself Derivative(…, v) k - 1 times: the k-th derivative
+# at a by central differences in 256-bit arithmetic, step 2^-32, Richardson-extrapolated
+# once (error far below Float64's); the derivative of ζ at 4 had no value (SymPy #11802)
+function _evalc_derivative(ex::Sym)::ComplexF64
+    f, v, a = ex.args
+    k = 1
+    while f.kind == FN && f.name === :Derivative && length(f.args) == 2 && _eq(f.args[2], v)
+        f, k = f.args[1], k + 1
+    end
+    (_isnamed(v) && !_hassymbol(a) && k <= 8) || throw(ArgumentError("no numeric method for $ex"))
+    _hasfn(f, :Derivative) && throw(ArgumentError("no numeric method for $ex"))
+    setprecision(BigFloat, 256) do
+        p = Complex{BigFloat}(_ev(a, _Named(NamedTuple()), Complex{BigFloat}, Ref{Union{Nothing,Sym}}(nothing)))
+        # (the points exactly, as rationals: Sym(::BigFloat) would round them to Float64)
+        ex_(r) = Sym(SymNumber(Rational{BigInt}(r)))
+        pt(t) = iszero(imag(t)) ? ex_(real(t)) : ex_(real(t)) + IM * ex_(imag(t))
+        # (a real point in real BigFloat: ζ, among others, has no complex BigFloat method)
+        T = iszero(imag(p)) ? BigFloat : Complex{BigFloat}
+        ev(g, F) = Complex{BigFloat}(_ev(g, _Named(NamedTuple()), F, Ref{Union{Nothing,Sym}}(nothing)))
+        function val(t)
+            g = subs(f, v => pt(t))
+            T === BigFloat || return ev(g, T)
+            try ev(g, BigFloat) catch err; err isa DomainError || rethrow(); ev(g, Complex{BigFloat}) end
+        end
+        D(h) = sum((-1)^j * binomial(k, j) * val(p + (k / 2 - j) * h) for j in 0:k) / h^k
+        h = big(2.0)^-32
+        ComplexF64((4D(h / 2) - D(h)) / 3)
+    end
 end
 
 function _cpow(b::Sym, e::Sym)
