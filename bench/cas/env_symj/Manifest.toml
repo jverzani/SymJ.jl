@@ -8,6 +8,12 @@ project_hash = "44b380b973d8a459bc1c339a1414d80103e121bc"
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 version = "1.11.0"
 
+[[deps.CommonEq]]
+git-tree-sha1 = "6b0f0354b8eb954cdba708fb262ef00ee7274468"
+registries = "General"
+uuid = "3709ef60-1bee-4518-9f2f-acd86f176c50"
+version = "0.2.1"
+
 [[deps.CommonSolve]]
 deps = ["PrecompileTools"]
 git-tree-sha1 = "6c389fa857f6ca5a95474b52a52023fd77f24cb7"
@@ -45,10 +51,10 @@ uuid = "a0844989-3bd2-4988-8bea-c9407ab0941b"
 version = "1.2.0"
 
 [[deps.GruntzLimit]]
-deps = ["ScopedValues", "TermInterface"]
+deps = ["ScopedValues", "SpecialFunctions", "TermInterface"]
 path = "../../../../GruntzLimit"
 uuid = "549ac5eb-4437-4bd1-88f1-51d4e2fa49c9"
-version = "1.0.1"
+version = "1.5.0"
 
 [[deps.HashArrayMappedTries]]
 git-tree-sha1 = "2eaa69a7cab70a52b9687c8bf950a5a93ec895ae"
@@ -167,7 +173,7 @@ version = "1.11.0"
 deps = ["HypergeometricFunctions", "PolyLog", "PrecompileTools", "SpecialFunctions", "TermInterface"]
 path = "../../../../RischIntegrate"
 uuid = "c180fd1b-065d-41df-ac4d-d8d9562c1957"
-version = "1.1.0"
+version = "1.2.0"
 
 [[deps.RuntimeGeneratedFunctions]]
 deps = ["ExprTools", "PrecompileTools", "SHA", "Serialization"]
@@ -205,18 +211,18 @@ version = "2.9.0"
     ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 
 [[deps.SymJ]]
-deps = ["CommonSolve", "LambertW", "PrecompileTools", "RuntimeGeneratedFunctions", "TermInterface"]
+deps = ["CommonEq", "CommonSolve", "GruntzLimit", "HypergeometricFunctions", "LambertW", "LinearAlgebra", "PolyLog", "PrecompileTools", "RuntimeGeneratedFunctions", "ScopedValues", "SpecialFunctions", "TermInterface"]
 path = "../../.."
 uuid = "73a6d648-42a5-483e-b8b5-fc71c1696ef5"
 version = "0.1.0"
-weakdeps = ["GruntzLimit", "HypergeometricFunctions", "PolyLog", "RischIntegrate", "SpecialFunctions"]
 
     [deps.SymJ.extensions]
-    SymJGruntzLimitExt = "GruntzLimit"
-    SymJHypergeometricFunctionsExt = "HypergeometricFunctions"
-    SymJPolyLogExt = "PolyLog"
+    SymJLatexifyExt = "Latexify"
     SymJRischIntegrateExt = "RischIntegrate"
-    SymJSpecialFunctionsExt = "SpecialFunctions"
+
+    [deps.SymJ.weakdeps]
+    Latexify = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
+    RischIntegrate = "c180fd1b-065d-41df-ac4d-d8d9562c1957"
 
 [[deps.TOML]]
 deps = ["Dates"]
