@@ -1299,3 +1299,34 @@ end
     # 0^x = 1 at x = 0 (#11536)
     @test solve(Sym(0)^x ~ 1, x) == [0]
 end
+
+@testset "crashes and hangs (SymPy review, round 14)" begin
+    @syms x y n
+    # factor of 0 (#11151)
+    @test factor(Sym(0)) == 0
+    @test SymJ.factor_squarefree(Sym(0)) == 0
+    # lambdify of a relation (#11248)
+    @test lambdify(x ~ y, [x, y])(1, 1) === true
+    @test lambdify(x ≪ y, x, y)(2, 1) === false
+    # piecewise_fold of a relation (#11120)
+    @test SymJ.piecewise_fold(Gt(SymJ.piecewise(x ≫ 0 => x, true => 0) - 1, 2), x) isa Relation
+    # Bools among a system's equations (#11659)
+    @test solve(Any[true, x ~ y], [x, y]) == [Dict(x => y, y => y)]
+    @test isempty(solve(Any[false, x ~ y], [x, y]))
+    # cos x + i sin x = 1: tan(x/2) = i is no point (#10809)
+    @test solve(cos(x) + im * sin(x) ~ 1, x) == [0]
+    # svd of an empty matrix (#10768)
+    @test isempty(SymJ.LinearAlgebra.svdvals(Matrix{Sym}(undef, 0, 0)))
+    # huge fractional powers kept as powers; their value through logs (#11004)
+    v = subs((Sym(2) // 3)^(n + Sym(1) // 2), n => Sym(big(602214179000000000000000)))
+    @test v.kind == SymJ.POW
+    st(m) = sqrt(2PI * m) * (m / SymJ.E)^m
+    q = simplify(st(n) / st(n / 2)^2 / 2^n / (st(n) / st(n / 3)^3 / 3^n))
+    @test N(subs(q, n => Sym(big(602214179000000000000000)))) ≈ 7.487098316702582e11 rtol = 1e-8
+    # simplify of a constant with sin(12) and erf of complex arguments: no polar rewriting
+    # of everything (the endpoint value of ∫₁³ cos(2x)²√x dx; #11354)
+    erf_ = SymJ.SpecialFunctionsSupport.SF.erf
+    c = Sym(3)^(Sym(3) // 2) / 3 + sin(Sym(12)) * sqrt(Sym(3)) / 8 +
+        IM * erf_(2sqrt(-IM) * sqrt(Sym(3))) * sqrt(PI) / (64sqrt(-IM)) - IM * erf_(2sqrt(IM) * sqrt(Sym(3))) * sqrt(PI) / (64sqrt(IM))
+    @test simplify(c) isa Sym
+end

@@ -41,6 +41,13 @@ function lambdify(ex)
     _lambdify(ex, vcat(vars, free_parameters(ex)))
 end
 
+# a relation: a function giving the comparison of its sides' values (SymPy #11248)
+function _lambdify(r::Relation, vars::Vector{Sym})
+    f = _lambdify((r.lhs, r.rhs), vars)
+    cmp = _REL_INFO[r.op][2]
+    (args...) -> cmp(f(args...)...)
+end
+
 function _lambdify(ex, vars::Vector{Sym})
     f = RuntimeGeneratedFunction(@__MODULE__, @__MODULE__, lambdify_expr(ex, vars))
     LambdifiedFunction{length(vars),typeof(f)}(f, vars)

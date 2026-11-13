@@ -512,6 +512,9 @@ function _solve_weierstrass(eq::Relation, n::Sym, x::Sym, w::Sym)
     ts isa AbstractVector || throw(ArgumentError("solve: $eq: the equation in tan($w/2) has cases"))
     ws = Sym[PI]
     for r in ts
+        # t = ±i: no finite w (tan(w/2) = ±i only as Im w → ±∞); atan raised a pole
+        # (cos x + i sin x = 1 has t = 0 and t = i; SymPy #10809)
+        (iszero(expand(r - IM)) || iszero(expand(r + IM))) && continue
         u = 2atan(r)
         # 2atan(r) as atan(2r/(1 - r²)) (± π past |r| = 1) when smaller: 2atan(√10/3 - 1/3)
         # is atan(3) (SymPy #19102)

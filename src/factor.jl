@@ -56,6 +56,7 @@ end
 
 factor(ex::Sym; gcd_method::Symbol = :auto) = _with_widening(_factor_sym, ex; gcd_method)
 function _factor_sym(ex::Sym; gcd_method::Symbol = :auto)
+    iszero(ex) && return ZERO                      # (an error, as the zero polynomial; SymPy #11151)
     # exponentials e^(c u), several rational c for one u: a polynomial in t = e^(u/q), q
     # the denominators' lcm, factored (y² - y e^(x/7) - y e^(x/2) + e^(9x/14) is
     # (y - e^(x/7))(y - e^(x/2)); SymPy #21511)

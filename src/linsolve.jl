@@ -41,6 +41,25 @@ solve([x^2 + y^2 ~ 1, x ~ y], [x, y])          # [Dict(x => -√2/2, y => -√2/
 solve([x*y ~ 1, x + y ~ 3], [x, y])
 ```
 """
+# equations given with Bools among them (simplify can turn a relation into true): true
+# dropped, false no solutions (MethodError CommonSolve.init(::Vector{Any}, …); SymPy #11659)
+function solve(eqs::AbstractVector, vars::Union{AbstractVector,Tuple}; assume = nothing)
+    rels = Relation[]
+    for e in eqs
+        if e === true
+            continue
+        elseif e === false
+            return Dict{Sym,Sym}[]
+        elseif e isa Relation
+            push!(rels, e)
+        else
+            throw(ArgumentError("solve: $e is not an equation (write lhs ~ rhs)"))
+        end
+    end
+    isempty(rels) && throw(ArgumentError("solve: no equations left (every one is true): every value solves them"))
+    solve(rels, vars; assume)
+end
+
 function solve(eqs::AbstractVector{<:Relation}, vars::Union{AbstractVector,Tuple}; assume = nothing)
     # assumptions: about the unknowns, they choose the domain (x ∈ ℝ: abs(x) as ±x, real
     # solutions only) and filter the solutions; about parameters, they decide cases
