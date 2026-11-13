@@ -2,7 +2,7 @@
 
 julia_version = "1.13.0"
 manifest_format = "2.1"
-project_hash = "11f36c266f58e92c7143014fafbe6bbc9a4e4278"
+project_hash = "efc5f0e023eaa9cdcfcf2ca2041ca5237b130f20"
 
 [[deps.Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
@@ -52,10 +52,10 @@ version = "1.2.0"
 
 [[deps.GruntzLimit]]
 deps = ["ScopedValues", "SpecialFunctions", "TermInterface"]
-git-tree-sha1 = "6be2cb384be114f467af0d326d38fd6b1a8c051e"
+git-tree-sha1 = "5d3475c329bb34c4723425f6bc8d3fad51d1aa57"
 registries = "General"
 uuid = "549ac5eb-4437-4bd1-88f1-51d4e2fa49c9"
-version = "1.3.0"
+version = "1.5.0"
 
 [[deps.HashArrayMappedTries]]
 git-tree-sha1 = "2eaa69a7cab70a52b9687c8bf950a5a93ec895ae"
