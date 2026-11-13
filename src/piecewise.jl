@@ -896,6 +896,20 @@ SymJ.piecewise_fold(SymJ.piecewise(a ≫ 1 => a - 1//2, true => a^2 - a + 1//2) 
 # piecewise(a ≦ 0 => -a + 1/2, a ≦ 1 => a^2 - a + 1/2, true => a - 1/2)
 ```
 """
+# a relation: each side folded (piecewise_fold(Gt(pw - 1, 2), x) raised MethodError
+# Sym(::Relation); SymPy #11120)
+function piecewise_fold(r::Relation, x::Sym; assume = nothing)
+    l, rr = piecewise_fold(r.lhs, x; assume), piecewise_fold(r.rhs, x; assume)
+    (l isa Cases || rr isa Cases) && throw(ArgumentError("piecewise_fold: a relation whose sides fold by cases is not supported"))
+    Relation(r.op, l, rr)
+end
+function piecewise_fold(r::Relation; assume = nothing)
+    vs = Set{Sym}()
+    _pw_condsyms!(vs, piecewise(Sym(r.lhs - r.rhs)))
+    length(vs) == 1 || throw(ArgumentError("piecewise_fold: give the variable; the conditions have $(isempty(vs) ? "no symbol" : join(_sort_by_name!(collect(vs)), ", "))"))
+    piecewise_fold(r, only(vs); assume)
+end
+
 function piecewise_fold(e, x::Sym; assume = nothing)
     _isnamed(x) || throw(ArgumentError("piecewise_fold: $x is not a symbol"))
     A = _assumptions(assume)

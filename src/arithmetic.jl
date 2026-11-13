@@ -530,6 +530,9 @@ function _numpow(b::SymNumber, e::SymNumber)
     end
     _isN1(b) && return ONE
     sign(b) < 0 && return mul(_minus_one_pow(e), _numpow(-b, e))
+    # a fractional power whose integer part is beyond any memory ((2/3)^(1/2 - n) at
+    # n ≈ 6·10²³ took the integer power first and hung; SymPy #11004) stays a power
+    _toobig_pow(b, SymNumber(fld(big(_numerator(e)), big(_denominator(e))))) && return _mkpow_node(Sym(b), Sym(e))
     _isint(b) || return mul(_numpow(SymNumber(_numerator(b)), e), _numpow(SymNumber(_denominator(b)), -e))
     _introot_pow(_numerator(b), e)
 end

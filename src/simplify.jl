@@ -1130,8 +1130,24 @@ const _INVTRIG_FNS = (:acos, :asin, :atan, :acot, :asec, :acsc)
 # (-32cos(π/14)cos(2π/7) - 32sin(3π/14)cos(3π/14) + … is 0; SymPy #23015); else e
 function _trig_unity_zero(e::Sym)
     _has_fn(e, (:sin, :cos)) || return e
+    # (only then: sin(12) beside erf(2√i √3) went through rewrite(·, exp), whose polar
+    # forms simplify every complex constant, for minutes; SymPy #11354)
+    _trig_args_rational_pi(e) || return e
     w = try _unity_reduce(expand(rewrite(e, exp))) catch err; err isa InterruptException && rethrow(); return e end
     iszero(w) ? ZERO : e
+end
+
+# every sin and cos argument in e a rational multiple of π
+function _trig_args_rational_pi(e::Sym)
+    ok = true
+    _replace_walk(e) do t
+        if ok && t.kind == FN && t.name in (:sin, :cos) && length(t.args) == 1
+            q = t.args[1] / PI
+            (q.kind == NUMBER && isexact(q.num)) || (ok = false)
+        end
+        nothing
+    end
+    ok
 end
 
 # a constant with inverse trig functions whose value is q π, q rational with a small

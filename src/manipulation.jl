@@ -936,6 +936,12 @@ function _bigvalue(ex::Sym, p::Int)
                 return w
             catch err
                 err isa DomainError && F === BigFloat && continue
+                # a power past BigFloat's range or its exponent past Int: through logs
+                # (the Stirling ratio at n = 6.02·10²³; SymPy #11004)
+                if err isa Union{InexactError,OverflowError} && ex.kind in (MUL, POW)
+                    w = try exp(_evlog(ex)) catch; nothing end
+                    w !== nothing && isfinite(w) && return w
+                end
                 # (ErrorException: SpecialFunctions' sinint and cosint are "not implemented
                 # for BigFloat"; the Float64 value is kept, SymPy #14716)
                 err isa Union{DomainError,MethodError,ArgumentError,InexactError,OverflowError,ErrorException} && return nothing
@@ -1044,7 +1050,9 @@ end
 
 function _cpow(b::Sym, e::Sym)
     z = _evalc(b)
-    e.kind == NUMBER && _isint(e.num) && return z^_toint(e.num)
+    # (an integer exponent past Int: as a float, Inf or 0 then; _toint raised
+    # InexactError on 10²³; SymPy #11004)
+    e.kind == NUMBER && _isint(e.num) && return abs(big(_numerator(e.num))) <= typemax(Int) ? z^_toint(e.num) : z^Float64(e.num)
     w = _evalc(e)
     iszero(imag(z)) && real(z) >= 0 && iszero(imag(w)) && return complex(real(z)^real(w))
     z^w

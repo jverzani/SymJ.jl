@@ -119,6 +119,7 @@ end
 factor_squarefree(ex::Sym; gcd_method::Symbol = :auto) =
     _with_widening(_factor_squarefree_sym, ex; gcd_method)
 function _factor_squarefree_sym(ex::Sym; gcd_method::Symbol = :auto)
+    iszero(ex) && return ZERO                      # (SymPy #11151)
     r = _sqf_parts(ex, gcd_method)
     r === nothing && return ex
     (un, fn), (ud, fd) = r

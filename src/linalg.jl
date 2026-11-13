@@ -1401,6 +1401,11 @@ svdvals(Sym[a 0; 0 b]; assume = @assume(a > 0, b > 0))   # [b, a]
 ```
 """
 function LinearAlgebra.svd(A::AbstractMatrix{Sym}; full::Bool = false, assume = nothing)
+    # an empty matrix: empty factors, as for numbers (reduce over no columns; SymPy #10768)
+    if isempty(A)
+        m, n = size(A)
+        return LinearAlgebra.SVD(Matrix{Sym}(undef, m, 0), Sym[], Matrix{Sym}(undef, 0, n))
+    end
     assume === nothing || return assuming(() -> LinearAlgebra.svd(A; full), _assumptions(assume))
     m, n = size(A)
     if m < n                                     # through A' (the smaller of A'A, AA')
