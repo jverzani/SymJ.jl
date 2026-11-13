@@ -136,6 +136,30 @@ function _monomial_power(t::Sym, x::Sym)
 end
 
 # nodes that are not unknown functions (no chain rule through their arguments)
+# (i, p, j): piece i of the piecewise e holds only at x = p, piece j is the one around it
+function _pw_point_pieces(e::Sym, x::Sym)
+    out = Tuple{Int,Sym,Int}[]
+    np = length(e.args) ÷ 2
+    cond(i) = e.args[2i - 1]
+    ptof(c, nm) = (c.kind == FN && c.name === nm && length(c.args) == 2) ?
+        (d = expand(c.args[1] - c.args[2]); a = diff(d, x);
+         (a.kind == NUMBER && !iszero(a.num) && !has(expand(d - a * x), x)) ? expand(-(d - a * x) / a) : nothing) : nothing
+    for i in 1:np
+        p = ptof(cond(i), :Eq)
+        if p !== nothing                      # x = p: the next piece is around it
+            i < np && push!(out, (i, p, i + 1))
+            continue
+        end
+        for j in 1:(i - 1)                    # x ≠ p earlier, and this piece is next
+            q = ptof(cond(j), :Ne)
+            if q !== nothing && j == i - 1 && _eq(cond(i), ONE)
+                push!(out, (i, q, j))
+            end
+        end
+    end
+    out
+end
+
 const _NO_CHAIN = (:Integral, :Sum, :Product, :Derivative, :piecewise, :And, :Or, :Not)
 
 # a symbol for a bound variable that occurs nowhere in ex
@@ -211,6 +235,25 @@ function _diff(ex::Sym, x::Sym)
         # piece by piece, and a jump J at a breakpoint p is J dirac(x - p), as for
         # heaviside (SymPy #24127)
         d = apply_function(:piecewise, Sym[isodd(i) ? a : _diff(a, x) for (i, a) in enumerate(ex.args)])
+        # a piece that holds at one point p only (x = p, or what an earlier x ≠ p leaves):
+        # its derivative is the neighbouring piece's derivative's limit at p, not that of
+        # its own value (sin(x)/x at x ≠ 0, 1 at 0: f''(0) = -1/3, it was 0; SymPy #11402)
+        pts = _pw_point_pieces(ex, x)
+        if !isempty(pts)
+            args = copy(d.kind == FN && d.name === :piecewise ? d.args : Sym[])
+            if !isempty(args)
+                for (i, pnt, nb) in pts
+                    v = try
+                        limit(_diff(ex.args[2nb], x), x => pnt)
+                    catch err
+                        err isa ArgumentError || _isdivzero(err) || rethrow()
+                        nothing
+                    end
+                    v isa Sym && !_isinfpt(v) && (args[2i] = v)
+                end
+                d = apply_function(:piecewise, args)
+            end
+        end
         return add(d, _pw_jumps(ex, x))
     else
         rule = get(FUNCTION_RULES, ex.name, nothing)

@@ -454,7 +454,7 @@ function _floatpow(b::Sym, e::SymNumber)::Union{Sym,Nothing}
     bv isa Real || return nothing
     ef = Float64(e)
     bv < 0 && !isinteger(ef) && return nothing
-    Sym(Float64(bv)^ef)
+    Sym(_checked_float(Float64(bv)^ef, "power", Float64(bv), ef))
 end
 
 # the positive rational content of a product's coefficient or of a sum's coefficients
@@ -512,7 +512,7 @@ function _numpow(b::SymNumber, e::SymNumber)
         # 1^±∞ is indeterminate, not the float 1.0 (SymPy #13914): left, as (-1)^∞ is
         !isfloat(b) && isinf(ef) && abs(bf) == 1 && return _mkpow_node(Sym(b), Sym(e))
         bf < 0 && !isinteger(ef) && return _mkpow_node(Sym(b), Sym(e))
-        return Sym(bf^ef)
+        return Sym(_checked_float(bf^ef, "power", bf, ef == 0 ? 1.0 : ef))
     end
     if _isint(e)
         iszero(b) && sign(e) < 0 && throw(DivisionByZero("division by zero"))

@@ -176,9 +176,31 @@ det([a b; c d])                  # a*d - b*c
 det([x 1; 1 x])                  # x^2 - 1
 ```
 """
+# A matrix of numbers with a floating point entry, as a Julia matrix of its values
+# (Float64, ComplexF64, or BigFloat ones), else nothing. Such a matrix is factored as
+# Julia factors numbers, pivoting by magnitude: exact elimination pivots on the first
+# nonzero entry, and a tiny float pivot (1e-17) left the rest to cancel, so det was 0 and
+# inv wrong (SymPy #11549, #10780).
+function _float_numeric(A::AbstractMatrix; need_float::Bool = true)
+    isempty(A) && return nothing
+    need_float && (any(e -> !_isexactex(Sym(e)), A) || return nothing)
+    any(e -> _hassymbol(Sym(e)), A) && return nothing
+    vals = Any[]
+    for e in A
+        v = try N(Sym(e)) catch; return nothing end
+        v isa Number && isfinite(v) || return nothing
+        push!(vals, v)
+    end
+    T = mapreduce(typeof, promote_type, vals)
+    T <: Union{AbstractFloat,Complex{<:AbstractFloat}} || (T = promote_type(T, Float64))
+    reshape(T[v for v in vals], size(A))
+end
+
 function LinearAlgebra.det(A::AbstractMatrix{Sym})
     n = _square(A)
     n == 0 && return ONE
+    F = _float_numeric(A)
+    F === nothing || return Sym(LinearAlgebra.det(F))
     # the polynomials built inside, so that a wider exponent packing applies on a retry
     # (radicals and im as generators too: a determinant is a polynomial identity, the
     # relations applied when it is an expression again; over the field they generate it
@@ -258,6 +280,8 @@ Base.inv(A::StridedMatrix{Sym}) = _inv(A)       # (more specific than LinearAlge
 Base.inv(A::AbstractMatrix{Sym}) = _inv(A)
 function _inv(A::AbstractMatrix{Sym})
     n = _square(A)
+    F = _float_numeric(A)
+    F === nothing || return Sym.(inv(F))
     if n <= _CRAMER_MAX       # polynomial entries: the adjugate, cofactors fraction-free
         R = _with_widening(B -> (P = _poly_matrix(B); P === nothing ? nothing : _adjugate_inv(P)), A)
         R === nothing || return R
@@ -405,6 +429,17 @@ function _from_ratfun_sym(n::Sym, d::Sym)
     n / d
 end
 
+# a pivot candidate: nonzero in the field, and, with trigonometric or hyperbolic
+# functions among its atoms, not 0 by their identities (sin² + cos² - 1 is a nonzero
+# rational function in sin and cos; lu took it as a pivot and L divided by it; SymPy #11905)
+function _pivot_ok(x, back)
+    iszero(x) && return false
+    x isa SymNumber && return true
+    e = back(x)
+    e isa Sym && _has_fn(e, _CIRCFNS) || return true
+    !iszero(simplify(e))
+end
+
 function _inv_field(A::AbstractMatrix{Sym})
     n = _square(A)
     M, back = _field_matrix(A)
@@ -414,7 +449,7 @@ function _inv_field(A::AbstractMatrix{Sym})
         R[i, j] = i == j ? one(T) : zero(T)
     end
     for k in 1:n
-        p = findfirst(i -> !iszero(M[i, k]), k:n)
+        p = findfirst(i -> _pivot_ok(M[i, k], back), k:n)
         p === nothing && throw(LinearAlgebra.SingularException(k))
         p += k - 1
         if p != k
@@ -451,12 +486,17 @@ row exchanges.
 function LinearAlgebra.lu(A::AbstractMatrix{Sym}, pivot::Union{LinearAlgebra.RowMaximum,LinearAlgebra.RowNonZero,LinearAlgebra.NoPivot} = LinearAlgebra.RowNonZero();
                           check::Bool = true, allowsingular::Bool = false)
     m, n = size(A)
+    F = pivot isa LinearAlgebra.NoPivot ? nothing : _float_numeric(A)
+    if F !== nothing
+        G = LinearAlgebra.lu(F, LinearAlgebra.RowMaximum(); check, allowsingular)
+        return LinearAlgebra.LU{Sym,Matrix{Sym},Vector{Int}}(Sym.(G.factors), G.ipiv, G.info)
+    end
     M, back = _field_matrix(A)
     ipiv = collect(1:min(m, n))
     info = 0
     for k in 1:min(m, n)
         p = pivot isa LinearAlgebra.NoPivot ? (iszero(M[k, k]) ? nothing : k) :
-            (q = findfirst(i -> !iszero(M[i, k]), k:m); q === nothing ? nothing : q + k - 1)
+            (q = findfirst(i -> _pivot_ok(M[i, k], back), k:m); q === nothing ? nothing : q + k - 1)
         if p === nothing
             info == 0 && (info = k)
             continue
@@ -492,6 +532,11 @@ function Base.:\(A::AbstractMatrix{Sym}, b::AbstractVecOrMat)
         Ah = adjoint(A)
         return Ah * (Matrix{Sym}(A * Ah) \ b)
     end
+    F = _float_numeric(A)
+    if F !== nothing && (Fb = _float_numeric(b isa AbstractVector ? reshape(b, :, 1) : b; need_float = false)) !== nothing
+        X = Sym.(F \ (b isa AbstractVector ? vec(Fb) : Fb))
+        return X
+    end
     # polynomial entries: Cramer's rule, the determinants fraction-free (Bareiss); the
     # rational functions of Gauss–Jordan took a gcd at every step (SymPy #25302, #24679)
     # (rational entries: each row of [A b] times the lcm of its denominators first, which
@@ -504,7 +549,7 @@ function Base.:\(A::AbstractMatrix{Sym}, b::AbstractVecOrMat)
     n = size(A, 1)
     k = size(M, 2) - n
     for c in 1:n
-        p = findfirst(i -> !iszero(M[i, c]), c:n)
+        p = findfirst(i -> _pivot_ok(M[i, c], back), c:n)
         p === nothing && throw(LinearAlgebra.SingularException(c))
         p += c - 1
         p != c && ((M[c, :], M[p, :]) = (M[p, :], M[c, :]))

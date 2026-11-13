@@ -1270,3 +1270,32 @@ end
     @test SymJ.summation(sin(k * x), k, 1, n) isa SymJ.Cases
     @test N(subs(SymJ.summation(cos(2k + 1), k, 0, n), n => 6)) ≈ sum(cos(2j + 1) for j in 0:6)
 end
+
+@testset "wrong answers (SymPy review, round 14)" begin
+    @syms x y
+    # float matrices factored with pivoting by magnitude (#11549, #10780)
+    A = Sym[1e-17 1 1 1; 1 1e-17 -1 1; -1 1 1 1; -1 -1 1 1]
+    @test N(SymJ.LinearAlgebra.det(A)) ≈ 4.0
+    B = Sym[6e-17 1 4; -1 0 8; 0 0 1]
+    @test maximum(abs.(N.(B * inv(B) - Sym[1 0 0; 0 1 0; 0 0 1]))) < 1e-12
+    @test N.(Sym[1e-20 1; 1 1] \ Sym[1, 2]) ≈ [1.0, 1.0]
+    # lu: no pivot that is 0 by sin² + cos² = 1 (#11905)
+    F = SymJ.LinearAlgebra.lu(Sym[sin(x)^2 + cos(x)^2 - 1 1; 1 1])
+    @test F.p == [2, 1]
+    # float results outside Float64's range: an error, not 0 or Inf (#11004)
+    @test_throws ArgumentError Sym(1e300) * Sym(1e300)
+    @test_throws ArgumentError Sym(2.0)^Sym(-2000)
+    # ζ(s, a) for a < 0 numerically as Hurwitz's (#10592)
+    Z = SymJ.SpecialFunctionsSupport.SF.zeta
+    @test N(Z(Sym(0), Sym(-3))) ≈ 3.5
+    @test N(Z(Sym(-1), Sym(-3))) ≈ -73 / 12
+    @test Z(Sym(0), Sym(-3)) == Sym(7) // 2
+    # a point piece's derivative is the limit of its neighbour's (#11402)
+    p = SymJ.piecewise(x ≶ 0 => sin(x) / x, true => 1)
+    @test diff(p, x, 2).args[4] == -Sym(1) // 3
+    # roots with |y| checked by y's sign (#11534)
+    @test solve(-y + x / sqrt(1 - x^2) ~ 0, x; assume = (x ∈ ℝ, y ≫ 0)) == [sqrt((4y^2 + 4) * y^2) / (2y^2 + 2)]
+    @test length(solve(-y + x / sqrt(1 - x^2) ~ 0, x; assume = (x ∈ ℝ, y ∈ ℝ))) == 3
+    # 0^x = 1 at x = 0 (#11536)
+    @test solve(Sym(0)^x ~ 1, x) == [0]
+end
