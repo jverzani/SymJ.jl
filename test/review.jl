@@ -546,8 +546,9 @@ end
     @test S(-3)
     @test S(0)
     @test !S(Sym(1) // 2)
-    # x^n = 1 for an integer n: refused, not the one root 1 (#21014)
-    @test_throws ArgumentError solve(x^n ~ 1, x; assume = (n ∈ ℤ, n ≫ 0))
+    # x^n = 1 for an integer n: the principal root; a number for n gives all n (#21014)
+    @test solve(x^n ~ 1, x; assume = (n ∈ ℤ, n ≫ 0)) == [1]
+    @test length(solve(x^3 ~ 1, x)) == 3
     # |u| branches that are identities: the half-lines (#22259)
     @test solve(abs(x) ~ -x, x; assume = (x ∈ ℝ,)) == solve(x ≦ 0, x)
     @test solve(abs(x) / x ~ 1, x; assume = (x ∈ ℝ,)) == solve(x ≫ 0, x)
