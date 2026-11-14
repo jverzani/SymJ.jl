@@ -49,6 +49,8 @@ the parameters alone is taken to be nonzero unless the assumptions make it zero,
 `a*x ~ b` gives `b/a` (the same rule as [`limit`](@ref) and `integrate`). A symbolic
 exponent gives the principal root (`x^a = b` gives `b^(1/a)`, not the other roots
 `b^(1/a) e^(2πik/a)`). Facts that make a coefficient vanish give that case's answer.
+A root that holds for only some parameter values (`a^2` for `sqrt(x) ~ a`) is kept as
+it is for complex parameters, and comes with its condition when they are assumed real.
 
 ```julia
 solve(a*x + b ~ 0, x)                          # [-b/a]
@@ -56,6 +58,8 @@ solve(a*x + b ~ 0, x; assume = (a ~ 0,))       # [] (b ≠ 0)
 solve(exp(a*x) ~ 2, x)                         # [log(2)/a]
 solve(x^2 ~ a, x)                              # [-sqrt(a), sqrt(a)]
 solve(x^a ~ 2, x)                              # [2^(1/a)]
+solve(sqrt(x) ~ a, x)                          # [a^2]
+solve(sqrt(x) ~ a, x; assume = (a ∈ ℝ,))       # a < 0 => [], a ≥ 0 => [a^2]
 ```
 
 With assumptions (`assume = (x ≫ 0,)`, an [`Assumptions`](@ref), or inside
@@ -103,6 +107,7 @@ function solve(eq::Relation, x::Sym; assume = nothing, drop_empty::Bool = false)
         r = _solve_floats_exactly(eq, x, assume)
         r === nothing ? rethrow() : r
     end
+    r isa Cases && (r = _merge_eq_cases(r))
     drop_empty ? _drop_empty(r) : r
 end
 
@@ -1406,6 +1411,21 @@ function _satisfies(eq::Relation, x::Sym, r::Sym)
     end
     iszero(cancel(d)) && return true
     if _hassymbol(d)
+        # real parameters (assumed): the residual refined, |u| split by u's sign, and
+        # decided in each case, so sqrt(x) = a gives a ≥ 0 => [a²], a < 0 => [] (SymPy
+        # #10398; decided 2026-11-14). With complex parameters there is rarely a tidy
+        # condition: the root is kept where it holds for some sample values, below.
+        if A !== nothing && all(s -> _isreal(s, A) === true, free_symbols(d))
+            rd = try _refine(d, A) catch err; err isa ArgumentError || rethrow(); d end
+            for u in _abs_args(rd)
+                (_hassymbol(u) && _isreal(u, A) === true) || continue
+                _decide(Relation(:ge, u, ZERO), A)
+            end
+            rd = try cancel(_refine(d, A)) catch err; err isa ArgumentError || rethrow(); d end
+            iszero(rd) && return true
+            h = _holds(Relation(:eq, rd, ZERO), A)
+            h === nothing || return h
+        end
         _holds_somewhere(d, r) && return true
         # a residual c·u^p vanishes exactly where u = 0: a case of the parameters, not a
         # spurious root (√(z - x) + √(y - x) = 0 has z = x when y = x)
