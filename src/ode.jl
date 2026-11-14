@@ -123,13 +123,15 @@ SymJ.dsolve(x^2 * y''(x) - 2y(x) ~ 0, y(x))              # y(x) ~ C1/x + C2*x^2
 SymJ.dsolve(y''(x) - x * y(x) ~ 0, y(x); series = 6)      # C1*(1 + x^3/6) + C2*(x + x^4/12)
 ```
 
-    SymJ.dsolve([eq₁, eq₂, …], [y₁(t), y₂(t), …], ics...)
+    SymJ.dsolve([eq₁, eq₂, …], [y₁(t), y₂(t), …], ics...; assume = nothing)
 
 A system of linear equations with constant coefficients, of any order, in normal form
 (the highest derivatives can be solved for). The result is a vector of equations, with
 as many constants as the unknowns' orders add up to; the initial conditions fix them, one
 for each unknown and each order below its highest. A right side `F(t)` is integrated in
-closed form when it is made of polynomials, exponentials, sines and cosines.
+closed form when it is made of polynomials, exponentials, sines and cosines. With
+`assume`, as for one equation, eigenvalues the facts show complex give cosines and
+sines (`v' = -k u` with `k ≫ 0`).
 
 ```julia
 @syms t u() v()
@@ -685,10 +687,12 @@ function _ode_reim(ρ::Sym, A = nothing)
 end
 function _ode_isqrt(e::Sym, A)
     isempty(e.args) && return e
-    if e.kind == POW && _eq(e.args[2], Sym(1 // 2)) && _signs(e.args[1], A) === _NEG
-        return IM * sqrt(-e.args[1])
+    # u^(±1/2) with u < 0: (i √(-u))^(±1) (1/√(-k) in a system's eigenvectors)
+    half(b, p) = (_eq(p, Sym(1 // 2)) || _eq(p, Sym(-1 // 2))) && _signs(b, A) === _NEG
+    if e.kind == POW && half(e.args[1], e.args[2])
+        return (IM * sqrt(-e.args[1]))^(2 * e.args[2])
     elseif e.kind == MUL
-        return Sym(e.num) * prod((_eq(p, Sym(1 // 2)) && _signs(b, A) === _NEG ? IM * sqrt(-b) : _ode_isqrt(b, A)^p
+        return Sym(e.num) * prod((half(b, p) ? (IM * sqrt(-b))^(2p) : _ode_isqrt(b, A)^p
                                   for (b, p) in zip(e.args, e.exps)); init = ONE)
     end
     _rebuild_node(e, Sym[_ode_isqrt(a, A) for a in e.args])
@@ -1173,7 +1177,10 @@ end
 # particular solution is P exp(J t) ∫ exp(-J t) P⁻¹ F dt, the integrand taken to
 # complex exponentials, where t^k e^(a t) integrates in closed form.
 
-function dsolve(eqs::AbstractVector, yxs::AbstractVector, ics::Pair...; method::Symbol = :auto)
+function dsolve(eqs::AbstractVector, yxs::AbstractVector, ics::Pair...; method::Symbol = :auto, assume = nothing)
+    # facts about the parameters, as for one equation: eigenvalues they show complex give
+    # cosines and sines (decided 2026-11-14)
+    assume === nothing || return with(() -> dsolve(eqs, yxs, ics...; method), _ASSUMING => _assumptions(assume))
     method in (:auto, :laplace) || throw(ArgumentError("dsolve: method is :auto or :laplace, not $method"))
     all(e -> e isa Relation, eqs) || throw(ArgumentError("dsolve: give equations, `lhs ~ rhs`"))
     length(eqs) == length(yxs) || throw(ArgumentError("dsolve: give as many equations as unknowns"))
@@ -1299,6 +1306,11 @@ function _odesys_fundamental(M, F, t)
             "dsolve: the system's eigenvalues are roots of a polynomial of degree ≥ 3 in the parameters, whose closed forms are too large to use; substitute numbers for the parameters"))
     end
     P, J = jordan_form(M)
+    A = _ASSUMING[]
+    if A !== nothing                                  # (√(-k) = i√k for k > 0)
+        P = map(e -> expand(_ode_isqrt(e, A)), P)
+        J = map(e -> expand(_ode_isqrt(e, A)), J)
+    end
     P = map(_ode_cartesian, P)
     # the eigenvalues as a + i b too: Cardano's roots carry 1/ω², whose parts substituting
     # i = 0 does not give (SymPy #21867)
