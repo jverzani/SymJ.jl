@@ -726,6 +726,19 @@ import PolyLog as PL
         @test N(RischIntegrate.integrate(x^(Sym(1) // 3) * (1 - x)^(Sym(1) // 2) * log(x), (x, 0, 1))) ≈ -0.4528196802991289
     end
 
+    @testset "missing cases (SymPy review, round 14)" begin
+        @syms x y a
+        Γ(w) = SymJ.apply_function(:gamma, Sym[w])
+        # e^(c - a xᵖ) over [0, b]: a lower incomplete gamma (#11845)
+        @test N(RischIntegrate.integrate(exp(-x^3), (x, 0, 1))) ≈ 0.8075111821397486
+        @test N(RischIntegrate.integrate(exp(-2x^4), (x, 0, 1))) ≈ 0.7490153580905826
+        @test N(subs(RischIntegrate.integrate(exp(-y - x^3), (x, 0, 1)), y => 0)) ≈ 0.8075111821397486
+        # xᵐ log(1/x)ˢ over [0, 1]: Γ(s + 1)/(m + 1)^(s + 1) (#11876)
+        @test RischIntegrate.integrate(log(1 / x)^(a - 1), (x, 0, 1); assume = (a ≫ 0,)) == Γ(a)
+        @test RischIntegrate.integrate(sqrt(log(1 / x)), (x, 0, 1)) == sqrt(PI) / 2
+        @test RischIntegrate.integrate(x^2 * (-log(x))^3, (x, 0, 1)) == Sym(2) // 27
+    end
+
     @testset "Borwein integrals: a large antiderivative only refined" begin
         # (RischIntegrate's step TX, from its #130, gives the antiderivatives quickly;
         # before it, k = 7 runs for an hour, so the tests are skipped)

@@ -160,6 +160,24 @@ function _pw_point_pieces(e::Sym, x::Sym)
     out
 end
 
+# Derivative(ex, x), a nest of derivatives of one expression with its variables in a
+# canonical order: mixed partials commute (∂²f/∂x∂y = ∂²f/∂y∂x, and integrate takes one
+# order; SymPy #11107)
+function _derivative_node(ex::Sym, x::Sym)
+    vs = Sym[x]
+    g = ex
+    while g.kind == FN && g.name === :Derivative && length(g.args) == 2 && _isnamed(g.args[2])
+        push!(vs, g.args[2])
+        g = g.args[1]
+    end
+    length(vs) == 1 && return _mkfn_node(:Derivative, Sym[ex, x])
+    sort!(vs; lt = _lt)
+    for v in vs
+        g = _mkfn_node(:Derivative, Sym[g, v])
+    end
+    g
+end
+
 const _NO_CHAIN = (:Integral, :Sum, :Product, :Derivative, :piecewise, :And, :Or, :Not)
 
 # a symbol for a bound variable that occurs nowhere in ex
@@ -288,7 +306,7 @@ function _diff(ex::Sym, x::Sym)
         for i in eachindex(ex.args)
             da = _diff(ex.args[i], x)
             iszero(da) && continue
-            (rule === nothing || rule.diff === nothing) && return _mkfn_node(:Derivative, Sym[ex, x])
+            (rule === nothing || rule.diff === nothing) && return _derivative_node(ex, x)
             d = rule.diff(ex.args, i)
             d === nothing && return _mkfn_node(:Derivative, Sym[ex, x])   # no closed form
             push!(terms, mul(d::Sym, da))

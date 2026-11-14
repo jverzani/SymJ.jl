@@ -180,6 +180,16 @@ function _pi_multiple(x::Sym)
     nothing
 end
 
+# a/π a constant known to be an integer that is no number (1342^(87236487262873^5) + 4,
+# kept as a power for its size: sin and tan of π times it are 0; SymPy #10607)
+function _int_times_pi(a::Sym)
+    (_hassymbol(a) || !has(a, PI)) && return false
+    q = a / PI                                # (no expand: the power is too big for it)
+    # (by form only: these rules run when patterns are built at load time, and the
+    # assumptions machinery behind _isinteger made that inference explode)
+    q.kind != NUMBER && !_hassymbol(q) && !has(q, PI) && _const_int_power(q)
+end
+
 # sin(rπ) when it has a simple closed form
 function _sinpi(r::Rational{BigInt})
     r = mod(r, 2)
@@ -245,6 +255,7 @@ register_function!(:sin; julia = sin,
     eval = _unary(a -> begin
         r = _pi_multiple(a)
         r !== nothing && (v = _sinpi(r); v === nothing || return v)
+        _int_times_pi(a) && return ZERO
         _isfn(a, :asin) && return a.args[1]
         v = _trig_of_inverse(:sin, a)
         v === nothing || return v
@@ -277,6 +288,7 @@ register_function!(:tan; julia = tan,
                 return s / c
             end
         end
+        _int_times_pi(a) && return ZERO
         _isfn(a, :atan) && return a.args[1]
         v = _trig_of_inverse(:tan, a)
         v === nothing || return v
@@ -374,6 +386,11 @@ register_function!(:abs; julia = abs,
     eval = _unary(a -> begin
         a.kind == NUMBER && return Sym(abs(a.num))
         _isfn(a, :abs) && return a
+        # a real constant of known sign: ±itself (abs(√2) = √2, abs(-π) = π; SymPy #11193 area)
+        if !_hassymbol(a) && !has(a, IM) && !_hasfn(a, :abs)
+            s = Base.inferencebarrier(_csign)(a)::Union{Nothing,Int}
+            s === nothing || return s >= 0 ? a : -a
+        end
         _even(:abs, a)
     end),
     diff = (args, i) -> args[1] / abs(args[1]))
@@ -410,6 +427,19 @@ register_function!(:log; julia = log,
             a.kind == NUMBER && isexact(a.num) && a.num < N0 && return log(Sym(-a.num)) + IM * PI
             _eq(a, IM) && return IM * PI / 2
             _eq(a, -IM) && return -IM * PI / 2
+            # a complex constant of modulus 1 with an angle a rational multiple of π:
+            # i·angle (log(1/2 + i√3/2) = iπ/3; SymPy #10428)
+            if !_hassymbol(a) && has(a, IM) && a.kind in (ADD, MUL)
+                v = try _evalc(a) catch; nothing end
+                if v isa Number && isfinite(v) && abs(abs(v) - 1) < 1e-12 && !iszero(imag(v))
+                    q = rationalize(angle(v) / π; tol = 1e-12)
+                    # (checked exactly by expand, no simplify: simplify takes logs itself)
+                    if denominator(q) <= 24
+                        θ = Sym(q) * PI
+                        iszero(expand(cos(θ) + IM * sin(θ) - a)) && return IM * θ
+                    end
+                end
+            end
             return nothing
         end
         length(args) == 2 || throw(ArgumentError("log takes one or two arguments"))
@@ -556,6 +586,9 @@ for (f, g, jump) in ((:floor, floor, round), (:ceil, ceil, round), (:trunc, trun
         eval = _unary(function (a)
             a.kind == NUMBER && isexact(a.num) && return Sym(SymNumber(g(BigInt, _rat(a.num))))
             _isfn(a, f) && return a
+            # an integer-valued argument (componentwise): floor(ceil(x)) = ceil(x), any
+            # rounding of floor/ceil/round/trunc of something likewise (SymPy #11207)
+            a.kind == FN && a.name in (:floor, :ceil, :round, :trunc) && length(a.args) == 1 && return a
             # a complex number: its parts (round(2.6 + 1.2i) = 3 + i; SymPy #21513)
             if !_hassymbol(a) && has(a, IM)
                 v = try _evalc(a) catch; nothing end

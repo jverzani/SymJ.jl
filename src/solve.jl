@@ -261,7 +261,12 @@ function _solve_eq(eq::Relation, x::Sym)
     # made floats again (y = c + 0.5b, 175 = 1.5 log(x); SymPy #27528, #27712)
     if !_isexactex(n) && !_float_exponent(n) && (!isempty(bad) || any(a -> !_eq(a, x), atoms) || !exact)
         q = _exactfloats(eq.lhs - eq.rhs)
-        _isexactex(q) || throw(ArgumentError("solve: complex floating point coefficients are not supported"))
+        if !_isexactex(q)
+            # (an infinite or NaN coefficient is no complex one: say so; SymPy #11015)
+            _has_nonfinite(q) &&
+                throw(ArgumentError("solve: $eq has an infinite or NaN coefficient; no finite solutions are found from it"))
+            throw(ArgumentError("solve: complex floating point coefficients are not supported"))
+        end
         rs = _solve_eq(q ~ 0, x)
         return rs isa AbstractVector ? Sym[_floatify(r) for r in rs] : rs
     end
@@ -308,7 +313,10 @@ function _floatify(e::Sym)
         fb(a) = a === E || _eq(a, MINUS_ONE) ? a : _floatify(a)
         return c * prod((fb(a)^x for (a, x) in zip(e.args, e.exps)); init = ONE)
     elseif k == POW
-        return (e.args[1] === E || _eq(e.args[1], MINUS_ONE) ? e.args[1] : _floatify(e.args[1]))^e.args[2]
+        # (e^u: u's numbers floats too, exp(18014398509481984t/5404319552844595) was
+        # exp(3.33t) written exactly; SymPy #11542)
+        e.args[1] === E && return E^_floatify(e.args[2])
+        return (_eq(e.args[1], MINUS_ONE) ? e.args[1] : _floatify(e.args[1]))^e.args[2]
     elseif k == FN
         # (an unknown function's arguments are its own: f(2) stays f(2), not f(2.0), which
         # is another expression; SymPy #22524)
@@ -317,6 +325,11 @@ function _floatify(e::Sym)
     end
     e
 end
+
+# an infinite or NaN float among e's numbers (coefficients included)
+_has_nonfinite(e::Sym) = (bad(c) = isfloat(c) && !isfinite(Float64(c));
+    (e.kind == NUMBER && bad(e.num)) || (e.kind in (ADD, MUL) && bad(e.num)) || (e.kind == ADD && any(bad, e.coefs)) ||
+    any(_has_nonfinite, e.args) || any(_has_nonfinite, e.exps))
 
 # the error for an equation that every value satisfies, naming the points where it is
 # not defined (x/(x - 1) - 1/(x - 1) = 1 holds for every x except 1; SymPy #23254)

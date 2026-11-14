@@ -1330,3 +1330,63 @@ end
         IM * erf_(2sqrt(-IM) * sqrt(Sym(3))) * sqrt(PI) / (64sqrt(-IM)) - IM * erf_(2sqrt(IM) * sqrt(Sym(3))) * sqrt(PI) / (64sqrt(IM))
     @test simplify(c) isa Sym
 end
+
+@testset "missing cases (SymPy review, round 14)" begin
+    @syms x y m r θ a t k L
+    SF = SymJ.SpecialFunctionsSupport.SF
+    # abs of real constants, rounding of a rounding function (#11207)
+    @test abs(sqrt(Sym(2))) == sqrt(Sym(2))
+    @test abs(-PI) == PI
+    @test floor(ceil(x)) == ceil(x)
+    # log of a complex constant of modulus 1 (#10428)
+    @test log(Sym(1) // 2 + IM * sqrt(Sym(3)) / 2) == IM * PI / 3
+    # asin + acos (#11446); 1/x is never 0 (#11740)
+    @test simplify(acos(x) + asin(x)) == PI / 2
+    @test simplify(1 / x ~ 0) === false
+    # an equality among the assumptions used in a sum (#11823)
+    @test SymJ.summation(a^k, k, 0, L - 1; assume = (a ~ 1,)) == L
+    # sin, tan of π times a huge integer (#10607)
+    @test sin(PI * Sym(big(10)^40)) == 0
+    # powers with logs in the exponent (#10410); rational bases split (#11544)
+    @test simplify(Sym(4)^(3IM * PI / (2log(Sym(2))))) == -1
+    @test simplify(-(Sym(1) // 2)^x + 2^(-x)) == 0
+    # limits keep floats
+    @test limit(Sym(0.36) + 1 / k, k => Inf) == Sym(0.36)
+    # asin(sin y) is real for real y (#10598)
+    @test SymJ._isreal(asin(sin(y)), SymJ.Assumptions(y ∈ ℝ)) === true
+    # an exponential's float exponent stays a float
+    @test solve(Sym(0.3) * log(y) ~ t, y)[1] == exp(Sym(10 / 3) * t)
+    # infinite coefficients in solve: a clear error (#11015)
+    @test_throws ArgumentError solve(Sym(Inf) * x ~ 1, x)
+    # spherical Bessel at 0, ₁F₁(a; a; z) (#11776, #11465)
+    @test SF.sphericalbesselj(0, Sym(0)) == 1
+    @test limit(SF.sphericalbesselj(0, x), x => 0) == 1
+    @test SymJ.HypergeometricSupport.HF._₁F₁(a, a, x) == exp(x)
+    # Airy functions at a finite point (#10804)
+    @test limit(SF.airyai(x), x => 0) == SF.airyai(Sym(0))
+    @test limit(SF.airybi(x), x => -1) == SF.airybi(Sym(-1))
+    # … at -∞ and their derivatives, by GruntzLimit (1.6)
+    @test limit(SF.airyai(-x), x => Inf) == 0
+    @test_throws SymJ.GruntzLimit.GruntzError limit(x^(Sym(1) // 4) * SF.airyai(-x), x => Inf)
+    @test limit(SF.airybi(x) * x^(Sym(1) // 4) * exp(-2x^(Sym(3) // 2) / 3), x => Inf) == 1 / sqrt(PI)
+    @test limit(SF.airyaiprime(x) * x^(-Sym(1) // 4) * exp(2x^(Sym(3) // 2) / 3), x => Inf) == -1 / (2sqrt(PI))
+    @test limit((SF.airyai(x) - SF.airyai(Sym(1))) / (x - 1) - SF.airyaiprime(Sym(1)), x => 1) == 0
+    # mixed partials in one order (#11107)
+    f = SymFunction(:f)
+    @test diff(f(x, y), x, y) - diff(f(x, y), y, x) == 0
+    # Σ sin(kθ)/k, cos(kθ)/k (#11700)
+    @test SymJ.summation(sin(m) / m, m, 1, Inf) == PI / 2 - Sym(1) // 2
+    @test SymJ.summation(cos(2m) / m, m, 1, Inf) == -log(2sin(Sym(1)))
+    @test SymJ.summation(sin(m * θ) / m, m, 1, Inf; assume = (0 ≪ θ, θ ≪ 2PI)) == (PI - θ) / 2
+    # factorial ratios reduced inside a sum (#11437)
+    @test subs(SymJ.summation(factorial(m + Sym(1) // 2) / (factorial(m - Sym(1) // 2) * m * (m + 1)), m, 2, r), r => 5) ==
+          Sym(67) // 60
+    # numeric derivatives at a point (#11802)
+    @test N(subs(diff(SF.zeta(x), x), x => 4)) ≈ -0.06891126589612537
+    @test N(subs(diff(SF.gamma(x), x), x => 3)) ≈ 2 * (1.5 - Base.MathConstants.eulergamma)
+    # subs of 2^x into powers of 4 and 8 (#10829)
+    @test subs(4^x - 3 * 2^x + 2, 2^x => y) == y^2 - 3y + 2
+    @test subs(8^x + 2^x, 2^x => y) == y^3 + y
+    # asech, acsch series at 0 (#10885)
+    @test string(series(asech(x), x, 0, 6)) == "log(2) - log(x) - x^2/4 - 3*x^4/32 + O(x^6)"
+end

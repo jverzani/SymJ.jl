@@ -221,7 +221,10 @@ function __init__()
     reg(:bessely0; diff = d1(a -> -SF.bessely1(a)))
     reg(:bessely1; diff = d1(a -> SF.bessely0(a) - SF.bessely1(a) / a))
     # spherical: f_ν' = f_{ν-1} - (ν + 1)/x f_ν, for j and y alike (SymPy #26958)
-    reg(:sphericalbesselj; diff = dx((ν, a) -> SF.sphericalbesselj(ν - 1, a) - (ν + 1) * SF.sphericalbesselj(ν, a) / a))
+    # j₀(0) = 1, jₙ(0) = 0 for an integer n > 0 (N gave 1.0, the expression stayed; SymPy #11776)
+    reg(:sphericalbesselj; eval = args -> (isint(args[1]) && iszero(args[2])) ?
+            (iszero(args[1]) ? ONE : args[1].num > SymNumber(0) ? ZERO : nothing) : nothing,
+        diff = dx((ν, a) -> SF.sphericalbesselj(ν - 1, a) - (ν + 1) * SF.sphericalbesselj(ν, a) / a))
     reg(:sphericalbessely; diff = dx((ν, a) -> SF.sphericalbessely(ν - 1, a) - (ν + 1) * SF.sphericalbessely(ν, a) / a))
     foreach(reg, (:besseljx, :besselyx, :besselix, :besselkx, :besselh, :besselhx, :hankelh1x, :hankelh2x, :jinc))
 

@@ -641,6 +641,14 @@ function simplify(r::Relation; assume = nothing)
         w = _holds(Relation(v.op, expand(d), ZERO), A)
         w === nothing || return w
     end
+    # a quotient whose numerator is a nonzero constant is never 0, where it is defined
+    # (1/x ~ 0 is false for complex x too; SymPy #11740)
+    if v.op in (:eq, :ne) && _hassymbol(d)
+        nd = try numer_denom(cancel(d)) catch err; err isa ArgumentError || rethrow(); nothing end
+        if nd !== nothing && !_hassymbol(nd[1]) && nd[1].kind == NUMBER && !iszero(nd[1].num) && isfinite(Float64(nd[1].num))
+            return v.op === :ne
+        end
+    end
     if v.op === :eq
         # a + i b = 0 with a, b real: a = 0 and b = 0 (X = iY; SymPy #27759)
         parts = _real_imag_split(d, A)
@@ -743,6 +751,47 @@ function _exact_int_exponents(e::Sym)
     end
 end
 
+# (p/q)^e = p^e q^(-e) for a positive rational base, every exponent (principal values),
+# so that (1/2)^x and 2^(-x) are one power (their difference is 0; SymPy #11544); nothing
+# when there is no such power
+function _rational_base_split(e::Sym)
+    hit = false
+    y = _replace_walk(e) do t
+        if t.kind == POW && t.args[1].kind == NUMBER && isexact(t.args[1].num) && t.args[1].num > N0 &&
+           !isone(_denominator(t.args[1].num)) && _hassymbol(t.args[2])
+            hit = true
+            p, q = Sym(SymNumber(_numerator(t.args[1].num))), Sym(SymNumber(_denominator(t.args[1].num)))
+            return p^t.args[2] * q^(-t.args[2])
+        end
+        nothing
+    end
+    hit ? y : nothing
+end
+
+# c asin(u) + c acos(u) = c π/2 in a sum (for every u, principal values: asin z + acos z
+# = π/2 on all of ℂ; SymPy #11446); nothing when there is no such pair
+function _asin_acos_pairs(e::Sym)
+    e.kind == ADD || return nothing
+    ts = collect(zip(e.coefs, e.args))
+    used = falses(length(ts))
+    out = Sym(e.num)
+    hit = false
+    for (i, (c, t)) in enumerate(ts)
+        used[i] && continue
+        if t.kind == FN && t.name === :asin && length(t.args) == 1
+            j = findfirst(j -> !used[j] && j != i && ts[j][1] == c && ts[j][2].kind == FN && ts[j][2].name === :acos &&
+                               _eq(ts[j][2].args[1], t.args[1]), eachindex(ts))
+            if j !== nothing
+                used[i] = used[j] = true
+                out += Sym(c) * PI / 2
+                hit = true
+            end
+        end
+    end
+    hit || return nothing
+    out + _add_many(Sym(c) * t for (i, (c, t)) in enumerate(ts) if !used[i])
+end
+
 function _simplify(e::Sym, A::Assumptions)
     e = _exact_int_exponents(e)
     if !_hassymbol(e) && e.kind != NUMBER
@@ -797,7 +846,8 @@ function _simplify(e::Sym, A::Assumptions)
         folded
     end
     for g in (simplify_rational, powers, expansion, _factor_or_nothing, simplify_trig, simplify_hyperbolic, logs, radicals, simplify_gamma, logq,
-              elog, simplify_rational ∘ (x -> _exp_log_powers(x)), pwfold,
+              elog, simplify_rational ∘ (x -> _exp_log_powers(x)), pwfold, _asin_acos_pairs,
+              x -> (y = _rational_base_split(x); y === nothing ? nothing : simplify_rational(y)),
               x -> huge ? nothing : _conjugate_radical_den(x),
               simplify_rational ∘ powers, expansion ∘ simplify_rational, expansion ∘ radicals,
               simplify_rational ∘ radicals,
@@ -1110,6 +1160,7 @@ function _simplify_const(e::Sym, A::Assumptions)
               (x; assume) -> _unit_powers(x), (x; assume) -> cancel(simplify_radicals(x; assume)),
               (x; assume) -> simplify_log(cancel(_log_quotients(x)); assume),
               (x; assume) -> _trig_unity_zero(x), (x; assume) -> _merge_prime_powers(x),
+              (x; assume) -> _pow_log_exponent(x; assume),
               # inverse hyperbolic functions as logs, the logs combined (log(3/2) -
               # 2atanh(2) + 2atanh(3) is 0; SymPy #16730)
               (x; assume) -> _has_fn(x, (:atanh, :acoth, :asinh, :acosh)) ?
@@ -1135,6 +1186,17 @@ function _trig_unity_zero(e::Sym)
     _trig_args_rational_pi(e) || return e
     w = try _unity_reduce(expand(rewrite(e, exp))) catch err; err isa InterruptException && rethrow(); return e end
     iszero(w) ? ZERO : e
+end
+
+# b^e for a positive rational b and an exponent with logs: exp(e log b), the exponent's
+# logs combined (4^(3iπ/(2log 2)) is e^(3iπ) = -1; SymPy #10410)
+function _pow_log_exponent(e::Sym; assume = nothing)
+    _replace_walk(e) do t
+        (t.kind == POW && t.args[1].kind == NUMBER && isexact(t.args[1].num) && t.args[1].num > N0 &&
+         _has_fn(t.args[2], (:log,))) || return nothing
+        u = simplify_log(cancel(_log_quotients(expand(t.args[2] * log(t.args[1])))); assume)
+        exp(u)
+    end
 end
 
 # every sin and cos argument in e a rational multiple of π
