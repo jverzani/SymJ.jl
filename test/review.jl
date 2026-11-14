@@ -1480,3 +1480,16 @@ end
     @test iszero(simplify(SymJ.laplace_transform(P(t ≪ 1 => t, t ≪ 2 => 2 - t, true => 0), t, s) - (1 - exp(-s))^2/s^2))
     @test iszero(simplify(SymJ.laplace_transform(P(t ≫ 3 => exp(-t), true => 0), t, s) - exp(-3(s + 1))/(s + 1)))
 end
+
+@testset "assume for rsolve and dsolve systems (default assumptions, decision 6)" begin
+    @syms t k n a b
+    u, v, y = SymFunction(:u), SymFunction(:v), SymFunction(:y)
+    # a system's eigenvalues shown complex by the facts: cosines and sines
+    S = SymJ.dsolve([diff(u(t), t) ~ v(t), diff(v(t), t) ~ -k * u(t)], [u(t), v(t)], u(0) => 1, v(0) => 0; assume = (k ≫ 0,))
+    @test S[1].rhs == cos(sqrt(k) * t)
+    @test S[2].rhs == -sqrt(k) * sin(sqrt(k) * t)
+    # rsolve: a value substituted (a repeated root), the equation refined (|a| = a)
+    r = SymJ.rsolve(y(n + 2) - (a + b) * y(n + 1) + a * b * y(n) ~ 0, y(n), y(0) => 0, y(1) => 1; assume = (a ~ b,))
+    @test iszero(simplify(r - n * b^(n - 1)))
+    @test SymJ.rsolve(y(n + 1) ~ abs(a) * y(n), y(n), y(0) => 1; assume = (a ≫ 0,)) == a^n
+end

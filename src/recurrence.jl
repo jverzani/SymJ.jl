@@ -418,7 +418,10 @@ end
 The solution of a linear recurrence with polynomial coefficients in `n`, such as
 `y(n+2) ~ y(n+1) + y(n)`, as a combination of hypergeometric terms (Petkovšek's
 algorithm Hyper). `inits` are initial values, `y(0) => 0, y(1) => 1`; without them the
-answer is in terms of `y(0), …, y(d-1)` for a recurrence of order `d`. The right side
+answer is in terms of `y(0), …, y(d-1)` for a recurrence of order `d`. Parameters take
+generic values (distinct characteristic roots, nonzero coefficients); `assume` gives
+facts about them: values (`a ~ b`, a repeated root) are substituted first, and the
+answer is refined under them all. The right side
 may also be a sum of hypergeometric terms in `n` (polynomials, `2^n`, `n!`, `(-1)^n`).
 Not exported.
 
@@ -440,7 +443,21 @@ SymJ.rsolve(y(n+1) - y(n) ~ 1/(n+1), y(n), y(0) => 0)              # harmonic(n)
 SymJ.rsolve(y(n+2) ~ (n+1)*y(n), y(n), y(0) => 1, y(1) => 1)       # (n - 1)!!, by parity
 ```
 """
-function rsolve(eq, yn::Sym, inits::Pair...)
+function rsolve(eq, yn::Sym, inits::Pair...; assume = nothing)
+    # facts about the parameters: those that fix a value (a ~ b, a repeated root) are
+    # substituted first, and the answer is refined under all of them (decided 2026-11-14)
+    if assume !== nothing
+        A = something(_assumptions(assume), Assumptions())
+        sub = collect(A.subst)
+        if !isempty(sub)
+            eq isa Relation && (eq = Relation(eq.op, subs(eq.lhs, sub...), subs(eq.rhs, sub...)))
+            inits = Tuple(Sym(k) => subs(Sym(v), sub...) for (k, v) in inits)
+        end
+        # (|a| as a for a > 0, before the coefficients are taken)
+        eq isa Relation && (eq = Relation(eq.op, refine(eq.lhs; assume = A), refine(eq.rhs; assume = A)))
+        r = with(() -> rsolve(eq, yn, inits...), _ASSUMING => A)
+        return r isa Sym ? refine(r; assume = A) : r
+    end
     (yn.kind == FN && length(yn.args) == 1 && _isnamed(yn.args[1])) ||
         throw(ArgumentError("rsolve: $yn is not a function of a symbol, such as y(n)"))
     yname, n = yn.name, yn.args[1]
