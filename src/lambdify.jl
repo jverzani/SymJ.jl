@@ -110,7 +110,8 @@ _outputs(ex::Union{Tuple,AbstractArray}) = reduce(vcat, (_outputs(e) for e in ex
 # vals (as _outputs flattened ex) in ex's shape
 function _shape_like(ex, vals::Vector{Sym}, i::Ref{Int} = Ref(0))
     ex isa Tuple && return Tuple(_shape_like(e, vals, i) for e in ex)
-    ex isa AbstractArray && return reshape(Sym[_shape_like(e, vals, i) for e in vec(collect(ex))], size(ex))
+    # (an array of arrays keeps its arrays: [M1, M2] gave a MethodError; SymPy #8891)
+    ex isa AbstractArray && return reshape([_shape_like(e, vals, i) for e in vec(collect(ex))], size(ex))
     i[] += 1
     vals[i[]]
 end
