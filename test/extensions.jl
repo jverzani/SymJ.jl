@@ -211,7 +211,8 @@ import PolyLog as PL
         ∫ = RischIntegrate.integrate
         Inf_ = Sym(Inf)
         # the inner integral's cases at y = ±√(-h²) impossible for real y, h > 0 (SymPy #10211)
-        let (y, h, w) = (Sym(:y), Sym(:h), Sym(:w))
+        # (the older RischIntegrate that Julia 1.10 resolves cannot do the inner integral)
+        VERSION >= v"1.12" && let (y, h, w) = (Sym(:y), Sym(:h), Sym(:w))
             r = ∫(1 / sqrt((y - x)^2 + h^2)^3, (x, 0, w), (y, 0, w); assume = (h ≫ 0, w ≫ 0))
             @test iszero(simplify(r - 2(sqrt(h^2 + w^2) - h) / h^2))
         end
