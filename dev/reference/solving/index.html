@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Solving equations — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=db24b841">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=ba6658e2">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Solving equations — SymJ.jl">
   <meta property="og:title" content="Solving equations — SymJ.jl">
@@ -75,7 +75,7 @@
 <div class="md-docstring" id="CommonSolve.solve-Tuple{Relation, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>CommonSolve.solve</code> — <span class="md-docstring-sig">Tuple{Relation, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2ff930d1aeb2f2e8165033d4bfc0d03bbc0f080a/src/solve.jl#L14-L82" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/7e7a7e46ee6bfa3281fa1158ad56576952079e30/src/solve.jl#L14-L86" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -90,14 +90,16 @@
 solve(x^2 ~ -1, x)             # [-im, im]
 solve(diff(x^2 + u(x)^2 - 1, x) ~ 0, diff(u(x), x))   # [-x/u(x)]</code></pre>
 </div>
-<p>With parameters, the solutions are those for generic values of them: an expression in the parameters alone is taken to be nonzero unless the assumptions make it zero, so <code class="md-code-inline">a*x ~ b</code> gives <code class="md-code-inline">b/a</code> (the same rule as <a href="../../reference/calculus/#SymJ.limit-Tuple{Any, Pair}"><code class="md-code-inline">limit</code></a> and <code class="md-code-inline">integrate</code>). A symbolic exponent gives the principal root (<code class="md-code-inline">x^a = b</code> gives <code class="md-code-inline">b^(1/a)</code>, not the other roots <code class="md-code-inline">b^(1/a) e^(2πik/a)</code>). Facts that make a coefficient vanish give that case&#39;s answer.</p>
+<p>With parameters, the solutions are those for generic values of them: an expression in the parameters alone is taken to be nonzero unless the assumptions make it zero, so <code class="md-code-inline">a*x ~ b</code> gives <code class="md-code-inline">b/a</code> (the same rule as <a href="../../reference/calculus/#SymJ.limit-Tuple{Any, Pair}"><code class="md-code-inline">limit</code></a> and <code class="md-code-inline">integrate</code>). A symbolic exponent gives the principal root (<code class="md-code-inline">x^a = b</code> gives <code class="md-code-inline">b^(1/a)</code>, not the other roots <code class="md-code-inline">b^(1/a) e^(2πik/a)</code>). Facts that make a coefficient vanish give that case&#39;s answer. A root that holds for only some parameter values (<code class="md-code-inline">a^2</code> for <code class="md-code-inline">sqrt(x) ~ a</code>) is kept as it is for complex parameters, and comes with its condition when they are assumed real.</p>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve(a*x + b ~ 0, x)                          # [-b/a]
 solve(a*x + b ~ 0, x; assume = (a ~ 0,))       # [] (b ≠ 0)
 solve(exp(a*x) ~ 2, x)                         # [log(2)/a]
 solve(x^2 ~ a, x)                              # [-sqrt(a), sqrt(a)]
-solve(x^a ~ 2, x)                              # [2^(1/a)]</code></pre>
+solve(x^a ~ 2, x)                              # [2^(1/a)]
+solve(sqrt(x) ~ a, x)                          # [a^2]
+solve(sqrt(x) ~ a, x; assume = (a ∈ ℝ,))       # a &lt; 0 =&gt; [], a ≥ 0 =&gt; [a^2]</code></pre>
 </div>
 <p>With assumptions (<code class="md-code-inline">assume = (x ≫ 0,)</code>, an <a href="../../reference/assumptions/#SymJ.Assumptions"><code class="md-code-inline">Assumptions</code></a>, or inside <a href="../../reference/assumptions/#SymJ.assuming-Tuple{Any, Vararg{Any}}"><code class="md-code-inline">assuming</code></a>), only the solutions they allow for <code class="md-code-inline">x</code> are kept: those in its number set (<code class="md-code-inline">x ∈ ℝ</code>), its range (<code class="md-code-inline">x ≫ 0</code>), and consistent with its relations to other symbols. Facts about the other symbols are used to decide that. For a real <code class="md-code-inline">x</code>, a floating point root whose imaginary part is tiny beside its size (a double root split by rounding, <code class="md-code-inline">264 ± 6e-6im</code>) is taken as real, with a warning. When the answer depends on something the assumptions leave open, the result is again a <code class="md-code-inline">Cases</code> value.</p>
 <div class="md-code-block">
@@ -116,7 +118,7 @@ solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !
 <div class="md-docstring" id="SymJ.SymInterval">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymInterval</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2ff930d1aeb2f2e8165033d4bfc0d03bbc0f080a/src/intervals.jl#L10-L15" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/7e7a7e46ee6bfa3281fa1158ad56576952079e30/src/intervals.jl#L10-L15" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -129,7 +131,7 @@ solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !
 <div class="md-docstring" id="SymJ.SymSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2ff930d1aeb2f2e8165033d4bfc0d03bbc0f080a/src/intervals.jl#L23-L30" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/7e7a7e46ee6bfa3281fa1158ad56576952079e30/src/intervals.jl#L23-L30" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -142,7 +144,7 @@ solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !
 <div class="md-docstring" id="SymJ.CylindricalSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.CylindricalSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2ff930d1aeb2f2e8165033d4bfc0d03bbc0f080a/src/ineqsystems.jl#L13-L25" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/7e7a7e46ee6bfa3281fa1158ad56576952079e30/src/ineqsystems.jl#L13-L25" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -170,6 +172,6 @@ solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=db24b841"></script>
+  <script src="../../assets/materialdocs.js?v=ba6658e2"></script>
 </body>
 </html>
