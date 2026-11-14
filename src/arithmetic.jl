@@ -365,6 +365,13 @@ function pow(b::Sym, e::Sym)
                ((b.args[1].kind == NUMBER && isexact(b.args[1].num) && b.args[1].num > N0) || b.args[1].kind == CONSTANT)
                 return pow(b.args[1], mul(b.args[2], e))
             end
+            # (u^p)^q = u^(p q) for any u when -1 < p ≤ 1: u^p's argument p arg(u) stays in
+            # (-π, π], the principal branch (√√x is x^(1/4); solve took √(_u) for a
+            # generator; SymPy #8591)
+            if bk == POW && b.args[2].kind == NUMBER && isexact(b.args[2].num) &&
+               -N1 < b.args[2].num <= N1
+                return pow(b.args[1], mul(b.args[2], e))
+            end
             # a positive constant factor comes out: (c m)^e = c^e m^e for c > 0 on the
             # principal branch (scaling by c > 0 leaves the argument unchanged), so
             # sqrt(4a) = 2 sqrt(a) and sqrt(2a + 2b) = sqrt(2) sqrt(a + b)

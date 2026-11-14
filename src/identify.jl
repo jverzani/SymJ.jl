@@ -52,6 +52,9 @@ _unlikely(b, rtol) = (2.0 * maximum(abs, b) + 1)^length(b) * rtol <= 1e-3
 
 function _identify(f::Float64, cs, rtol, maxcoeff, maxdegree)
     iszero(f) && return ZERO
+    # a whole number below 2^53 is that integer exactly (200000.0 was kept a float, its
+    # size making the rationalization look like chance; SymPy #8239)
+    isinteger(f) && abs(f) < 2.0^53 && return Sym(Int(f))
     q = rationalize(BigInt, f; tol = rtol * abs(f))
     _unlikely((numerator(q), denominator(q)), rtol) && return Sym(SymNumber(q))
     setprecision(BigFloat, 128) do

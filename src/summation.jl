@@ -87,7 +87,16 @@ function summation(f, k::Sym, a, b; assume = nothing)
     end
     # pieces, abs and signs of the summand settled on the range a ≤ k ≤ b, k an integer
     # (k ≤ n holds for every term, |x + 9| = x + 9 from 7 on; SymPy #19687)
-    if _has_fn(f, (:piecewise, :abs, :sign, :heaviside, :max, :min))
+    # 0^k from k = 0: that term (0^0 = 1) apart, the rest from 1
+    # (an exponent c k, c > 0: 0^(n - k) has its special term elsewhere)
+    zk(u) = u.kind == POW && u.args[1].kind == NUMBER && iszero(u.args[1].num) && has(u.args[2], k) &&
+        iszero(subs(u.args[2], k => ZERO)) && (c = diff(u.args[2], k); c.kind == NUMBER && c.num > N0)
+    if a.kind == NUMBER && iszero(a.num) && _has_node(f, zk)
+        return _sum_parts(summation(f, k, 1, b; assume), subs(f, k => ZERO))
+    end
+    # (and 0^k, 0 for k ≥ 1: Σ_{n≥1} 0^n is 0; SymPy #8414)
+    if _has_fn(f, (:piecewise, :abs, :sign, :heaviside, :max, :min)) ||
+       _has_node(f, u -> u.kind == POW && u.args[1].kind == NUMBER && iszero(u.args[1].num))
         A0 = _assumptions(assume)
         A0 === nothing && (A0 = Assumptions())
         facts = Any[k ∈ ℤ, Relation(:ge, k, a)]
@@ -143,6 +152,15 @@ function summation(f, k::Sym, a, b; assume = nothing)
         end
     end
     r = _summation(f, k, a, bs, assume)
+    # left unevaluated from an integer whose term is 0: from the next one (n 2^n/n! at n =
+    # 0; Σ_{n≥1} is 2e², from 0 unevaluated; SymPy #8254)
+    if r isa Sym && _hasfn(r, :Sum) && a.kind == NUMBER && _isint(a.num) && has(f, k)
+        z = try subs(f, k => a) catch err; (_isdivzero(err) || err isa ArgumentError) || rethrow(); nothing end
+        if z !== nothing && iszero(z)
+            r1 = try _summation(f, k, a + 1, bs, assume) catch err; err isa ArgumentError || rethrow(); nothing end
+            r1 isa Sym && !_hasfn(r1, :Sum) && return r1
+        end
+    end
     # NaN over an infinite range, ∞ - ∞ of divergent parts: divergence by the summand's
     # behaviour at ∞ (Σ n²/(n + 1)² was NaN; SymPy #8251)
     if bs === nothing && r isa Sym && r.kind == NUMBER && isfloat(r.num) && isnan(Float64(r.num))
@@ -1519,8 +1537,14 @@ otherwise left as it is. Not exported.
 """
 harmonic(n) = apply_function(:harmonic, Sym[Sym(n)])
 harmonic(n, m) = apply_function(:harmonic, Sym[Sym(n), Sym(m)])
-_harmonic_float(n, m = 1) = isinteger(n) && n >= 0 ? sum(1 / Float64(i)^m for i in 1:Int(n); init = 0.0) :
-    throw(DomainError(n, "harmonic: an integer argument for numeric evaluation"))
+# (a non-integer n by the analytic continuation: H(n) = ψ(n + 1) + γ, H(n, m) = ζ(m) -
+# ζ(m, n + 1); harmonic(3/2) had no value; SymPy #7443)
+function _harmonic_float(n, m = 1)
+    isinteger(n) && n >= 0 && return sum(1 / Float64(i)^m for i in 1:Int(n); init = 0.0)
+    SF = SpecialFunctionsSupport.SF
+    isone(m) && return SF.digamma(n + 1) + Base.MathConstants.eulergamma
+    SF.zeta(m) - SF.zeta(m, n + 1)
+end
 register_function!(:harmonic; julia = _harmonic_float,
     eval = args -> begin
         length(args) in (1, 2) || return nothing

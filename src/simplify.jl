@@ -190,6 +190,13 @@ function _refine_rule(e::Sym, A::Assumptions)
         r === nothing || return r
     end
     k == FN && e.name === :atan2 && return _refine_atan2(e.args[1], e.args[2], A)
+    # mod(a, b) = 0 when a/b is an integer (mod(n!, n) for an integer n ≥ 1; SymPy #8531,
+    # #8677); mod(u, b) = u for integers 0 ≤ u < b is left to the sign rules
+    if k == FN && e.name === :mod && length(e.args) == 2 && _isinteger(e.args[1], A) === true &&
+       _isinteger(e.args[2], A) === true
+        q = try Base.inferencebarrier(simplify_gamma)(cancel(e.args[1] / e.args[2])) catch err; err isa ArgumentError || rethrow(); nothing end
+        q !== nothing && _isinteger(q, A) === true && return ZERO
+    end
     k == FN && e.name === :And && return _refine_and(e, A)
     # angle(u) with Re u > 0: atan(Im u/Re u) (angle(a + iF) for a > 0, F real; SymPy
     # #15945)

@@ -257,6 +257,17 @@ end
 
 function piecewise(ex::Sym)
     isempty(ex.args) && return ex
+    # a product's exponents too: cos(2x) exp(-|x|) has |x| in an exponent (it reached the
+    # integrator; SymPy #8849)
+    # (a plain loop: the recursive generator under prod made compiling the RischIntegrate
+    # extension take over an hour with code coverage on macOS and Windows)
+    if ex.kind == MUL
+        r = Sym(ex.num)
+        for i in eachindex(ex.args)
+            r = r * piecewise(ex.args[i])^piecewise(ex.exps[i])
+        end
+        return r
+    end
     e = _rebuild_node(ex, Sym[piecewise(a) for a in ex.args])
     e.kind == FN || return e
     a = isempty(e.args) ? ZERO : e.args[1]
@@ -458,6 +469,11 @@ function _integrate_pieces(e::Sym, x::Sym, integ)
     # the rest's abs, sign, max, min as pieces too; conditions of one sign everywhere
     # settled; terms without pieces integrated apart (|sin x| + x: the pieces' part periodic)
     g = _settle_conditions(piecewise(_add_many(rest)), x, -Inf, Inf)
+    # a piecewise in a product's exponent (exp(-|x|) cos 2x) folded out, as the pieces'
+    # walkers take function arguments (SymPy #8849)
+    if g.kind == MUL && any(p -> _haspieces(p, x), g.exps)
+        g = try piecewise_fold(g) catch err; err isa ArgumentError || rethrow(); g end
+    end
     out = _add_many(deltas)
     if g.kind == ADD && _haspieces(g, x)
         plain = _add_many(Sym(c) * t for (c, t) in zip(g.coefs, g.args) if !_haspieces(t, x)) + Sym(g.num)

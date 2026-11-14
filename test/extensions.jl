@@ -210,6 +210,9 @@ import PolyLog as PL
     @testset "RischIntegrate: definite integrals" begin
         ∫ = RischIntegrate.integrate
         Inf_ = Sym(Inf)
+        # |x| in a product's exponent (SymPy #8849)
+        VERSION >= v"1.12" && @test ∫(exp(-abs(x)) * cos(2x), (x, -Inf, Inf)) == Sym(2) // 5
+        VERSION >= v"1.12" && @test iszero(simplify(∫(exp(-abs(x)) * x, (x, -1, 2)) - (2 / exp(Sym(1)) - 3 / exp(Sym(2)))))
         # the inner integral's cases at y = ±√(-h²) impossible for real y, h > 0 (SymPy #10211)
         # (the older RischIntegrate that Julia 1.10 resolves cannot do the inner integral)
         VERSION >= v"1.12" && let (y, h, w) = (Sym(:y), Sym(:h), Sym(:w))

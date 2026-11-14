@@ -762,6 +762,10 @@ function _sign_by_split(e::Sym, A::Assumptions)
                (ms = _smask(s, A); ms === nothing || count_ones(ms) > 1)
             # sin u, cos u ∈ [-1, 1] (|cos x + 1| = cos x + 1; SymPy #21359, #21351, #21811)
             t = s
+        elseif s.name === :mod && length(s.args) == 2 && _isreal(s.args[1], A) === true &&
+               _signs(s.args[2], A) == _POS
+            # mod(u, b) ∈ [0, b) for b > 0 (mod(k, 3) < 3; SymPy #8486)
+            t = s
         elseif s.name === :factorial && length(s.args) == 1 && _isinteger(s.args[1], A) === true &&
                _holds(Relation(:ge, s.args[1], ZERO), A) === true
             # n! ≥ 1 for an integer n ≥ 0 (SymPy #9115)
@@ -773,6 +777,10 @@ function _sign_by_split(e::Sym, A::Assumptions)
     branches = if t.name in (:sin, :cos)
         w = Sym(Symbol("_trig", _SPLIT_DEPTH[]))
         B = _with_fact(A, FactAnd(Any[Relation(:ge, w, MINUS_ONE), Relation(:le, w, ONE)]))
+        [(B, subs(e, t => w))]
+    elseif t.name === :mod
+        w = Sym(Symbol("_mod", _SPLIT_DEPTH[]))
+        B = _with_fact(A, FactAnd(Any[Relation(:ge, w, ZERO), Relation(:lt, w, t.args[2])]))
         [(B, subs(e, t => w))]
     elseif t.name === :factorial
         w = Sym(Symbol("_fact", _SPLIT_DEPTH[]))
@@ -980,6 +988,13 @@ function _fnmask(e::Sym, A::Assumptions)
     end
     length(e.args) == 1 || return nothing
     # n! > 0 for an integer n ≥ 0, Γ(u) > 0 for u > 0 (SymPy #13616)
+    # mod(a, b) has b's sign (Julia's convention): mod(n, 3) ≥ 0 (SymPy #8581)
+    if f === :mod && length(e.args) == 2 && _isreal(e.args[1], A) === true
+        mb = _signs(e.args[2], A)
+        mb == _POS && return _ZER | _POS
+        mb == _NEG && return _NEG | _ZER
+        return nothing
+    end
     if f === :factorial
         _isinteger(e.args[1], A) === true && _holds(Relation(:ge, e.args[1], ZERO), A) === true && return _POS
         return nothing
@@ -1176,6 +1191,12 @@ function _isinteger_form(e::Sym, A::Assumptions)::Union{Nothing,Bool}
         return _isinteger(e.args[1], A) === true ? true : nothing
     elseif k == FN && e.name in (:floor, :ceil) && length(e.args) == 1
         return _isreal(e.args[1], A) === true ? true : nothing
+    elseif k == FN && e.name in (:mod, :rem) && length(e.args) == 2
+        # of integers (floor(mod(k, 3)) is mod(k, 3); SymPy #8486)
+        return all(a -> _isinteger(a, A) === true, e.args) ? true : nothing
+    elseif k == FN && e.name === :factorial && length(e.args) == 1
+        u = e.args[1]
+        return _isinteger(u, A) === true && Base.inferencebarrier(_holds)(Relation(:ge, u, ZERO), A) === true ? true : nothing
     end
     nothing
 end
