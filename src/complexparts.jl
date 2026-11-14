@@ -58,14 +58,26 @@ function _const_parts(e::Sym)
                 _eq(w, e) || return _const_parts(w)
             end
         end
-        if q.kind == NUMBER && isexact(q.num) && isone(_denominator(q.num)) && q.num > N0 && q.num <= SymNumber(8)
-            p = _const_parts(b)                             # small positive integer powers
+        if q.kind == NUMBER && isexact(q.num) && isone(_denominator(q.num)) && !iszero(q.num)
+            p = _const_parts(b)                             # integer powers
             p === nothing && return nothing
-            re, im = ONE, ZERO
-            for _ in 1:Int(_numerator(q.num))
-                re, im = expand(re * p[1] - im * p[2]), expand(re * p[2] + im * p[1])
+            n = abs(_numerator(q.num))
+            # (by squaring; past 8 only parts that are numbers, (1 + i)^100 is -2^50, as
+            # surds' powers grow; SymPy #9890)
+            n <= 8 || (p[1].kind == NUMBER && p[2].kind == NUMBER && n <= 4096) || return nothing
+            mul((a, b), (c, d)) = (expand(a * c - b * d), expand(a * d + b * c))
+            r, sq, m = (ONE, ZERO), p, Int(n)
+            while m > 0
+                isodd(m) && (r = mul(r, sq))
+                m >>= 1
+                m > 0 && (sq = mul(sq, sq))
             end
-            return (re, im)
+            q.num > N0 && return r
+            # a negative power through the conjugate: 1/(a + b i) = (a - b i)/(a² + b²)
+            # (real(1/(4 + 3i)) is 4/25; SymPy #10380)
+            d = expand(r[1]^2 + r[2]^2)
+            iszero(d) && return nothing
+            return (expand(r[1] / d), expand(-r[2] / d))
         end
     end
     _isreal_const(e) === true ? (e, ZERO) : nothing
@@ -176,6 +188,12 @@ register_function!(:abs; julia = abs, diff = FUNCTION_RULES[:abs].diff,
             if pb !== nothing && pq !== nothing && ab !== nothing && !iszero(ab) && !iszero(expand(pq[2]))
                 return abs(b)^expand(pq[1]) * exp(-expand(pq[2]) * ab)
             end
+        end
+        # |b^n| = |b|^n, n an integer (abs((1 + i)^100) is 2^50; SymPy #9890)
+        if length(args) == 1 && a.kind == POW && !_hassymbol(a) && (q = a.args[2]; q.kind == NUMBER &&
+                isexact(q.num) && isone(_denominator(q.num)))
+            ab = abs(a.args[1])
+            _hasfn(ab, :abs) || return ab^q
         end
         if length(args) == 1 && a.kind != NUMBER && !_hassymbol(a)
             p = _const_parts(a)

@@ -760,6 +760,10 @@ function _sign_by_split(e::Sym, A::Assumptions)
                (ms = _smask(s, A); ms === nothing || count_ones(ms) > 1)
             # sin u, cos u ∈ [-1, 1] (|cos x + 1| = cos x + 1; SymPy #21359, #21351, #21811)
             t = s
+        elseif s.name === :factorial && length(s.args) == 1 && _isinteger(s.args[1], A) === true &&
+               _holds(Relation(:ge, s.args[1], ZERO), A) === true
+            # n! ≥ 1 for an integer n ≥ 0 (SymPy #9115)
+            t = s
         end
         nothing
     end
@@ -768,6 +772,10 @@ function _sign_by_split(e::Sym, A::Assumptions)
         w = Sym(Symbol("_trig", _SPLIT_DEPTH[]))
         B = _with_fact(A, FactAnd(Any[Relation(:ge, w, MINUS_ONE), Relation(:le, w, ONE)]))
         [(B, subs(e, t => w))]
+    elseif t.name === :factorial
+        w = Sym(Symbol("_fact", _SPLIT_DEPTH[]))
+        B = _with_fact(A, Relation(:ge, w, ZERO))
+        [(B, subs(e, t => 1 + w))]
     elseif t.name in (:floor, :ceil)
         w = Sym(Symbol("_frac", _SPLIT_DEPTH[]))
         B = _with_fact(A, FactAnd(Any[Relation(:ge, w, ZERO), Relation(:lt, w, ONE)]))

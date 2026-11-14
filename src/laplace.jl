@@ -36,6 +36,7 @@ end
 
 function _lap(f::Sym, t::Sym, s::Sym)
     has(f, t) || return f / s
+    f = _pw_heaviside(f, t)
     f = expand(f)
     if f.kind == ADD
         out = iszero(f.num) ? ZERO : Sym(f.num) / s
@@ -48,6 +49,28 @@ function _lap(f::Sym, t::Sym, s::Sym)
     end
     r = _lap_unknown(f, t, s)
     r === nothing ? _lap_tidy(_lap_term(f, t, s), s) : expand(r)
+end
+
+# piecewise functions of t with conditions t ⋈ a (a free of t) as heaviside steps, from
+# the last piece back: t < a => v before the rest F is v + (F - v) H(t - a), t > a => v
+# is F + (v - F) H(t - a) (equal but at the breakpoints; SymPy #10354). Others are kept.
+function _pw_heaviside(f::Sym, t::Sym)
+    _replace_walk(f) do e
+        (e.kind == FN && e.name === :piecewise && has(e, t)) || return nothing
+        ps = _pieces(e)
+        _eq(ps[end][1], ONE) || return nothing
+        F = ps[end][2]
+        for (c, v) in Iterators.reverse(ps[1:end-1])
+            (c.kind == FN && haskey(_COND_RELS, c.name)) || return nothing
+            op = _COND_RELS[c.name]
+            l, r = c.args
+            _eq(r, t) && ((l, r) = (r, l); op = _FLIP_OP[op])
+            (_eq(l, t) && !has(r, t) && op in (:lt, :le, :gt, :ge)) || return nothing
+            H = heaviside(t - r)
+            F = op in (:lt, :le) ? v + (F - v) * H : F + (v - F) * H
+        end
+        F
+    end
 end
 
 # exponentials of s kept apart, the rest cancelled

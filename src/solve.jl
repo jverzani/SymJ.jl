@@ -88,6 +88,11 @@ function solve(eq::Relation, x::Sym; assume = nothing, drop_empty::Bool = false)
     # c floor(u) + d = 0 (or ceil) holds on intervals of u: its solution set, as for an
     # inequality (SymPy #25001)
     eq.op === :eq && _isnamed(x) && (S = _solve_floor(eq, x, assume); S !== nothing) && return S
+    # max and min of x as piecewise (x max(x, 15) = 10 is 2/3; SymPy #10158)
+    if eq.op === :eq && _isnamed(x) && any(e -> _has_minmax(e, x), (eq.lhs, eq.rhs))
+        l, r = piecewise(eq.lhs), piecewise(eq.rhs)
+        _has_minmax(l, x) || _has_minmax(r, x) || return solve(Relation(:eq, l, r), x; assume, drop_empty)
+    end
     A = something(_assumptions(assume), Assumptions())
     r = try
         if !_isnamed(x)
@@ -104,6 +109,9 @@ function solve(eq::Relation, x::Sym; assume = nothing, drop_empty::Bool = false)
     end
     drop_empty ? _drop_empty(r) : r
 end
+
+_has_minmax(e::Sym, x::Sym) = (e.kind == FN && e.name in (:max, :min) && has(e, x)) ||
+    any(a -> _has_minmax(a, x), e.args) || any(a -> _has_minmax(a, x), e.exps)
 
 # floats where the exact methods need exact numbers (t^1.1, a float exponent): each as
 # the shortest rational within its rounding, solved exactly, the solutions numbers again

@@ -279,6 +279,10 @@ function _extreme_rule(name::Symbol, better)
         for a in args
             a.kind == FN && a.name === name ? append!(flat, a.args) : push!(flat, a)
         end
+        # NaN absorbs, as in Base (max(NaN, x) is NaN; SymPy #9385)
+        for a in flat
+            a.kind == NUMBER && isnan(a) && return a
+        end
         best, bestv = nothing, 0.0
         rest = Sym[]
         for a in flat
