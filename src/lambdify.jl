@@ -294,6 +294,41 @@ function _cse_subsums!(subsums::Vector{Pair{Sym,Sym}}, outs::Vector{Sym})
     outs
 end
 
+# common subproducts: the factors that two or more products share (positive integer
+# powers, at least two bases), as one placeholder (x y in x y and x² y; SymPy #10228)
+function _cse_subproducts!(parts::Vector{Pair{Sym,Sym}}, outs::Vector{Sym})
+    fdict(e) = Dict{Sym,SymNumber}(b => p.num for (b, p) in zip(e.args, e.exps)
+                                   if p.kind == NUMBER && isexact(p.num) && isone(_denominator(p.num)) && p.num > N0)
+    covers(d, best) = all(((b, q),) -> get(d, b, N0) >= q, best)
+    for _ in 1:20
+        prods = Sym[]
+        seen = Set{Sym}()
+        walk(e) = (isempty(e.args) || e in seen) ? nothing :
+            (push!(seen, e); e.kind == MUL && push!(prods, e); foreach(walk, e.args))
+        foreach(walk, outs)
+        length(prods) > 200 && return outs
+        ds = map(fdict, prods)
+        best = Pair{Sym,SymNumber}[]
+        for i in eachindex(ds), j in 1:(i - 1)
+            c = [b => min(q, ds[j][b]) for (b, q) in ds[i] if haskey(ds[j], b)]
+            length(c) > length(best) && (best = c)
+        end
+        (length(best) >= 2 && count(d -> covers(d, best), ds) >= 2) || return outs
+        sort!(best; by = p -> string(p.first))
+        S = prod(b^Sym(q) for (b, q) in best)
+        P = Sym(Symbol("_cse_prod", length(parts) + 1))
+        push!(parts, P => S)
+        outs = map(outs) do o
+            _replace_walk(o) do t
+                t.kind == MUL && covers(fdict(t), best) || return nothing
+                d = Dict(best)
+                Sym(t.num) * P * prod((b^(get(d, b, nothing) === nothing ? p : p - Sym(d[b])) for (b, p) in zip(t.args, t.exps)); init = ONE)
+            end
+        end
+    end
+    outs
+end
+
 """
     SymJ.cse(ex; prefix = :t)
 
@@ -303,7 +338,8 @@ expressions with the repeated parts replaced. `ex` is an expression or a vector 
 of them, and `reduced` has the same shape. A subexpression is repeated when the same
 node (a sum, product, power or function call, a power also as a factor of a product)
 occurs more than once; the terms that two or more sums share are one subexpression too
-(`x + y` in `x + y + z` and `x + y - z`), but a part of a product is not separated out.
+(`x + y` in `x + y + z` and `x + y - z`), and so are the factors two or more products
+share (`x*y` in `x*y` and `x^2*y`).
 The names avoid the symbols in `ex`. Not exported.
 
 ```julia
@@ -317,6 +353,8 @@ function cse(ex; prefix = :t)
     # (c²/2 + d/9 in -a + d/9 + c²/2 + c/3 and -b + d/9 + c²/2 - c/3; SymPy #23297)
     subsums = Pair{Sym,Sym}[]
     outs = _cse_subsums!(subsums, outs)
+    # and of products: factors two or more share (x y in [x y, x² y]; SymPy #10228)
+    outs = _cse_subproducts!(subsums, outs)
     # a product's factor b^p is counted as the power it is (exp(u) in exp(u)*sin(u) and
     # in exp(u) + 1 alike)
     factors(e) = e.kind == MUL ? Sym[isone(p) ? b : b^p for (b, p) in zip(e.args, e.exps)] : e.args

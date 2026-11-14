@@ -107,7 +107,8 @@ or an integer apart.
 Methods: first order linear, separable, Bernoulli, exact (with an integrating factor in
 `x` or `y` alone), homogeneous, Riccati; linear with constant coefficients, of any order
 (undetermined coefficients, else variation of parameters, for the right side);
-Cauchy–Euler; equations without `y` (reduced to a lower order); second order without
+Cauchy–Euler; Bessel's equation `x²y'' + xy' + (α²x² - ν²)y = 0` (`C1 besselj(ν, αx) +
+C2 bessely(ν, αx)`); equations without `y` (reduced to a lower order); second order without
 `x` (autonomous: `p = y'` as a function of `y`). Integrals are done by
 the RischIntegrate extension when it is loaded (an unevaluated `Integral` otherwise, or
 when there is no elementary antiderivative).
@@ -542,6 +543,8 @@ function _ode_linear(P::_ODE, Cs)
     if any(c -> has(c, x), cs)
         r = _ode_exact_linear(P, a, g, Cs)
         r === nothing || return r
+        r = n == 2 && iszero(g) ? _ode_bessel(cs, x, Cs) : nothing
+        r === nothing || return r
         n == 2 && return _ode_reduction_of_order(a, g, x, Cs)
         return nothing
     end
@@ -553,6 +556,21 @@ function _ode_linear(P::_ODE, Cs)
     G = _explog(subs(_ode_tidy(g * x^n / a[n + 1]), x => exp(t)))
     S = _ode_constcoeff(b, G, t, Cs)
     (:explicit, _ode_tidy(_explog(subs(S, t => log(x)))))
+end
+
+# Bessel's equation x²y'' + xy' + (α²x² - ν²)y = 0 (cs the coefficients times x^(2-k)
+# over a₂: [α²x² - ν², 1, 1]), α and ν constants: C1 J_ν(αx) + C2 Y_ν(αx) (SymPy #9819)
+function _ode_bessel(cs::Vector{Sym}, x::Sym, Cs)
+    (_eq(cs[3], ONE) && _eq(cs[2], ONE)) || return nothing
+    c0 = expand(cs[1])
+    P = try Poly{Sym}(c0, [x]) catch; return nothing end
+    (degree(P, x) == 2 && iszero(coeff(c0, x, 1))) || return nothing
+    α2, ν2 = coeff(c0, x, 2), -coeff(c0, x, 0)
+    (has(α2, x) || has(ν2, x) || iszero(α2)) && return nothing
+    # (u² as u: J and Y of order ±ν span the same solutions)
+    root(q) = q.kind == POW && _eq(q.args[2], Sym(2)) ? q.args[1] : _ode_tidy(sqrt(q))
+    α, ν = root(α2), root(ν2)
+    (:explicit, Cs[1] * apply_function(:besselj, Sym[ν, α * x]) + Cs[2] * apply_function(:bessely, Sym[ν, α * x]))
 end
 
 # a₂y'' + a₁y' + a₀y = g with a homogeneous solution y₁ found (a polynomial of degree at

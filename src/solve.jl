@@ -111,6 +111,8 @@ function solve(eq::Relation, x::Sym; assume = nothing, drop_empty::Bool = false)
     drop_empty ? _drop_empty(r) : r
 end
 
+_isinteger_const(r::Sym) = r.kind == NUMBER && isexact(r.num) && isone(_denominator(r.num))
+
 _has_minmax(e::Sym, x::Sym) = (e.kind == FN && e.name in (:max, :min) && has(e, x)) ||
     any(a -> _has_minmax(a, x), e.args) || any(a -> _has_minmax(a, x), e.exps)
 
@@ -138,6 +140,21 @@ end
 function _solve_floor(eq::Relation, x::Sym, assume)
     _has_fn(eq.lhs - eq.rhs, (:floor, :ceil)) || return nothing     # (no expanding first)
     g = expand(eq.lhs - eq.rhs)
+    # floor(x) and ceil(x) together: where x is not an integer ceil(x) = floor(x) + 1 (the
+    # intervals without their integer ends), where it is both are x (points); ceil(x) +
+    # floor(x) = 1 on (0, 1) (SymPy #9118)
+    fl, ce = floor(x), ceil(x)
+    if has(g, fl) && has(g, ce)
+        A = _solve_floor(Relation(:eq, expand(subs(g, ce => fl + 1)), ZERO), x, assume)
+        A isa SymSet || return nothing
+        A = SymSet([SymInterval(I.lo, I.hi, I.lclosed && !(I.lo !== nothing && _isinteger_const(I.lo)),
+                                I.rclosed && !(I.hi !== nothing && _isinteger_const(I.hi))) for I in A.intervals], x)
+        h = expand(subs(g, ce => x, fl => x))
+        has(h, x) && !_has_fn(h, (:floor, :ceil)) || return nothing
+        pts = try _solve_generic(h ~ 0, x) catch err; err isa ArgumentError || rethrow(); return nothing end
+        pts = [r for r in pts if _isinteger_const(r)]
+        return isempty(pts) ? A : A ∪ SymSet([SymInterval(r, r, true, true) for r in pts])
+    end
     F = nothing
     _replace_walk(g) do t
         t.kind == FN && t.name in (:floor, :ceil) && length(t.args) == 1 && has(t.args[1], x) &&
