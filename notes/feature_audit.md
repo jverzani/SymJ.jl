@@ -391,6 +391,23 @@ transforms). Of the rest, in rough order of value for calculus-level use:
      does not have: symbolic sets (Range, ImageSet, ConditionSet, ComplexRegion, product
      sets), MatrixSymbol and matrix expressions, Indexed, noncommutative symbols, boolean
      ITE.
+18. **Gaps from the fifteenth SymPy review (#8909–#10408)**:
+   - solve: floor(x) and ceil(x) together, ceil(x) + floor(x) = 1 on (0, 1) (#9118; one
+     floor or ceil call is solved); inequalities with float coefficients, 1.5x > 1 (no
+     rationalizing retry as for equations); a root valid for only some parameter values
+     kept with no condition (#10398; awaits the default-assumptions decision).
+   - definite integrals: a case impossible under the facts not refuted, so the inner
+     integral's cases split the outer interval (h > 0: -h² - (w - y)² = 0; #10211); no
+     non-elementary fallback, ∫₀^∞ e^(-√(x² + y²))/√(x² + y²) dx is K₀(y) (#9461; or
+     polar coordinates).
+   - dsolve: Bessel's equation x²y'' + xy' + x²y = 0 (#9819); differential-algebraic
+     systems with a singular leading matrix, reducible by elimination (#9251).
+   - cse: common subproducts, x·y in [xy, x²y] (#10228).
+   - matrices (last): Jordan form of k·M with a parametric eigenvalue, so the Lorentz
+     system's dsolve fails (#9204); svd/cond with squared singular values roots of an
+     irreducible cubic (#10355).
+   - A Bool from Julia's a ≠ b (structural, true for distinct symbols) in a solve system
+     is dropped silently as `true`; Ne(a, b) is the relation.
 
 Done since the first audit: trigonometric and logarithmic expansion, gamma and combinatorial simplification, LaTeX output (a Latexify extension), resultants and Gröbner
 bases (polynomial systems are solved), real and imaginary parts and `conj`, and

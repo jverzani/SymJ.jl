@@ -1445,3 +1445,38 @@ end
     @test_throws ArgumentError solve(Sym(Inf) * x ≫ 0, x)
     @test_throws ArgumentError solve(x + Sym(Inf) ≫ 0, x)
 end
+
+@testset "missing cases (SymPy review, round 15)" begin
+    @syms x y a b n t s
+    i = Sym(im)
+    # parts of any integer power of a complex constant (#10380, #9890)
+    @test real(1/(4 + 3i)) == Sym(4)/25
+    @test imag(1/(4 + 3i)) == Sym(-3)/25
+    @test real((1 + 2i)/(3 - i)) == Sym(1)/10
+    @test real((1 + i)^100) == -Sym(2)^50
+    @test imag((1 + i)^99) == Sym(2)^49
+    @test abs((1 + i)^100) == Sym(2)^50
+    @test abs((1 + i)^-3) == sqrt(Sym(2))/4
+    # NaN absorbs in max and min (#9385)
+    @test isnan(max(Sym(NaN), x))
+    @test isnan(min(x, Sym(NaN), 3))
+    # a constant's membership decided (#9152)
+    @test solve(2^n ~ 3, n; assume = (n ∈ ℤ,)) == Sym[]
+    @test solve(2^n ~ 8, n; assume = (n ∈ ℤ,)) == Sym[3]
+    # n! ≥ 1 for an integer n ≥ 0 (#9115)
+    @test refine(factorial(n) ≧ 1; assume = (n ∈ ℤ, n ≧ 0)) === true
+    @test !(refine(factorial(n) ≫ 1; assume = (n ∈ ℤ, n ≧ 0)) isa Bool)
+    # max and min of the unknown as piecewise (#10158)
+    @test solve(x * max(x, 15) ~ 10, x) == Sym[Sym(2)/3]
+    @test solve(max(x, 15) ~ 20, x) == Sym[20]
+    @test solve(min(x, 1) + x ~ 3, x) == Sym[2]
+    # ≠ checked after the equations fix the unknowns (#10408)
+    @test solve([a ~ 1, b ~ 2, Ne(a, b)], [a, b]) == [Dict(a => 1, b => 2)]
+    @test isempty(solve([a ~ 1, b ~ 1, Ne(a, b)], [a, b]))
+    @test solve([x^2 ~ 1, y ~ x, Ne(x, 1)], [x, y]) == [Dict(x => -1, y => -1)]
+    # piecewise functions of t transformed as heaviside steps (#10354)
+    P = SymJ.piecewise
+    @test iszero(simplify(SymJ.laplace_transform(P(t ≪ 1 => 1, true => 1//2), t, s) - (1/s - exp(-s)/(2s))))
+    @test iszero(simplify(SymJ.laplace_transform(P(t ≪ 1 => t, t ≪ 2 => 2 - t, true => 0), t, s) - (1 - exp(-s))^2/s^2))
+    @test iszero(simplify(SymJ.laplace_transform(P(t ≫ 3 => exp(-t), true => 0), t, s) - exp(-3(s + 1))/(s + 1)))
+end

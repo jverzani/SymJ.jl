@@ -154,6 +154,11 @@ catch err
 end
 function _holds_(f, A::Assumptions)
     if f isa Membership
+        # a constant: as ∈ decides it (log(3)/log(2) ∈ ℤ is false; SymPy #9152)
+        if !_hassymbol(f.x)
+            r = try f.x in f.set catch err; err isa ArgumentError || rethrow(); nothing end
+            r isa Bool && return r != f.negated
+        end
         q = f.set.rank == _ZR ? _isinteger(f.x, A) : f.set.rank == _RR ? _isreal(f.x, A) :
             f.set.rank == _CR ? true : _isrational(f.x, A)
         return q === nothing ? nothing : q != f.negated

@@ -41,6 +41,28 @@ solve([x^2 + y^2 ~ 1, x ~ y], [x, y])          # [Dict(x => -√2/2, y => -√2/
 solve([x*y ~ 1, x + y ~ 3], [x, y])
 ```
 """
+# equations and ≠: the equations' solutions, those where each ≠ holds (a = 1, b = 2,
+# a ≠ b; SymPy #10408); nothing when a ≠ is left undecided
+function _solve_ne_after(eqs, vars)
+    r = solve(Relation[e for e in eqs if e.op === :eq], vars)
+    r isa AbstractVector && !(r isa Cases) || return nothing
+    out = similar(r, 0)
+    for sol in r
+        sol isa AbstractDict || return nothing
+        ok = true
+        for e in eqs
+            e.op === :ne || continue
+            d = expand(subs(e.lhs - e.rhs, sol))
+            _hassymbol(d) && return nothing
+            v = try _decide(Relation(:ne, d, ZERO)) catch err; err isa ArgumentError || rethrow(); return nothing end
+            v isa Bool || return nothing
+            ok &= v
+        end
+        ok && push!(out, sol)
+    end
+    out
+end
+
 # equations given with Bools among them (simplify can turn a relation into true): true
 # dropped, false no solutions (MethodError CommonSolve.init(::Vector{Any}, …); SymPy #11659)
 function solve(eqs::AbstractVector, vars::Union{AbstractVector,Tuple}; assume = nothing)
@@ -93,6 +115,10 @@ function solve(eqs::AbstractVector{<:Relation}, vars::Union{AbstractVector,Tuple
     vars = Sym[Sym(v) for v in vars]
     all(_isnamed, vars) || return with(_NOT_PARAMS => unique!(reduce(vcat, map(_named, vars)))) do
         _solve_for_calls((es, vs, _) -> solve(es, vs), collect(Relation, eqs), vars)
+    end
+    if any(e -> e.op === :ne, eqs) && any(e -> e.op === :eq, eqs) && all(e -> e.op in (:eq, :ne), eqs)
+        r = _solve_ne_after(eqs, vars)
+        r === nothing || return r
     end
     all(e -> e.op === :eq, eqs) || return _solve_ineq_system(eqs, vars)
     r = _solve_float_constants(eqs, vars)
@@ -326,6 +352,10 @@ function _solve_generic(eqs::AbstractVector{<:Relation}, vars::Union{AbstractVec
     vars = Sym[Sym(v) for v in vars]
     all(_isnamed, vars) ||
         return _solve_for_calls((es, vs, _) -> _solve_generic(es, vs), collect(Relation, eqs), vars)
+    if any(e -> e.op === :ne, eqs) && any(e -> e.op === :eq, eqs) && all(e -> e.op in (:eq, :ne), eqs)
+        r = _solve_ne_after(eqs, vars)
+        r === nothing || return r
+    end
     all(e -> e.op === :eq, eqs) || return _solve_ineq_system(eqs, vars)
     sols = if _islinear(eqs, vars)
         sol = _solve_linear(eqs, vars)
