@@ -1179,6 +1179,7 @@ function _isinteger_form(e::Sym, A::Assumptions)::Union{Nothing,Bool}
 end
 
 # is e nonzero?
+const _IN_IMNZ = ScopedValue(false)
 function _isnonzero(e::Sym, A::Assumptions)::Union{Nothing,Bool}
     m = _signs(e, A)
     m === nothing || return m & _ZER == 0 ? true : m == _ZER ? false : nothing
@@ -1190,6 +1191,19 @@ function _isnonzero(e::Sym, A::Assumptions)::Union{Nothing,Bool}
     if !_hassymbol(e)
         v = try _evalc(e) catch; return nothing end
         return abs(v) > 1e-12 ? true : iszero(expand(e)) ? false : nothing
+    end
+    # a + i b with a, b real and b ≠ 0 (y ≠ √(-h²) = i h for real y, h > 0: the inner
+    # integral's impossible cases; SymPy #10211)
+    if !_IN_IMNZ[]
+        r = with(_IN_IMNZ => true) do
+            ee = try expand(_refine(e, A)) catch err; err isa ArgumentError || rethrow(); e end
+            has(ee, IM) || return nothing
+            re = expand(subs(ee, IM => ZERO))
+            im_ = expand((ee - re) / IM)
+            (has(im_, IM) || _isreal(re, A) !== true || _isreal(im_, A) !== true) && return nothing
+            _isnonzero(im_, A) === true ? true : nothing
+        end
+        r === nothing || return r
     end
     if e.kind == MUL
         return all(b -> _isnonzero(b, A) === true, e.args) ? true : nothing

@@ -1494,3 +1494,22 @@ end
     @test iszero(simplify(r - n * b^(n - 1)))
     @test SymJ.rsolve(y(n + 1) ~ abs(a) * y(n), y(n), y(0) => 1; assume = (a ≫ 0,)) == a^n
 end
+
+@testset "remaining missing cases (SymPy review, round 15)" begin
+    @syms x y z a b
+    # cse: factors that products share (#10228)
+    @test SymJ.cse([x * y, x * x * y]) == ([Sym(:t1) => x * y], [Sym(:t1), Sym(:t1) * x])
+    @test first(SymJ.cse([a * b * sin(x), a * b * cos(x) + 1])) == [Sym(:t1) => a * b]
+    # floor(x) and ceil(x) together (#9118)
+    @test string(solve(ceil(x) + floor(x) - 1 ~ 0, x)) == "(0, 1)"
+    @test string(solve(ceil(x) + floor(x) ~ 4, x)) == "{2}"
+    # a + i b with b ≠ 0 is nonzero: y ≠ √(-h²) for real y, h > 0 (#10211)
+    @syms h
+    @test SymJ._holds(Relation(:ne, y, sqrt(-h^2)), SymJ._assumptions((h ≫ 0, y ∈ ℝ))) === true
+    # Bessel's equation (#9819)
+    f = SymFunction(:f)
+    @test SymJ.dsolve(x^2 * diff(f(x), x, 2) + x * diff(f(x), x) + x^2 * f(x) ~ 0, f(x)).rhs ==
+          Sym(:C1) * SymJ.apply_function(:besselj, Sym[0, x]) + Sym(:C2) * SymJ.apply_function(:bessely, Sym[0, x])
+    @test SymJ.dsolve(x^2 * diff(f(x), x, 2) + x * diff(f(x), x) + (x^2 - a^2) * f(x) ~ 0, f(x)).rhs ==
+          Sym(:C1) * SymJ.apply_function(:besselj, Sym[a, x]) + Sym(:C2) * SymJ.apply_function(:bessely, Sym[a, x])
+end

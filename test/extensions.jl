@@ -210,6 +210,11 @@ import PolyLog as PL
     @testset "RischIntegrate: definite integrals" begin
         ∫ = RischIntegrate.integrate
         Inf_ = Sym(Inf)
+        # the inner integral's cases at y = ±√(-h²) impossible for real y, h > 0 (SymPy #10211)
+        let (y, h, w) = (Sym(:y), Sym(:h), Sym(:w))
+            r = ∫(1 / sqrt((y - x)^2 + h^2)^3, (x, 0, w), (y, 0, w); assume = (h ≫ 0, w ≫ 0))
+            @test iszero(simplify(r - 2(sqrt(h^2 + w^2) - h) / h^2))
+        end
         # an answer whose only non-elementary part is a ₂F₁ term: an expression, so limit
         # and the rest take it (SymPy #24879)
         # ₂F₁ antiderivatives where their radicand is positive, limits through the
