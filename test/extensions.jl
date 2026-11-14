@@ -210,6 +210,10 @@ import PolyLog as PL
     @testset "RischIntegrate: definite integrals" begin
         ∫ = RischIntegrate.integrate
         Inf_ = Sym(Inf)
+        # floor and ceil integrated by unit intervals (SymPy #8420, #8480)
+        @test ∫(1 / floor(x)^2, (x, 1, Inf)) == SymJ.PI^2 / 6
+        @test ∫(x - floor(x), (x, 0, Inf)) == Inf_
+        @test ∫(x * floor(x), (x, 0, 3)) == Sym(13) // 2
         # |x| in a product's exponent (SymPy #8849)
         VERSION >= v"1.12" && @test ∫(exp(-abs(x)) * cos(2x), (x, -Inf, Inf)) == Sym(2) // 5
         VERSION >= v"1.12" && @test iszero(simplify(∫(exp(-abs(x)) * x, (x, -1, 2)) - (2 / exp(Sym(1)) - 3 / exp(Sym(2)))))

@@ -1611,3 +1611,17 @@ end
     @test imag(sqrt(3 - 4i)) == -1
     @test N(real(sqrt(1 + i))) ≈ 1.0986841134678098
 end
+
+@testset "larger missing cases (SymPy review, round 16)" begin
+    @syms x n
+    # the minimal polynomial of an expression that is 0 (#8354)
+    @test SymJ.minimal_polynomial(sqrt(1 + sqrt(Sym(3))) + sqrt(3 + 3sqrt(Sym(3))) - sqrt(10 + 6sqrt(Sym(3))), x) == x
+    # floor(x) = n for an integer n, floor(x) = x + 1 (#8472)
+    @test string(solve(floor(x) ~ n, x; assume = (n ∈ ℤ,))) == "[n, n + 1)"
+    @test isempty(solve(floor(x) ~ x + 1, x))
+    # cube roots isolated and cubed (#8789)
+    @test solve(cbrt(x^3 - 3x^2) - x + Sym(4) // 3 ~ 0, x) == [8 // 3 - 8sqrt(Sym(6)) / 9, 8 // 3 + 8sqrt(Sym(6)) / 9]
+    @test solve((x^3 - 3x^2)^(Sym(1) // 3) - x + Sym(4) // 3 ~ 0, x) == [8 // 3 + 8sqrt(Sym(6)) / 9]
+    @test solve(cbrt(x) ~ -2, x) == [-8]
+    @test length(solve(cbrt(x + 1) ~ x - 1, x)) == 1
+end

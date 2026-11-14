@@ -406,6 +406,27 @@ transforms). Of the rest, in rough order of value for calculus-level use:
    - Done 2026-11-14: float inequalities, #10398's conditions for real parameters, floor
      with ceil (#9118), impossible inner-integral cases (#10211), Bessel's equation
      (#9819), cse subproducts (#10228).
+19. **Gaps from the sixteenth SymPy review (#7409–#8908)**:
+   - assumptions: linear facts with irrational coefficients ((√2 - 1)b - y < 0 from y > b > 0),
+     so a definite integral keeps cases its facts settle (#8556).
+   - sums: Σ sin(nx) to ∞ (cases on x ∈ 2πℤ, divergent otherwise; #8329); a limit at -∞ of
+     xⁿ with n an integer needs parity cases (#8634; GruntzLimit refuses).
+   - solve: inequalities in an integer unknown (#8221) and transcendental inequalities,
+     |x|^π ≥ 0, eˣ > 1 (#8204); the 46-case answer of a system with equations in the
+     parameters alone could be ~6 cases (#7621).
+   - integrate: cases conditioned on the integration variable itself (Σ sin(nx) closed form
+     at sin(x/2) = 0, a set of points) integrated case by case (#7827).
+   - simplify: the Black–Scholes identity, exponential quotients with logs in the exponents
+     (#7769).
+   - design questions: sorting symbols (`sort([y, x])`, #7413: no canonical `<` on symbols);
+     error messages that show floats as the exact binary rationals they were converted to
+     (#8503).
+   - From the first pass (feature gaps): Indexed/IndexedBase and MatrixSymbol, symbolic
+     FiniteSet/ImageSet/Interval objects, Product, KroneckerDelta, Fourier transforms,
+     diophantine equations, nsolve, number-theory functions (multiplicity, totient,
+     subfactorial, bell, fibonacci, Catalan, Euler numbers, B-splines, Laguerre),
+     boolean logic, noncommutative symbols, modular roots, time-dependent ODE systems,
+     Clairaut ODEs, deep factor (inside function arguments).
 
 Done since the first audit: trigonometric and logarithmic expansion, gamma and combinatorial simplification, LaTeX output (a Latexify extension), resultants and Gröbner
 bases (polynomial systems are solved), real and imaginary parts and `conj`, and

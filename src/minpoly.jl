@@ -111,6 +111,12 @@ function _mp_select(R::Sym, e::Sym)
     _, fs = factor(Poly{SymNumber}(expand(R), [_MP_T]))
     cands = [_xcoeffs(f) for (f, _) in fs if degree(f, _MP_T) >= 1]
     length(cands) == 1 && return cands[1]
+    # e = 0, proved: the factor t (√(1 + √3) + √(3 + 3√3) - √(10 + 6√3), whose numeric
+    # residuals could not separate the factors; SymPy #8354)
+    i0 = findfirst(c -> length(c) == 2 && iszero(c[1]) && !iszero(c[2]), cands)
+    if i0 !== nothing && (z = try simplify(e) catch err; err isa ArgumentError || rethrow(); e end; iszero(z))
+        return cands[i0]
+    end
     for prec in (256, 1024, 4096)
         sc = setprecision(BigFloat, prec) do
             v = evaluate(e, big(0.0))
