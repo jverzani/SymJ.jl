@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Solving equations — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=fa8a06c8">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=b79f3323">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Solving equations — SymJ.jl">
   <meta property="og:title" content="Solving equations — SymJ.jl">
@@ -72,42 +72,10 @@
       <article class="md-article">
 <h1 id="Solving-equations" class="md-heading">Solving equations<a href="#Solving-equations" class="md-heading-anchor" aria-label="Link to this section">#</a></h1>
 <p>See also <a href="../../reference/sums/#SymJ.rsolve-Tuple{Any, Sym, Vararg{Pair}}"><code class="md-code-inline">rsolve</code></a>, <a href="../../reference/ode/#SymJ.dsolve-Tuple{Relation, Sym, Vararg{Pair}}"><code class="md-code-inline">dsolve</code></a>.</p>
-<div class="md-docstring" id="CommonSolve.solve-Tuple{AbstractVector{&lt;:Relation}, Union{Tuple, AbstractVector}}">
-<div class="md-docstring-header">
-<h4 class="md-docstring-binding"><code>CommonSolve.solve</code> — <span class="md-docstring-sig">Tuple{AbstractVector{&lt;:Relation}, Union{Tuple, AbstractVector}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/0d13681ec9345789fa9760a12d7a67b88e7e942b/src/linsolve.jl#L7-L43" title="View source">source</a>
-</div>
-<div class="md-docstring-content">
-<div class="md-code-block">
-<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">solve(eqs::AbstractVector{&lt;:Relation}, vars)</code></pre>
-</div>
-<p>Solve a system of equations (written with <code class="md-code-inline">~</code>) for the variables <code class="md-code-inline">vars</code>. The result is a vector of solutions, each a <code class="md-code-inline">Dict</code> with every one of <code class="md-code-inline">vars</code> as a key; an inconsistent system gives an empty vector. Both arguments must be vectors (or tuples): one equation in one unknown is <code class="md-code-inline">solve(eq, x)</code>, which gives a vector of values instead.</p>
-<ul class="md-list-tight">
-<li><p><strong>Linear systems</strong> are solved by Gauss–Jordan elimination. An underdetermined system has one solution, with the pivot variables given in terms of the free ones, which map to themselves.</p>
-</li>
-<li><p><strong>Polynomial (and rational) systems</strong> are solved through a lex Gröbner basis (<a href="../../reference/polynomials/#SymJ.groebner-Tuple{AbstractVector, Vararg{Sym}}"><code class="md-code-inline">groebner</code></a>), which is triangular, by back-substitution. The values are exact where the equations in one variable along the way can be solved exactly, numeric otherwise. With infinitely many solutions, the variables left free map to themselves.</p>
-</li>
-</ul>
-<p>Coefficients may involve parameters. Where the solution divides by an expression in them (a pivot of the elimination, a coefficient of the Gröbner basis, a denominator of a solution) that could vanish, the result is a <code class="md-code-inline">Cases</code> value, the case where it vanishes solved again with it substituted; a case that cannot be solved so holds an error. <code class="md-code-inline">assume</code> for a system states facts about parameters and unknowns: <code class="md-code-inline">x ∈ ℝ</code> makes <code class="md-code-inline">abs(x)</code>, <code class="md-code-inline">real(x)</code> real-valued (and keeps only real solutions), <code class="md-code-inline">x ≫ 0</code> keeps the solutions with <code class="md-code-inline">x &gt; 0</code>; without it the unknowns are complex.</p>
-<div class="md-code-block">
-<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">solve([a*x + y ~ 1, x - y ~ 2], [x, y])
-# a == 0 =&gt; [Dict(x =&gt; 3, y =&gt; 1)], a == -1 =&gt; [], a != 0, a != -1 =&gt; [Dict(x =&gt; 3/(a + 1), y =&gt; (1 - 2a)/(a + 1))]</code></pre>
-</div>
-<div class="md-code-block">
-<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">solve([x + y ~ 3, x - y ~ 1], [x, y])          # [Dict(x =&gt; 2, y =&gt; 1)]
-solve([x + y + z ~ 1, x - z ~ 0], [x, y, z])    # [Dict(x =&gt; z, y =&gt; 1 - 2z, z =&gt; z)]
-solve([x^2 + y^2 ~ 1, x ~ y], [x, y])          # [Dict(x =&gt; -√2/2, y =&gt; -√2/2), Dict(x =&gt; √2/2, y =&gt; √2/2)]
-solve([x*y ~ 1, x + y ~ 3], [x, y])</code></pre>
-</div>
-</div>
-</div>
 <div class="md-docstring" id="CommonSolve.solve-Tuple{Relation, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>CommonSolve.solve</code> — <span class="md-docstring-sig">Tuple{Relation, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/0d13681ec9345789fa9760a12d7a67b88e7e942b/src/solve.jl#L14-L86" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/68e2d4ce702f1e9ac13635ce5a60d7d43d0897a5/src/solve.jl#L14-L86" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -148,7 +116,7 @@ solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !
 <div class="md-docstring" id="SymJ.SymInterval">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymInterval</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/0d13681ec9345789fa9760a12d7a67b88e7e942b/src/intervals.jl#L10-L15" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/68e2d4ce702f1e9ac13635ce5a60d7d43d0897a5/src/intervals.jl#L10-L15" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -161,20 +129,20 @@ solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !
 <div class="md-docstring" id="SymJ.SymSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/0d13681ec9345789fa9760a12d7a67b88e7e942b/src/intervals.jl#L23-L30" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/68e2d4ce702f1e9ac13635ce5a60d7d43d0897a5/src/intervals.jl#L23-L30" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">SymSet</code></pre>
 </div>
-<p>A finite union of disjoint intervals with exact endpoints, sorted and merged; the solutions of an inequality (<a href="../../reference/solving/#CommonSolve.solve-Tuple{AbstractVector{&lt;:Relation}, Union{Tuple, AbstractVector}}"><code class="md-code-inline">solve</code></a>). Supports <code class="md-code-inline">in</code>, <code class="md-code-inline">∪</code>, <code class="md-code-inline">∩</code>, <code class="md-code-inline">setdiff</code>, <code class="md-code-inline">⊆</code>, <code class="md-code-inline">isempty</code>; the intervals are <code class="md-code-inline">S.intervals</code>. Calling tests membership: <code class="md-code-inline">S(2)</code>, or <code class="md-code-inline">S(x =&gt; 2)</code> for a set from <code class="md-code-inline">solve(ineq, x)</code> (which records its variable).</p>
+<p>A finite union of disjoint intervals with exact endpoints, sorted and merged; the solutions of an inequality (<a href="../../reference/solving/#CommonSolve.solve-Tuple{Relation, Sym}"><code class="md-code-inline">solve</code></a>). Supports <code class="md-code-inline">in</code>, <code class="md-code-inline">∪</code>, <code class="md-code-inline">∩</code>, <code class="md-code-inline">setdiff</code>, <code class="md-code-inline">⊆</code>, <code class="md-code-inline">isempty</code>; the intervals are <code class="md-code-inline">S.intervals</code>. Calling tests membership: <code class="md-code-inline">S(2)</code>, or <code class="md-code-inline">S(x =&gt; 2)</code> for a set from <code class="md-code-inline">solve(ineq, x)</code> (which records its variable).</p>
 </div>
 </div>
 <div class="md-docstring" id="SymJ.CylindricalSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.CylindricalSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/0d13681ec9345789fa9760a12d7a67b88e7e942b/src/ineqsystems.jl#L13-L25" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/68e2d4ce702f1e9ac13635ce5a60d7d43d0897a5/src/ineqsystems.jl#L13-L25" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -202,6 +170,6 @@ solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=fa8a06c8"></script>
+  <script src="../../assets/materialdocs.js?v=b79f3323"></script>
 </body>
 </html>
