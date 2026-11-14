@@ -58,6 +58,8 @@ Base.hash(m::Membership, h::UInt) = hash(m.x, hash(m.set.rank, hash(m.negated, h
 Base.show(io::IO, m::Membership) = print(io, m.x, m.negated ? " ∉ " : " ∈ ", m.set)
 
 function Base.in(x::Sym, S::NumberSet)
+    # (±∞ and NaN are in no number set: Inf ∈ ℚ was true; SymPy #8203)
+    x.kind == NUMBER && isfloat(x.num) && !isfinite(Float64(x.num)) && return false
     x.kind == NUMBER && return S.rank >= _QR || isone(_denominator(x.num)) ||
         (isfloat(x.num) && isinteger(Float64(x.num)))
     _hassymbol(x) && return Membership(x, S, false)
@@ -1501,3 +1503,11 @@ function _assumptions(assume)
     cur === nothing && return assume isa Assumptions ? assume : Assumptions(assume)
     Assumptions(cur, assume)
 end
+
+# a set of real numbers and ℝ: equal when it is the whole line (solve(x^2 + 1 > 0, x) == ℝ
+# was false; SymPy #8553); ℤ, ℚ, ℂ are no unions of intervals
+function Base.:(==)(S::SymSet, N::NumberSet)
+    N.rank == _RR || return false
+    length(S.intervals) == 1 && (I = only(S.intervals); I.lo === nothing && I.hi === nothing)
+end
+Base.:(==)(N::NumberSet, S::SymSet) = S == N

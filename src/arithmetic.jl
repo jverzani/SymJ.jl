@@ -392,7 +392,8 @@ function pow(b::Sym, e::Sym)
         end
     end
     if bk == NUMBER
-        _isN1(b.num) && return ONE
+        # (1^(∞ + i) is no more 1 than 1^∞ is: left as a power; SymPy #8582)
+        _isN1(b.num) && return Base.inferencebarrier(_has_nonfinite)(e) ? _mkpow_node(b, e) : ONE
         # n^(u p/q) with n a perfect q-th power: 256^(x/2) = 16^x (SymPy #24090)
         if e.kind == MUL && isexact(e.num) && !_isint(e.num) && isexact(b.num) && _isint(b.num) && b.num > N1
             q = _denominator(e.num)

@@ -233,15 +233,20 @@ end
 ## Comparison and hashing (`==` is numeric; `isequal`/`hash` are structural so that
 ## exact 1 and float 1.0 are distinct keys)
 
+# (a float against an exact number: compared exactly, as Julia compares a Rational with
+# a Float64 — through Float64 a rational 1e-16 from the float was neither <, > nor ==
+# it; SymPy #8245)
+_cmpval(a::SymNumber) = a.tag == T_FLOAT ? a.f : _rat(a)
+
 function Base.:(==)(a::SymNumber, b::SymNumber)
     a.tag == T_SMALL && b.tag == T_SMALL && return a.n == b.n && a.d == b.d
-    (a.tag == T_FLOAT || b.tag == T_FLOAT) && return Float64(a) == Float64(b)
+    (a.tag == T_FLOAT || b.tag == T_FLOAT) && return _cmpval(a) == _cmpval(b)
     _rat(a) == _rat(b)
 end
 
 function Base.:<(a::SymNumber, b::SymNumber)
     a.tag == T_SMALL && b.tag == T_SMALL && return widemul(a.n, b.d) < widemul(b.n, a.d)
-    (a.tag == T_FLOAT || b.tag == T_FLOAT) && return Float64(a) < Float64(b)
+    (a.tag == T_FLOAT || b.tag == T_FLOAT) && return _cmpval(a) < _cmpval(b)
     _rat(a) < _rat(b)
 end
 Base.:<=(a::SymNumber, b::SymNumber) = a < b || a == b

@@ -309,6 +309,8 @@ function _solve_eq(eq::Relation, x::Sym)
     else
         exact ? _solve_exact(n, x, atoms) : _solve_inexact(n, x)
     end
+    # (a set, an equation that holds on intervals: as it is)
+    roots isa SymSet && return roots
     # (each side's points: lhs - rhs may have cancelled them, 1/(x² - 4) + x = 1/(x² - 4) + 2
     # gave the pole x = 2; SymPy #9522)
     _sort_roots!(unique(_in_domain(_in_domain(roots, eq.lhs, x), eq.rhs, x)))
@@ -1084,7 +1086,19 @@ function _solve_radical(eq::Relation, nu::Sym, u::Sym, R::Sym, x::Sym)
         k = ev[1]
         iseven(k) ? (A += c * t^(k ÷ 2)) : (B += c * t^((k - 1) ÷ 2))
     end
-    cands = _solve_eq(expand(A^2 - B^2 * t) ~ 0, x)
+    sq = expand(A^2 - B^2 * t)
+    if iszero(sq) && !iszero(B)
+        # squared, an identity: eq holds where √t = -A/B, not for every x (x - √(x²) = 0
+        # fails at -1; SymPy #8716, #8545). For a real x that is -A/B ≥ 0 (the squares
+        # agree); in ℂ a region of the plane, refused
+        Asm = _SOLVE_ASSUME[]
+        if Asm !== nothing && _isreal(x, Asm) === true
+            S = _solve_eq(Relation(:ge, cancel(-A / B), ZERO), x)
+            S isa SymSet && return S
+        end
+        throw(ArgumentError("solve: $eq holds where sqrt($t) = $(cancel(-A / B)), a region of $x rather than isolated points; not supported over ℂ (assume = ($x ∈ ℝ,) gives the real solutions)"))
+    end
+    cands = _solve_eq(sq ~ 0, x)
     filter(r -> _satisfies(eq, x, r), cands)
 end
 

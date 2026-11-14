@@ -1513,3 +1513,50 @@ end
     @test SymJ.dsolve(x^2 * diff(f(x), x, 2) + x * diff(f(x), x) + (x^2 - a^2) * f(x) ~ 0, f(x)).rhs ==
           Sym(:C1) * SymJ.apply_function(:besselj, Sym[a, x]) + Sym(:C2) * SymJ.apply_function(:bessely, Sym[a, x])
 end
+
+@testset "wrong answers (SymPy review, round 16)" begin
+    @syms x n k s t
+    # an exact number against a float, compared exactly (#8245)
+    q = Sym(6506833320952669167898688709329 // 5070602400912917605986812821504)
+    r = Sym(1.2832466059222412)
+    @test q > r
+    @test !(q < r)
+    @test Sym(1 // 3) > Sym(0.3333333333333333)
+    @test Sym(1 // 2) <= Sym(0.5)
+    # ±∞ in no number set (#8203)
+    @test !(Sym(Inf) ∈ ℝ)
+    @test !(Sym(-Inf) ∈ ℚ)
+    @test Sym(3.5) ∈ ℝ
+    # 1 to an infinite power is not 1 (#8582)
+    @test Sym(1)^(Sym(Inf) + im) != 1
+    @test Sym(1)^Sym(2 + im) == 1
+    # abs with an infinite imaginary part (#8080)
+    @test abs(1 + im * Sym(Inf)) == Sym(Inf)
+    @test abs(im * Sym(Inf)) == Sym(Inf)
+    # a shifted dirac without heaviside (#8227)
+    @test SymJ.inverse_laplace_transform(exp(-s), s, t) == SymJ.dirac(t - 1)
+    @test SymJ.inverse_laplace_transform(exp(-s) * (1 + 1 / s), s, t) == SymJ.dirac(t - 1) + SymJ.heaviside(t - 1)
+    # x = √(x²) holds where x ≥ 0, not for every x (#8716, #8545)
+    @test string(solve(x - sqrt(x^2) ~ 0, x; assume = (x ∈ ℝ,))) == "[0, ∞)"
+    @test string(solve(sqrt((1 - x)^2) ~ 1 - x, x; assume = (x ∈ ℝ,))) == "(-∞, 1]"
+    @test isempty(solve(sqrt(x^2) ~ -x, x; assume = (x ≫ 0,)))
+    @test_throws ArgumentError solve(x - sqrt(x^2) ~ 0, x)
+    # each side's poles out of an inequality's set (#8715)
+    @test string(solve(x + 1 / x ≫ -2 + 1 / x, x)) == "(-2, 0) ∪ (0, ∞)"
+    # a strict inequality's numerator roots are not in its set (#8518)
+    @test string(solve((x^3 - 3x - 1) / (x - 5) ≫ 0, x)) == "(-∞, 2*cos(11*π/9)) ∪ (2*cos(5*π/9), 2*cos(π/9)) ∪ (5, ∞)"
+    @test string(solve((x^3 - 3x - 1) / (x - 5) ≧ 0, x)) == "(-∞, 2*cos(11*π/9)] ∪ [2*cos(5*π/9), 2*cos(π/9)] ∪ (5, ∞)"
+    # divergent series: ±∞, not NaN (#8251)
+    @test SymJ.summation(n^2 / (n + 1)^2, n, 0, Inf) == Sym(Inf)
+    @test SymJ.summation(-n / (n + 1), n, 0, Inf) == Sym(-Inf)
+    # Σ binomial(n, k) (n - k)^p (-1)^k: its values at small n kept (#8077)
+    r = SymJ.summation(binomial(n, k) * (n - k)^4 * (-1)^k, k, 0, n; assume = (n ∈ ℤ, n ≫ 0))
+    @test r(n => 3) == 36
+    @test r(n => 6) == 0
+    # a set of real numbers equal to ℝ (#8553)
+    @test solve(x^2 + 1 ≫ 0, x) == ℝ
+    @test solve(x^2 - 1 ≫ 0, x) != ℝ
+    # floats in a system of inequalities (#8040, #7982)
+    @test string(solve([x ≧ 1.5, x ≦ 3], [x])) == "[1.5, 3]"
+    @test isempty(solve([2x^2 + 5x + 20 ≦ 0, x ≧ 1.5], [x]))
+end

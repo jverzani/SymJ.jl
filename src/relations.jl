@@ -100,6 +100,11 @@ function _compare(op::Symbol, a::Sym, b::Sym)
 end
 
 function _sign_of_difference(a::Sym, b::Sym, va, vb)
+    # two numbers: compared exactly (a rational 1e-16 from a float was neither <, > nor ==
+    # it, their difference 0.0 in Float64; SymPy #8245)
+    if a.kind == NUMBER && b.kind == NUMBER && !(isnan(va) || isnan(vb))
+        return a.num < b.num ? -1 : b.num < a.num ? 1 : 0
+    end
     isinf(va) || isinf(vb) || isnan(va) || isnan(vb) || (abs(va - vb) > 1e-6 * max(abs(va), abs(vb))) &&
         return sign(va - vb)
     d = a - b

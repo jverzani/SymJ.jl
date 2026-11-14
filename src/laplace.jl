@@ -329,7 +329,19 @@ function inverse_laplace_transform(F, s::Sym, t::Sym)
         # symbol c is taken to be ≥ 0, as in laplace_transform, so -a is refused too
         _ilap_negshift(c) && throw(ArgumentError("inverse_laplace_transform: exp($(-c)*s) is a shift to t < 0; no inverse for t ≥ 0"))
         g = _ilap_special(R, s, t)
-        out += iszero(c) ? g : heaviside(t - c) * subs(g, t => t - c)
+        if iszero(c)
+            out += g
+        elseif !_hasfn(g, :dirac)
+            out += heaviside(t - c) * subs(g, t => t - c)
+        else
+            # dirac terms shifted alone: dirac(t - c) heaviside(t - c) has half the weight,
+            # heaviside(0) being 1/2 (e^(-s) gave it; SymPy #8227)
+            gs = expand(subs(g, t => t - c))
+            ts = gs.kind == ADD ? [Sym(k) * x for (k, x) in zip(gs.coefs, gs.args)] : [gs]
+            gs.kind == ADD && !iszero(gs.num) && push!(ts, Sym(gs.num))
+            D = _add_many(x for x in ts if _hasfn(x, :dirac))
+            out += D + heaviside(t - c) * _add_many(x for x in ts if !_hasfn(x, :dirac))
+        end
     end
     out
 end
