@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=810014a6">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=4205a65e">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -901,6 +901,27 @@ SymJ.simplify_gamma(factorial(n + 2) / factorial(n)), SymJ.simplify_gamma(binomi
 </div>
 <div class="md-math md-math-display">
 \[\left[ \frac{ - c}{b} \right]\]
+</div>
+</div>
+<p>A symbolic exponent gives the principal root only. <code class="md-code-inline">x^n = 1</code> has <code class="md-code-inline">n</code> roots for a positive integer <code class="md-code-inline">n</code>, but their number depends on <code class="md-code-inline">n</code>, so with <code class="md-code-inline">n</code> symbolic the answer is the principal one:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms n
+solve(x^n ~ 1, x; assume = @assume(n in Integers, n &gt; 0))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left[ 1 \right]\]
+</div>
+</div>
+<p>With a number for <code class="md-code-inline">n</code>, all of them:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve(x^3 ~ 1, x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left[ 1, \; \frac{ - i \cdot \sqrt{3}}{2} - \frac{1}{2}, \; \frac{i \cdot \sqrt{3}}{2} - \frac{1}{2} \right]\]
 </div>
 </div>
 <h3 id="Inequalities" class="md-heading">Inequalities<a href="#Inequalities" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
@@ -2251,6 +2272,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=810014a6"></script>
+  <script src="../assets/materialdocs.js?v=4205a65e"></script>
 </body>
 </html>
