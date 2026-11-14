@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=c86328d1">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=73d33591">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -870,7 +870,7 @@ SymJ.simplify_gamma(factorial(n + 2) / factorial(n)), SymJ.simplify_gamma(binomi
 <pre><code class="language-julia">solve(diff((a / x)^x, x) ~ 0, x), solve(diff(x^2 * exp(-x), x) ~ 0, x), solve(x * log(x) ~ 0, x)</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\left( \begin{cases} \text{solve: -Inf*0x  0 has an infinite or NaN coefficient; no finite solutions are found from it} &amp; a = 0 \\ \left[ \frac{a}{e} \right] &amp; a \neq 0 \end{cases}, \; \left[ 0, \; 2 \right], \; \left[ 1 \right] \right)\]
+\[\left( \left[ \frac{a}{e} \right], \; \left[ 0, \; 2 \right], \; \left[ 1 \right] \right)\]
 </div>
 </div>
 <p>Some equations need the Lambert W function:</p>
@@ -883,24 +883,24 @@ SymJ.simplify_gamma(factorial(n + 2) / factorial(n)), SymJ.simplify_gamma(binomi
 \[\left[ \mathrm{lambertw}\left( 1 \right) \right]\]
 </div>
 </div>
-<p>Symbols other than the unknown are allowed. The answer is right for every value of them, so where a coefficient could vanish it splits into cases (a case where every <code class="md-code-inline">x</code> is a solution holds an error):</p>
+<p>Symbols other than the unknown are allowed. They take generic values: an expression in them alone is taken to be nonzero, so the quadratic formula comes out as it is usually written:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve(a * x^2 + b * x + c ~ 0, x)</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\begin{cases} \text{solve: every value of x satisfies 0  0} &amp; a = 0 \land b = 0 \land c = 0 \\ \left[ \; \right] &amp; a = 0 \land b = 0 \land c \neq 0 \\ \left[ \frac{ - c}{b} \right] &amp; a = 0 \land b \neq 0 \\ \left[ \frac{ - b - \sqrt{-4 \cdot a \cdot c + b^{2}}}{2 \cdot a}, \; \frac{ - b + \sqrt{-4 \cdot a \cdot c + b^{2}}}{2 \cdot a} \right] &amp; a \neq 0 \end{cases}\]
+\[\left[ \frac{ - b - \sqrt{-4 \cdot a \cdot c + b^{2}}}{2 \cdot a}, \; \frac{ - b + \sqrt{-4 \cdot a \cdot c + b^{2}}}{2 \cdot a} \right]\]
 </div>
 </div>
-<p>An assumption that settles the coefficient gives the plain answer:</p>
+<p>An assumption that makes a coefficient vanish gives that case:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">solve(a * x^2 + b * x + c ~ 0, x; assume = @assume(a &gt; 0))</code></pre>
+<pre><code class="language-julia">solve(a * x^2 + b * x + c ~ 0, x; assume = @assume(a == 0))</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\left[ \frac{ - b - \sqrt{-4 \cdot a \cdot c + b^{2}}}{2 \cdot a}, \; \frac{ - b + \sqrt{-4 \cdot a \cdot c + b^{2}}}{2 \cdot a} \right]\]
+\[\left[ \frac{ - c}{b} \right]\]
 </div>
 </div>
 <h3 id="Inequalities" class="md-heading">Inequalities<a href="#Inequalities" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
@@ -934,14 +934,14 @@ SymJ.simplify_gamma(factorial(n + 2) / factorial(n)), SymJ.simplify_gamma(binomi
 \[\left[ \begin{array}{l} \left\{ x = 2, \; y = 1 \right\} \end{array} \right]\]
 </div>
 </div>
-<p>With parameters, a pivot that could vanish splits the answer into cases (here <code class="md-code-inline">a = -1</code>, where the system has no solution):</p>
+<p>With parameters, the pivots are taken to be nonzero (here <code class="md-code-inline">a + 1</code>; with <code class="md-code-inline">a = -1</code> assumed the system has no solution):</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve([a * x + y ~ 1, x - y ~ b], [x, y])</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\begin{cases} \left[ \begin{array}{l} \left\{ x = y - 1, \; y = y \right\} \end{array} \right] &amp; a = -1 \land b = -1 \\ \left[ \; \right] &amp; a = -1 \land b \neq -1 \\ \left[ \begin{array}{l} \left\{ x = \frac{b + 1}{a + 1}, \; y = \frac{ - a \cdot b + 1}{a + 1} \right\} \end{array} \right] &amp; a \neq -1 \end{cases}\]
+\[\left[ \begin{array}{l} \left\{ x = \frac{b + 1}{a + 1}, \; y = \frac{ - a \cdot b + 1}{a + 1} \right\} \end{array} \right]\]
 </div>
 </div>
 <p>Polynomial systems are solved through a lex Gröbner basis, which is triangular:</p>
@@ -1873,7 +1873,7 @@ pv(1 / x, (x, -1, 2)), pv(1 / x^3, (x, -1, 2)), pv(tan(x), (x, 0, π)), pv(x / (
 \[\frac{1}{a}\]
 </div>
 </div>
-<p>Where the formula divides by a parameter, the value where that factor vanishes is a case of its own:</p>
+<p>Where the formula divides by a parameter, the parameter takes a generic value (nonzero, as for <code class="md-code-inline">solve</code>); the special value is a case only when assumed:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -1881,17 +1881,16 @@ pv(1 / x, (x, -1, 2)), pv(1 / x^3, (x, -1, 2)), pv(tan(x), (x, 0, π)), pv(x / (
 integrate(exp(c * x), (x, 0, 1))</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\begin{cases} 1 &amp; c = 0 \\ \frac{-1}{c} + \frac{e^{c}}{c} &amp; c \neq 0 \end{cases}\]
+\[\frac{-1}{c} + \frac{e^{c}}{c}\]
 </div>
 </div>
-<p>Here the case is a removable singularity: its value 1 is the formula&#39;s limit as <code class="md-code-inline">c → 0</code>. <code class="md-code-inline">drop_removable_singularities = true</code> merges such cases into the formula:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">integrate(exp(c * x), (x, 0, 1); drop_removable_singularities = true)</code></pre>
+<pre><code class="language-julia">integrate(exp(c * x), (x, 0, 1); assume = @assume(c == 0))</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\frac{-1}{c} + \frac{e^{c}}{c}\]
+\[1\]
 </div>
 </div>
 <p>An iterated integral lists its intervals innermost first. The inner integral may have cases on the outer variable (here on the sign of <code class="md-code-inline">x</code>, for <code class="md-code-inline">y^m</code>); the outer interval keeps the ones it allows, or is split where they change:</p>
@@ -2252,6 +2251,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=c86328d1"></script>
+  <script src="../assets/materialdocs.js?v=73d33591"></script>
 </body>
 </html>
