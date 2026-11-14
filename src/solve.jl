@@ -1284,11 +1284,10 @@ function _invert(g::Sym, r::Sym, x::Sym)
         elseif !has(e, x) && e.kind == NUMBER && isexact(e.num)   # t^(p/q) = r
             return [(b, r^inv(e))]
         elseif !has(e, x)                                   # t^1.11 = r, t^a = r: the principal root
-            # an integer exponent n has n roots r^(1/n) e^(2πik/n), not a finite list for a
-            # symbolic n: refused rather than the one principal root (SymPy #21014)
+            # (an integer exponent n has n roots r^(1/n) e^(2πik/n), not a finite list for a
+            # symbolic n: the principal one, as for any symbolic exponent; a number for n
+            # gives them all. Decided 2026-11-14, SymPy #21014)
             A = _SOLVE_ASSUME[]
-            _hassymbol(e) && A !== nothing && _isinteger(e, A) === true && throw(ArgumentError(
-                "solve: $g = $r has the roots $(isone(r) ? "" : "($r)^(1/$e) ")exp(2πik/$e) for k = 0, …, |$e| - 1, which depend on $e; substitute a number for $e"))
             # a vanishing exponent decided by cases: t^0 = 1 for every t (x^a = 1 gave [1]
             # alone; SymPy #12774)
             if _hassymbol(e) && A !== nothing && !_pnz(e, A)

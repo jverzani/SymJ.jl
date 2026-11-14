@@ -612,6 +612,21 @@ An assumption that makes a coefficient vanish gives that case:
 solve(a * x^2 + b * x + c ~ 0, x; assume = @assume(a == 0))
 ```
 
+A symbolic exponent gives the principal root only. `x^n = 1` has `n` roots for a
+positive integer `n`, but their number depends on `n`, so with `n` symbolic the answer
+is the principal one:
+
+```@example tut
+@syms n
+solve(x^n ~ 1, x; assume = @assume(n in Integers, n > 0))
+```
+
+With a number for `n`, all of them:
+
+```@example tut
+solve(x^3 ~ 1, x)
+```
+
 ### Inequalities
 
 `<` and its relatives compare numbers and return `true` or `false`, so inequalities use
