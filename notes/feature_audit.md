@@ -393,9 +393,9 @@ transforms). Of the rest, in rough order of value for calculus-level use:
      ITE.
 18. **Gaps from the fifteenth SymPy review (#8909–#10408)**:
    - solve: floor(x) and ceil(x) together, ceil(x) + floor(x) = 1 on (0, 1) (#9118; one
-     floor or ceil call is solved); inequalities with float coefficients, 1.5x > 1 (no
-     rationalizing retry as for equations); a root valid for only some parameter values
-     kept with no condition (#10398; awaits the default-assumptions decision).
+     floor or ceil call is solved); inequalities with parameters (1.5x + 1 < a). (Float
+     inequalities, 1.5x > 1, and #10398's conditions for real parameters were done
+     2026-11-14 with the default-assumptions decisions.)
    - definite integrals: a case impossible under the facts not refuted, so the inner
      integral's cases split the outer interval (h > 0: -h² - (w - y)² = 0; #10211); no
      non-elementary fallback, ∫₀^∞ e^(-√(x² + y²))/√(x² + y²) dx is K₀(y) (#9461; or

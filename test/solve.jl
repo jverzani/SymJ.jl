@@ -82,6 +82,19 @@
     end
     @test solve(sqrt(x) + 1 ~ a, x; assume = (a ∈ ℝ,))(a => 3) == [4]
     @test solve(sqrt(x) + 1 ~ a, x; assume = (a ∈ ℝ,))(a => 0) == Sym[]
+    # floats converted to rationals and retried, the numbers floats again: inequalities
+    # and linear systems with a parameter as for equations (decided 2026-11-14)
+    let S = solve(1.5x ≫ 1, x)
+        @test S(1)
+        @test !S(0.5)
+        @test N(only(S.intervals).lo) ≈ 2 / 3
+    end
+    @test solve(x^2 - 2.25 ≧ 0, x)(1.5)
+    @test !solve(x^2 - 2.25 ≧ 0, x)(1.0)
+    let eqs = [0.1x + 0.2y + 0.3c ~ a, 0.4x + 0.5y + 0.6c ~ 1, 0.7x + 0.8y + 1.9c ~ 2],
+        d = only(solve(eqs, [x, y, c]))
+        @test all(e -> abs(N(subs(subs(e.lhs - e.rhs, d...), a => 3))) < 1e-9, eqs)
+    end
     q = solve(a * x^2 + b * x + c ~ 0, x)
     @test length(q) == 2
     @test all(r -> iszero(cancel(subs(a * x^2 + b * x + c, x => r))) ||

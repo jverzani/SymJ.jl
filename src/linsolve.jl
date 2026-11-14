@@ -123,8 +123,22 @@ function solve(eqs::AbstractVector{<:Relation}, vars::Union{AbstractVector,Tuple
     r = _solve_float_constants(eqs, vars)
     r === nothing || return r
     A0 = _SYSTEM_ASSUME[]
-    _by_cases(A0 === nothing ? Assumptions() : A0) do B
-        _solve_system_case(collect(Relation, eqs), vars, B)
+    try
+        _by_cases(A0 === nothing ? Assumptions() : A0) do B
+            _solve_system_case(collect(Relation, eqs), vars, B)
+        end
+    catch err
+        # floats with symbols: as the rationals they stand for, the solutions' numbers
+        # floats again, as for one equation (five floats and a parameter; decided
+        # 2026-11-14, floats converted and retried everywhere)
+        (err isa ArgumentError && occursin("inexact coefficients", err.msg)) || rethrow()
+        all(e -> _isexactex(e.lhs) && _isexactex(e.rhs), eqs) && rethrow()
+        es = Relation[Relation(e.op, _exactfloats(e.lhs; short = true), _exactfloats(e.rhs; short = true)) for e in eqs]
+        all(e -> _isexactex(e.lhs) && _isexactex(e.rhs), es) || rethrow()
+        flv(v) = _hassymbol(v) ? _floatify(v) : (w = N(v); w isa Number ? Sym(w) : v)
+        fdicts(ds) = ds isa AbstractVector ? [d isa AbstractDict ? Dict{Sym,Sym}(k => flv(w) for (k, w) in d) : d for d in ds] : ds
+        rr = solve(es, vars)
+        rr isa Cases ? _map_cases(fdicts, rr) : fdicts(rr)
     end
 end
 
