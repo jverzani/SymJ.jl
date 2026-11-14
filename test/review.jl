@@ -1434,3 +1434,14 @@ end
     @test any(s -> s == (φ(t) ~ Sym(:C1)), sols)
     @test length(sols) == 2
 end
+
+@testset "crashes and hangs (SymPy review, round 15)" begin
+    @syms x
+    # a condition with a pole at 1 was tested for linearity there (#9567)
+    @test string(solve(abs(1/(x - 1)) ≫ 1, x)) == "(0, 1) ∪ (1, 2)"
+    @test string(solve(abs(1/(x - 1)) ≧ 1, x)) == "[0, 1) ∪ (1, 2]"
+    @test string(solve(abs(2/(x - 1)) ≪ 1, x)) == "(-∞, -1) ∪ (3, ∞)"
+    # an infinite coefficient: retried as exact numbers forever (#9037)
+    @test_throws ArgumentError solve(Sym(Inf) * x ≫ 0, x)
+    @test_throws ArgumentError solve(x + Sym(Inf) ≫ 0, x)
+end

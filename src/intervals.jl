@@ -180,8 +180,12 @@ function _solve_inequality(r::Relation, x::Sym)
         _eq(s, x) || throw(ArgumentError("solve: inequalities with other symbols or parameters are not supported yet"))
     end
     atoms = Set{Sym}()
-    (_poly_atoms!(atoms, n) && _poly_atoms!(atoms, d)) ||
+    if !(_poly_atoms!(atoms, n) && _poly_atoms!(atoms, d))
+        # (Inf x > 0; SymPy #9037)
+        (_has_nonfinite(n) || _has_nonfinite(d)) &&
+            throw(ArgumentError("solve: $r has an infinite or NaN coefficient; no finite solutions are found from it"))
         throw(ArgumentError("solve: an inequality with inexact coefficients is not supported yet"))
+    end
     if !all(a -> _eq(a, x) || !has(a, x), atoms)
         S = _solve_inequality_continuous(r, x, atoms)
         S === nothing && throw(ArgumentError("solve: only polynomial and rational inequalities are supported yet"))
