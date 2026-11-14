@@ -111,6 +111,8 @@ end
 function _solve_floats_exactly(eq::Relation, x::Sym, assume)
     (_isexactex(eq.lhs) && _isexactex(eq.rhs)) && return nothing
     e2 = Relation(eq.op, _exactfloats(eq.lhs; short = true), _exactfloats(eq.rhs; short = true))
+    # (Inf stays a float: solving e2 retried this forever; SymPy #9037)
+    (_eq(e2.lhs, eq.lhs) && _eq(e2.rhs, eq.rhs)) && return nothing
     r = try solve(e2, x; assume) catch err; err isa ArgumentError || rethrow(); return nothing end
     num(v) = v isa Sym ? (_hassymbol(v) ? _floatify(v) : (w = N(v); w isa Number ? Sym(w) : v)) : v
     r isa Cases && return _map_cases(vs -> vs isa AbstractVector ? map(num, vs) : vs, r)
