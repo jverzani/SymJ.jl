@@ -392,22 +392,20 @@ transforms). Of the rest, in rough order of value for calculus-level use:
      sets), MatrixSymbol and matrix expressions, Indexed, noncommutative symbols, boolean
      ITE.
 18. **Gaps from the fifteenth SymPy review (#8909–#10408)**:
-   - solve: floor(x) and ceil(x) together, ceil(x) + floor(x) = 1 on (0, 1) (#9118; one
-     floor or ceil call is solved); inequalities with parameters (1.5x + 1 < a). (Float
-     inequalities, 1.5x > 1, and #10398's conditions for real parameters were done
-     2026-11-14 with the default-assumptions decisions.)
-   - definite integrals: a case impossible under the facts not refuted, so the inner
-     integral's cases split the outer interval (h > 0: -h² - (w - y)² = 0; #10211); no
-     non-elementary fallback, ∫₀^∞ e^(-√(x² + y²))/√(x² + y²) dx is K₀(y) (#9461; or
-     polar coordinates).
-   - dsolve: Bessel's equation x²y'' + xy' + x²y = 0 (#9819); differential-algebraic
-     systems with a singular leading matrix, reducible by elimination (#9251).
-   - cse: common subproducts, x·y in [xy, x²y] (#10228).
+   - solve: inequalities with parameters (1.5x + 1 < a); ceil(x) - floor(x) = 1 or 0
+     (all non-integers, all integers: sets SymJ cannot write).
+   - definite integrals: no non-elementary fallback, ∫₀^∞ e^(-√(x² + y²))/√(x² + y²) dx is
+     K₀(y) (#9461; or polar coordinates).
+   - dsolve: differential-algebraic systems with a singular leading matrix, reducible by
+     elimination (#9251).
    - matrices (last): Jordan form of k·M with a parametric eigenvalue, so the Lorentz
      system's dsolve fails (#9204); svd/cond with squared singular values roots of an
      irreducible cubic (#10355).
    - A Bool from Julia's a ≠ b (structural, true for distinct symbols) in a solve system
      is dropped silently as `true`; Ne(a, b) is the relation.
+   - Done 2026-11-14: float inequalities, #10398's conditions for real parameters, floor
+     with ceil (#9118), impossible inner-integral cases (#10211), Bessel's equation
+     (#9819), cse subproducts (#10228).
 
 Done since the first audit: trigonometric and logarithmic expansion, gamma and combinatorial simplification, LaTeX output (a Latexify extension), resultants and Gröbner
 bases (polynomial systems are solved), real and imaginary parts and `conj`, and
