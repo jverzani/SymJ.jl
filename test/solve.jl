@@ -70,6 +70,18 @@
     @test solve(exp(a * x) ~ 2, x) == [log(Sym(2)) / a]
     @test solve(x / a ~ 1, x) == [a]
     @test solve(a * x^2 + b * x + c ~ 0, x; assume = (a ~ 0,)) == [-c / b]
+    # a root valid for some parameter values: kept with no condition for complex
+    # parameters, by cases on the sign for real ones (SymPy #10398; decided 2026-11-14)
+    @test solve(sqrt(x) ~ a, x) == [a^2]
+    let r = solve(sqrt(x) ~ a, x; assume = (a ∈ ℝ,))
+        @test r isa SymJ.Cases
+        @test length(r) == 2
+        @test r(a => 4) == [16]
+        @test r(a => -1) == Sym[]
+        @test r(a => 0) == [0]
+    end
+    @test solve(sqrt(x) + 1 ~ a, x; assume = (a ∈ ℝ,))(a => 3) == [4]
+    @test solve(sqrt(x) + 1 ~ a, x; assume = (a ∈ ℝ,))(a => 0) == Sym[]
     q = solve(a * x^2 + b * x + c ~ 0, x)
     @test length(q) == 2
     @test all(r -> iszero(cancel(subs(a * x^2 + b * x + c, x => r))) ||

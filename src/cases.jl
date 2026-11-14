@@ -279,6 +279,39 @@ function _with_fact(A::Assumptions, g)
     end
 end
 
+# a case u = c whose solutions are a neighbouring case's u > c (or u < c) at u = c,
+# merged into it as u ≥ c (u ≤ c): a ≥ 0 => [a²], not a = 0 => [0] beside a > 0 => [a²]
+function _merge_eq_cases(r::Cases)
+    cs = collect(r.cases)
+    merged = true
+    while merged
+        merged = false
+        for i in eachindex(cs)
+            ci = cs[i].first
+            (length(ci) == 1 && ci[1] isa Relation && ci[1].op === :eq) || continue
+            e = ci[1]
+            vi = cs[i].second
+            vi isa AbstractVector{Sym} || continue
+            for j in eachindex(cs)
+                j == i && continue
+                cj = cs[j].first
+                (length(cj) == 1 && cj[1] isa Relation && cj[1].op in (:gt, :lt) &&
+                 _eq(cj[1].lhs, e.lhs) && _eq(cj[1].rhs, e.rhs)) || continue
+                vj = cs[j].second
+                vj isa AbstractVector{Sym} && length(vj) == length(vi) || continue
+                at = try [cancel(subs(w, e.lhs => e.rhs)) for w in vj] catch err; _isdivzero(err) || rethrow(); continue end
+                all(k -> _eq(at[k], vi[k]) || iszero(cancel(at[k] - vi[k])), eachindex(vi)) || continue
+                cs[j] = Any[Relation(cj[1].op === :gt ? :ge : :le, e.lhs, e.rhs)] => vj
+                deleteat!(cs, i)
+                merged = true
+                break
+            end
+            merged && break
+        end
+    end
+    typeof(r)(cs)
+end
+
 const _MAX_CASES = 64
 
 # a factor in the parameters alone is nonzero unless the facts make it zero: parameters

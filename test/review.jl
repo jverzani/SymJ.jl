@@ -1295,7 +1295,7 @@ end
     @test diff(p, x, 2).args[4] == -Sym(1) // 3
     # roots with |y| checked by y's sign (#11534)
     @test solve(-y + x / sqrt(1 - x^2) ~ 0, x; assume = (x ∈ ℝ, y ≫ 0)) == [sqrt((4y^2 + 4) * y^2) / (2y^2 + 2)]
-    @test length(solve(-y + x / sqrt(1 - x^2) ~ 0, x; assume = (x ∈ ℝ, y ∈ ℝ))) == 3
+    @test length(solve(-y + x / sqrt(1 - x^2) ~ 0, x; assume = (x ∈ ℝ, y ∈ ℝ))) == 2   # y = 0 merged into y ≤ 0
     # 0^x = 1 at x = 0 (#11536)
     @test solve(Sym(0)^x ~ 1, x) == [0]
 end
