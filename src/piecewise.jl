@@ -69,8 +69,9 @@ for (op, name) in _COND_OPS
             length(vs) == 1 || return nothing
             v = only(vs)
             # (1/x < 0, atan(1/x) < 0: not linear, and not defined at 0; it divided by
-            # zero; SymPy #20755; 1/(x - 1) likewise at 1, SymPy #9567)
-            d0, d1 = try subs(d, v => ZERO), subs(d, v => ONE) catch err; _isdivzero(err) || rethrow(); return nothing end
+            # zero; SymPy #20755; 1/(x - 1) likewise at 1, SymPy #9567; a float power out of
+            # Float64's range, 0.0^-0.625, an ArgumentError; SymPy #7840)
+            d0, d1 = try subs(d, v => ZERO), subs(d, v => ONE) catch err; (_isdivzero(err) || err isa ArgumentError) || rethrow(); return nothing end
             c = expand(d1 - d0)
             (c.kind == NUMBER && !iszero(c.num) && iszero(expand(d - c * v - d0))) || return nothing
             rhs = expand(-d0 / c)

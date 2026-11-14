@@ -1560,3 +1560,17 @@ end
     @test string(solve([x ≧ 1.5, x ≦ 3], [x])) == "[1.5, 3]"
     @test isempty(solve([2x^2 + 5x + 20 ≦ 0, x ≧ 1.5], [x]))
 end
+
+@testset "crashes and hangs (SymPy review, round 16)" begin
+    @syms x y
+    # atan(y, x) with a complex argument evaluated (#7747)
+    @test N(atan(Sym(2), Sym(im))) ≈ π / 2 - im * log(sqrt(3))
+    @test N(atan(Sym(1), Sym(1))) ≈ π / 4
+    # cse of a vector of matrices keeps the matrices (#8891)
+    reps, red = SymJ.cse([Sym[x*y x; y 1], Sym[x*y 2; 3 x]])
+    @test length(reps) == 1
+    @test red[2] == Sym[Sym(:t1) 2; 3 x]
+    # a float power out of Float64's range in a condition's linearity test (#7840)
+    r = subs(SymJ.piecewise(y ≫ 2.35 => y - 1.65, true => 7), y => 2.5 * x^(-0.625))
+    @test N(subs(r, x => 1)) ≈ 0.85
+end

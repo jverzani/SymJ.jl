@@ -1,0 +1,20 @@
+# Identifiers and mathematical notation, not misspellings
+[default.extend-words]
+numer = "numer"        # numer_denom
+ser = "ser"            # a series helper
+SER = "SER"
+hom = "hom"            # homogeneous part
+nd = "nd"              # numerator/denominator pair
+lits = "lits"          # literal parts of a pattern
+PN = "PN"              # pattern node
+ALLS = "ALLS"          # _ALLS, every sign
+TPOS = "TPOS"
+ba = "ba"              # base of a
+ot = "ot"              # the order term's variable
+finf = "finf"          # f at infinity
+padd = "padd"          # polynomial addition
+gam = "gam"            # a gamma product
+iy = "iy"              # x + iy
+defint = "defint"      # definite integral
+anf = "anf"            # algebraic normal form
+desolve = "desolve"    # Sage's name

@@ -1053,6 +1053,12 @@ _intarg(a::Sym) = a.kind == NUMBER && _isint(a.num) && isexact(a.num) && a.num.t
 
 function _fn_with_ints(f, args)
     vals = Any[_intarg(a) ? _toint(a.num) : _evalc(a) for a in args]
+    # atan(y, x) with a complex argument, which Julia has no method for: -i log((x + i y)/
+    # √(x² + y²)), its value for real ones (atan(2, i) was a MethodError; SymPy #7747)
+    if f === atan && length(vals) == 2 && any(v -> !(v isa Int) && !iszero(imag(v)), vals)
+        y, x = map(v -> complex(float(v)), vals)
+        return -im * log((x + im * y) / sqrt(x^2 + y^2))
+    end
     if all(v -> v isa Int || iszero(imag(v)), vals)
         try
             return f(map(v -> v isa Int ? v : real(v), vals)...)
