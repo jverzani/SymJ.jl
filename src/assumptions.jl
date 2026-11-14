@@ -1196,7 +1196,7 @@ function _isinteger_form(e::Sym, A::Assumptions)::Union{Nothing,Bool}
         return all(a -> _isinteger(a, A) === true, e.args) ? true : nothing
     elseif k == FN && e.name === :factorial && length(e.args) == 1
         u = e.args[1]
-        return _isinteger(u, A) === true && _holds(Relation(:ge, u, ZERO), A) === true ? true : nothing
+        return _isinteger(u, A) === true && Base.inferencebarrier(_holds)(Relation(:ge, u, ZERO), A) === true ? true : nothing
     end
     nothing
 end

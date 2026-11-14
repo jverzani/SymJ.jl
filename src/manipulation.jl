@@ -917,9 +917,11 @@ function N(ex::Sym)
     # check, dropped when the value is real (imaginary) by proof: exp(2πi - 1/10) was
     # 0.905 - 2e-77im (SymPy #7725)
     if isfinite(z) && !iszero(imag(z)) && !iszero(real(z))
-        if abs(imag(z)) <= 1e-30 * abs(z) && _isreal_const(ex) === true
+        # (behind inference barriers: N is called everywhere, the assumptions machinery
+        # behind _isreal_const made compiling the RischIntegrate extension take an hour)
+        if abs(imag(z)) <= 1e-30 * abs(z) && Base.inferencebarrier(_isreal_const)(ex) === true
             return real(z)
-        elseif abs(real(z)) <= 1e-30 * abs(z) && _isreal_const(Base.inferencebarrier(mul)(IM, ex)) === true
+        elseif abs(real(z)) <= 1e-30 * abs(z) && Base.inferencebarrier(_isreal_const)(Base.inferencebarrier(mul)(IM, ex)) === true
             return complex(0.0, imag(z))
         end
     end

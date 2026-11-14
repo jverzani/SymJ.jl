@@ -56,11 +56,12 @@ function _const_parts(e::Sym)
         if _eq(q, HALF) && has(b, IM)
             pb = _const_parts(b)
             if pb !== nothing && !iszero(expand(pb[2]))
-                sc = _csign(pb[2])
+                sc = Base.inferencebarrier(_csign)(pb[2])
                 if sc isa Integer && sc != 0
                     a, c = expand(pb[1]), expand(pb[2])
-                    r = sqrt(expand(a^2 + c^2))
-                    return (sqrt((r + a) / 2), sc * sqrt((r - a) / 2))
+                    sq = Base.inferencebarrier(sqrt)
+                    r = sq(expand(a^2 + c^2))
+                    return (sq((r + a) / 2), sc * sq((r - a) / 2))
                 end
             end
         end

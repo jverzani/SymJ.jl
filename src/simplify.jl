@@ -194,7 +194,7 @@ function _refine_rule(e::Sym, A::Assumptions)
     # #8677); mod(u, b) = u for integers 0 ≤ u < b is left to the sign rules
     if k == FN && e.name === :mod && length(e.args) == 2 && _isinteger(e.args[1], A) === true &&
        _isinteger(e.args[2], A) === true
-        q = try simplify_gamma(cancel(e.args[1] / e.args[2])) catch err; err isa ArgumentError || rethrow(); nothing end
+        q = try Base.inferencebarrier(simplify_gamma)(cancel(e.args[1] / e.args[2])) catch err; err isa ArgumentError || rethrow(); nothing end
         q !== nothing && _isinteger(q, A) === true && return ZERO
     end
     k == FN && e.name === :And && return _refine_and(e, A)
