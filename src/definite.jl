@@ -6,7 +6,9 @@
 # ±∞ when all such pieces agree in sign, and an ArgumentError otherwise, as does a limit
 # that does not exist. Decisions on parameters (is the singular point inside? the sign of
 # a in a limit) go through _decide, so the answer is a Cases when the assumptions leave
-# them open.
+# them open. A parameter factor of the answer's denominator is taken to be nonzero
+# (generic values, as in solve; _pnz) unless the facts make it zero or its parameters
+# are integers.
 #
 # With principal_value = true, a singular point s inside is crossed symmetrically, the
 # Cauchy principal value lim_{ε→0⁺} (∫ₐ^{s-ε} + ∫_{s+ε}^b) f: its two one-sided values

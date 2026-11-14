@@ -281,6 +281,20 @@ end
 
 const _MAX_CASES = 64
 
+# a factor in the parameters alone is nonzero unless the facts make it zero: parameters
+# take generic values (a*x = b gives b/a; ∫x^n is x^(n+1)/(n+1)), the special ones only
+# when assumed (a ~ 0). Decided 2026-11-14, replacing cases on vanishing coefficients.
+# With _GENERIC false (an equation the user wrote in the parameters alone; rank's
+# generic = false), the zero is decided by cases instead.
+# Parameters assumed integers have no generic values (every one counts: ∫cos(nx)cos(x)
+# over [-π, π] is π at n = 1), so their zeros are cases too.
+const _GENERIC = ScopedValue(true)
+function _pnz(f::Sym, A::Assumptions)
+    (_GENERIC[] && !any(p -> _isinteger(p, A) === true, _named(f))) &&
+        return _holds(Relation(:ne, f, ZERO), A) !== false
+    _decide(Relation(:ne, f, ZERO), A)
+end
+
 # run(A) gives the answer, asking for decisions with `_decide`; the answer, or a Cases
 function _by_cases(run, A::Assumptions)
     count = Ref(0)
@@ -509,7 +523,7 @@ function _degenerate_subst(D, B::Assumptions, unknowns)
     end
     sort!(fs; by = f -> (_nodes(f), string(f)))
     for f in fs
-        _decide(Relation(:ne, f, ZERO), B) && continue
+        _pnz(f, B) && continue
         ps = _named(f)
         # f ≥ 0 in real parameters (a sum of squares, ζ²ω² + (Ω - ω₁)²): it vanishes where
         # its gradient does too; the real solutions of that system, each a substitution
@@ -521,7 +535,7 @@ function _degenerate_subst(D, B::Assumptions, unknowns)
             P = try Poly{Sym}(expand(f), [p]) catch; continue end
             degree(P, p) == 1 || continue
             c1, c0 = coeff(f, p, 1), coeff(f, p, 0)
-            all(h -> _decide(Relation(:ne, h, ZERO), B), _param_factors(c1, unknowns)) || continue
+            all(h -> _pnz(h, B), _param_factors(c1, unknowns)) || continue
             v = cancel(-c0 / c1)
             (best === nothing || (_nodes(v), string(p)) < (_nodes(best[2]), string(best[1]))) && (best = (p, v))
         end
@@ -627,7 +641,7 @@ function _defined_roots(rs::AbstractVector, e::Sym, x::Sym, B::Assumptions)
                     end
                 end
             end
-            all(f -> _decide(Relation(:ne, f, ZERO), B), _param_factors(cancel(v), (x,))) || return false
+            all(f -> _pnz(f, B), _param_factors(cancel(v), (x,))) || return false
         end
         true
     end
@@ -815,14 +829,14 @@ function _solve_case_full(e::Relation, x::Sym, B::Assumptions)
     # zeros at poles of tan, cot, sec, csc in a denominator: in sin and cos (SymPy #12527)
     _has_recip_trig(d, x) && return _solve_case_full(Relation(:eq, _recip_trig_sincos(e.lhs - e.rhs, x), ZERO), x, B)
     for f in _param_factors(d, (x,))
-        _decide(Relation(:ne, f, ZERO), B) || return Sym[]
+        _pnz(f, B) || return Sym[]
     end
     reduced = false
     if has(n, x) && _ispoly_in(n, x)
         while has(n, x)
             k = degree(Poly{Sym}(n, [x]), x)
             lc = coeff(n, x, k)
-            all(f -> _decide(Relation(:ne, f, ZERO), B), _param_factors(lc, (x,))) && break
+            all(f -> _pnz(f, B), _param_factors(lc, (x,))) && break
             n = expand(n - lc * x^k)              # lc vanishes in this case
             reduced = true
         end
@@ -838,12 +852,12 @@ function _solve_case_full(e::Relation, x::Sym, B::Assumptions)
                 while has(m, u)
                     k = degree(Poly{Sym}(m, [u]), u)
                     lc = coeff(m, u, k)
-                    all(f -> _decide(Relation(:ne, f, ZERO), B), _param_factors(lc, (x, u))) && break
+                    all(f -> _pnz(f, B), _param_factors(lc, (x, u))) && break
                     m = expand(m - lc * u^k)
                 end
                 if !has(m, u)
                     iszero(m) && throw(_identity_error(x, e))
-                    all(f -> _decide(Relation(:ne, f, ZERO), B), _param_factors(m, (x, u))) && return Sym[]
+                    all(f -> _pnz(f, B), _param_factors(m, (x, u))) && return Sym[]
                     throw(_identity_error(x, e))
                 end
                 _eq(m, m0) || (n = subs(m, u => g); reduced = true)
@@ -852,7 +866,7 @@ function _solve_case_full(e::Relation, x::Sym, B::Assumptions)
     end
     if !has(n, x)
         iszero(n) && throw(_identity_error(x, e))
-        all(f -> _decide(Relation(:ne, f, ZERO), B), _param_factors(n, (x,))) && return Sym[]
+        all(f -> _pnz(f, B), _param_factors(n, (x,))) && return Sym[]
         throw(_identity_error(x, e))
     end
     rs = reduced ? _in_domain(_in_domain(_solve_eq(n ~ 0, x), e.lhs, x), e.rhs, x) : _solve_eq(e, x)

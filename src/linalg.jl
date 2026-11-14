@@ -753,10 +753,11 @@ rank(Sym[1 2; 3 k]; generic = false)   # k == 6 => 1, k != 6 => 2
 """
 function LinearAlgebra.rank(A::AbstractMatrix{Sym}; generic::Bool = true)
     (generic || !any(_hassymbol, A)) && return length(_rref_field(A)[2])
-    _by_cases(Assumptions()) do B
-        _rank_case(Sym[Sym(a) for a in A], B)
+    with(_GENERIC => false) do
+        _by_cases(_rank_cases(A), Assumptions())
     end
 end
+_rank_cases(A) = B -> _rank_case(Sym[Sym(a) for a in A], B)
 
 # the rank in the case B: generic r where the gcd of the r × r minors is nonzero, else
 # the rank with the vanishing factor's value substituted (SymPy #24613)

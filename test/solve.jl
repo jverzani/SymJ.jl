@@ -61,26 +61,19 @@
     @test solve((x - 2IM * y)^3 * (x + y) ~ 0, x) == [-y, 2IM * y]
     @test solve(x^3 + 3x^2 + 3x + 1 - y ~ 0, x)[1] == -(-y)^(1 // 3) - 1
     @test all(r -> !SymJ._hassymbol(r) && N(r) isa Number, solve(x^5 - x - 1 ~ 0, x))  # numeric (a + b*im)
-    # symbolic coefficients
-    # (cases where a coefficient vanishes)
-    cs = solve(a * x + b ~ 0, x)
-    @test cs isa SymJ.Cases
-    @test cs(a => 2, b => 4) == [-2]
-    @test cs(a => 0, b => 1) == Sym[]
-    @test last(cs.cases).second == [-b / a]
+    # symbolic coefficients: generic values (an expression in the parameters alone is
+    # nonzero unless assumed zero; decided 2026-11-14)
+    @test solve(a * x + b ~ 0, x) == [-b / a]
+    @test solve(a * x + b ~ 0, x; assume = (a ~ 0,)) == Sym[]
     @test solve(a * x + b ~ 0, x; assume = (a ≫ 0,)) == [-b / a]
     @test solve(x^2 ~ a, x) == [-sqrt(a), sqrt(a)]
-    cs = solve(exp(a * x) ~ 2, x)
-    @test cs(a => 0) == Sym[]
-    @test cs(a => 1) == [log(Sym(2))]
-    @test solve(x / a ~ 1, x)(a => 0) == Sym[]
-    @test solve(x / a ~ 1, x)(a => 3) == [3]
-    cs = solve(a * x^2 + b * x + c ~ 0, x)
-    @test cs(a => 0, b => 2, c => -4) == [2]
-    @test cs(a => 0, b => 0, c => 1) == Sym[]
-    q = last(cs.cases).second
-    @test length(q) == 2 && all(r -> cancel(subs(a * x^2 + b * x + c, x => r)) == 0 ||
-                                 abs(N(subs(a * x^2 + b * x + c, x => r, a => 2, b => 3, c => -5))) < 1e-12, q)
+    @test solve(exp(a * x) ~ 2, x) == [log(Sym(2)) / a]
+    @test solve(x / a ~ 1, x) == [a]
+    @test solve(a * x^2 + b * x + c ~ 0, x; assume = (a ~ 0,)) == [-c / b]
+    q = solve(a * x^2 + b * x + c ~ 0, x)
+    @test length(q) == 2
+    @test all(r -> iszero(cancel(subs(a * x^2 + b * x + c, x => r))) ||
+                   abs(N(subs(a * x^2 + b * x + c, x => r, a => 2, b => 3, c => -5))) < 1e-12, q)
     @test solve(x^2 - a^2 ~ 0, x) == [-a, a] || Set(solve(x^2 - a^2 ~ 0, x)) == Set([-a, a])
     # errors
     @test_throws ArgumentError solve(x^2 + 1, x)          # an equation is required
@@ -128,24 +121,25 @@
     @test solve(abs(x - 1) + abs(x + 1) ~ 4, x; assume = (x ∈ ℝ,)) == [-2, 2]
     @test solve(abs(x) ~ a, x; assume = (x ∈ ℝ, a ∈ ℝ))(a => -1) == Sym[]
     @test_throws ArgumentError solve(abs(x) ~ 1, x)                   # a circle in ℂ
-    # a root where a denominator vanishes for some parameter values: dropped in that case
-    cs = solve(sin(x) / (cos(x) - a) ~ 0, x)
-    @test cs(a => 1) == [PI]
-    @test cs(a => -1) == [0, 2PI]
-    @test cs(a => 0) == [0, PI, 2PI]
-    @test solve(x / (x - a) ~ 0, x)(a => 0) == Sym[]
+    # a root where a denominator vanishes for some parameter values: kept for generic
+    # values, dropped where the facts make it vanish
+    @test solve(sin(x) / (cos(x) - a) ~ 0, x) == [0, PI, 2PI]
+    @test solve(sin(x) / (cos(x) - a) ~ 0, x; assume = (a ~ 1,)) == [PI]
+    @test solve(sin(x) / (cos(x) - a) ~ 0, x; assume = (a ~ -1,)) == [0, 2PI]
+    @test solve(x / (x - a) ~ 0, x) == [0]
+    @test solve(x / (x - a) ~ 0, x; assume = (a ~ 0,)) == Sym[]
     # a vanishing leading coefficient in tan(x/2): x = π is a root then (b + c = 0)
-    let (b, c) = symbols("b c"), cs = solve(a * sin(x) + b * cos(x) ~ c, x)
-        @test cs(a => 1, b => 2, c => -2)[1] == PI
-        @test cs(a => 0, b => 2, c => -2) == [PI]
-        @test length(cs(a => 1, b => 1, c => 1)) == 2
+    let (b, c) = symbols("b c")
+        @test length(solve(a * sin(x) + b * cos(x) ~ c, x)) == 2
+        @test solve(a * sin(x) + b * cos(x) ~ c, x; assume = (a ~ 1, b ~ 2, c ~ -2))[1] == PI
+        @test solve(a * sin(x) + b * cos(x) ~ c, x; assume = (a ~ 0, b ~ 2, c ~ -2)) == [PI]
     end
     # leading coefficients in one function of x: c cos(x) = -c, a eˣ = 1
     let c = Sym(:c)
-        @test solve(c * cos(x) ~ -c, x)(c => 2) == [PI]
-        @test_throws ArgumentError solve(c * cos(x) ~ -c, x)(c => 0)      # every x
+        @test solve(c * cos(x) ~ -c, x) == [PI]
+        @test_throws ArgumentError solve(c * cos(x) ~ -c, x; assume = (c ~ 0,))      # every x
     end
-    @test solve(a * exp(x) ~ 1, x)(a => 0) == Sym[]
+    @test solve(a * exp(x) ~ 1, x; assume = (a ~ 0,)) == Sym[]
     @test solve(2sin(x) - 2sqrt(Sym(3)) * cos(x) + sqrt(Sym(3)) * tan(x) - 3 ~ 0, x) == [PI / 3, 5PI / 6, 7PI / 6, 4PI / 3]
     @test solve(tan(x) + cot(x) ~ 2, x) == [PI / 4, 5PI / 4]
     @test solve(sin(2x) + cos(2x) ~ 1, x) == [0, PI / 4]
@@ -168,7 +162,7 @@
     @test solve([exp(x) ~ 2, x + y ~ 3], [x, y]) == [Dict(x => log(Sym(2)), y => 3 - log(Sym(2)))]
     @test solve([sin(x) ~ 0, x * y ~ 1], [x, y]) == [Dict(x => PI, y => 1 / PI), Dict(x => 2PI, y => 1 / (2PI))]
     let (T, p, h, c) = symbols("T p h c")
-        @test solve([T * c ~ h, log(p) ~ 2T], [T, p])(c => 2) == [Dict(T => h / 2, p => exp(h))]
+        @test solve([T * c ~ h, log(p) ~ 2T], [T, p]; assume = (c ~ 2,)) == [Dict(T => h / 2, p => exp(h))]
     end
     @test solve([(x^2 - 1) / (x - 1) ~ 2, y ~ x], [x, y]) == Dict{Sym,Sym}[]   # x = 1 is not in the domain
     @test solve([(x^2 - 1) / (x - 1) ~ 3, x + y ~ 3], [x, y]) == [Dict(x => 2, y => 1)]
@@ -187,17 +181,15 @@
         ds isa SymJ.Cases && (ds = last(ds.cases).second)       # the generic case
         @test length(ds) == 1 && length(ds[1]) == length(vs) && holds(eqs, ds[1])
     end
-    @test last(solve([a * x + b * y ~ 1, b * x - a * y ~ 0], [x, y]).cases).second == [Dict(x => a / (a^2 + b^2), y => b / (a^2 + b^2))]
-    # pivots that can vanish give cases (SymPy #30224: a = 0 kept)
-    cs = solve([a * x + y ~ 1, x - y ~ 2], [x, y])
-    @test cs(a => 0) == [Dict(x => 3, y => 1)]
-    @test cs(a => -1) == Dict{Sym,Sym}[]
-    @test cs(a => 1) == [Dict(x => Sym(3 // 2), y => Sym(-1 // 2))]
-    cs = solve([x + y ~ 1, x + y ~ a], [x, y])
-    @test cs(a => 1) == [Dict(x => 1 - y, y => y)]
-    @test cs(a => 2) == Dict{Sym,Sym}[]
-    cs = solve([a * x + b * y ~ 0, x^2 + y^2 ~ 1], [x, y])
-    @test Set(cs(a => 0, b => 1)) == Set([Dict{Sym,Sym}(x => -1, y => 0), Dict{Sym,Sym}(x => 1, y => 0)])
+    @test solve([a * x + b * y ~ 1, b * x - a * y ~ 0], [x, y]) == [Dict(x => a / (a^2 + b^2), y => b / (a^2 + b^2))]
+    # pivots: generic, the special values when assumed (SymPy #30224: a = 0)
+    @test solve([a * x + y ~ 1, x - y ~ 2], [x, y]; assume = (a ~ 0,)) == [Dict(x => 3, y => 1)]
+    @test solve([a * x + y ~ 1, x - y ~ 2], [x, y]; assume = (a ~ -1,)) == Dict{Sym,Sym}[]
+    @test solve([a * x + y ~ 1, x - y ~ 2], [x, y]; assume = (a ~ 1,)) == [Dict(x => Sym(3 // 2), y => Sym(-1 // 2))]
+    @test solve([x + y ~ 1, x + y ~ a], [x, y]) == Dict{Sym,Sym}[]
+    @test solve([x + y ~ 1, x + y ~ a], [x, y]; assume = (a ~ 1,)) == [Dict(x => 1 - y, y => y)]
+    @test Set(solve([a * x + b * y ~ 0, x^2 + y^2 ~ 1], [x, y]; assume = (a ~ 0, b ~ 1))) ==
+          Set([Dict{Sym,Sym}(x => -1, y => 0), Dict{Sym,Sym}(x => 1, y => 0)])
     d = only(solve([0.5x + y ~ 1, x - y ~ 0.25], [x, y]))
     @test N(d[x]) ≈ 5 / 6 && N(d[y]) ≈ 7 / 12
 
@@ -336,9 +328,7 @@
     @test (-1 + sqrt(1 + 4 * Sym(2)^(1 // 3))) / 2 in solve(expand((x^2 + x)^3 - 2) ~ 0, x)
 
     # products: solved factor by factor
-    cs = solve(diff((a / x)^x, x) ~ 0, x)                           # (a/x)^x is never 0
-    @test last(cs.cases).second == [a / SymJ.E]
-    @test first(cs.cases).first == Any[a ~ 0]                       # (0/x)^x is constant
+    @test solve(diff((a / x)^x, x) ~ 0, x) == [a / SymJ.E]         # (a/x)^x is never 0
     @test solve(diff(x^x, x) ~ 0, x) == [1 / SymJ.E]
     @test solve(x * exp(x) ~ 0, x) == [0]
     @test solve((x - 1)^2 * exp(2x) ~ 0, x) == [1]
@@ -375,8 +365,9 @@
     @test solve(sqrt(x^2 + 1) ~ sqrt(2x^2 - 3), x) == [-2, 2]
     let (y,) = symbols("y")             # implicit differentiation: where dy/dx = 0
         cs = solve(3sqrt(x^2 + y^2) - x * sqrt(x^2 + y^2) - x * sqrt((3 - x)^2 + (3 - y)^2) ~ 0, x)
-        @test last(cs.cases).second == [y, 3y / (2y - 3)]
-        @test cs(y => 3 // 2) == [3 // 2]                   # 3y/(2y - 3) has no value there
+        @test cs == [y, 3y / (2y - 3)]
+        @test solve(3sqrt(x^2 + y^2) - x * sqrt(x^2 + y^2) - x * sqrt((3 - x)^2 + (3 - y)^2) ~ 0, x;
+                    assume = (y ~ 3 // 2,)) == [3 // 2]      # 3y/(2y - 3) has no value there
     end
 end
 

@@ -227,10 +227,9 @@ end
     @test diff(SymJ.piecewise(x ≪ 0 => 0, true => 1), x) == SymJ.dirac(x)
     @test diff(SymJ.piecewise(x ≪ 1 => x^2, true => 2x + 3), x) == 4SymJ.dirac(x - 1) + SymJ.piecewise(x ≪ 1 => 2x, true => 2)
     @test diff(SymJ.piecewise(x ≪ 0 => -x, true => x), x) == SymJ.piecewise(x ≪ 0 => -1, true => 1)
-    # a vanishing coefficient with an irrational constant is a case (#24344)
-    cs = solve((a - sqrt(Sym(3)) * b) * x^2 + x + 1 ~ 0, x)
-    @test first(cs.cases).second == [-1]
-    @test first(cs.cases).first == Any[a ~ sqrt(Sym(3)) * b]
+    # a vanishing coefficient with an irrational constant: generic, the case when assumed (#24344)
+    @test length(solve((a - sqrt(Sym(3)) * b) * x^2 + x + 1 ~ 0, x)) == 2
+    @test solve((a - sqrt(Sym(3)) * b) * x^2 + x + 1 ~ 0, x; assume = (a ~ sqrt(Sym(3)) * b,)) == [-1]
 end
 
 @testset "crashes and hangs (SymPy review, round 5)" begin
@@ -253,7 +252,7 @@ end
     # a system of products split by factor (#24500)
     @syms c1 c3 g1
     sols = solve([x * (x - 1) * (c1 - y) ~ 0, y * (y - 1) * (c3 + g1 * x) ~ 0], [x, y])
-    @test length(last(sols.cases).second) == 5
+    @test length(sols) == 5
     # linear systems by Cramer's rule: a generic 4 × 4 (#24679), a circuit with im (#24135)
     M = Sym[Sym(Symbol(:m, i, j)) for i in 1:4, j in 1:4]
     bb = Sym[Sym(Symbol(:b, i)) for i in 1:4]
@@ -266,7 +265,7 @@ end
            I2 * (IM * L2 * w - IM / (C2 * w) - IM / (C1 * w)) + I3 * (IM * M23 * w + IM / (C2 * w)) + I1 * IM / (C1 * w) ~ 0,
            I2 * (IM * M23 * w + IM / (C2 * w)) + I3 * (IM * L3 * w - IM / (C3 * w) - IM / (C2 * w)) + I4 * IM / (C3 * w) ~ 0,
            I4 * RL + I3 * IM / (C3 * w) - I4 * IM / (C3 * w) ~ 0]
-    sol = only(last(solve(eqs, [I1, I2, I3, I4]).cases).second)
+    sol = only(solve(eqs, [I1, I2, I3, I4]))
     pv = [L1 => 1, L2 => 2, L3 => 3, C1 => 5, C2 => 7, C3 => 11, M23 => 13, RL => 17, U => 19, w => 23]
     @test maximum(abs(N(subs(subs(e.lhs - e.rhs, sol...), pv...))) for e in eqs) < 1e-10
     # rational entries: the rows cleared of denominators (#25009)
@@ -380,8 +379,8 @@ end
     @test N(subs(f, tt => 1)) ≈ 1.057626488214003
     # floats with parameters: the floats as constants, no unsupported cases (#24193)
     sol = solve([y ~ σ * 2^(1 / 6), ϵ * ((y / r)^12 - 2 * (y / r)^6) ~ s * 4 * ϵ * (-σ^6 / r^6 + σ^12 / r^12)], [y, s])
-    @test !any(c -> c.second isa Exception, sol.cases)
-    g = only(last(sol.cases).second)
+    @test sol isa Vector{Dict{Sym,Sym}}
+    g = only(sol)
     @test N(subs(g[s], r => 2, σ => 1)) ≈ 1
 end
 
@@ -399,10 +398,10 @@ end
     # a degenerate factor with complex roots is a case (#23459); derivative unknowns
     # keep their names in Cases
     cs = solve([a * u + b * v ~ 0, b^2 * u + a^2 * v ~ 0], [u, v])
-    @test any(c -> any(r -> occursin("sqrt(3)", string(r)), c.first), cs.cases)
+    @test cs == [Dict(u => 0, v => 0)]
     f, g = SymFunction(:f), SymFunction(:g)
     cs = solve([a * diff(f(t), t) + b * diff(g(t), t) ~ 1, diff(f(t), t) - diff(g(t), t) ~ 2], [diff(f(t), t), diff(g(t), t)])
-    @test haskey(only(last(cs.cases).second), diff(f(t), t))
+    @test haskey(only(cs), diff(f(t), t))
     # telescoping infinite sums (#23119)
     @test SymJ.summation(1 / (i + 1) - 1 / (i + 2), i, 0, Inf) == 1
     @test SymJ.summation(1 / (5 * (5i + 2)) - 1 / (5 * (5i + 7)), i, 0, Inf) == Sym(1) / 10
@@ -509,7 +508,7 @@ end
     @test sort([real(N(t[xn])) for t in s]) ≈ [-200.0201888275084, -200.0201888275084, -3.9343295061690924, 3.8038738278525512]
     # the case a² + b² = 0 of a circle and a line (#23889)
     s = solve([x^2 + y^2 ~ R^2, a * x + b * y ~ c], [x, y])
-    @test !any(cv -> cv.second isa Exception, s)
+    @test length(s) == 2
     # special solutions within a family dropped (#23110)
     @test length(solve([x * y ~ 0, x * z ~ 0, x * v ~ 0], [x, y, z, v])) == 2
     # unknowns with an equation of their own solved first (#23322)
@@ -556,8 +555,9 @@ end
     @test subs(diff(f(x), x)^2 + f(x), f(x) => y) == y + diff(f(x), x)^2
     # a BigFloat beyond Float64's range: an error, not Inf (#21860)
     @test_throws ArgumentError Sym(big"1.5e400")
-    # |x| y = 0: the case x = 0 (#21943)
-    @test solve(abs(x) * y ~ 0, y) isa SymJ.Cases
+    # |x| y = 0: generic y = 0, every y when x = 0 is assumed (#21943)
+    @test solve(abs(x) * y ~ 0, y) == [0]
+    @test_throws ArgumentError solve(abs(x) * y ~ 0, y; assume = (x ~ 0,))
     # numbers as subs keys leave exponents alone (#21373)
     @test subs(x * y, 1 => 2) == x * y
     @test subs(x / z, 1 => 1.0) == x / z
@@ -575,7 +575,7 @@ end
     eq1 = -PI^2 * A * m^2 / l^2 + A * n^2 * nu / (2R^2) - A * n^2 / (2R^2) + PI * B * m * n * nu / (2R * l) + PI * B * m * n / (2R * l) + PI * C * m * nu / (R * l) + D / K
     eq2 = PI * A * m * n * nu / (2R * l) + PI * A * m * n / (2R * l) + PI^2 * B * m^2 * nu / (2l^2) - PI^2 * B * m^2 / (2l^2) - B * n^2 / R^2 - PI^2 * C * h^2 * m^2 * n / (12R^2 * l^2) - C * n / R^2 - C * h^2 * n^3 / (12R^4) + E / K
     eq3 = -PI * A * m * nu / (R * l) + PI^2 * B * h^2 * m^2 * n / (12R^2 * l^2) + B * n / R^2 + B * h^2 * n^3 / (12R^4) + PI^4 * C * h^2 * m^4 / (12l^4) + PI^2 * C * h^2 * m^2 * n^2 / (6R^2 * l^2) + C / R^2 + C * h^2 * n^4 / (12R^4) - F / K
-    @test solve([eq1 ~ 0, eq2 ~ 0, eq3 ~ 0], [A, B, C]) isa SymJ.Cases
+    @test length(solve([eq1 ~ 0, eq2 ~ 0, eq3 ~ 0], [A, B, C])) == 1
     # ODE systems: eigenvalues of a cubic in parameters refused; Cardano's complex pair
     # recognized, not more columns than unknowns (#21867)
     Ac, Ap, Ad = SymFunction(:Ac), SymFunction(:Ap), SymFunction(:Ad)
@@ -1123,7 +1123,7 @@ end
     @test_throws ArgumentError numer_denom(series(sin(x) / x, x, 0, 5))
     # e^(-18000000x) is not factored as a polynomial of that degree (#14300)
     s = solve(1 - exp(-18000000x) ~ y, x)
-    @test s isa SymJ.Cases
+    @test length(s) == 1
     @test factor(exp(2x) - 1) == (exp(x) + 1) * (exp(x) - 1)
     # constant residuals of radical roots decided numerically (#13625): two real roots
     # and two complex ones
@@ -1202,9 +1202,9 @@ end
     # vanishes (#13105)
     @test solve((x + im) * (x + 2im) ≪ 0, x) == SymJ.SymSet([SymJ.SymInterval(Sym(0), Sym(0), true, true)])
     @test isempty(solve(x + im ≪ 0, x))
-    # a symbolic exponent that may vanish: cases (#12774)
-    @test solve(x^a ~ 1, x) isa SymJ.Cases
-    @test solve(x^a ~ 1, x)[2] == ([a ≶ 0] => [1])
+    # a symbolic exponent: generic a ≠ 0, every x when a = 0 is assumed (#12774)
+    @test solve(x^a ~ 1, x) == [1]
+    @test_throws ArgumentError solve(x^a ~ 1, x; assume = (a ~ 0,))
     @test solve(x^a ~ 1, x; assume = (a ≶ 0,)) == [1]
     # the poles of a condition are breakpoints (#12095)
     @test solve(abs((x - 1) / (x - 5)) ≦ 1 // 3, x) == SymJ.SymSet([SymJ.SymInterval(Sym(-1), Sym(2), true, true)])

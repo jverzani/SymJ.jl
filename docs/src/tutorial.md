@@ -598,18 +598,18 @@ Some equations need the Lambert W function:
 solve(x * exp(x) ~ 1, x)
 ```
 
-Symbols other than the unknown are allowed. The answer is right for every value of
-them, so where a coefficient could vanish it splits into cases (a case where every `x`
-is a solution holds an error):
+Symbols other than the unknown are allowed. They take generic values: an expression in
+them alone is taken to be nonzero, so the quadratic formula comes out as it is usually
+written:
 
 ```@example tut
 solve(a * x^2 + b * x + c ~ 0, x)
 ```
 
-An assumption that settles the coefficient gives the plain answer:
+An assumption that makes a coefficient vanish gives that case:
 
 ```@example tut
-solve(a * x^2 + b * x + c ~ 0, x; assume = @assume(a > 0))
+solve(a * x^2 + b * x + c ~ 0, x; assume = @assume(a == 0))
 ```
 
 ### Inequalities
@@ -635,8 +635,8 @@ their values. A linear system has at most one:
 solve([x + y ~ 3, x - y ~ 1], [x, y])
 ```
 
-With parameters, a pivot that could vanish splits the answer into cases (here
-`a = -1`, where the system has no solution):
+With parameters, the pivots are taken to be nonzero (here `a + 1`; with `a = -1`
+assumed the system has no solution):
 
 ```@example tut
 solve([a * x + y ~ 1, x - y ~ b], [x, y])
@@ -1209,19 +1209,16 @@ integrate(exp(-a * x), (x, 0, Inf))
 integrate(exp(-a * x), (x, 0, Inf); assume = @assume(a > 0))
 ```
 
-Where the formula divides by a parameter, the value where that factor vanishes is a
-case of its own:
+Where the formula divides by a parameter, the parameter takes a generic value (nonzero,
+as for `solve`); the special value is a case only when assumed:
 
 ```@example tut
 @syms c
 integrate(exp(c * x), (x, 0, 1))
 ```
 
-Here the case is a removable singularity: its value 1 is the formula's limit as
-`c → 0`. `drop_removable_singularities = true` merges such cases into the formula:
-
 ```@example tut
-integrate(exp(c * x), (x, 0, 1); drop_removable_singularities = true)
+integrate(exp(c * x), (x, 0, 1); assume = @assume(c == 0))
 ```
 
 An iterated integral lists its intervals innermost first. The inner integral may have

@@ -21,17 +21,16 @@ unknown is `solve(eq, x)`, which gives a vector of values instead.
   otherwise. With infinitely many solutions, the variables left free map to
   themselves.
 
-Coefficients may involve parameters. Where the solution divides by an expression in
-them (a pivot of the elimination, a coefficient of the Gröbner basis, a denominator of
-a solution) that could vanish, the result is a `Cases` value, the case where it
-vanishes solved again with it substituted; a case that cannot be solved so holds an
-error. `assume` for a system states facts about parameters and unknowns: `x ∈ ℝ` makes
+Coefficients may involve parameters, which take generic values: an expression in them
+alone (a pivot of the elimination, a coefficient of the Gröbner basis, a denominator of
+a solution) is taken to be nonzero unless the assumptions make it zero, as in `solve`
+for one equation. `assume` for a system states facts about parameters and unknowns: `x ∈ ℝ` makes
 `abs(x)`, `real(x)` real-valued (and keeps only real solutions), `x ≫ 0` keeps the
 solutions with `x > 0`; without it the unknowns are complex.
 
 ```julia
-solve([a*x + y ~ 1, x - y ~ 2], [x, y])
-# a == 0 => [Dict(x => 3, y => 1)], a == -1 => [], a != 0, a != -1 => [Dict(x => 3/(a + 1), y => (1 - 2a)/(a + 1))]
+solve([a*x + y ~ 1, x - y ~ 2], [x, y])        # [Dict(x => 3/(a + 1), y => (1 - 2a)/(a + 1))]
+solve([a*x + y ~ 1, x - y ~ 2], [x, y]; assume = (a ~ -1,))   # []
 ```
 
 ```julia
@@ -309,7 +308,7 @@ function _solve_system_case(eqs::Vector{Relation}, vars::Vector{Sym}, B)
         return Dict{Sym,Sym}[]
     end
     for e in es, f in _param_factors(numer_denom(cancel(e.lhs - e.rhs))[2], vars)
-        _decide(Relation(:ne, f, ZERO), B) || return Dict{Sym,Sym}[]
+        _pnz(f, B) || return Dict{Sym,Sym}[]
     end
     # an equation free of the unknowns is a condition on the parameters: no solutions
     # where it fails, and where it holds the parameter values it gives substituted, each
@@ -324,8 +323,9 @@ function _solve_system_case(eqs::Vector{Relation}, vars::Vector{Sym}, B)
         # by the case itself (k = -3), so the equation is gone when the system is solved
         # again; another's roots are the alternatives
         for f in _param_factors(g, vars)
-            _decide(Relation(:ne, f, ZERO), B) && continue
-            ps = _degenerate_subst([f], B, vars)
+            # (the user's own condition: its zeros are cases, parameters generic or not)
+            with(() -> _pnz(f, B), _GENERIC => false) && continue
+            ps = with(() -> _degenerate_subst([f], B, vars), _GENERIC => false)
             ps === nothing && return Dict{Sym,Sym}[]
             rest = Relation[q for q in es if q !== e]
             return _alternatives(ps) do p
