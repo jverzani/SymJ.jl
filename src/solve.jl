@@ -44,22 +44,18 @@ solve(x^2 ~ -1, x)             # [-im, im]
 solve(diff(x^2 + u(x)^2 - 1, x) ~ 0, diff(u(x), x))   # [-x/u(x)]
 ```
 
-With parameters, the solutions are correct for every value of them: where a
-coefficient could vanish, the result is a `Cases` value, a list of
-`conditions => solutions` (called with values, `cs(a => 4)`, it gives that case's
-solutions). The cases come from the leading coefficients of a polynomial (the next one
-when it vanishes), from denominators free of `x` (where they vanish the equation is not
-defined: no solutions), from denominators of the solutions, and from a symbolic
-exponent (`x^a = b` for `a = 0`; for `a ≠ 0` the answer is the principal root `b^(1/a)`,
-not the other roots `b^(1/a) e^(2πik/a)`). A case in which every value of `x` is a
-solution holds an error. Assumptions that settle a coefficient give the plain answer.
+With parameters, the solutions are those for generic values of them: an expression in
+the parameters alone is taken to be nonzero unless the assumptions make it zero, so
+`a*x ~ b` gives `b/a` (the same rule as [`limit`](@ref) and `integrate`). A symbolic
+exponent gives the principal root (`x^a = b` gives `b^(1/a)`, not the other roots
+`b^(1/a) e^(2πik/a)`). Facts that make a coefficient vanish give that case's answer.
 
 ```julia
-solve(a*x + b ~ 0, x)          # a == 0, b == 0 => (every x), a == 0, b != 0 => [], a != 0 => [-b/a]
-solve(a*x + b ~ 0, x; assume = (a ≫ 0,))   # [-b/a]
-solve(exp(a*x) ~ 2, x)         # a == 0 => [], a != 0 => [log(2)/a]
-solve(x^2 ~ a, x)              # [-sqrt(a), sqrt(a)]
-solve(x^a ~ 2, x)              # a == 0 => [], a != 0 => [2^(1/a)]
+solve(a*x + b ~ 0, x)                          # [-b/a]
+solve(a*x + b ~ 0, x; assume = (a ~ 0,))       # [] (b ≠ 0)
+solve(exp(a*x) ~ 2, x)                         # [log(2)/a]
+solve(x^2 ~ a, x)                              # [-sqrt(a), sqrt(a)]
+solve(x^a ~ 2, x)                              # [2^(1/a)]
 ```
 
 With assumptions (`assume = (x ≫ 0,)`, an [`Assumptions`](@ref), or inside
@@ -525,12 +521,12 @@ function _solve_weierstrass(eq::Relation, n::Sym, x::Sym, w::Sym)
         while has(num, t)
             k = degree(Poly{Sym}(num, [t]), t)
             lc = coeff(num, t, k)
-            all(f -> _decide(Relation(:ne, f, ZERO), A), _param_factors(lc, (x, t))) && break
+            all(f -> _pnz(f, A), _param_factors(lc, (x, t))) && break
             num = expand(num - lc * t^k)
             at_pi = true
         end
         if !has(num, t)                           # a constant: zero for every w, or never
-            (iszero(num) || !all(f -> _decide(Relation(:ne, f, ZERO), A), _param_factors(num, (x, t)))) &&
+            (iszero(num) || !all(f -> _pnz(f, A), _param_factors(num, (x, t)))) &&
                 throw(_identity_error(x, eq))
             return at_pi ? filter(r -> _defined_at(n, x, r), _eq(w, x) ? Sym[PI] : _solve_generic(w ~ PI, x)) : Sym[]
         end
@@ -1290,7 +1286,7 @@ function _invert(g::Sym, r::Sym, x::Sym)
                 "solve: $g = $r has the roots $(isone(r) ? "" : "($r)^(1/$e) ")exp(2πik/$e) for k = 0, …, |$e| - 1, which depend on $e; substitute a number for $e"))
             # a vanishing exponent decided by cases: t^0 = 1 for every t (x^a = 1 gave [1]
             # alone; SymPy #12774)
-            if _hassymbol(e) && A !== nothing && !_decide(Relation(:ne, e, ZERO), A)
+            if _hassymbol(e) && A !== nothing && !_pnz(e, A)
                 _decide(Relation(:eq, r, ONE), A) && throw(_identity_error(x, Relation(:eq, g, r)))
                 return Tuple{Sym,Sym}[]
             end

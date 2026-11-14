@@ -179,9 +179,8 @@ import PolyLog as PL
         ri_complex = try ∫(exp(IM * x), x); true catch; false end
         ri_complex && let rect = P((-Sym(1) // 2 ≦ x, x ≦ Sym(1) // 2) => 1, true => 0)
             @test ∫(rect * exp(-2IM * x), (x, -Inf, Inf)) == sin(Sym(1))
-            ft = ∫(rect * exp(-2IM * PI * a * x), (x, -Inf, Inf))         # with the case a = 0
-            @test ft(a => 0) == 1
-            @test last(ft.cases).second == sin(PI * a) / (PI * a)
+            @test ∫(rect * exp(-2IM * PI * a * x), (x, -Inf, Inf)) == sin(PI * a) / (PI * a)   # generic a
+            @test ∫(rect * exp(-2IM * PI * a * x), (x, -Inf, Inf); assume = (a ~ 0,)) == 1
         end
         # no piece holds past the last condition: not defined there (SymPy #28469)
         @test ∫(P(x ≪ 1 => x), x) == P(x ≪ 1 => x^2 / 2)
@@ -229,7 +228,7 @@ import PolyLog as PL
         isdefined(RischIntegrate, :HypTerm) && @test ∫(1 / sqrt(1 + x^3), x) isa Sym
         # simplify of an answer by cases (SymPy #23909 extra)
         let a = Sym(:a), b = Sym(:b), t = Sym(:t)
-            @test simplify(∫(exp((b - a) * x - b * t), (x, 0, t))) isa SymJ.Cases
+            @test simplify(∫(exp((b - a) * x - b * t), (x, 0, t))) isa Sym
         end
         # a large antiderivative is not expanded by simplify (#23967)
         isdefined(RischIntegrate, :HypTerm) && let s = Sym(:s), n1 = Sym(:n1)
@@ -317,7 +316,7 @@ import PolyLog as PL
         if VERSION >= v"1.12"                                            # (the older RischIntegrate cannot)
             @syms M
             horn = ∫(2PI * (1 / x) * sqrt(1 + (-1 / x)^2), (x, 1, M))
-            @test horn isa SymJ.Cases
+            @test horn isa Sym
             @test limit(horn, M => Inf) == Inf_
         end
         # the variable is real: conj(x) is x, as from dot (a line integral, Green's theorem)
@@ -334,15 +333,14 @@ import PolyLog as PL
         @test ∫(sqrt(x^2 * (b^2 + 1)), x) == SymJ.piecewise(x ≪ 0 => -x^2 * sqrt(b^2 + 1) / 2, true => x^2 * sqrt(b^2 + 1) / 2)
         @test ∫(sqrt(x^2 * (b^2 + 1)), (x, 0, a / b), (c, 0, 2PI); assume = @assume(a > 0, b > 0)) == PI * a^2 * sqrt(b^2 + 1) / b^2
         @test ∫(sqrt(4x^2), (x, -1, 2)) == 5
-        # an antiderivative that divides by a parameter: a case where it vanishes (SymPy #27280, #27073)
+        # an antiderivative that divides by a parameter: generic, the zero only when assumed
+        # (SymPy #27280, #27073)
         @syms t
-        cs = ∫(exp(c * t), (t, 0, 1))
-        @test cs isa SymJ.Cases
-        @test cs(c => 0) == 1
-        @test cs(c => 2) == (exp(Sym(2)) - 1) / 2
+        @test iszero(cancel(∫(exp(c * t), (t, 0, 1)) - (exp(c) - 1) / c))
+        @test ∫(exp(c * t), (t, 0, 1); assume = (c ~ 0,)) == 1
         # (complex constants in the integrand: RischIntegrate 1.2 on; not on Julia 1.10)
-        (try ∫(exp(IM * x), x); true catch; false end) && @test ∫(exp(im * b * x), (x, -1, 1))(b => 0) == 2
-        @test ∫((b - a) * exp(t * c + (1 - t) * a), (t, 0, 1))(c => a) == (b - a) * exp(a)
+        (try ∫(exp(IM * x), x); true catch; false end) && @test ∫(exp(im * b * x), (x, -1, 1); assume = (b ~ 0,)) == 2
+        @test subs(∫((b - a) * exp(t * c + (1 - t) * a), (t, 0, 1); assume = (c ~ a,)), c => a) == (b - a) * exp(a)
         @test ∫(x / a, (x, 0, 1)) == 1 / (2a)               # the integrand's own denominator: no case
         # drop_removable_singularities = true: a case that is the formula's limit is merged into it
         @test iszero(cancel(∫(exp(c * t), (t, 0, 1); drop_removable_singularities = true) - (exp(c) - 1) / c))
