@@ -56,14 +56,23 @@ _sameend(a, b) = (a === nothing && b === nothing) || (a !== nothing && b !== not
 ## membership
 
 function _in_interval(v, I::SymInterval)          # v: a Sym (exact) or a Float64
+    # ±∞ are no real numbers: no interval of the line holds them (Inf ∈ [0, ∞) was
+    # true; SymPy #10326)
+    (v isa Sym ? _isinfpt(v) : isinf(v)) && return false
     function side(e, closed, below)               # v on the right side of endpoint e
         e === nothing && return true
         v isa Sym && v == e && return closed
         x, y = v isa Sym ? _rv(v) : v, _rv(e)
+        # (equal or infinite in Float64: compared at 256 bits; exp(50) + 1 against exp(50))
+        if (x == y || !isfinite(x) || !isfinite(y)) && v isa Sym
+            x, y = _rvb(v), _rvb(e)
+        end
         x == y ? closed : (below ? x > y : x < y)
     end
     side(I.lo, I.lclosed, true) && side(I.hi, I.rclosed, false)
 end
+# a real constant's value at 256 bits
+_rvb(e::Sym) = (w = _bigvalue(e, 256); w === nothing ? BigFloat(_rv(e)) : real(w))
 Base.in(v::Union{Sym,Real}, S::SymSet) = (w = v isa Real ? Float64(v) : v; any(I -> _in_interval(w, I), S.intervals))
 
 ## construction from breakpoints and a predicate
@@ -72,13 +81,30 @@ Base.in(v::Union{Sym,Real}, S::SymSet) = (w = v isa Real ? Float64(v) : v; any(I
 # a Float64 sample inside an open piece)
 function _set_from(bps::Vector{Sym}, pred)
     vals = map(_rv, bps)
+    # breakpoints past Float64's range, or too close for its samples (exp(50) + 1 is
+    # exp(50) in Float64; x < exp(50) gave all x but exp(50); SymPy #10268): values at 256
+    # bits and exact rational samples
+    wide = any(v -> !isfinite(v) || abs(v) >= 2.0^50, vals)
+    if !wide && length(vals) > 1
+        q = sortperm(vals)
+        sv, sb = vals[q], bps[q]
+        # (neighbours equal in Float64 though different, or with no Float64 between them)
+        wide = any(i -> (sv[i] == sv[i+1] && sb[i] != sb[i+1]) ||
+                        (sv[i] != sv[i+1] && (sv[i] + sv[i+1]) / 2 in (sv[i], sv[i+1])), 1:(length(sv) - 1))
+    end
+    wide && (vals = setprecision(() -> map(_rvb, bps), BigFloat, 256))
     p = sortperm(vals)
     bps, vals = bps[p], vals[p]
     keep = [i == 1 || vals[i] != vals[i-1] for i in eachindex(vals)]   # distinct values
     bps, vals = bps[keep], vals[keep]
     m = length(bps)
     # pieces in order: open (−∞, b1), {b1}, (b1, b2), ..., {bm}, (bm, ∞)
-    samples = m == 0 ? [0.0] :
+    samples = m == 0 ? Any[0.0] : wide ?
+        setprecision(BigFloat, 256) do
+            q(t) = Sym(SymNumber(Rational{BigInt}(t)))
+            Any[q(vals[1] - max(1, abs(vals[1]))); [q((vals[i] + vals[i+1]) / 2) for i in 1:(m-1)];
+                q(vals[m] + max(1, abs(vals[m])))]
+        end :
         vcat([vals[1] - 1.0], [(vals[i] + vals[i+1]) / 2 for i in 1:(m-1)], [vals[m] + 1.0])
     incl_open = [pred(s, false) for s in samples]
     incl_pt = [pred(b, true) for b in bps]

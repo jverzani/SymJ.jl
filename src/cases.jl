@@ -850,7 +850,7 @@ function _solve_case_full(e::Relation, x::Sym, B::Assumptions)
         all(f -> _decide(Relation(:ne, f, ZERO), B), _param_factors(n, (x,))) && return Sym[]
         throw(_identity_error(x, e))
     end
-    rs = reduced ? _in_domain(_solve_eq(n ~ 0, x), e.lhs - e.rhs, x) : _solve_eq(e, x)
+    rs = reduced ? _in_domain(_in_domain(_solve_eq(n ~ 0, x), e.lhs, x), e.rhs, x) : _solve_eq(e, x)
     rs isa AbstractVector || return rs            # an inequality's set
     rs = _defined_roots(rs, e.lhs - e.rhs, x, B)
     reduced && return rs

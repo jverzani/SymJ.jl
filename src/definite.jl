@@ -523,6 +523,17 @@ function _definite(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A::Assumptions, pv
     sing = Set{Sym}()                        # the singular points among the ends too
     for s in S
         (_eq(s, lo) || _eq(s, hi)) && (push!(sing, s); continue)
+        # a parametric point equal to an end by the facts (d/k = 1 in a case of ∫₀¹ 1/(d - kx)):
+        # that end singular, its value a one-sided limit (it was F(1) - F(0) with log 0
+        # in it, iπ/2 + ∞ where the integral is +∞; SymPy #9753)
+        if _hassymbol(s)
+            e = findfirst(t -> !_isinfpt(t) && _decide(Relation(:eq, s, t), A) === true, (lo, hi))
+            if e !== nothing                         # (the end written as the point itself)
+                e == 1 ? (lo = s) : (hi = s)
+                push!(sing, s)
+                continue
+            end
+        end
         # a parametric point is compared with a finite end, which reduces to facts about
         # the parameters (√(-a) > 0 is a < 0); with both ends infinite, its reality
         (!_hassymbol(s) || (_isinfpt(lo) && _isinfpt(hi))) && !_isreal_point(s, A) && continue
@@ -554,7 +565,7 @@ function _definite(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A::Assumptions, pv
         l, r = () -> _endvalue(F, x, s, :-, A, true), () -> _endvalue(F, x, s, :+, A, true)
         append!(terms, pv ? _pv_terms(l, r, () -> _pv_limit(F, x, s, A)) : [(1, l()), (-1, r())])
     end
-    h, l = () -> _endvalue(F, x, hi, :-, A, hi in sing), () -> _endvalue(F, x, lo, :+, A, lo in sing)
+    h, l = () -> _endvalue_div(F, f, x, hi, :-, A, hi in sing), () -> _endvalue_div(F, f, x, lo, :+, A, lo in sing)
     append!(terms, pv && _isinfpt(lo) && _isinfpt(hi) ? _pv_terms(h, l, () -> _pv_limit(F, x, nothing, A)) :
                    [(1, h()), (-1, l())])
     _sum_values(terms, A)
@@ -696,6 +707,20 @@ function _endvalue(F::Sym, x::Sym, p::Sym, dir::Symbol, A, singular::Bool = fals
         v !== nothing && !_has_zero_power(v) && _finite_value(v) && return v
     end
     _onesided(F, x, p, dir, A)
+end
+
+# F's value at the end p, or ±∞ where the end is singular, F's limit is infinite in a
+# complex direction (a log of a negative argument, log(x - d/k) left of d/k) and f itself
+# tends to a real ±∞: the integral diverges with f's sign there (SymPy #9753)
+function _endvalue_div(F::Sym, f::Sym, x::Sym, p::Sym, dir::Symbol, A, singular::Bool)
+    try
+        _endvalue(F, x, p, dir, A, singular)
+    catch err
+        (singular && err isa ArgumentError && occursin("complex plane", err.msg)) || rethrow()
+        L = try _onesided(f, x, p, dir, A) catch; rethrow(err) end
+        (L isa Sym && _isinfpt(L)) || rethrow(err)
+        Sym((dir === :- ? 1 : -1) * _infsign(L) * Inf)
+    end
 end
 
 _has_zero_power(e::Sym) = (e.kind == POW && iszero(e.args[1])) ||

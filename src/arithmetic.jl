@@ -453,6 +453,14 @@ function _floatpow(b::Sym, e::SymNumber)::Union{Sym,Nothing}
     bv = try Base.inferencebarrier(N)(b) catch; return nothing end
     bv isa Real || return nothing
     ef = Float64(e)
+    # an exact constant to an infinite power: 0 stays exact, as for a number base
+    # ((1/(2e))^∞ was the float 0.0; SymPy #10095); |b| = 1 left as a power
+    if isinf(ef) && _isexactex(b)
+        s = Base.inferencebarrier(_csign)(Base.inferencebarrier(abs)(b) - 1)
+        s === nothing && return nothing
+        s == 0 && return _mkpow_node(b, Sym(e))
+        (s < 0) == (ef > 0) && return ZERO
+    end
     bv < 0 && !isinteger(ef) && return nothing
     Sym(_checked_float(Float64(bv)^ef, "power", Float64(bv), ef))
 end

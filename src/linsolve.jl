@@ -467,7 +467,10 @@ function _gauss_jordan(A::Matrix{C}, b::Vector{C}, vars::Vector{Sym}, ::Type{Sym
     # (an infinite or NaN entry: no tolerance means anything; every entry was zero below
     # it and the system "solved" with all unknowns free; SymPy #15113)
     fl && !isfinite(scale) && throw(ArgumentError("solve: a coefficient of the linear system is not finite"))
-    nz(e) = !iszero(e) && !(fl && (cx || isfloat(e)) && fabs(e) <= 1e-12 * scale)
+    # (and not 0 by trigonometric or hyperbolic identities: x + (sin²z + cos²z) y = 1 with
+    # x + y = 1 was taken as independent; SymPy #10120)
+    nz(e) = !iszero(e) && !(fl && (cx || isfloat(e)) && fabs(e) <= 1e-12 * scale) &&
+        (C === SymNumber || cx || _circ_nonzero(Sym(e)))
     r = 1
     pivots = Tuple{Int,Int}[]
     for col in 1:k

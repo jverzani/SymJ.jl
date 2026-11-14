@@ -159,7 +159,29 @@ function _decide(r::Relation)
     v isa Real || return r.op === :eq ? false : r.op === :ne ? true :
         throw(ArgumentError("$r: the sides do not compare as real numbers"))
     scale = max(1.0, abs(N(r.lhs)), abs(N(r.rhs)))
-    abs(v) <= 1e-12 * scale ? cmp(0, 0) : cmp(v, 0)
+    if isfinite(v) && isfinite(scale) && abs(v) > 1e-12 * scale
+        return cmp(v, 0)
+    end
+    # past Float64's range, or equal to its precision: the sides at 256 bits, relative to
+    # their own size (5 < exp(1000) was false, overflowing to -Inf; exp(-1000) > 0 false,
+    # underflowing to 0; SymPy #10268)
+    w = _decide_big(r)
+    w === nothing || return cmp(w, 0)
+    isfinite(v) || throw(ArgumentError("$r: the sides could not be compared numerically"))
+    cmp(0, 0)
+end
+
+# sign of lhs - rhs at 256 bits (0 when equal to that precision, relative to the larger
+# side); nothing when a side has no such value
+function _decide_big(r::Relation)
+    L, R = _bigvalue(r.lhs, 256), _bigvalue(r.rhs, 256)
+    (L === nothing || R === nothing || !isfinite(L) || !isfinite(R)) && return nothing
+    s = max(abs(L), abs(R))
+    iszero(s) && return 0
+    w = L - R
+    abs(w) <= s * big(2.0)^-200 && return 0
+    abs(imag(w)) > abs(w) * big(2.0)^-200 && return nothing
+    Int(sign(real(w)))
 end
 
 # the sides of a relation as one expression compared with zero. Only for relations: a

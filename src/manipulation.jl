@@ -385,6 +385,10 @@ function _subs_pow(b::Sym, q::Sym, K::Sym, w::Sym)
     n = q / P
     if n.kind == NUMBER
         isinteger(n) && !iszero(n) || return nothing
+        # (b itself is no power of the target: x with 1/x => w stays x, as in SymPy; a
+        # value put in, x for 1/x, was taken back as 1/x, subs(x + 1/x, 1/x => x) = 2/x;
+        # SymPy #10175)
+        _isone(q) && n.num < N0 && return nothing
         return pow(w, n)
     end
     # an exponent with terms: n from the first term of P, the rest without P's terms

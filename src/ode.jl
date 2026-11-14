@@ -36,6 +36,36 @@ function _ode_drop_factors(eq::Relation, yx::Sym)
     keep[1][1] ~ 0
 end
 
+# the factors with y in them of g = 0, when there are two or more (each once), else nothing
+function _ode_y_factors(eq::Relation, yx::Sym)
+    g = eq.lhs - eq.rhs
+    f = g.kind == MUL ? g : (try factor(g) catch err; err isa InterruptException && rethrow(); g end)
+    f.kind == MUL || return nothing
+    fs = [b for (b, q) in zip(f.args, f.exps) if has(b, yx) && q.kind == NUMBER && q.num > N0]
+    length(fs) >= 2 || return nothing
+    # (a factor's own power of y, y·y″, is a factor; one that is a power of a call of
+    # another function is left to the methods)
+    fs
+end
+
+# the solutions of each factor = 0: a vector of equations, those of one factor first
+function _dsolve_factors(fs::Vector{Sym}, yx::Sym)
+    out = Relation[]
+    for b in fs
+        rs = if _hasfn(b, :Derivative)
+            dsolve(b ~ 0, yx)
+        else                                     # no derivative: y itself, y = value
+            vs = solve(b ~ 0, yx)
+            vs isa AbstractVector && !(vs isa Cases) || throw(ArgumentError("dsolve: no method for the factor $b = 0"))
+            [yx ~ v for v in vs]
+        end
+        for r in (rs isa AbstractVector ? rs : [rs])
+            any(q -> q == r, out) || push!(out, r)
+        end
+    end
+    out
+end
+
 """
     SymJ.dsolve(eq, y(x), ics...; assume = nothing)
 
@@ -44,7 +74,8 @@ function `y(x)`. Derivatives are written `diff(y(x), x)` or `y'(x)`. The result 
 equation: `y(x) ~ S` with constants `C1, C2, …` (one for each order), or an implicit
 solution `φ(x, y(x)) ~ C1` when `y` cannot be solved for. An implicit solution quadratic
 in `y` gives a vector, one equation for each branch: `y'(x) ~ (1 - x)/y(x)` gives
-`y(x) ~ ±sqrt(C1 + 2x - x^2)`.
+`y(x) ~ ±sqrt(C1 + 2x - x^2)`. An equation that factors, with `y` in two or more factors
+(`y'(x) (y''(x) + 1) ~ 0`), gives the solutions of each factor, a vector of equations.
 
 Initial conditions are pairs, one for each order: `y(0) => 1, y'(0) => 0`. They fix the
 constants.
@@ -113,6 +144,12 @@ function dsolve(eq::Relation, yx::Sym, ics::Pair...; series::Union{Nothing,Integ
     assume === nothing || return with(() -> dsolve(eq, yx, ics...; series, x0, method), _ASSUMING => _assumptions(assume))
     method in (:auto, :laplace) || throw(ArgumentError("dsolve: method is :auto or :laplace, not $method"))
     eq = _ode_drop_factors(eq, yx)
+    # several factors with y in them: each factor's solutions (φ′(M + c φ″) = 0 lost φ = C
+    # to a method dividing by φ′; SymPy #10043)
+    if isempty(ics) && series === nothing && method === :auto
+        fs = _ode_y_factors(eq, yx)
+        fs === nothing || return _dsolve_factors(fs, yx)
+    end
     P = _ode_parse(eq, yx)
     Cs = _ode_constants(P.n, eq)
     series === nothing || return yx ~ _ode_series(P, Cs, series, x0, [_ode_ic(p, P) for p in ics])
