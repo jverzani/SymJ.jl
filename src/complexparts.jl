@@ -51,6 +51,20 @@ function _const_parts(e::Sym)
             p === nothing && return nothing
             return (exp(p[1]) * cos(p[2]), exp(p[1]) * sin(p[2]))
         end
+        # √(a + ci), c ≠ 0: √((r + a)/2) + i sign(c) √((r - a)/2), r = |a + ci| (real(√(1 + i))
+        # was left; SymPy #7689, #7582)
+        if _eq(q, HALF) && has(b, IM)
+            pb = _const_parts(b)
+            if pb !== nothing && !iszero(expand(pb[2]))
+                sc = Base.inferencebarrier(_csign)(pb[2])
+                if sc isa Integer && sc != 0
+                    a, c = expand(pb[1]), expand(pb[2])
+                    sq = Base.inferencebarrier(sqrt)
+                    r = sq(expand(a^2 + c^2))
+                    return (sq((r + a) / 2), sc * sq((r - a) / 2))
+                end
+            end
+        end
         # b^q, q not an integer, b negative or complex or q complex: exp(q log b) with log b
         # in parts (i^i = e^(-π/2), √i = e^(iπ/4); SymPy #16348)
         if !(q.kind == NUMBER && isexact(q.num) && isone(_denominator(q.num))) &&
