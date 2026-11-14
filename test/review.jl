@@ -1574,3 +1574,40 @@ end
     r = subs(SymJ.piecewise(y ≫ 2.35 => y - 1.65, true => 7), y => 2.5 * x^(-0.625))
     @test N(subs(r, x => 1)) ≈ 0.85
 end
+
+@testset "missing cases (SymPy review, round 16)" begin
+    @syms x n k
+    i = Sym(im)
+    # whole-number floats are integers to nsimplify (#8239)
+    @test SymJ.nsimplify(200000.0) == 200000
+    @test SymJ.nsimplify(12345678.0) == 12345678
+    # harmonic numbers at non-integers (#7443)
+    @test N(SymJ.harmonic(Sym(3 // 2))) ≈ 1.2803723055467760
+    @test N(SymJ.harmonic(Sym(3 // 2), 2)) ≈ 1.1545763107479925
+    # a part below Float64's resolution dropped when real or imaginary by proof (#7725)
+    @test N(exp(2 * Sym(π) * im - Sym(1) // 10)) isa Real
+    @test real(N(exp(Sym(π) * im / 2 + Sym(1) // 10))) == 0
+    # mod under assumptions (#8581, #8486, #8531, #8677)
+    @test refine(mod(n, 3) ≧ 0; assume = (n ∈ ℤ,)) === true
+    @test refine(mod(k, 3) ≪ 3; assume = (k ∈ ℤ,)) === true
+    @test refine(floor(mod(k, 3)); assume = (k ∈ ℤ,)) == mod(k, 3)
+    @test refine(mod(factorial(n), n); assume = (n ∈ ℤ, n ≫ 0)) == 0
+    @test refine(mod(factorial(n), n + 1); assume = (n ∈ ℤ, n ≫ 0)) == mod(factorial(n), n + 1)
+    # sums: 0^n terms (#8414), a zero first term (#8254)
+    @test SymJ.summation(Sym(0)^n, n, 1, Inf) == 0
+    @test SymJ.summation(Sym(0)^n, n, 0, Inf) == 1
+    @test SymJ.summation(n * 2^n / factorial(n), n, 0, Inf) == 2exp(Sym(2))
+    # complex floating point matrices (#8639)
+    LA = SymJ.LinearAlgebra
+    M = Sym[Sym(1.0 + 1.0im) Sym(2.0 + 2.0im); Sym(1.0) Sym(2.0)]
+    @test LA.rank(M) == 1
+    @test size(LA.nullspace(M), 2) == 1
+    # (u^p)^q = u^(pq) for -1 < p ≤ 1 (#8591)
+    @test sqrt(sqrt(x)) == x^(Sym(1) // 4)
+    @test sqrt(x^2) != x
+    @test solve(sqrt(sqrt(x))^2 + sqrt(sqrt(x)) - 2 ~ 0, x) == [1]
+    # the parts of √(a + ci) (#7689)
+    @test real(sqrt(3 - 4i)) == 2
+    @test imag(sqrt(3 - 4i)) == -1
+    @test N(real(sqrt(1 + i))) ≈ 1.0986841134678098
+end

@@ -913,6 +913,16 @@ function N(ex::Sym)
         end
         r isa Real && return r
     end
+    # a part far below Float64's resolution beside the other, left by the high-precision
+    # check, dropped when the value is real (imaginary) by proof: exp(2πi - 1/10) was
+    # 0.905 - 2e-77im (SymPy #7725)
+    if isfinite(z) && !iszero(imag(z)) && !iszero(real(z))
+        if abs(imag(z)) <= 1e-30 * abs(z) && _isreal_const(ex) === true
+            return real(z)
+        elseif abs(real(z)) <= 1e-30 * abs(z) && _isreal_const(Base.inferencebarrier(mul)(IM, ex)) === true
+            return complex(0.0, imag(z))
+        end
+    end
     iszero(imag(z)) ? real(z) : z
 end
 N(x::Number) = x

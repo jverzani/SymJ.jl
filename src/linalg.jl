@@ -95,6 +95,12 @@ _isalgebraic_atom(a::Sym) = a.kind == POW && a.args[2].kind == NUMBER && isexact
 function _field_matrix(A::AbstractMatrix)
     S = Sym[Sym(a) for a in A]
     all(e -> e.kind == NUMBER, S) && return map(e -> e.num, S), Sym      # floating point too
+    # complex floating point numbers and no symbols: as ComplexF64 values (1.0 + 1.0im, a
+    # sum, was taken for a symbolic entry and refused; SymPy #8639)
+    if !any(_hassymbol, S) && any(e -> !_isexactex(e), S)
+        vs = try map(e -> ComplexF64(N(e)), S) catch err; err isa Union{ArgumentError,InexactError,MethodError} || rethrow(); nothing end
+        vs === nothing || return vs, (a -> (z = ComplexF64(a); iszero(imag(z)) ? Sym(real(z)) : Sym(z)))
+    end
     # floating point numbers with symbols: over the rationals they stand for, the
     # results' numbers floats again (inv([x-0.3 -0.06; -0.2 x-0.5]); SymPy #26271)
     if any(e -> !_isexactex(e), S) && any(_hassymbol, S)
