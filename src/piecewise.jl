@@ -259,7 +259,15 @@ function piecewise(ex::Sym)
     isempty(ex.args) && return ex
     # a product's exponents too: cos(2x) exp(-|x|) has |x| in an exponent (it reached the
     # integrator; SymPy #8849)
-    ex.kind == MUL && return Sym(ex.num) * prod((piecewise(b)^piecewise(p) for (b, p) in zip(ex.args, ex.exps)); init = ONE)
+    # (a plain loop: the recursive generator under prod made compiling the RischIntegrate
+    # extension take over an hour with code coverage on macOS and Windows)
+    if ex.kind == MUL
+        r = Sym(ex.num)
+        for i in eachindex(ex.args)
+            r = r * piecewise(ex.args[i])^piecewise(ex.exps[i])
+        end
+        return r
+    end
     e = _rebuild_node(ex, Sym[piecewise(a) for a in ex.args])
     e.kind == FN || return e
     a = isempty(e.args) ? ZERO : e.args[1]
