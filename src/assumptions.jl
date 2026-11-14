@@ -642,6 +642,12 @@ _mneg(m::UInt8) = (m & _NEG == 0 ? 0x00 : _POS) | (m & _ZER) | (m & _POS == 0 ? 
 function _csign(k::Sym)::Union{Nothing,Int}
     k.kind == NUMBER && return Int(sign(k.num))
     v = try _evalc(k) catch; return nothing end
+    # past Float64's range (5 - exp(1000)): its sign at 256 bits (SymPy #10268)
+    if !isfinite(v)
+        w = _bigvalue(k, 256)
+        (w === nothing || !isfinite(w) || abs(imag(w)) > abs(w) * big(2.0)^-200) && return nothing
+        return Int(sign(real(w)))
+    end
     scale = max(1.0, abs(v))
     abs(imag(v)) > 1e-12 * scale && return nothing
     _isreal_const(k) === true || return nothing        # (a tiny imaginary part is not 0)

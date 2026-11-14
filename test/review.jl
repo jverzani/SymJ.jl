@@ -1390,3 +1390,47 @@ end
     # asech, acsch series at 0 (#10885)
     @test string(series(asech(x), x, 0, 6)) == "log(2) - log(x) - x^2/4 - 3*x^4/32 + O(x^6)"
 end
+
+@testset "wrong answers (SymPy review, round 15)" begin
+    @syms x y z k t M m r
+    # constants compared past Float64's range (#10268)
+    @test (Sym(5) ≪ exp(Sym(1000)))() === true
+    @test (Sym(5) ~ exp(Sym(1000)))() === false
+    @test (exp(Sym(-1000)) ≫ 0)() === true
+    @test (exp(Sym(-30)) ≫ 0)() === true
+    @test simplify(Sym(5) ≪ exp(Sym(1000))) === true
+    # inequalities with breakpoints beyond Float64's precision (#10268)
+    @test string(solve(x ≪ exp(Sym(50)), x)) == "(-∞, exp(50))"
+    @test string(solve(x ≫ exp(Sym(800)), x)) == "(exp(800), ∞)"
+    @test string(solve(log(x) ≪ 1000, x)) == "(0, exp(1000))"
+    @test exp(Sym(50)) + 1 in solve(x ≫ exp(Sym(50)), x)
+    # ±∞ are no members of real intervals (#10326)
+    @test !(Sym(Inf) in solve(x ≧ 0, x))
+    @test !(Sym(-Inf) in solve(x^2 ≧ 0, x))
+    # a zero pivot by sin² + cos² = 1 (#10120)
+    A = Sym[1 1; 1 sin(x)^2 + cos(x)^2]
+    @test SymJ.rref(A) == Sym[1 1; 0 0]
+    @test SymJ.LinearAlgebra.rank(A) == 1
+    @test_throws SymJ.LinearAlgebra.SingularException inv(A)
+    @test solve([x + y ~ 1, x + (sin(z)^2 + cos(z)^2) * y ~ 1], [x, y]) == [Dict(x => 1 - y, y => y)]
+    # poles of either side, though they cancel in the difference (#9522)
+    @test isempty(solve(1 / (x^2 - 4) + x ~ 1 / (x^2 - 4) + 2, x))
+    @test isempty(solve(1 / x + x ~ 1 / x, x))
+    # a reciprocal target leaves x itself alone (#10175)
+    @test subs(x + 1 / x, 1 / x => x) == 2x
+    # an exact constant to an infinite power: exact 0 (#10095)
+    @test SymJ.isexact(((1 / (2 * SymJ.E))^Sym(Inf)).num)
+    @test (1 / (2 * SymJ.E))^Sym(Inf) == 0
+    @test (Sym(π) / 4)^Sym(Inf) == 0
+    # real roots in complex radicals: no rounding-level imaginary parts (#9691)
+    @test all(r -> SymJ._isreal(r, SymJ.Assumptions()) === true, solve(cos(x)^2 + sin(2x + PI) ~ tan(1), x))
+    # symmetry by value (#9478)
+    B = Sym[im 1+im 2im; -1+im 5im 3; 2im -3 0]
+    @test SymJ.LinearAlgebra.ishermitian(im * B)
+    @test SymJ.LinearAlgebra.issymmetric(Sym[1 x*(x+1); x^2+x 2])
+    # each factor of a factored ODE solved (#10043)
+    φ = SymFunction(:φ)
+    sols = SymJ.dsolve(-M * diff(φ(t), t) ~ Sym(3) // 2 * m * r^2 * diff(φ(t), t) * diff(φ(t), t, 2), φ(t))
+    @test any(s -> s == (φ(t) ~ Sym(:C1)), sols)
+    @test length(sols) == 2
+end

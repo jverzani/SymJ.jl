@@ -276,7 +276,9 @@ function _solve_eq(eq::Relation, x::Sym)
     else
         exact ? _solve_exact(n, x, atoms) : _solve_inexact(n, x)
     end
-    _sort_roots!(unique(_in_domain(roots, eq.lhs - eq.rhs, x)))
+    # (each side's points: lhs - rhs may have cancelled them, 1/(x² - 4) + x = 1/(x² - 4) + 2
+    # gave the pole x = 2; SymPy #9522)
+    _sort_roots!(unique(_in_domain(_in_domain(roots, eq.lhs, x), eq.rhs, x)))
 end
 
 _recip_trig_sincos(ex::Sym, x::Sym) = _replace_walk(ex) do e
@@ -300,6 +302,11 @@ function _floatify(e::Sym)
     f(c::SymNumber) = isexact(c) ? SymNumber(Float64(c)) : c
     if !_hassymbol(e) && e.kind != NUMBER       # a constant: its value (π/6, exp(350/3))
         v = try N(e) catch; nothing end
+        # (a real root in complex radicals: its imaginary part of rounding size dropped,
+        # not left as 1e-77im; SymPy #9691)
+        if v isa Complex && isfinite(v) && abs(imag(v)) <= 1e-12 * abs(v) && _isreal_const(e) === true
+            v = real(v)
+        end
         v isa Number && isfinite(v) && return Sym(v)
     end
     k = e.kind

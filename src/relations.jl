@@ -159,7 +159,45 @@ function _decide(r::Relation)
     v isa Real || return r.op === :eq ? false : r.op === :ne ? true :
         throw(ArgumentError("$r: the sides do not compare as real numbers"))
     scale = max(1.0, abs(N(r.lhs)), abs(N(r.rhs)))
-    abs(v) <= 1e-12 * scale ? cmp(0, 0) : cmp(v, 0)
+    if isfinite(v) && isfinite(scale) && abs(v) > 1e-12 * scale
+        return cmp(v, 0)
+    end
+    # past Float64's range, or equal to its precision: the sides at 256 bits, relative to
+    # their own size (5 < exp(1000) was false, overflowing to -Inf; exp(-1000) > 0 false,
+    # underflowing to 0; SymPy #10268)
+    w = _decide_big(r)
+    w === nothing || return cmp(w, 0)
+    isfinite(v) || throw(ArgumentError("$r: the sides could not be compared numerically"))
+    cmp(0, 0)
+end
+
+# sign of lhs - rhs at 256 bits (0 when equal to that precision, relative to the larger
+# side's size: a sum by its terms, whose cancellation leaves rounding of their size;
+# (x + 1)^3 - 2 expanded at x = 2^(1/3) - 1 is -1.3e-77 on Julia 1.10); nothing when a
+# side has no such value
+function _decide_big(r::Relation)
+    L, R = _bigvalue(r.lhs, 256), _bigvalue(r.rhs, 256)
+    (L === nothing || R === nothing || !isfinite(L) || !isfinite(R)) && return nothing
+    s = max(_bigsize(r.lhs, L), _bigsize(r.rhs, R))
+    iszero(s) && return 0
+    w = L - R
+    abs(w) <= s * big(2.0)^-200 && return 0
+    abs(imag(w)) > abs(w) * big(2.0)^-200 && return nothing
+    Int(sign(real(w)))
+end
+
+# |value| of e at 256 bits, a sum's constant and terms in absolute value added (v: its value)
+function _bigsize(e::Sym, v)
+    e.kind == ADD || return abs(v)
+    sz(x) = (w = _bigvalue(x, 256); w === nothing || !isfinite(w) ? nothing : abs(w))
+    s = sz(Sym(e.num))
+    s === nothing && return abs(v)
+    for (t, c) in zip(e.args, e.exps)
+        a, w = sz(Sym(c)), sz(t)
+        (a === nothing || w === nothing) && return abs(v)
+        s += a * w
+    end
+    max(s, abs(v))
 end
 
 # the sides of a relation as one expression compared with zero. Only for relations: a

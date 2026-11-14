@@ -298,8 +298,9 @@ end
 function _adjugate_inv(P::Matrix)
     n = size(P, 1)
     D = n == 1 ? P[1, 1] : _bareiss_det(P)
-    iszero(D) && throw(LinearAlgebra.SingularException(n))
     Ds = Sym(D)
+    # (0 by sin² + cos² = 1 too: inv divided by sin²x + cos²x - 1; SymPy #10120)
+    (iszero(D) || !_circ_nonzero(Ds)) && throw(LinearAlgebra.SingularException(n))
     n == 1 && return Sym[1 / Ds;;]
     red = _QuotientReducer(D)
     R = Matrix{Sym}(undef, n, n)
@@ -361,6 +362,8 @@ function _cramer_sym(M::AbstractMatrix, n::Int)
         Ds = expand(Sym(D))
         # (radicals: zero once they are merged, √6√11 - √2√33)
         (iszero(Ds) || (_has_algebraic(Ds) && iszero(_algnorm(Ds)))) && return nothing
+        # (0 by sin² + cos² = 1: no unique solution; SymPy #10120)
+        _circ_nonzero(Ds) || return nothing
         (_cramer(P, n, D), Ds)
     end
 end
@@ -436,9 +439,11 @@ function _pivot_ok(x, back)
     iszero(x) && return false
     x isa SymNumber && return true
     e = back(x)
-    e isa Sym && _has_fn(e, _CIRCFNS) || return true
-    !iszero(simplify(e))
+    e isa Sym || return true
+    _circ_nonzero(e)
 end
+# false when e, with trigonometric or hyperbolic functions, is 0 by their identities
+_circ_nonzero(e::Sym) = !_has_fn(e, _CIRCFNS) || !iszero(simplify(e))
 
 function _inv_field(A::AbstractMatrix{Sym})
     n = _square(A)
@@ -600,8 +605,15 @@ function _rref_field(A::AbstractMatrix)
                 continue
             end
         else
-            p = findfirst(i -> !iszero(M[i, c]), r:m)
-            p === nothing && continue
+            # (not 0 by trigonometric identities either: rref of [1 1; 1 sin²+cos²] was
+            # the identity; SymPy #10120)
+            p = findfirst(i -> _pivot_ok(M[i, c], back), r:m)
+            if p === nothing
+                for i in r:m
+                    M[i, c] = zero(M[i, c])
+                end
+                continue
+            end
             p += r - 1
         end
         p != r && ((M[r, :], M[p, :]) = (M[p, :], M[r, :]))
@@ -1683,3 +1695,18 @@ function LinearAlgebra.isposdef(A::AbstractMatrix{Sym})
     true
 end
 LinearAlgebra.isposdef(A::LinearAlgebra.Hermitian{Sym}) = LinearAlgebra.isposdef(Matrix(A))
+
+# symmetry by value, not by form: im*(im + 1) and its conjugate's adjoint -1 + im are
+# one number, so ishermitian(im*A) for an anti-Hermitian A was false (== is structural;
+# SymPy #9478). Entries equal when their difference expands (or cancels) to 0.
+_sym_same(a::Sym, b::Sym) = a == b || iszero(expand(a - b)) || iszero(cancel(a - b))
+function LinearAlgebra.ishermitian(A::AbstractMatrix{Sym})
+    m, n = size(A)
+    m == n || return false
+    all(_sym_same(A[i, j], conj(A[j, i])) for j in 1:n for i in j:n)
+end
+function LinearAlgebra.issymmetric(A::AbstractMatrix{Sym})
+    m, n = size(A)
+    m == n || return false
+    all(_sym_same(A[i, j], A[j, i]) for j in 1:n for i in (j + 1):n)
+end

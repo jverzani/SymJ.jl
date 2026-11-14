@@ -739,6 +739,13 @@ import PolyLog as PL
         @test RischIntegrate.integrate(x^2 * (-log(x))^3, (x, 0, 1)) == Sym(2) // 27
     end
 
+    @testset "wrong answers (SymPy review, round 15)" begin
+        @syms x d k
+        # a pole at an end by the facts: ±∞, not F(1) - F(0) with log 0 in it (#9753)
+        @test RischIntegrate.integrate(1 / (d - k * x), (x, 0, 1); assume = (d ~ k, k ≫ 0)) == Sym(Inf)
+        @test RischIntegrate.integrate(1 / (d - k * x), (x, 0, 1); assume = (d ~ k, k ≪ 0)) == Sym(-Inf)
+    end
+
     @testset "Borwein integrals: a large antiderivative only refined" begin
         # (RischIntegrate's step TX, from its #130, gives the antiderivatives quickly;
         # before it, k = 7 runs for an hour, so the tests are skipped)
