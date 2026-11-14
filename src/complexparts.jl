@@ -28,18 +28,22 @@ function _const_parts(e::Sym)
         for (c, t) in zip(e.coefs, e.args)
             p = _const_parts(t)
             p === nothing && return nothing
-            re += Sym(c) * p[1]
-            im += Sym(c) * p[2]
+            # (a zero part stays zero under an infinite coefficient: 1 + i ∞; SymPy #8080)
+            iszero(p[1]) || (re += Sym(c) * p[1])
+            iszero(p[2]) || (im += Sym(c) * p[2])
         end
         return (re, im)
     elseif k == MUL
-        re, im = Sym(e.num), ZERO
+        re, im = ONE, ZERO
         for (b, q) in zip(e.args, e.exps)
             p = _const_parts(b^q)
             p === nothing && return nothing
             re, im = expand(re * p[1] - im * p[2]), expand(re * p[2] + im * p[1])
         end
-        return (re, im)
+        # the coefficient last, a zero part left zero (i ∞ is 0 + i ∞, not NaN + i ∞; its abs
+        # was NaN; SymPy #8080)
+        c = Sym(e.num)
+        return (iszero(re) ? ZERO : c * re, iszero(im) ? ZERO : c * im)
     elseif k == POW
         b, q = e.args
         if _eq(b, E)                                        # exp(a + b im)

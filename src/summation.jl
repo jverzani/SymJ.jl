@@ -143,6 +143,12 @@ function summation(f, k::Sym, a, b; assume = nothing)
         end
     end
     r = _summation(f, k, a, bs, assume)
+    # NaN over an infinite range, ∞ - ∞ of divergent parts: divergence by the summand's
+    # behaviour at ∞ (Σ n²/(n + 1)² was NaN; SymPy #8251)
+    if bs === nothing && r isa Sym && r.kind == NUMBER && isfloat(r.num) && isnan(Float64(r.num))
+        d = _divergence_at_infinity(f, k, assume)
+        d === nothing || return d
+    end
     # an infinite series from a small positive integer left unevaluated: from 0, less the
     # first terms (Σ_{k≥1} 2^k/k! = e² - 1; SymPy #20464)
     if bs === nothing && r isa Sym && _hasfn(r, :Sum) && a.kind == NUMBER && _isint(a.num) && N1 <= a.num <= SymNumber(20)
@@ -546,7 +552,9 @@ function _binomial_theorem(f::Sym, k::Sym, n::Sym)
     fs = f.kind == MUL ? [(b^p) for (b, p) in zip(f.args, f.exps)] : [f]
     i = findfirst(u -> u.kind == FN && u.name === :binomial && _eq(u.args[1], n) && _eq(u.args[2], k), fs)
     i === nothing && return nothing
-    rest = cancel(f / fs[i])
+    # the other factors as a product (cancel expanded (-1)^k (n - k)^4 into a sum, which
+    # is no polynomial times r^k to _poly_geometric; the sum fell through to 0; SymPy #8077)
+    rest = (f.kind == MUL ? Sym(f.num) : ONE) * prod((fs[j] for j in eachindex(fs) if j != i); init = ONE)
     g = has(rest, k) ? _poly_geometric(rest, k) : (rest, ONE)
     g === nothing && return nothing
     p, x = g

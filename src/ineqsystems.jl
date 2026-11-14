@@ -69,7 +69,14 @@ function _solve_ineq_1(eqs, x::Sym)
             pts = _real_roots(_solve_eq(r, x))
             _set_from(pts, (v, atpoint) -> atpoint && any(p -> p == v, pts))
         else
-            _solve_eq(r, x)
+            # (floats: solve's retry with the rationals they stand for; [x ≥ 1.5] was refused
+            # though x ≥ 1.5 alone is solved; SymPy #8040, #7982)
+            try
+                _solve_eq(r, x)
+            catch err
+                (err isa ArgumentError && occursin("inexact coefficients", err.msg)) || rethrow()
+                solve(r, x)
+            end
         end
         S = S ∩ T
     end

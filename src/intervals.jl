@@ -165,7 +165,28 @@ Base.show(io::IO, ::MIME"text/plain", S::SymSet) = show(io, S)
 # the real values among roots (exact)
 _real_roots(rs) = filter(r -> (v = try _evalc(r) catch; return false end; abs(imag(v)) <= 1e-10 * max(1, abs(v))), rs)
 
+# the set, less the poles of each side: lhs - rhs may cancel them (x + 1/x > 1/x - 2
+# gave (-2, ∞), x = 0 in it; SymPy #8715), as for equations (#9522)
 function _solve_inequality(r::Relation, x::Sym)
+    S = _solve_inequality0(r, x)
+    S isa SymSet || return S
+    poles = Sym[]
+    for side in (r.lhs, r.rhs)
+        has(side, x) || continue
+        d = try numer_denom(cancel(side))[2] catch err; err isa ArgumentError || rethrow(); continue end
+        has(d, x) || continue
+        P = try Poly{Sym}(d, [x]) catch; continue end
+        rs = try _solve_eq(d ~ 0, x) catch err; err isa Union{ArgumentError,DivisionByZero} || rethrow(); continue end
+        rs isa AbstractVector || continue
+        for p in rs
+            (p isa Sym && _isreal_const(p) === true && p in S && !any(q -> _eq(q, p), poles)) && push!(poles, p)
+        end
+    end
+    isempty(poles) && return S
+    S ∩ _set_from(poles, (v, pt) -> !pt)
+end
+
+function _solve_inequality0(r::Relation, x::Sym)
     S = _inequality_with_infinity(r, x)
     S === nothing || return S
     e = r.lhs - r.rhs
@@ -217,6 +238,10 @@ function _solve_inequality(r::Relation, x::Sym)
     rc = Relation(r.op, n / d, ZERO)            # what is evaluated: free of what cancel removed
     _set_from(vcat(zs, ps), (v, atpoint) -> begin
         atpoint && pole(v) && return false
+        # a root of the numerator is a zero by construction: in the set exactly when the
+        # relation is not strict (2cos(5π/9) of x³ - 3x - 1 evaluated not quite 0 and was
+        # taken for x > 0; SymPy #8518)
+        atpoint && v isa Sym && any(z -> _eq(z, v), zs) && return r.op in (:le, :ge)
         w = v isa Sym ? v : Sym(v)
         val = rc(x => w)
         val isa Bool ? val : false
