@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Differential equations — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=9a5f4d3c">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=c3453fd5">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Differential equations — SymJ.jl">
   <meta property="og:title" content="Differential equations — SymJ.jl">
@@ -74,7 +74,7 @@
 <div class="md-docstring" id="SymJ.dsolve-Tuple{Relation, Sym, Vararg{Pair}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.dsolve</code> — <span class="md-docstring-sig">Tuple{Relation, Sym, Vararg{Pair}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/3231ff4e33d34dad9f424d05a5d4ec03f067958b/src/ode.jl#L69-L143" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/720d6c85e4ad77a6e3c2b904174dcece03a76e58/src/ode.jl#L69-L144" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -87,7 +87,7 @@
 <p>An autonomous equation <code class="md-code-inline">y&#39;&#39; = f(y, y&#39;)</code> whose <code class="md-code-inline">y&#39;</code> has several branches (<code class="md-code-inline">y&#39; = ±sqrt(…)</code>, as for <code class="md-code-inline">y&#39;&#39; = -sin(y)</code>) gives a vector of solutions, one for each branch; with initial conditions, the branch through them (<code class="md-code-inline">∫ᵥʸ dy/y&#39; = x - a</code>, a definite <code class="md-code-inline">Integral(f, (y, v, y(x)))</code>, when the integral has no closed form).</p>
 <p>With <code class="md-code-inline">method = :laplace</code>, a linear equation with constant coefficients is solved by Laplace transforms (<a href="../../reference/calculus/#SymJ.laplace_transform-Tuple{Any, Sym, Sym}"><code class="md-code-inline">SymJ.laplace_transform</code></a>); this is the method used, without asking, when the right side has <a href="../../reference/piecewise/#SymJ.heaviside-Tuple{Any}"><code class="md-code-inline">SymJ.heaviside</code></a> or <a href="../../reference/piecewise/#SymJ.dirac-Tuple{Any}"><code class="md-code-inline">SymJ.dirac</code></a>. The initial conditions (constants for those not given) are at one point, and the solution holds from there on.</p>
 <p>With <code class="md-code-inline">series = n</code>, the solution is a series about <code class="md-code-inline">x0</code> (the point of the initial conditions, else <code class="md-code-inline">0</code>) with error <code class="md-code-inline">O((x - x0)^n)</code>, returned as the truncated sum. At an ordinary point it is the Taylor series, for any equation that can be solved for its highest derivative, nonlinear ones included; a linear one is grouped by constant, <code class="md-code-inline">C1*(…) + C2*(…)</code>. At a regular singular point of a second-order linear homogeneous equation it is the Frobenius series, with a <code class="md-code-inline">log</code> term when the indicial roots are equal or an integer apart.</p>
-<p>Methods: first order linear, separable, Bernoulli, exact (with an integrating factor in <code class="md-code-inline">x</code> or <code class="md-code-inline">y</code> alone), homogeneous, Riccati; linear with constant coefficients, of any order (undetermined coefficients, else variation of parameters, for the right side); Cauchy–Euler; equations without <code class="md-code-inline">y</code> (reduced to a lower order); second order without <code class="md-code-inline">x</code> (autonomous: <code class="md-code-inline">p = y&#39;</code> as a function of <code class="md-code-inline">y</code>). Integrals are done by the RischIntegrate extension when it is loaded (an unevaluated <code class="md-code-inline">Integral</code> otherwise, or when there is no elementary antiderivative).</p>
+<p>Methods: first order linear, separable, Bernoulli, exact (with an integrating factor in <code class="md-code-inline">x</code> or <code class="md-code-inline">y</code> alone), homogeneous, Riccati; linear with constant coefficients, of any order (undetermined coefficients, else variation of parameters, for the right side); Cauchy–Euler; Bessel&#39;s equation <code class="md-code-inline">x²y&#39;&#39; + xy&#39; + (α²x² - ν²)y = 0</code> (<code class="md-code-inline">C1 besselj(ν, αx) + C2 bessely(ν, αx)</code>); equations without <code class="md-code-inline">y</code> (reduced to a lower order); second order without <code class="md-code-inline">x</code> (autonomous: <code class="md-code-inline">p = y&#39;</code> as a function of <code class="md-code-inline">y</code>). Integrals are done by the RischIntegrate extension when it is loaded (an unevaluated <code class="md-code-inline">Integral</code> otherwise, or when there is no elementary antiderivative).</p>
 <p>Not exported.</p>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -130,6 +130,6 @@ SymJ.dsolve([u&#39;(t) ~ v(t), v&#39;(t) ~ -u(t)], [u(t), v(t)], u(0) =&gt; 1, v
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=9a5f4d3c"></script>
+  <script src="../../assets/materialdocs.js?v=c3453fd5"></script>
 </body>
 </html>
