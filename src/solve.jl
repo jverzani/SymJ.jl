@@ -124,7 +124,12 @@ function _solve_floats_exactly(eq::Relation, x::Sym, assume)
     (_eq(e2.lhs, eq.lhs) && _eq(e2.rhs, eq.rhs)) && return nothing
     r = try solve(e2, x; assume) catch err; err isa ArgumentError || rethrow(); return nothing end
     num(v) = v isa Sym ? (_hassymbol(v) ? _floatify(v) : (w = N(v); w isa Number ? Sym(w) : v)) : v
-    r isa Cases && return _map_cases(vs -> vs isa AbstractVector ? map(num, vs) : vs, r)
+    # (an inequality's set: its ends as numbers again, 1.5x > 1 is (0.667, ∞); decided
+    # 2026-11-14, floats converted and retried everywhere)
+    end_(v) = v === nothing ? nothing : num(v)
+    set(S) = SymSet([SymInterval(end_(I.lo), end_(I.hi), I.lclosed, I.rclosed) for I in S.intervals], S.var)
+    r isa SymSet && return set(r)
+    r isa Cases && return _map_cases(vs -> vs isa AbstractVector ? map(num, vs) : vs isa SymSet ? set(vs) : vs, r)
     r isa AbstractVector ? map(num, r) : nothing
 end
 
