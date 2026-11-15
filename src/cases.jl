@@ -361,6 +361,18 @@ function _simplify_conds(conds, A::Assumptions)
     out
 end
 
+# do the assumptions B allow the decided facts d? An order relation decided false (or
+# true) is checked once its symbols are known real; others are taken as consistent
+function _decisions_consistent(B::Assumptions, d::Dict{Any,Bool})
+    for (f, v) in d
+        f isa Relation && f.op in (:lt, :le, :gt, :ge) || continue
+        all(s -> _ismarkedreal(B, s), _named(f.lhs - f.rhs)) || continue
+        h = _holds(f, B)
+        h === nothing || h == v || return false
+    end
+    true
+end
+
 function _case_tree(run, A::Assumptions, decided::Dict{Any,Bool}, count::Ref{Int})
     need = try
         v = with(() -> run(A), _DECIDED => decided)
@@ -413,6 +425,10 @@ function _case_tree(run, A::Assumptions, decided::Dict{Any,Bool}, count::Ref{Int
         d2 = copy(decided); d2[f] = d2[g] = false
         push!(branches, _NotFact(g) => (A, d2))
     end
+    # a branch whose earlier decisions its facts now contradict (not y ≥ 0, then y > 0,
+    # which makes y real: impossible) is dropped (SymPy #6060)
+    filter!(((cond, (B, d)),) -> _decisions_consistent(B, d), branches)
+    isempty(branches) && return Pair{Any,Any}[]
     kids = [cond => _case_tree(run, B, d, count) for (cond, (B, d)) in branches]
     _merge_cases(kids)
 end

@@ -210,6 +210,32 @@ import PolyLog as PL
     @testset "RischIntegrate: definite integrals" begin
         ∫ = RischIntegrate.integrate
         Inf_ = Sym(Inf)
+        # Fourier-type integrals by residues (SymPy #6136, #6348); a Gaussian e^(-i t k²)
+        # with t > 0 (SymPy #6123)
+        let k = Sym(:k), a = Sym(:a), t = Sym(:t)
+            @test ∫(exp(SymJ.IM * k) / (k^2 + 1), (k, -Inf, Inf)) == PI / E
+            @test ∫(cos(x) / (1 + x^2), (x, -Inf, Inf)) == PI / E
+            @test ∫(x * sin(x) / (1 + x^2), (x, -Inf, Inf)) == PI / E
+            @test ∫(cos(k * x) / (k^2 + a^2), (k, -Inf, Inf); assume = (a ≫ 0, x ≫ 0)) == PI * exp(-a * x) / a
+            @test N(subs(∫(exp(-SymJ.IM * t * k^2), (k, -Inf, Inf); assume = (t ≫ 0,)), t => 2)) ≈ sqrt(π / (2im))
+        end
+        # pieces whose conditions are free of x (SymPy #6747); breakpoints ±y ordered by
+        # y > 0 (SymPy #7158)
+        let y = Sym(:y)
+            @test ∫(SymJ.piecewise((y ~ 0) => 1, true => x * y), x) == SymJ.piecewise((y ~ 0) => x, true => x^2 * y / 2)
+            F = ∫(log(abs(x^2 - y^2)), x; assume = (y ≫ 0,))
+            @test N(subs(diff(F, x), x => 1, y => 3)) ≈ log(8)
+            @test N(subs(diff(F, x), x => 4, y => 3)) ≈ log(7)
+            @test N(subs(∫(log(abs(x^2 - y^2)), (x, 0, 2y); assume = (y ≫ 0,)), y => 3)) ≈ 11.0708601 rtol = 1e-6
+        end
+        # floats in the limits: a float value (SymPy #7334)
+        let t = Sym(:t)
+            @test N(∫(∫(SymJ.piecewise(x / t ≪ 0 => x^2, true => 1 + x^2), (t, 0.8, 1)), (x, -1, 1))) ≈ 1 / 3
+        end
+        # y'² = x³ by its roots (SymPy #7093)
+        let u = SymFunction(:u)
+            @test SymJ.dsolve(diff(u(x), x)^2 ~ x^3, u(x)) isa AbstractVector
+        end
         # u(x) δ(x - a), u unknown, sifted (SymPy #6968); f'g + fg' as (fg)' (SymPy #6958)
         let f = SymFunction(:f), g = SymFunction(:g), a = Sym(:a)
             @test ∫(f(x) * SymJ.dirac(x - a), (x, -Inf, Inf)) == f(a)

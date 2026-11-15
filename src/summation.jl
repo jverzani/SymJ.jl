@@ -262,6 +262,8 @@ function _summation(f::Sym, k::Sym, a::Sym, b, assume)
     # a polynomial in k as a whole (Σ(2k + 1) is (n + 1)^2, not n(n + 1) + n + 1)
     P = try Poly{Sym}(expand(f), [k]) catch; nothing end
     P === nothing || return _from_antidifference(_poly_antidifference(P, k), k, a, b, assume)
+    # Σ_{k≥a} k^s r^k: the polylogarithm Li_{-s}(r) less the first terms (SymPy #6396)
+    b === nothing && (r = _polylog_sum(f, k, a, assume)) !== nothing && return r
     # the binomial theorem, and series with known sums
     r = _known_sum(f, k, a, b, assume)
     r === nothing || return r
@@ -385,6 +387,51 @@ function _zero_pow_down(f::Sym, k::Sym)
         nothing
     end
     found
+end
+
+# Σ_{k≥a} c k^s r^k, s and r free of k, |r| < 1, a a positive integer ≤ 50: Li_{-s}(r) less
+# the terms below a; for an integer s ≥ 0 Li_{-s}(r) = (r d/dr)^s r/(1 - r). Else nothing.
+function _polylog_sum(f::Sym, k::Sym, a::Sym, assume)
+    (a.kind == NUMBER && isexact(a.num) && _isint(a.num) && N1 <= a.num <= SymNumber(50)) || return nothing
+    fs = f.kind == MUL ? collect(zip(f.args, f.exps)) : f.kind == POW ? [(f.args[1], f.args[2])] : return nothing
+    c = f.kind == MUL ? Sym(f.num) : ONE
+    sexp, r = nothing, nothing
+    for (b, e) in fs
+        if !has(b, k) && !has(e, k)
+            c *= b^e
+        elseif _eq(b, k) && !has(e, k) && sexp === nothing
+            sexp = e
+        elseif !has(b, k) && r === nothing && (q = expand(e / k); !has(q, k))
+            r = b^q
+        else
+            return nothing
+        end
+    end
+    (sexp === nothing || r === nothing) && return nothing
+    # (a negative integer s, Σ rᵏ/k = -log(1 - r): the other rules give the closed form)
+    sexp.kind == NUMBER && isexact(sexp.num) && _isint(sexp.num) && sexp.num < N0 && return nothing
+    # |r| < 1: numerically for a constant, else by the assumptions
+    if _hassymbol(r)
+        A = something(_assumptions(assume), Assumptions())
+        _holds(Relation(:lt, abs(r), ONE), A) === true || return nothing
+    else
+        v = try N(abs(r)) catch; return nothing end
+        (v isa Real && v < 1) || return nothing
+    end
+    L = if sexp.kind == NUMBER && isexact(sexp.num) && _isint(sexp.num) && sexp.num >= N0
+        w = Sym(:_w)
+        g = w / (1 - w)
+        for _ in 1:_toint(sexp.num)
+            g = cancel(w * diff(g, w))
+        end
+        subs(g, w => r)
+    else
+        apply_function(:li, Sym[-sexp, r])
+    end
+    head = _add_many(Sym[Sym(j)^sexp * r^j for j in 1:(_toint(a.num) - 1)])
+    v = c * (L - head)
+    w = try simplify(v) catch err; err isa InterruptException && rethrow(); v end
+    _nodes(w) < _nodes(v) ? w : v
 end
 
 # m for a factor binomial(m, k)^p of f (p a positive integer, m free of k) with m a

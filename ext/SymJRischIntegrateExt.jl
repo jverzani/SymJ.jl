@@ -99,7 +99,7 @@ function _indefinite(ex::Sym, x::Sym; assume = nothing, kw...)
     if Ax !== nothing && SymJ._has_fn(ex, (:real, :imag, :conj, :abs))
         ex = SymJ._refine(ex, Ax)
     end
-    SymJ._haspieces(ex, x) && return SymJ._integrate_pieces(ex, x, integ)
+    SymJ._haspieces(ex, x) && return SymJ.with(() -> SymJ._integrate_pieces(ex, x, integ), SymJ._PIECES_ASSUME => Ax)
     try
         integ(ex)
     catch err
@@ -122,7 +122,7 @@ function _indefinite(ex::Sym, x::Sym; assume = nothing, kw...)
             isequal(er, ex) && rethrow()
             return integ(er)
         end
-        SymJ._integrate_pieces(pw, x, integ)
+        SymJ.with(() -> SymJ._integrate_pieces(pw, x, integ), SymJ._PIECES_ASSUME => Ax)
     end
 end
 
@@ -203,8 +203,11 @@ function RischIntegrate.integrate(ex::Union{Sym,SymJ.Cases}, xab::Tuple, more::T
         v = SymJ._definite_integral(v, t, within(more[(i + 1):end]), antider; principal_value)
     end
     v = drop_removable_singularities ? SymJ._drop_removable(v) : v
-    # (floats in the integrand: the value's numbers floats, as for the antiderivative)
-    if ex isa Sym && !SymJ._isexactex(ex)
+    # (floats in the integrand, its cases or the limits: the value's numbers floats, as for
+    # the antiderivative; SymPy #7334)
+    inexact(w) = w isa Sym && !SymJ._isexactex(w) && !SymJ._isinfpt(w)
+    if inexact(ex) || (ex isa SymJ.Cases && any(c -> inexact(c.second), ex.cases)) ||
+       any(t -> any(e -> inexact(Sym(e)), t[2:end]), (xab, more...))
         fl(w) = w isa Sym ? SymJ._floatify(w) : w
         v = v isa SymJ.Cases ? SymJ._map_cases(fl, v) : fl(v)
     end

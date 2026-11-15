@@ -811,6 +811,32 @@ function _rational_base_split(e::Sym)
     hit ? y : nothing
 end
 
+# digamma(u + k), k a positive integer, as digamma(u) + Σ_{j<k} 1/(u + j) when digamma(u)
+# also appears (ψ(x + 2) - ψ(x + 1) - 1/(x + 1) = 0; SymPy #6007); nothing otherwise
+function _digamma_shift(e::Sym)
+    args = Sym[]
+    _has_node(e, t -> (t.kind == FN && t.name === :digamma && length(t.args) == 1 &&
+                       !any(a -> _eq(a, t.args[1]), args) && push!(args, t.args[1]); false))
+    length(args) >= 2 || return nothing
+    base = Dict{Int,Tuple{Sym,Int}}()        # arg index => (lowest argument u, shift k)
+    for (i, a) in enumerate(args)
+        lo, k = a, 0
+        for b in args
+            d = expand(a - b)
+            (d.kind == NUMBER && isexact(d.num) && _isint(d.num) && d.num > N0 && _toint(d.num) > k) && ((lo, k) = (b, _toint(d.num)))
+        end
+        base[i] = (lo, k)
+    end
+    any(v -> v[2] > 0, values(base)) || return nothing
+    reps = Pair{Sym,Sym}[]
+    for (i, a) in enumerate(args)
+        u, k = base[i]
+        k > 0 || continue
+        push!(reps, apply_function(:digamma, Sym[a]) => apply_function(:digamma, Sym[u]) + _add_many(Sym[inv(u + j) for j in 0:(k - 1)]))
+    end
+    subs(e, reps...)
+end
+
 # sin, cos of u + rπ (r a rational, not an integer) expanded, then simplify_trig, when
 # such a function is raised to a power above 2 (cos⁴θ + cos⁴(θ + 2π/3) + cos⁴(θ + 4π/3)
 # = 9/8; the squares were found; SymPy #6995); nothing otherwise
@@ -900,6 +926,30 @@ function _asin_acos_pairs(e::Sym)
     out + _add_many(Sym(c) * t for (i, (c, t)) in enumerate(ts) if !used[i])
 end
 
+# n^q (n an integer > 1, q rational not an integer) with n's prime factors all below 10⁴:
+# Π p^(e q); others as they are
+function _split_radicands(e::Sym)
+    _replace_walk(e) do t
+        (t.kind == POW && t.args[1].kind == NUMBER && isexact(t.args[1].num) && _isint(t.args[1].num) &&
+         t.args[1].num > N1 && t.args[2].kind == NUMBER && isexact(t.args[2].num) && !_isint(t.args[2].num)) || return nothing
+        n = big(_numerator(t.args[1].num))
+        ndigits(n) > 12 || return nothing
+        fs = Pair{BigInt,Int}[]
+        p = big(2)
+        while p < 10_000 && n > 1
+            k = 0
+            while iszero(n % p)
+                n ÷= p; k += 1
+            end
+            k > 0 && push!(fs, p => k)
+            p += p == 2 ? 1 : 2
+        end
+        (isone(n) && length(fs) >= 1) || return nothing
+        q = t.args[2]
+        prod(Sym[Sym(SymNumber(p))^(Sym(k) * q) for (p, k) in fs])
+    end
+end
+
 # log n as k log p for n = p^k an integer power (k ≥ 2), and log(1/n) as -log n
 function _log_int_powers(e::Sym)
     _hasfn(e, :log) || return e
@@ -924,6 +974,10 @@ function _simplify(e::Sym, A::Assumptions)
         # bits; SymPy #20427)
         w = try _evalc(e) catch; nothing end
         w isa Number && abs(w) < 1e-10 && _const_zero(e) && return ZERO
+        # an integer radicand with small prime factors only, as their powers: (2²² 7⁷¹)^(1/109)
+        # is 2^(22/109) 7^(71/109) (SymPy #7046)
+        sp = _split_radicands(e)
+        _nodes(sp) < _nodes(e) && (e = sp)
         # logs of integer powers as multiples, kept when smaller: log 8/log 4 = 3/2 (SymPy #7228)
         lp = _log_int_powers(e)
         _nodes(lp) < _nodes(e) && (e = lp)
@@ -975,6 +1029,7 @@ function _simplify(e::Sym, A::Assumptions)
               elog, simplify_rational ∘ (x -> _exp_log_powers(x)), pwfold, _asin_acos_pairs,
               x -> (y = _rational_base_split(x); y === nothing ? nothing : simplify_rational(y)),
               _prime_base_powers, _recip_trig_flip, _pi_shift_expand,
+              x -> (y = _digamma_shift(x); y === nothing ? nothing : simplify_rational(y)),
               x -> huge ? nothing : _conjugate_radical_den(x),
               simplify_rational ∘ powers, expansion ∘ simplify_rational, expansion ∘ radicals,
               simplify_rational ∘ radicals,

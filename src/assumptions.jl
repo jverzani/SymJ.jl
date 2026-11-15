@@ -942,6 +942,12 @@ function _smask(e::Sym, A::Assumptions)::Union{Nothing,UInt8}
         return _maskof(s)
     end
     if k == ADD
+        # c e^u + d, c > 0 > d (numbers): the sign of u - log(-d/c), exp increasing (e^(-a - b)
+        # < 1 for a, b > 0; SymPy #6173)
+        if length(e.args) == 1 && e.args[1].kind == POW && e.args[1].args[1] === E && isexact(e.num) &&
+           isexact(e.coefs[1]) && e.coefs[1] > N0 && e.num < N0 && _isreal(e.args[1].args[2], A) === true
+            return _signs(e.args[1].args[2] - log(Sym(-e.num / e.coefs[1])), A)
+        end
         m = _maskof(Int(sign(e.num)))
         for (c, t) in zip(e.coefs, e.args)
             mt = _signs(t, A)

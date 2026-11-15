@@ -1825,7 +1825,9 @@ function _ferrari(e, d, c, b, a)                             # a x⁴ + b x³ + 
     # generic quartic gave ±i twice; SymPy #17563)
     A = _SOLVE_ASSUME[]
     sym = A !== nothing && any(_hassymbol, (a, b, c, d, e))
-    iszero_(t) = sym && _hassymbol(t) ? _decide(Relation(:eq, numerator(cancel(t)), ZERO), A) : _iszero_value(t)
+    # (generic parameters: nonzero unless the facts say otherwise, decided 2026-11-14;
+    # Cases on m alone came back; SymPy #6644)
+    iszero_(t) = sym && _hassymbol(t) ? !_pnz(numerator(cancel(t)), A) : _iszero_value(t)
     if iszero_(q)                                            # biquadratic in y = x - shift
         r = (-3b^4 + 256a^3 * e - 64a^2 * b * d + 16a * b^2 * c) / (256a^4)
         out = Sym[]

@@ -848,9 +848,11 @@ end
     @test simplify(sqrt((3 + sqrt(Sym(5))) / 2) - (1 + sqrt(Sym(5))) / 2) == 0
     @test inv(Sym[sqrt(Sym(2)) exp(-Sym(400)); 0 1])[1, 2] == -sqrt(Sym(2)) / (2exp(Sym(400)))
     @test N(imag((1 - exp(-Sym(40)))^IM)) ≈ sin(log1p(-exp(-40.0))) rtol = 1e-10   # ≈ -4.2e-18, not 0
-    # the generic quartic at a degenerate point: q = 0 is a case (#17563)
-    r = solve(c4 * x^4 + c3 * x^3 + c2 * x^2 + c1 * x + c0 ~ 0, x)
-    s = r(c4 => 1 // 2, c3 => 0, c2 => 1, c1 => 0, c0 => -1)
+    # the generic quartic at a degenerate point: q = 0 from the facts (#17563; without facts
+    # the parameters are generic, decided 2026-11-14)
+    @test solve(c4 * x^4 + c3 * x^3 + c2 * x^2 + c1 * x + c0 ~ 0, x) isa AbstractVector
+    r = solve(c4 * x^4 + c3 * x^3 + c2 * x^2 + c1 * x + c0 ~ 0, x; assume = (c3 ~ 0, c1 ~ 0))
+    s = [subs(v, c4 => 1 // 2, c2 => 1, c0 => -1) for v in r]
     @test maximum(abs(N(v^4 / 2 + v^2 - 1)) for v in s) < 1e-12
     @test length(unique(N.(s))) == 4
     # series at a symbolic infinity (#16777)
@@ -1764,4 +1766,50 @@ end
     @test SF.besseli(-3, x) == SF.besseli(3, x)
     # expand_trig of an integer-valued float multiple (#6098)
     @test SymJ.expand_trig(sin(2.0x)) == 2.0 * sin(x) * cos(x)
+end
+
+@testset "larger missing cases (SymPy review, round 17)" begin
+    @syms x y a b p t s n m q i j l1 l2
+    SF = SymJ.SpecialFunctionsSupport.SF
+    # cancel over Q(i) (#6336), constant exponents as one generator (#6932)
+    @test cancel((p^2 + 1) / (IM * p - 1)) == -IM * p - 1
+    @test cancel((x + IM) / (x^2 + 1)) == 1 / (x - IM)
+    let w = exp(1 + IM), r = cancel((w + 1 / w) / (w - 1 / w))
+        @test N(r) ≈ N((w + 1 / w) / (w - 1 / w))
+        @test SymJ._nodes(r) < SymJ._nodes((w + 1 / w) / (w - 1 / w))
+    end
+    # an integer radicand with small primes split (#7046)
+    @test simplify(Sym(big(2)^22 * big(7)^71)^(Sym(1) // 109)) == Sym(2)^(Sym(22) // 109) * Sym(7)^(Sym(71) // 109)
+    # solve of a piecewise: no impossible case (extra-4, SymPy #6060)
+    let r = solve(SymJ.piecewise(x - 3 ≧ 0 => x - 3, x - 3 ≪ 0 => 3 - x) ~ y, x)
+        @test length(r.cases) == 3
+    end
+    # series of E₁ and Eᵥ at 0 (#6057, #6725)
+    @test N(subs(Sym(series(SF.expint(x), x, 0, 4)), x => 1 // 100)) ≈ SF.expint(0.01) atol = 1e-8
+    @test N(subs(Sym(series(SF.expint(Sym(3) // 2, x), x, 0, 4)), x => 1 // 100)) ≈ SF.expint(1.5, 0.01) atol = 1e-8
+    @test N(subs(Sym(series(SF.expint(2, x), x, 0, 4)), x => 1 // 100)) ≈ SF.expint(2, 0.01) atol = 1e-8
+    # summation: a nested geometric sum with exp(-a - b) < 1 for a, b > 0 (#6173); Σ kˢ rᵏ as
+    # a polylogarithm (#6396)
+    let r = SymJ.summation(SymJ.summation(exp(-l1 * i - l2 * j), j, 0, i), i, 0, Inf; assume = (l1 ≫ 0, l2 ≫ 0))
+        @test N(subs(r, l1 => 1, l2 => 2)) ≈ sum(exp(-i - 2j) for i in 0:60 for j in 0:i)
+    end
+    @test SymJ.summation(t^Sym(:z) * exp(-t), t, 1, Inf) == SymJ.PolyLogSupport.PL.li(-Sym(:z), exp(-Sym(1)))
+    @test SymJ.summation(t^3 * (Sym(1) // 2)^t, t, 2, Inf) == Sym(51) // 2
+    @test N(SymJ.summation(t^2 * exp(-t), t, 1, Inf)) ≈ sum(k^2 * exp(-k) for k in 1:200)
+    # a Laplace transform of a sum of steps, termwise (#7177)
+    let r = SymJ.laplace_transform(1 + 2 * SymJ.summation((-1)^n * SymJ.heaviside(t - n * a), n, 1, Inf), t, s)
+        @test N(subs(r, s => 2, a => 1)) ≈ tanh(1.0) / 2
+    end
+    # dsolve of a polynomial in y' (#7093)
+    let u = SymFunction(:u)
+        @test length(SymJ.dsolve(diff(u(x), x)^2 ~ x, u(x))) == 2
+    end
+    # digamma's recurrence in simplify (#6007)
+    @test simplify(SF.digamma(x + 2) - SF.digamma(x + 1) - 1 / (x + 1)) == 0
+    # a quartic through squaring: the generic roots, not cases in m (extra-1, SymPy #6644)
+    let r = solve(sqrt((-m^2 / 2 - sqrt(4m^4 - 4m^2 + 8m + 1) / 4 - Sym(1) // 4)^2 +
+                       (m^2 / 2 - m - sqrt(4m^4 - 4m^2 + 8m + 1) / 4 - Sym(1) // 4)^2) ~ sqrt((m - q)^2 + (-m / (2q) + Sym(1) // 2)^2), q)
+        @test r isa AbstractVector
+        @test length(r) == 4
+    end
 end

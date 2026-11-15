@@ -427,6 +427,23 @@ transforms). Of the rest, in rough order of value for calculus-level use:
      subfactorial, bell, fibonacci, Catalan, Euler numbers, B-splines, Laguerre),
      boolean logic, noncommutative symbols, modular roots, time-dependent ODE systems,
      Clairaut ODEs, deep factor (inside function arguments).
+20. **Gaps from the seventeenth SymPy review (#5909–#7408)**:
+   - dsolve: Bessel-type equations, x y'' = 2y as √x (C₁ I₁(√(8x)) + C₂ K₁(√(8x))) (#7224).
+   - series: a symbolic exponent of a vanishing base, log(x)^a at x = 1 as
+     (x - 1)^a (1 + …), needs series with symbolic exponents (#7168); Bessel functions of
+     half-integer order as elementary functions (#6154).
+   - simplify: fractions in a tower of radicals, 1/(s + 1) + 1/(s - 1) + s with
+     s = √(2 + √5), reduced over ℚ(√5)(s) (#6651); the zero of a quartic's root in a
+     parameter substituted back (#6829).
+   - solve: equations with float exponents whose differences are integers to rounding,
+     (1 + x)^0.9389 and (1 + x)^1.9389, need a numeric solver after exactifying (extra-9,
+     #6363); a float residue (1e-116) in a solution where the system has x = 0 is not
+     chopped (extra-8, #6785); x^y = 0 without a sign for y stays [] (y > 0 gives [0];
+     #6745).
+   - subs: √x => y leaving a bare x (#6976): internal radical solving relies on subs not
+     rewriting x + 1 inside a radical, so it was tried and reverted.
+   - refine: atan(sin x/cos x) outside -π/2 < x < π/2 (the + π shifts; #6495); imaginary
+     assumptions (positive/negative imaginary symbols; #6106).
 
 Done since the first audit: trigonometric and logarithmic expansion, gamma and combinatorial simplification, LaTeX output (a Latexify extension), resultants and Gröbner
 bases (polynomial systems are solved), real and imaginary parts and `conj`, and

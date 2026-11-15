@@ -162,7 +162,8 @@ cancel(x::Number; gcd_method::Symbol = :auto) = Sym(x)
 function _common_generator_subs(atoms)
     groups = Dict{Sym,Vector{Sym}}()
     for a in atoms
-        a.kind == POW && _hassymbol(a.args[2]) || continue
+        # (constant exponents too, not numbers: exp(1 + i) and exp(-1 - i); SymPy #6932)
+        a.kind == POW && a.args[2].kind != NUMBER || continue
         push!(get!(groups, a.args[1], Sym[]), a)
     end
     fwd, back = Pair{Sym,Sym}[], Pair{Sym,Sym}[]
@@ -191,7 +192,10 @@ end
 # the denominator's degree goes down, so 1/(x - sqrt(2)) is not turned into
 # (x + sqrt(2))/(x^2 - 2). nothing if there is no gain.
 function _cancel_radicals(P::Poly{SymNumber}, Q::Poly{SymNumber}, gs::Vector{Sym}, gcd_method::Symbol)
-    rad = [i for i in eachindex(gs) if _isrationalsqrt(gs[i])]
+    # (i only among symbols and square roots of rationals: with function calls besides, as a
+    # dsolve check's trigonometric forms, the conjugate products grew without end)
+    plain = all(g -> _isnamed(g) || _isrationalsqrt(g), gs)
+    rad = [i for i in eachindex(gs) if _isrationalsqrt(gs[i]) && (plain || !_eq(gs[i], IM))]
     isempty(rad) && return nothing
     inQ = [i for i in rad if _maxdegs(Q)[i] > 0]
     inP = [i for i in rad if _maxdegs(P)[i] > 0]
@@ -252,8 +256,9 @@ function _conj_cancel(R::Poly{SymNumber}, S::Poly{SymNumber}, gs::Vector{Sym}, r
         nothing
     end
 end
+# (i = (-1)^(1/2) too, conjugated i -> -i: (p² + 1)/(i p - 1) is -i p - 1; SymPy #6336)
 _isrationalsqrt(a::Sym) = a.kind == POW && a.args[2] == HALF && a.args[1].kind == NUMBER &&
-    isexact(a.args[1].num) && a.args[1].num > N0
+    isexact(a.args[1].num) && (a.args[1].num > N0 || _isN1(-a.args[1].num))
 
 # e as (N, D): N expanded, D the product of the irreducible factors of the denominators,
 # each to the largest power a term needs (the lcm of a sum's denominators, not their
