@@ -44,10 +44,28 @@ function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Boo
     _isnamed(x) || throw(ArgumentError("integrate: $x is not a symbol"))
     # terms with an unknown function of x are held, ∫ₐᵇ f(x) dx, the rest integrated
     rest, held = _split_opaque(Sym(f), x)
+    if !isempty(held) && (P = _total_derivative(held, x)) !== nothing
+        H = subs(P, x => Sym(xab[3])) - subs(P, x => Sym(xab[2]))
+        iszero(rest) && return H
+        v = _definite_integral(rest, xab, assume, antider; principal_value)
+        return v isa Cases ? _map_cases(w -> w + H, v) : v + H
+    end
     if !isempty(held)
         Hs = Sym[]
         for (c, g) in held
             F = _deriv_antider(g, x)
+            # u(x) δ(x - a), u an unknown function: sifted, u(a) over the real line
+            # (SymPy #6968)
+            if F === nothing && _hasfn(g, :dirac)
+                D = _integrate_dirac(g, x)
+                if D !== nothing
+                    vh, vl = _step_value_at(D, x, Sym(xab[3])), _step_value_at(D, x, Sym(xab[2]))
+                    if vh !== nothing && vl !== nothing
+                        push!(Hs, c * (vh - vl))
+                        continue
+                    end
+                end
+            end
             push!(Hs, c * (F === nothing ? _mkfn_node(:Integral, Sym[g, x, Sym(xab[2]), Sym(xab[3])]) :
                                            subs(F, x => Sym(xab[3])) - subs(F, x => Sym(xab[2]))))
         end
@@ -990,6 +1008,47 @@ function _singular_points(f::Sym, x::Sym, lo::Sym, hi::Sym)
     unique(pts)
 end
 
+# P with P' = Σ cᵢ gᵢ for the held terms, P a product of powers of the unknown functions of x
+# in them (f'g + fg' = (fg)'; SymPy #6958); nothing otherwise
+function _total_derivative(held, x::Sym)
+    length(held) >= 2 || return nothing
+    S = _add_many(Sym[c * g for (c, g) in held])
+    us = Sym[]
+    function walk(t::Sym)
+        if t.kind == FN && t.name !== :Derivative && !haskey(FUNCTION_RULES, t.name) && has(t, x)
+            any(o -> _eq(o, t), us) || push!(us, t)
+            return
+        end
+        foreach(walk, t.args)
+        t.kind == MUL && foreach(walk, t.exps)
+    end
+    walk(S)
+    (isempty(us) || length(us) > 4) && return nothing
+    # (each term's degree in the functions, one more derivative: the product of them all,
+    # or of one's square)
+    for P in (prod(us), (length(us) == 1 ? Sym[us[1]^2 / 2] : Sym[])...)
+        iszero(expand(diff(P, x) - S)) && return P
+    end
+    nothing
+end
+
+# F (heaviside and dirac of m x + c, m a number, beside terms free of x) at x = v; at ±∞
+# heaviside is 1 or 0 by m's sign and dirac 0; nothing when F is not of that form
+function _step_value_at(F::Sym, x::Sym, v::Sym)
+    inf = v.kind == NUMBER && isfloat(v.num) && isinf(Float64(v.num))
+    inf || return subs(F, x => v)
+    s = Float64(v.num) > 0 ? 1 : -1
+    ok = true
+    G = _replace_walk(F) do t
+        (t.kind == FN && t.name in (:heaviside, :dirac)) || return nothing
+        m = expand(subs(t.args[1], x => ONE) - subs(t.args[1], x => ZERO))
+        (m.kind == NUMBER && !iszero(m.num)) || (ok = false; return nothing)
+        t.name === :dirac && return ZERO
+        return (sign(m.num) > 0) == (s > 0) ? ONE : ZERO
+    end
+    (ok && !has(G, x)) ? G : nothing
+end
+
 # an antiderivative in x of g when g is a derivative: u'(x) (∫ g dx = u), or u'(v) at a
 # point a x + b linear in x (∫ u'(a x + b) dx = u(a x + b)/a; SymPy #6407); else nothing
 function _deriv_antider(g::Sym, x::Sym)
@@ -1104,6 +1163,7 @@ function _sampled_check(F::Sym, f::Sym, x::Sym, lo::Sym, hi::Sym, S, unlocated::
     :ok
 end
 
+_pos_in_solve(p::Sym) = (A = _SOLVE_ASSUME[]; A isa Assumptions && _signs(p, A) == _POS)
 function _zero_sets!(out, e::Sym, x::Sym)
     has(e, x) || return out
     k = e.kind
@@ -1113,7 +1173,9 @@ function _zero_sets!(out, e::Sym, x::Sym)
             # a negative power, or a symbolic one (x^n, singular at 0 for n < 0)
             # (the zeros of |u| are those of u)
             bz = b.kind == FN && b.name === :abs && length(b.args) == 1 ? b.args[1] : b
-            has(b, x) && ((p.kind == NUMBER && p.num < N0) || (p.kind != NUMBER && !has(p, x))) && push!(out, bz)
+            # (not a power known positive under a solve's assumptions: x^y = 0 at 0 for y > 0;
+            # SymPy #6745)
+            has(b, x) && ((p.kind == NUMBER && p.num < N0) || (p.kind != NUMBER && !has(p, x) && !_pos_in_solve(p))) && push!(out, bz)
             _zero_sets!(out, b, x)
             _zero_sets!(out, p, x)
         end

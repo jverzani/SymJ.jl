@@ -84,7 +84,11 @@ end
 
 _scale_add(A::Sym, c::SymNumber) = _mkadd(A.num * c, A.args, SymNumber[x * c for x in A.coefs])
 
+# NaN absorbs: NaN x, NaN i and x + NaN are NaN (SymPy #6635)
+_isnan_num(c::SymNumber) = isfloat(c) && isnan(Float64(c))
+
 function _scale(x::Sym, c::SymNumber)
+    _isnan_num(c) && return Sym(NaN)
     iszero(c) && return ZERO
     _isN1(c) && return x
     k = x.kind
@@ -126,6 +130,7 @@ function add(a::Sym, b::Sym)
 end
 
 function _add_num(x::Sym, n::SymNumber)
+    _isnan_num(n) && return Sym(NaN)
     iszero(n) && return x
     x.kind == ADD && return _mkadd(x.num + n, x.args, x.coefs)
     c, t = _split_coef(x)
@@ -354,8 +359,35 @@ function _negative_real_const(b::Sym)
     Base.inferencebarrier(_isreal_const)(b) === true
 end
 
+# b^log(b, u) = u and b^(c/log b) = e^c, on the principal branch: b^w = exp(w log b)
+# (SymPy #6887)
+function _pow_of_log(b::Sym, e::Sym)
+    b === E && return nothing
+    if e.kind == FN && e.name === :log && length(e.args) == 2 && _eq(e.args[1], b)
+        return e.args[2]
+    end
+    # b^(1/log b) = e
+    e.kind == POW && _eq(e.args[2], MINUS_ONE) && e.args[1].kind == FN && e.args[1].name === :log &&
+        length(e.args[1].args) == 1 && _eq(e.args[1].args[1], b) && return E
+    e.kind == MUL || return nothing
+    i = findfirst(j -> e.exps[j].kind == NUMBER && _isN1(-e.exps[j].num) && e.args[j].kind == FN && e.args[j].name === :log &&
+                       length(e.args[j].args) == 1 && _eq(e.args[j].args[1], b), eachindex(e.args))
+    i === nothing && return nothing
+    w = mul(e, e.args[i])
+    # (exp(c log u) as u^c: (b^x)^(log a/log b) = a^x)
+    if w.kind == MUL
+        j = findfirst(j -> isone(w.exps[j]) && w.args[j].kind == FN && w.args[j].name === :log && length(w.args[j].args) == 1, eachindex(w.args))
+        j === nothing || return pow(w.args[j].args[1], mul(w, pow(w.args[j], MINUS_ONE)))
+    end
+    exp(w)
+end
+
 function pow(b::Sym, e::Sym)
     bk = b.kind
+    if e.kind == FN || e.kind == MUL || (e.kind == POW && bk != NUMBER)
+        v = _pow_of_log(b, e)
+        v === nothing || return v
+    end
     if e.kind == NUMBER
         en = e.num
         iszero(en) && return ONE
@@ -418,6 +450,15 @@ function pow(b::Sym, e::Sym)
     elseif b === E && e.kind == FN && e.name === :log && length(e.args) == 1
         return e.args[1]                        # exp(log(z)) == z
     elseif b === E
+        # a complex float exponent: the value (exp(2.0 + 2.0i); SymPy #6071)
+        z = Base.inferencebarrier(_complex_float)(e)
+        z === nothing || return Sym(exp(z::ComplexF64))
+        # exp(c log n), n a positive number, c rational: n^c (exp(log(9)/2) = 3; SymPy #6176)
+        if e.kind == MUL && length(e.args) == 1 && isone(e.exps[1]) && isexact(e.num) && e.args[1].kind == FN &&
+           e.args[1].name === :log && length(e.args[1].args) == 1 && e.args[1].args[1].kind == NUMBER &&
+           isexact(e.args[1].args[1].num) && e.args[1].args[1].num > N0
+            return pow(e.args[1].args[1], Sym(e.num))
+        end
         # exp(iπ r), r rational: r reduced into (-1, 1]; exp(10iπ) = 1, exp(12iπ/5) =
         # exp(2iπ/5) (SymPy #24082)
         r = _ipi_coeff(e)
@@ -535,7 +576,12 @@ function _numpow(b::SymNumber, e::SymNumber)
         !isfloat(b) && isinf(ef) && abs(bf) != 1 && (abs(bf) < 1) == (ef > 0) && return ZERO
         # 1^±∞ is indeterminate, not the float 1.0 (SymPy #13914): left, as (-1)^∞ is
         !isfloat(b) && isinf(ef) && abs(bf) == 1 && return _mkpow_node(Sym(b), Sym(e))
-        bf < 0 && !isinteger(ef) && return _mkpow_node(Sym(b), Sym(e))
+        # a negative base to a fractional power: the principal complex value, as for
+        # Julia's complex powers (sqrt(-2.0) = 1.414…im; SymPy #6071)
+        if bf < 0 && !isinteger(ef)
+            isfinite(ef) || return _mkpow_node(Sym(b), Sym(e))
+            return Sym(complex(bf)^ef)
+        end
         return Sym(_checked_float(bf^ef, "power", bf, ef == 0 ? 1.0 : ef))
     end
     if _isint(e)

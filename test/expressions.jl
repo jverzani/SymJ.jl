@@ -311,7 +311,7 @@ end
     # NaN prints (its sign is not an integer)
     @test string(Sym(NaN)) == "NaN"
     @test string(Sym(Inf) - Sym(Inf)) == "NaN"
-    @test string(x + Sym(NaN)) == "x + NaN"
+    @test string(x + Sym(NaN)) == "NaN"                                  # (NaN absorbs; SymPy #6635)
     # division by zero: SymJ.DivisionByZero, with a message
     @test_throws SymJ.DivisionByZero Sym(1) / Sym(0)
     @test_throws SymJ.DivisionByZero subs(1 / x, x => 0)

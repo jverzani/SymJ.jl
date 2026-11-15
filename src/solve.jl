@@ -856,22 +856,34 @@ function _solve_exp_bases(eq::Relation, x::Sym)
             _eq(p1, eq.lhs) && _eq(p2, eq.rhs) || return _solve_exp_bases(Relation(:eq, p1, p2), x)
         end
     end
+    # (a base with symbols: known positive under the assumptions, its log; a b^x = c d^x
+    # for positive a, b, c, d; SymPy #6819)
+    A = _SOLVE_ASSUME[]
+    function logof(b::Sym)
+        !_hassymbol(b) && _ispositive_const(b) && return _log_primes(b)
+        A !== nothing && _hassymbol(b) && !has(b, x) && _signs(b, A) == _POS && return log(b)
+        nothing
+    end
     function logsum(e::Sym)
         if e.kind == NUMBER
             (isexact(e.num) || isfloat(e.num)) && e.num > N0 || return nothing
             return _log_primes(e)
         elseif e.kind == POW
             b, p = e.args
-            (!_hassymbol(b) && _ispositive_const(b)) || return nothing
-            return p * _log_primes(b)
+            lb = logof(b)
+            lb === nothing && return nothing
+            return p * lb
         elseif e.kind == MUL
             e.num > N0 || return nothing
             acc = _log_primes(Sym(e.num))
             for (b, p) in zip(e.args, e.exps)
-                (!_hassymbol(b) && _ispositive_const(b)) || return nothing
-                acc += p * _log_primes(b)
+                lb = logof(b)
+                lb === nothing && return nothing
+                acc += p * lb
             end
             return acc
+        elseif _hassymbol(e) && !has(e, x)
+            return logof(e)
         end
         nothing
     end
@@ -1300,6 +1312,25 @@ function _invert(g::Sym, r::Sym, x::Sym)
         name === :sinh && return [(t, asinh(r))]
         name === :cosh && return [(t, acosh(r)), (t, -acosh(r))]
         name === :tanh && return [(t, atanh(r))]
+        name === :digamma && return [(t, apply_function(:invdigamma, Sym[r]))]   # (SymPy #6605)
+    elseif k == FN && length(g.args) == 2 && g.name === :log
+        # log(b, t) = log t/log b = r: t = b^r, or b = t^(1/r) (SymPy #6176)
+        b, t = g.args
+        has(b, x) || return [(t, b^r)]
+        has(t, x) && throw(ArgumentError("solve: cannot invert $g for $x"))
+        iszero(r) && return Tuple{Sym,Sym}[]
+        return [(b, t^inv(r))]
+    elseif k == FN && length(g.args) == 2 && g.name === :atan2
+        # atan(y, c) = r, the angle of (c, y): y = c tan r, or c = y cot r, the roots then
+        # checked in the equation (SymPy #6977)
+        y, c = g.args
+        if !has(c, x)
+            v = try c * tan(r) catch err; _isdivzero(err) || rethrow(); nothing end
+            return v === nothing ? Tuple{Sym,Sym}[] : [(y, v)]
+        elseif !has(y, x)
+            v = try y * cot(r) catch err; _isdivzero(err) || rethrow(); nothing end
+            return v === nothing ? Tuple{Sym,Sym}[] : [(c, v)]
+        end
     elseif k == POW
         b, e = g.args
         if !has(b, x)                                       # b^t = r: t = log(r)/log(b)
@@ -1378,6 +1409,12 @@ function _invert(g::Sym, r::Sym, x::Sym)
             if _hassymbol(e) && A !== nothing && !_pnz(e, A)
                 _decide(Relation(:eq, r, ONE), A) && throw(_identity_error(x, Relation(:eq, g, r)))
                 return Tuple{Sym,Sym}[]
+            end
+            # t^a = 0: t = 0 where a > 0, none where a < 0 (0^(1/a) stayed; SymPy #6745)
+            if iszero(r)
+                m = A === nothing ? nothing : _signs(e, A)
+                m == _NEG && return Tuple{Sym,Sym}[]
+                return [(b, ZERO)]
             end
             return [(b, r^(1 / e))]
         end

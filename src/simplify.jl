@@ -185,6 +185,17 @@ function _refine_rule(e::Sym, A::Assumptions)
     if k == ADD && isfloat(e.num) && isinf(Float64(e.num)) && all(t -> _isreal(t, A) === true, e.args)
         return Sym(e.num)
     end
+    # 0^a = 0 for a with a positive real part (a > 0; SymPy #6745)
+    if k == POW && e.args[1].kind == NUMBER && iszero(e.args[1].num) && isexact(e.args[1].num) &&
+       _signs(e.args[2], A) == _POS
+        return ZERO
+    end
+    # ±∞ times factors of known sign (a ∞ with a > 0; SymPy #6106)
+    if k == MUL && isfloat(e.num) && isinf(Float64(e.num))
+        m = _signs(_mkmul(N1, e.args, e.exps), A)
+        m == _POS && return Sym(e.num)
+        m == _NEG && return Sym(-e.num)
+    end
     if k == FN && (haskey(_COND_RELS, e.name) || e.name in (:heaviside, :sign, :abs, :dirac))
         r = haskey(_COND_RELS, e.name) ? _refine_cond(e, A) : _refine_step(e, A)
         r === nothing || return r
@@ -358,6 +369,9 @@ function _refine_rule(e::Sym, A::Assumptions)
             return _refine_trig(f, u, A)
         elseif f in keys(_INVERSE_OF) && u.kind == FN && u.name === _INVERSE_OF[f] && length(u.args) == 1
             return _refine_inverse(f, u.args[1], A)
+        elseif f === :atan && (v = _sin_over_cos(u)) !== nothing
+            # atan(sin v/cos v) as atan(tan v) (atan(sin x, cos x) for 0 < x < 1; SymPy #6495)
+            return _refine_inverse(:atan, v, A)
         elseif f in (:real, :imag, :conj, :angle)
             return _refine_parts(f, u, A)
         elseif f in (:floor, :ceil)
@@ -435,6 +449,18 @@ end
 # real, imag, conj, angle of u, from u's real and imaginary parts under the assumptions
 function _refine_parts(f::Symbol, u::Sym, A::Assumptions)
     p = _reim(u, A)
+    # real and imag of a product with real factors: those taken out (real(r x) = r real(x)
+    # for real r; SymPy #6428)
+    if p === nothing && f in (:real, :imag) && u.kind == MUL
+        R, W = ONE, ONE
+        for (b, e) in zip(u.args, u.exps)
+            t = b^e
+            _isreal(t, A) === true ? (R *= t) : (W *= t)
+        end
+        isone(R) && return nothing
+        R *= u.num                      # (the numeric coefficient, real)
+        return R * apply_function(f, Sym[W])
+    end
     p === nothing && return nothing
     re, im = expand(p[1]), expand(p[2])
     f === :real && return re
@@ -537,6 +563,16 @@ const _INVERSE_OF = Dict(:atanh => :tanh, :asinh => :sinh, :asin => :sin, :acos 
                          :acosh => :cosh)
 const _INVERSE_RANGE = Dict(:asin => (-PI / 2, PI / 2, true), :acos => (ZERO, PI, true),
                             :atan => (-PI / 2, PI / 2, false), :acosh => (ZERO, nothing, true))
+# v for u = sin(v)/cos(v), else nothing
+function _sin_over_cos(u::Sym)
+    (u.kind == MUL && isone(u.num) && length(u.args) == 2) || return nothing
+    i = findfirst(j -> _isfn(u.args[j], :sin) && isone(u.exps[j]), 1:2)
+    i === nothing && return nothing
+    j = 3 - i
+    (_isfn(u.args[j], :cos) && _eq(u.exps[j], MINUS_ONE) && _eq(u.args[j].args[1], u.args[i].args[1])) || return nothing
+    u.args[i].args[1]
+end
+
 function _refine_inverse(f::Symbol, v::Sym, A::Assumptions)
     _isreal(v, A) === true || return nothing
     r = get(_INVERSE_RANGE, f, nothing)
@@ -775,6 +811,71 @@ function _rational_base_split(e::Sym)
     hit ? y : nothing
 end
 
+# sin, cos of u + rπ (r a rational, not an integer) expanded, then simplify_trig, when
+# such a function is raised to a power above 2 (cos⁴θ + cos⁴(θ + 2π/3) + cos⁴(θ + 4π/3)
+# = 9/8; the squares were found; SymPy #6995); nothing otherwise
+function _pi_shift_expand(e::Sym)
+    shifted(t) = t.kind == FN && t.name in (:sin, :cos) && length(t.args) == 1 && t.args[1].kind == ADD &&
+        any(a -> a === PI, t.args[1].args) && _hassymbol(t.args[1])
+    _has_node(e, t -> t.kind == POW && shifted(t.args[1]) && t.args[2].kind == NUMBER && t.args[2].num > SymNumber(2)) ||
+        return nothing
+    simplify_trig(expand(expand_trig(e)))
+end
+
+# 1/cot(u)^n as tan(u)^n (and sec, csc, coth, sech, csch to cos, sin, tanh, cosh, sinh),
+# so like powers collect: 3tan⁷ - 2/cot⁷ = tan⁷ (SymPy #6303); nothing when there is none
+const _RECIP_FLIP = Dict(:cot => :tan, :sec => :cos, :csc => :sin, :coth => :tanh, :sech => :cosh, :csch => :sinh)
+function _recip_trig_flip(e::Sym)
+    hit = false
+    flip(b, p) = (b.kind == FN && length(b.args) == 1 && haskey(_RECIP_FLIP, b.name) && p.kind == NUMBER && p.num < N0) ?
+        (hit = true; apply_function(_RECIP_FLIP[b.name], b.args)^(-p)) : nothing
+    y = _replace_walk(e) do t
+        if t.kind == POW
+            return flip(t.args[1], t.args[2])
+        elseif t.kind == MUL && any(i -> flip(t.args[i], t.exps[i]) !== nothing, eachindex(t.args))
+            fs = Sym[something(flip(b, p), b^p) for (b, p) in zip(t.args, t.exps)]
+            return Sym(t.num) * prod(fs)
+        end
+        nothing
+    end
+    hit ? y : nothing
+end
+
+# integer bases with symbolic exponents as powers of their root, n^u = p^(k u) for n = p^k,
+# and a numeric factor ±p^m merged into p^u (4^x - 2^(2x + 2)/4 = 0; SymPy #6370);
+# nothing when there is no such power
+function _prime_base_powers(e::Sym)
+    hit = false
+    isintbase(b) = b.kind == NUMBER && isexact(b.num) && _isint(b.num) && b.num > N1
+    y = _replace_walk(e) do t
+        if t.kind == POW && isintbase(t.args[1]) && _hassymbol(t.args[2])
+            p, k = _int_root_power(big(_numerator(t.args[1].num)))
+            k == 1 && return nothing
+            hit = true
+            return Sym(SymNumber(p))^expand(Sym(k) * t.args[2])
+        elseif t.kind == MUL && isexact(t.num) && !isone(abs(t.num))
+            r = abs(_rat(t.num))
+            for (i, (b, u)) in enumerate(zip(t.args, t.exps))
+                (isintbase(b) && _hassymbol(u)) || continue
+                p = big(_numerator(b.num))
+                m = nothing
+                for (num, sgn) in ((numerator(r), 1), (denominator(r), -1))
+                    isone(num) && continue
+                    k = round(Int, log(Float64(num)) / log(Float64(p)))
+                    (k >= 1 && p^k == num && isone(sgn == 1 ? denominator(r) : numerator(r))) && (m = sgn * k)
+                end
+                m === nothing && continue
+                hit = true
+                rest = _mkmul(sign(t.num) < 0 ? -N1 : N1, t.args[[j for j in eachindex(t.args) if j != i]],
+                              t.exps[[j for j in eachindex(t.args) if j != i]])
+                return rest * Sym(SymNumber(p))^expand(u + m)
+            end
+        end
+        nothing
+    end
+    hit ? y : nothing
+end
+
 # c asin(u) + c acos(u) = c π/2 in a sum (for every u, principal values: asin z + acos z
 # = π/2 on all of ℂ; SymPy #11446); nothing when there is no such pair
 function _asin_acos_pairs(e::Sym)
@@ -799,6 +900,20 @@ function _asin_acos_pairs(e::Sym)
     out + _add_many(Sym(c) * t for (i, (c, t)) in enumerate(ts) if !used[i])
 end
 
+# log n as k log p for n = p^k an integer power (k ≥ 2), and log(1/n) as -log n
+function _log_int_powers(e::Sym)
+    _hasfn(e, :log) || return e
+    _replace_walk(e) do t
+        (t.kind == FN && t.name === :log && length(t.args) == 1 && t.args[1].kind == NUMBER &&
+         isexact(t.args[1].num) && t.args[1].num > N0) || return nothing
+        r = _rat(t.args[1].num)
+        isone(denominator(r)) || return nothing
+        p, k = _int_root_power(big(numerator(r)))
+        k >= 2 || return nothing
+        Sym(k) * log(Sym(p))
+    end
+end
+
 function _simplify(e::Sym, A::Assumptions)
     e = _exact_int_exponents(e)
     if !_hassymbol(e) && e.kind != NUMBER
@@ -809,6 +924,10 @@ function _simplify(e::Sym, A::Assumptions)
         # bits; SymPy #20427)
         w = try _evalc(e) catch; nothing end
         w isa Number && abs(w) < 1e-10 && _const_zero(e) && return ZERO
+        # logs of integer powers as multiples, kept when smaller: log 8/log 4 = 3/2 (SymPy #7228)
+        lp = _log_int_powers(e)
+        _nodes(lp) < _nodes(e) && (e = lp)
+        e.kind == NUMBER && return e
         # until it stops shrinking (a product of square roots that a step leaves, √10√2√5,
         # merges in the next; found in the review of SymPy #24948)
         for _ in 1:3
@@ -852,9 +971,10 @@ function _simplify(e::Sym, A::Assumptions)
         end
         folded
     end
-    for g in (simplify_rational, powers, expansion, _factor_or_nothing, simplify_trig, simplify_hyperbolic, logs, radicals, simplify_gamma, logq,
+    for g in (simplify_rational, _log_int_powers, powers, expansion, _factor_or_nothing, simplify_trig, simplify_hyperbolic, logs, radicals, simplify_gamma, logq,
               elog, simplify_rational ∘ (x -> _exp_log_powers(x)), pwfold, _asin_acos_pairs,
               x -> (y = _rational_base_split(x); y === nothing ? nothing : simplify_rational(y)),
+              _prime_base_powers, _recip_trig_flip, _pi_shift_expand,
               x -> huge ? nothing : _conjugate_radical_den(x),
               simplify_rational ∘ powers, expansion ∘ simplify_rational, expansion ∘ radicals,
               simplify_rational ∘ radicals,
@@ -1543,6 +1663,11 @@ function _expand_circ(f::Symbol, u::Sym, M::_Circ)
         f === c && return expand(ex(c, a) * ex(c, b) + σ * ex(s, a) * ex(s, b))
         f === t && return (ta = ex(t, a); tb = ex(t, b); (ta + tb) / (1 + σ * ta * tb))
         return (ca = ex(ct, a); cb = ex(ct, b); (ca * cb + σ) / (ca + cb))
+    end
+    # an integer-valued float multiple: expanded as the integer, the result in floats
+    # (sin(2.0x) = 2.0 sin x cos x; SymPy #6098)
+    if u.kind == MUL && isfloat(u.num) && isinteger(Float64(u.num)) && 1 < abs(Float64(u.num)) <= 1000
+        return expand(Sym(1.0) * _expand_circ(f, Sym(Int(Float64(u.num))) * _mkmul(N1, u.args, u.exps), M))
     end
     if u.kind == MUL && isexact(u.num) && isone(_denominator(u.num)) && abs(u.num) > N1
         k = Int(_numerator(u.num))

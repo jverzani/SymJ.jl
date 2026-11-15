@@ -57,6 +57,10 @@ function _identify(f::Float64, cs, rtol, maxcoeff, maxdegree)
     isinteger(f) && abs(f) < 2.0^53 && return Sym(Int(f))
     q = rationalize(BigInt, f; tol = rtol * abs(f))
     _unlikely((numerator(q), denominator(q)), rtol) && return Sym(SymNumber(q))
+    # (the simplest rational within a relative tol of a random f has a denominator near
+    # 1/√(tol |f|): one well below that is no chance match, 0.5 and 10/3 at tol = 10⁻³;
+    # for a tol asked to be loose only, as at the default π would match; SymPy #6527)
+    rtol >= 1e-8 && Float64(denominator(q))^2 * rtol * abs(f) <= 0.1 && return Sym(SymNumber(q))
     setprecision(BigFloat, 128) do
         x = BigFloat(f)
         if !isempty(cs)

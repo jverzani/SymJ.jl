@@ -210,6 +210,12 @@ import PolyLog as PL
     @testset "RischIntegrate: definite integrals" begin
         ∫ = RischIntegrate.integrate
         Inf_ = Sym(Inf)
+        # u(x) δ(x - a), u unknown, sifted (SymPy #6968); f'g + fg' as (fg)' (SymPy #6958)
+        let f = SymFunction(:f), g = SymFunction(:g), a = Sym(:a)
+            @test ∫(f(x) * SymJ.dirac(x - a), (x, -Inf, Inf)) == f(a)
+            @test ∫(diff(f(x) * g(x), x), x) == f(x) * g(x)
+            @test ∫(diff(f(x) * g(x), x), (x, 0, 1)) == f(1) * g(1) - f(0) * g(0)
+        end
         # a derivative at a point linear in the variable (SymPy #6407; a stack overflow)
         let f = SymFunction(:f), t = Sym(:t)
             df = subs(diff(f(x), x), x => x - t)

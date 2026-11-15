@@ -80,9 +80,14 @@ function _indefinite(ex::Sym, x::Sym; assume = nothing, kw...)
     end
     # terms with an unknown function of x: held as ∫ f(x) dx, the rest integrated
     rest, held = SymJ._split_opaque(ex, x)
+    P = SymJ._total_derivative(held, x)                 # (f'g + fg' = (fg)'; SymPy #6958)
+    if P !== nothing
+        return iszero(rest) ? P : RischIntegrate.integrate(rest, x; assume, kw...) + P
+    end
     if !isempty(held)
         # (∫ u'(x) dx = u(x): dsolve(f' ~ a g', f(x)) kept ∫ g'(x) dx; SymPy #13691)
-        H = SymJ._add_many(c * something(SymJ._deriv_antider(g, x), SymJ._mkfn_node(:Integral, Sym[g, x])) for (c, g) in held)
+        H = SymJ._add_many(c * something(SymJ._deriv_antider(g, x), SymJ._hasfn(g, :dirac) ? SymJ._integrate_dirac(g, x) : nothing,
+                                         SymJ._mkfn_node(:Integral, Sym[g, x])) for (c, g) in held)
         return iszero(rest) ? H : RischIntegrate.integrate(rest, x; assume, kw...) + H
     end
     integ = f -> RischIntegrate.risch_integrate(f, x; kw...)

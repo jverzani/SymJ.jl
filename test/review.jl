@@ -1685,3 +1685,83 @@ end
     @test r(x => 0) == 0
     @test r(x => 1) == 1
 end
+
+@testset "missing cases (SymPy review, round 17)" begin
+    @syms x y a b r n k θ
+    SF = SymJ.SpecialFunctionsSupport.SF
+    PL = SymJ.PolyLogSupport.PL
+    # trig values at multiples of π/12, π/10, π/5 (#6048)
+    @test cos(PI / 12) == (sqrt(Sym(6)) + sqrt(Sym(2))) / 4
+    @test cos(PI / 5) == (1 + sqrt(Sym(5))) / 4
+    @test sin(PI / 10) == (sqrt(Sym(5)) - 1) / 4
+    @test tan(PI / 12) == 2 - sqrt(Sym(3))
+    @test N(sin(2PI / 5)) ≈ sin(2π / 5)
+    # functions at ±∞ exactly when the limit is an integer or a multiple of π (#6602)
+    @test SF.sinint(Sym(Inf)) == PI / 2
+    @test SF.erf(Sym(-Inf)) == -1
+    @test atan(Sym(Inf)) == PI / 2
+    # functions of complex floats evaluate (#6071)
+    @test N(sin(Sym(2.0im))) ≈ sin(2.0im)
+    @test N(exp(Sym(2.0 + 2.0im))) ≈ exp(2.0 + 2.0im)
+    @test N(sqrt(Sym(-2.0))) ≈ sqrt(complex(-2.0))
+    # NaN absorbs (#6635)
+    @test isnan(Sym(NaN) * x)
+    @test isnan(x + Sym(NaN))
+    @test isnan(Sym(NaN) * IM)
+    # the derivative of factorial (#6007)
+    @test diff(factorial(x + 1), x) == factorial(x + 1) * SF.digamma(x + 2)
+    # Li₂(1/2) (#7132)
+    @test PL.li2(Sym(1) // 2) == PI^2 / 12 - log(Sym(2))^2 / 2
+    # b^log(b, x) = x, b^(1/log b) = e (#6887)
+    @test b^log(b, x) == x
+    @test Sym(3)^log(Sym(3), Sym(-3)) == -3
+    @test b^(1 / log(b)) == E
+    # exp(c log n) = n^c (#6176)
+    @test exp(log(Sym(9)) / 2) == 3
+    # log ratios of powers of one integer (#7228)
+    @test log(Sym(4), Sym(8)) == Sym(3) // 2
+    @test simplify(log(Sym(8)) / log(Sym(4))) == Sym(3) // 2
+    @test solve(4^x ~ 8, x) == [Sym(3) // 2]
+    # refine: real factors out of real/imag (#6428), ±∞ times a signed symbol (#6106),
+    # coth, sech, csch of reals (#5998), atan(sin/cos) (#6495)
+    @test refine(real(r * x); assume = (r ∈ ℝ,)) == r * real(x)
+    @test refine(a * Inf; assume = (a ≫ 0,)) == Inf
+    @test refine(a * Inf; assume = (a ≪ 0,)) == -Inf
+    @test refine(real(coth(x)); assume = (x ∈ ℝ,)) == coth(x)
+    @test refine(imag(csch(x)); assume = (x ∈ ℝ,)) == 0
+    @test refine(atan(sin(x), cos(x)); assume = (0 ≪ x, x ≪ 1)) == x
+    # cancel maps over pieces (#7022)
+    @test cancel(SymJ.piecewise(x ≫ 1 => (x^2 - 1) / (x + 1), true => 0)) == SymJ.piecewise(x ≫ 1 => x - 1, true => 0)
+    # simplify: prime-power bases (#6370), reciprocal trig powers (#6303), π/3 shifts (#6995)
+    @test simplify(4^x - 2^(2x + 2) / 4) == 0
+    @test simplify(3tan(x)^7 - 2 / cot(x)^7) == tan(x)^7
+    @test simplify(cos(θ)^4 + cos(θ + 2PI / 3)^4 + cos(θ + 4PI / 3)^4) == Sym(9) // 8
+    # transcendental at a nonzero rational: irrational (#6314)
+    @test SymJ._isrational(sin(Sym(1)), SymJ.Assumptions()) == false
+    @test SymJ._isrational(log(Sym(2)), SymJ.Assumptions()) == false
+    # nsimplify with a loose tolerance (#6527)
+    @test SymJ.nsimplify(0.5x^2 - 3.333333x; tol = 0.001) == x^2 / 2 - 10x / 3
+    # series: Lambert W at 0 (#7259), a float exponent (#6726)
+    @test Sym(series(SymJ.lambertw(x), x, 0, 4)) == x - x^2 + 3x^3 / 2
+    @test N(subs(Sym(series((x + sin(x))^1.2, x, 0, 4)), x => 1 // 10)) ≈ (0.1 + sin(0.1))^1.2 rtol = 1e-3
+    # solve: atan(x, c) (#6977), log with a symbolic base (#6176), digamma (#6605), a b^x =
+    # c d^x for positive symbols (#6819), x^y = 0 for y > 0 (#6745)
+    @test solve(atan(x, 2) ~ PI / 3, x) == [2sqrt(Sym(3))]
+    @test solve(log(x, Sym(9)) ~ 2, x) == [3]
+    @test solve(SF.digamma(n / 2 + 1) ~ log(PI), n) == [2SF.invdigamma(log(PI)) - 2]
+    let c = Sym(:c), d = Sym(:d)
+        s = solve(a * b^x ~ c * d^x, x; assume = (a ≫ 0, b ≫ 0, c ≫ 0, d ≫ 0))
+        @test iszero(simplify(only(s) - log(c / a) / log(b / d); assume = (a ≫ 0, b ≫ 0, c ≫ 0, d ≫ 0)))
+    end
+    @test solve(x^y ~ 0, x; assume = (y ≫ 0,)) == [0]
+    # summation: a binomial's range ends at its top (#6347); a product summand expanded (#5953)
+    @test SymJ.summation((-1)^k * binomial(2n, k)^2, k, 0, Inf; assume = (n ∈ ℤ, n ≫ 0)) == (-1)^n * binomial(2n, n)
+    @test iszero(simplify(SymJ.summation(x^k * (y^(k + 1) - 1), k, 0, n) -
+                          (SymJ.summation(x^k * y^(k + 1), k, 0, n) - SymJ.summation(x^k, k, 0, n))))
+    # Bessel functions of a negative integer order (#6154)
+    @test SF.besselj(-2, x) == SF.besselj(2, x)
+    @test SF.besselj(-1, x) == -SF.besselj(1, x)
+    @test SF.besseli(-3, x) == SF.besseli(3, x)
+    # expand_trig of an integer-valued float multiple (#6098)
+    @test SymJ.expand_trig(sin(2.0x)) == 2.0 * sin(x) * cos(x)
+end

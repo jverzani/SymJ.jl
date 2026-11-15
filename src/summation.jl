@@ -151,7 +151,22 @@ function summation(f, k::Sym, a, b; assume = nothing)
             end
         end
     end
+    # binomial(n, k) with n a nonnegative integer vanishes past k = n: an infinite range
+    # ends there (Σ_{k≥0} (-1)^k binomial(2n, k)² with n ∈ ℤ, n ≥ 0; SymPy #6347)
+    if bs === nothing
+        top = _binomial_top(f, k, _assumptions(assume))
+        top === nothing || return summation(f, k, a, top; assume)
+    end
     r = _summation(f, k, a, bs, assume)
+    # a product with a sum left unevaluated: its expansion's terms (x^i (y^(i+1) - 1);
+    # SymPy #5953)
+    if r isa Sym && _hasfn(r, :Sum) && f.kind == MUL && any(b -> b.kind == ADD, f.args)
+        g = expand(f)
+        if g.kind == ADD
+            r2 = try summation(g, k, a, bs === nothing ? Inf : bs; assume) catch err; err isa ArgumentError || rethrow(); nothing end
+            r2 isa Sym && !_hasfn(r2, :Sum) && return r2
+        end
+    end
     # left unevaluated from an integer whose term is 0: from the next one (n 2^n/n! at n =
     # 0; Σ_{n≥1} is 2e², from 0 unevaluated; SymPy #8254)
     if r isa Sym && _hasfn(r, :Sum) && a.kind == NUMBER && _isint(a.num) && has(f, k)
@@ -370,6 +385,21 @@ function _zero_pow_down(f::Sym, k::Sym)
         nothing
     end
     found
+end
+
+# m for a factor binomial(m, k)^p of f (p a positive integer, m free of k) with m a
+# nonnegative integer (a number, or under the assumptions); else nothing
+function _binomial_top(f::Sym, k::Sym, A)
+    fs = f.kind == MUL ? collect(zip(f.args, f.exps)) : f.kind == POW ? [(f.args[1], f.args[2])] : [(f, ONE)]
+    for (b, p) in fs
+        (b.kind == FN && b.name === :binomial && length(b.args) == 2 && _eq(b.args[2], k) && !has(b.args[1], k)) || continue
+        (p.kind == NUMBER && _isint(p.num) && p.num > N0) || continue
+        m = b.args[1]
+        m.kind == NUMBER && isexact(m.num) && _isint(m.num) && m.num >= N0 && return m
+        B = something(A, Assumptions())
+        _isinteger(m, B) === true && _holds(Relation(:ge, m, ZERO), B) === true && return m
+    end
+    nothing
 end
 
 _summation_unevaluated(f, k, a, b) = apply_function(:Sum, Sym[f, k, a, b === nothing ? Sym(Inf) : b])
