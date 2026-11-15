@@ -94,6 +94,20 @@ function apply_function(name::Symbol, args::Vector{Sym})
                     end
                 end
             end
+            if v !== nothing
+                # at ±∞ (the only float arguments): the limit, exact when it is an integer
+                # or a rational multiple of π (sinint(∞) = π/2, atan(∞), erf(-∞); SymPy #6602)
+                if any(a -> isfloat(a.num) && isinf(_evalc(a)), args) &&
+                   all(a -> !isfloat(a.num) || isinf(_evalc(a)), args)
+                    w = _exact_limit_value(v)
+                    w === nothing || return w
+                end
+                return v
+            end
+        end
+        # a complex float argument (2.0im, 2.0 + 2.0im): its value too (SymPy #6071)
+        if rule.julia !== nothing && length(args) == 1 && (z = _complex_float(args[1])) !== nothing
+            v = try Sym(rule.julia(z)) catch err; err isa Union{DomainError,MethodError,InexactError} || rethrow(); nothing end
             v === nothing || return v
         end
         if rule.eval !== nothing
@@ -105,6 +119,35 @@ function apply_function(name::Symbol, args::Vector{Sym})
 end
 
 _float_args(args) = all(a -> a.kind == NUMBER, args) && any(a -> isfloat(a.num), args)
+
+# a + b i with a float among a, b (numbers: 2.0im is the product 2.0 (-1)^(1/2)), as a
+# ComplexF64; else nothing
+function _complex_float(a::Sym)
+    isim(t) = t.kind == MUL && length(t.args) == 1 && t.args[1].kind == NUMBER && t.args[1].num == -1 && t.exps[1] == 1 // 2
+    if isim(a)
+        isfloat(a.num) || return nothing
+        return ComplexF64(0, Float64(a.num))
+    end
+    a.kind == ADD && length(a.args) == 1 && _eq(a.args[1], IM) || return nothing
+    b = a.coefs[1]
+    (isfloat(a.num) || isfloat(b)) || return nothing
+    ComplexF64(Float64(a.num), Float64(b))
+end
+
+# a Float64 value that is an integer or pπ/q (q ≤ 12) to the last bits, as that exact
+# number; else nothing
+function _exact_limit_value(v::Sym)
+    v.kind == NUMBER && isfloat(v.num) || return nothing
+    c = _evalc(v)
+    (iszero(imag(c)) && isfinite(real(c))) || return nothing
+    f = real(c)
+    isinteger(f) && abs(f) < 2^52 && return Sym(Int(f))
+    for q in 1:12
+        p = round(f * q / π)
+        (p != 0 && abs(p) <= 48 && abs(f - p * π / q) <= 4eps(abs(f))) && return Sym(Rational{Int}(Int(p), q)) * PI
+    end
+    nothing
+end
 
 # outside the real domain (asin(17.0)): the principal complex value
 function _try_numeric_complex(f, args)
@@ -196,11 +239,33 @@ function _sinpi(r::Rational{BigInt})
     neg = r >= 1
     neg && (r -= 1)
     r > 1 // 2 && (r = 1 - r)
+    # (π/12, π/10, π/5 and their multiples too, as SymPy evaluates them; SymPy #6048)
     v = r == 0 ? ZERO :
+        r == 1 // 12 ? (sqrt(Sym(6)) - sqrt(Sym(2))) / 4 :
+        r == 1 // 10 ? (sqrt(Sym(5)) - 1) / 4 :
         r == 1 // 6 ? HALF :
+        r == 1 // 5 ? sqrt(10 - 2sqrt(Sym(5))) / 4 :
         r == 1 // 4 ? sqrt(Sym(2)) / 2 :
+        r == 3 // 10 ? (sqrt(Sym(5)) + 1) / 4 :
         r == 1 // 3 ? sqrt(Sym(3)) / 2 :
+        r == 2 // 5 ? sqrt(10 + 2sqrt(Sym(5))) / 4 :
+        r == 5 // 12 ? (sqrt(Sym(6)) + sqrt(Sym(2))) / 4 :
         r == 1 // 2 ? ONE : nothing
+    v === nothing && return nothing
+    neg ? -v : v
+end
+
+# tan(rπ) where sin/cos would leave a quotient of radicals (tan(π/12) = 2 - √3)
+function _tanpi(r::Rational{BigInt})
+    r = mod(r, 1)
+    neg = r > 1 // 2
+    neg && (r = 1 - r)
+    v = r == 1 // 12 ? 2 - sqrt(Sym(3)) :
+        r == 5 // 12 ? 2 + sqrt(Sym(3)) :
+        r == 1 // 10 ? sqrt(25 - 10sqrt(Sym(5))) / 5 :
+        r == 3 // 10 ? sqrt(25 + 10sqrt(Sym(5))) / 5 :
+        r == 1 // 5 ? sqrt(5 - 2sqrt(Sym(5))) :
+        r == 2 // 5 ? sqrt(5 + 2sqrt(Sym(5))) : nothing
     v === nothing && return nothing
     neg ? -v : v
 end
@@ -282,6 +347,8 @@ register_function!(:tan; julia = tan,
     eval = _unary(a -> begin
         r = _pi_multiple(a)
         if r !== nothing
+            t = _tanpi(r)
+            t === nothing || return t
             s, c = _sinpi(r), _sinpi(r + 1 // 2)
             if s !== nothing && c !== nothing
                 iszero(c) && throw(DivisionByZero("tan($a): a pole"))
@@ -451,6 +518,9 @@ register_function!(:log; julia = log,
         if b.kind == NUMBER && x.kind == NUMBER && isexact(b.num) && isexact(x.num) && b.num > N0 && x.num > N0 && !isone(b.num)
             k = round(Int, log(Float64(_rat(x.num))) / log(Float64(_rat(b.num))))
             abs(k) <= 10_000 && _rat(b.num)^k == _rat(x.num) && return Sym(k)
+            # powers of one integer: log(4, 8) = 3/2 (SymPy #7228)
+            q = _log_ratio_int(_rat(x.num), _rat(b.num))
+            q === nothing || return Sym(q)
         end
         nothing
     end,
@@ -459,6 +529,20 @@ register_function!(:log; julia = log,
         b, x = args
         i == 2 ? inv(x * log(b)) : -log(x) / (b * log(b)^2)
     end)
+
+# log(x)/log(b) for x = p^m, b = p^n integers > 1 (or reciprocals) of one p: m/n, else nothing
+function _log_ratio_int(x::Rational, b::Rational)
+    function pk(r::Rational)
+        s = 1
+        r < 1 && (r = inv(r); s = -1)
+        isone(denominator(r)) && numerator(r) > 1 || return nothing
+        p, k = _int_root_power(big(numerator(r)))
+        (p, s * k)
+    end
+    (px, kx), (pb, kb) = something(pk(x), (0, 0)), something(pk(b), (0, 0))
+    (px == 0 || pb == 0 || px != pb) && return nothing
+    kx // kb
+end
 
 ## reciprocal and inverse-reciprocal functions
 #

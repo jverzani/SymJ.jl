@@ -8,7 +8,7 @@ module SpecialFunctionsSupport
 import SpecialFunctions as SF
 using ..SymJ
 using ..SymJ: Sym, apply_function, register_function!, _symbolic_signatures, _unary, _odd,
-            PI, ZERO, ONE, NUMBER, isexact, _isint, _toint, _rat, SymNumber
+            PI, ZERO, ONE, NUMBER, isexact, _isint, _toint, _rat, SymNumber, _could_extract_minus
 
 # name => argument counts
 const FUNCTIONS = [
@@ -156,6 +156,23 @@ end
 # J_n(0): 1 for n = 0, 0 for an integer n ≠ 0
 bessel0(args) = iszero(args[2]) && isint(args[1]) ? (iszero(args[1]) ? ONE : ZERO) : nothing
 
+# a negative integer order -n by the symmetry: J₋ₙ = (-1)ⁿ Jₙ, Y₋ₙ = (-1)ⁿ Yₙ, I₋ₙ = Iₙ,
+# and K₋ᵥ = Kᵥ for every ν (besselj(-2, x) is besselj(2, x); SymPy #6154)
+function bessel_neg(name::Symbol, parity::Bool)
+    args -> begin
+        ν = args[1]
+        if name === :besselk
+            _could_extract_minus(ν) && return apply_function(:besselk, Sym[-ν, args[2]])
+            return nothing
+        end
+        (isint(ν) && ν.num < SymNumber(0)) || return nothing
+        n = -ν
+        v = apply_function(name, Sym[n, args[2]])
+        parity && isodd(_toint(n.num)) ? -v : v
+    end
+end
+both(f, g) = args -> (r = f(args); r === nothing ? g(args) : r)
+
 ## derivatives (∂ with respect to argument i; nothing where there is no closed form)
 
 d1(f) = (args, i) -> f(args[1])
@@ -210,10 +227,10 @@ function __init__()
     reg(:airybiprime; diff = d1(a -> a * SF.airybi(a)))
     foreach(reg, (:airyaix, :airyaiprimex, :airybix, :airybiprimex))
 
-    reg(:besselj; eval = bessel0, diff = dx((ν, a) -> (SF.besselj(ν - 1, a) - SF.besselj(ν + 1, a)) / 2))
-    reg(:bessely; diff = dx((ν, a) -> (SF.bessely(ν - 1, a) - SF.bessely(ν + 1, a)) / 2))
-    reg(:besseli; eval = bessel0, diff = dx((ν, a) -> (SF.besseli(ν - 1, a) + SF.besseli(ν + 1, a)) / 2))
-    reg(:besselk; diff = dx((ν, a) -> -(SF.besselk(ν - 1, a) + SF.besselk(ν + 1, a)) / 2))
+    reg(:besselj; eval = both(bessel0, bessel_neg(:besselj, true)), diff = dx((ν, a) -> (SF.besselj(ν - 1, a) - SF.besselj(ν + 1, a)) / 2))
+    reg(:bessely; eval = bessel_neg(:bessely, true), diff = dx((ν, a) -> (SF.bessely(ν - 1, a) - SF.bessely(ν + 1, a)) / 2))
+    reg(:besseli; eval = both(bessel0, bessel_neg(:besseli, false)), diff = dx((ν, a) -> (SF.besseli(ν - 1, a) + SF.besseli(ν + 1, a)) / 2))
+    reg(:besselk; eval = bessel_neg(:besselk, false), diff = dx((ν, a) -> -(SF.besselk(ν - 1, a) + SF.besselk(ν + 1, a)) / 2))
     reg(:hankelh1; diff = dx((ν, a) -> (SF.hankelh1(ν - 1, a) - SF.hankelh1(ν + 1, a)) / 2))
     reg(:hankelh2; diff = dx((ν, a) -> (SF.hankelh2(ν - 1, a) - SF.hankelh2(ν + 1, a)) / 2))
     reg(:besselj0; eval = at0(ONE), diff = d1(a -> -SF.besselj1(a)))

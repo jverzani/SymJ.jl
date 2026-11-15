@@ -114,6 +114,10 @@ cancel((sin(x)^2 - 1)/(sin(x) + 1))        # sin(x) - 1
 cancel(ex::Sym; gcd_method::Symbol = :auto) = _with_widening(_cancel, ex; gcd_method)
 function _cancel(ex::Sym; gcd_method::Symbol = :auto)
     _check_gcd_method(gcd_method)
+    # a piecewise function: each piece cancelled (SymPy #7022)
+    if ex.kind == FN && ex.name === :piecewise
+        return _mkfn_node(:piecewise, Sym[iseven(i) ? _cancel(a; gcd_method) : a for (i, a) in enumerate(ex.args)])
+    end
     n, d = numer_denom(ex)
     # nested fractions whose common numerator would expand to millions of terms (a
     # circuit's transfer function: 16M; SymPy #24537): over the lcm of the denominators,

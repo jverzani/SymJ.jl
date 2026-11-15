@@ -346,7 +346,9 @@ register_function!(:factorial; julia = _num_factorial,
         (a.kind == NUMBER && _isint(a.num) && 0 <= sign(a.num)) || return nothing
         n = _toint(a.num)
         n <= 100_000 ? Sym(SymNumber(factorial(big(n)))) : nothing
-    end))
+    end),
+    # (u! = Γ(u + 1): its derivative u! ψ(u + 1); SymPy #6007)
+    diff = (args, i) -> apply_function(:factorial, Sym[args[1]]) * apply_function(:digamma, Sym[args[1] + 1]))
 Base.factorial(x::Sym) = apply_function(:factorial, Sym[x])
 
 # binomial(n, k) for an integer k >= 0 is the polynomial n(n-1)...(n-k+1)/k!

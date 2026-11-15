@@ -129,7 +129,7 @@ end
 
 function _monomial_rational(t::Sym)::Union{Nothing,Bool}
     fs = t.kind == MUL ? collect(zip(t.args, t.exps)) : t.kind == POW ? [(t.args[1], t.args[2])] :
-         t.kind == CONSTANT ? [(t, ONE)] : return nothing
+         t.kind in (CONSTANT, FN) ? [(t, ONE)] : return nothing
     exps = Dict{BigInt,Rational{BigInt}}()               # integer base => exponent
     transc = Symbol[]
     for (b, x) in fs
@@ -137,6 +137,12 @@ function _monomial_rational(t::Sym)::Union{Nothing,Bool}
         q = Rational{BigInt}(_numerator(x.num), _denominator(x.num))
         if b.kind == CONSTANT && b.name in (:pi, :E)
             iszero(q) || push!(transc, b.name)
+        elseif b.kind == FN && length(b.args) == 1 && b.args[1].kind == NUMBER && isexact(b.args[1].num) &&
+               !iszero(b.args[1].num) && b.name in (:sin, :cos, :tan, :sinh, :cosh, :tanh, :asin, :atan, :log) &&
+               !(b.name === :log && (b.args[1].num <= N0 || isone(b.args[1].num)))
+            # f(r) at a nonzero rational r: transcendental by Lindemann–Weierstrass (log r
+            # for a rational r > 0, r ≠ 1, too), so irrational (SymPy #6314)
+            iszero(q) || push!(transc, Symbol(b.name, "(", string(b.args[1]), ")"))
         elseif b.kind == NUMBER && isexact(b.num) && b.num > N0
             for (n, s) in ((_numerator(b.num), q), (_denominator(b.num), -q))
                 isone(n) || (exps[BigInt(n)] = get(exps, BigInt(n), 0) + s)
@@ -646,7 +652,7 @@ _mneg(m::UInt8) = (m & _NEG == 0 ? 0x00 : _POS) | (m & _ZER) | (m & _POS == 0 ? 
 # the sign of a constant: exact for numbers, numeric otherwise; nothing when it is not
 # real or is too close to zero to tell (and not exactly zero)
 function _csign(k::Sym)::Union{Nothing,Int}
-    k.kind == NUMBER && return Int(sign(k.num))
+    k.kind == NUMBER && return isfloat(k.num) && isnan(Float64(k.num)) ? nothing : Int(sign(k.num))
     v = try _evalc(k) catch; return nothing end
     # past Float64's range (5 - exp(1000)): its sign at 256 bits (SymPy #10268)
     if !isfinite(v)
@@ -1026,6 +1032,12 @@ function _fnmask(e::Sym, A::Assumptions)
     mu === nothing && return nothing
     f in (:sign, :atan, :asinh, :sinh, :tanh, :erf, :cbrt) && return mu
     f === :cosh && return _POS
+    # (coth and csch take u's sign, sech is positive, on the reals; SymPy #5998)
+    f === :sech && return _POS
+    if f in (:coth, :csch)
+        m = mu & (_NEG | _POS)
+        return m == 0 ? nothing : m
+    end
     if f in (:sin, :cos)
         m = _trig_interval_mask(f, u, A)
         m === nothing || return m

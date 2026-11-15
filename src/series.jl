@@ -115,6 +115,11 @@ function _pspow(a::_PS, r::Sym, N::Rational{Int})
         0 // 1
     elseif r.kind == NUMBER && isexact(r.num)
         v0 * Rational{Int}(_numerator(r.num), _denominator(r.num))
+    elseif r.kind == NUMBER && isfloat(r.num) && isfinite(Float64(r.num)) &&
+           denominator(rationalize(Int, Float64(r.num))) <= 1000
+        # a float exponent: the powers of x by the rational it is (1.2 as 6/5), the
+        # coefficients in floats ((x + sin x)^1.2; SymPy #6726)
+        v0 * rationalize(Int, Float64(r.num))
     else
         throw(ArgumentError("series: a power with a symbolic exponent, $r, of a vanishing or infinite base"))
     end
@@ -208,6 +213,10 @@ function _psapply(name::Symbol, args::Vector{Sym}, N::Rational{Int})
         (o.kind == NUMBER && isexact(o.num)) ||
             throw(ArgumentError("series: $(apply_function(name, args)) at its branch point 1 with a symbolic order"))
         return _pspolylog(o, a, N)
+    end
+    # Lambert W at 0: Σ (-n)^(n-1)/n! zⁿ (its derivative rule is 0/0 there; SymPy #7259)
+    if name === :lambertw && length(args) == 1 && iszero(a0)
+        return _psgeom(a, k -> k == 0 ? ZERO : Sym(-k)^(k - 1) / Sym(factorial(big(k))), N)
     end
     # inverse functions at their branch points ±1: through square roots, whose series
     # have half-integer powers (acosh(1 + z) = √(2z)(1 - z/12 + …); SymPy #25175)

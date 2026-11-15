@@ -29,7 +29,9 @@ function __init__()
                                 prev(args[1]) / args[1])
     end
     register_function!(:li2; julia = PL.li2,                 # with its special values
-        eval = _unary(z -> iszero(z) ? ZERO : isone(z) ? PI^2 / 6 : z == -1 ? -PI^2 / 12 : nothing),
+        # (and Li₂(1/2) = π²/12 - log²2/2; SymPy #7132)
+        eval = _unary(z -> iszero(z) ? ZERO : isone(z) ? PI^2 / 6 : z == -1 ? -PI^2 / 12 :
+                           z == Sym(1) // 2 ? PI^2 / 12 - log(Sym(2))^2 / 2 : nothing),
         diff = (args, i) -> PL.li1(args[1]) / args[1])
     for f in (:li, :reli)
         g = getfield(PL, f)
