@@ -1642,11 +1642,11 @@ end
     @test subs(It, t => y) == SymJ._mkfn_node(:Integral, Sym[u(y), y])
     # floor of constants past Float64 (#6167)
     P = Sym(π)
-    tru = setprecision(BigFloat, 8000) do; floor(BigInt, big(π)^1000) end
-    @test BigInt(floor(P^1000).num) == tru
+    exact = setprecision(BigFloat, 8000) do; floor(BigInt, big(π)^1000) end
+    @test BigInt(floor(P^1000).num) == exact
     @test ceil(P^700) - floor(P^700) == 1
-    @test (P^1000 - Sym(tru) ≫ 0)()
-    @test (P^1000 - Sym(tru) ≪ 1)()
+    @test (P^1000 - Sym(exact) ≫ 0)()
+    @test (P^1000 - Sym(exact) ≪ 1)()
     # a nonpolynomial system: refused, not "no solutions" (#6613)
     @test_throws ArgumentError solve([x^2 + y^2 ~ 1, y ~ exp(x)], [x, y])
     # real unknowns: real and imaginary parts (#6821)

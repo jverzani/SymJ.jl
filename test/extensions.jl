@@ -216,7 +216,7 @@ import PolyLog as PL
             @test ∫(x^n, x; assume = (n ~ -1,)) == log(x)
         end
         # a complex antiderivative on part of a long interval is caught (SymPy #7155)
-        @test_throws ArgumentError ∫(x * acos(1 / x), (x, Sym(1) // 10, 100))
+        VERSION >= v"1.12" && @test_throws ArgumentError ∫(x * acos(1 / x), (x, Sym(1) // 10, 100))  # (the older RischIntegrate refuses acos(1/x))
         # floor and ceil integrated by unit intervals (SymPy #8420, #8480)
         @test ∫(1 / floor(x)^2, (x, 1, Inf)) == SymJ.PI^2 / 6
         @test ∫(x - floor(x), (x, 0, Inf)) == Inf_
