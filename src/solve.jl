@@ -164,15 +164,41 @@ function _solve_floor(eq::Relation, x::Sym, assume)
     F === nothing && return nothing
     u = Sym(Symbol("_floor_u"))
     h = expand(subs(g, F => u))
-    has(h, x) && return nothing
+    w = F.args[1]
+    if has(h, x)
+        # floor(w) = w + c (c a number): none unless -1 < c ≤ 0 (ceil: 0 ≤ c < 1), as
+        # floor(w) - w lies in (-1, 0] (floor(x) = x + 1 has no solution; SymPy #8472)
+        P1 = try Poly{Sym}(h, [u]) catch; return nothing end
+        degree(P1, u) == 1 || return nothing
+        nn = cancel(-coeff(h, u, 0) / coeff(h, u, 1))
+        c = expand(nn - w)
+        (c.kind == NUMBER && isexact(c.num)) || return nothing
+        ok = F.name === :floor ? (-N1 < c.num <= N0) : (N0 <= c.num < N1)
+        ok || return SymSet(SymInterval[])
+        return nothing
+    end
     P = try Poly{Sym}(h, [u]) catch; return nothing end
     degree(P, u) == 1 || return nothing
     c, d = coeff(h, u, 1), coeff(h, u, 0)
-    (_hassymbol(c) || _hassymbol(d)) && return nothing
+    _hassymbol(c) && return nothing
     n = -d / c
+    if _hassymbol(n) && !has(n, x)
+        # a symbolic value n: an integer by the assumptions, w = αx + β with α a number:
+        # [(n - β)/α, (n + 1 - β)/α) for floor (ceil: ((n - 1 - β)/α, (n - β)/α]), flipped for
+        # α < 0 (floor(x) = n is [n, n + 1); SymPy #8472)
+        A = _assumptions(assume)
+        (A !== nothing && _isinteger(n, A) === true) || return nothing
+        α = diff(F.args[1], x)
+        (α.kind == NUMBER && isexact(α.num) && !iszero(α.num) && iszero(diff(α, x))) || return nothing
+        β = expand(F.args[1] - α * x)
+        has(β, x) && return nothing
+        lo, hi = F.name === :floor ? ((n - β) / α, (n + 1 - β) / α) : ((n - 1 - β) / α, (n - β) / α)
+        lc, hc = F.name === :floor ? (true, false) : (false, true)
+        α.num < N0 && ((lo, hi, lc, hc) = (hi, lo, hc, lc))
+        return SymSet([SymInterval(expand(lo), expand(hi), lc, hc)], x)
+    end
     (n.kind == NUMBER && isexact(n.num)) || return nothing
     _isint(n.num) || return SymSet(SymInterval[])
-    w = F.args[1]
     lo, hi = F.name === :floor ? (Relation(:ge, w, n), Relation(:lt, w, n + 1)) :
                                   (Relation(:gt, w, n - 1), Relation(:le, w, n))
     S1, S2 = solve(lo, x; assume), solve(hi, x; assume)
@@ -662,6 +688,19 @@ function _solve_through(eq::Relation, n::Sym, x::Sym, bad::Vector{Sym})
     end
     if has(nu, x)
         _issqrt(g) && return _solve_radical(eq, nu, u, g, x)
+        # a cube root, A + B ∛t = 0: cubed, A³ + B³ t = 0, the roots checked (∛(x³ - 3x²) =
+        # x - 4/3; SymPy #8789)
+        if _iscuberoot(g)
+            P = try Poly{Sym}(nu, [u]) catch; nothing end
+            if P !== nothing && degree(P, u) == 1
+                A, B = coeff(nu, u, 0), coeff(nu, u, 1)
+                t = g.kind == FN ? g.args[1] : g.args[1]
+                cands = _solve_eq(expand(A^3 + B^3 * t) ~ 0, x)
+                # (cbrt is real: its equation's roots real ones)
+                real_ok(r) = g.kind != FN || _isreal_const(r) !== false
+                cands isa AbstractVector && return filter(r -> real_ok(r) && _satisfies(eq, x, r), cands)
+            end
+        end
         # log(x) and x: x = e^y, an equation in y and e^y (1/x = 1/log(x)²: y² = e^y; #26461)
         if g.kind == FN && g.name === :log && length(g.args) == 1 && _eq(g.args[1], x)
             y = Sym(Symbol("_y", objectid(g)))
@@ -1189,6 +1228,11 @@ function _invert(g::Sym, r::Sym, x::Sym)
     if k == FN && length(g.args) == 1
         t = g.args[1]
         name = g.name
+        # ∛t = r (the real cube root): t = r³, for a real r (SymPy #8789)
+        if name === :cbrt
+            _isreal_const(r) === false && return Tuple{Sym,Sym}[]
+            return [(t, r^3)]
+        end
         if name === :abs                                    # |t| = r: t = ±r, for real t
             A = _SOLVE_ASSUME[]
             if A !== nothing && _isreal(t, A) === true

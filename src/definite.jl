@@ -17,6 +17,26 @@
 # values are not both finite, so an integral that converges keeps its value. A singular
 # end is not crossed and is treated as before.
 
+# floor(x) and ceil(x) in f, integer ends (the upper one perhaps ∞): unit interval by unit
+# interval, floor(x) = k and ceil(x) = k + 1 on (k, k + 1), the pieces summed: ∫₁^∞ dx/
+# floor(x)² is ζ(2), ∫₀^∞ (x - floor(x)) dx diverges (they reached the integrator; SymPy
+# #8420, #8480). nothing when f has no such call or the ends are not integers.
+function _floor_integral(f::Sym, x::Sym, lo, hi, assume, antider)
+    _has_node(f, u -> u.kind == FN && u.name in (:floor, :ceil) && length(u.args) == 1 && _eq(u.args[1], x)) || return nothing
+    intend(e) = e isa Sym && e.kind == NUMBER && isexact(e.num) && _isint(e.num)
+    intend(lo) || return nothing
+    infhi = hi isa Sym && _isinfpt(hi) && Float64(hi.num) > 0
+    (infhi || intend(hi)) || return nothing
+    k = Sym(Symbol("_fk"))
+    _has_node(subs(f, floor(x) => k, ceil(x) => k), u -> u.kind == FN && u.name in (:floor, :ceil, :frac) && has(u, x)) && return nothing
+    g = subs(f, floor(x) => k, ceil(x) => k + 1)
+    A = _assumptions(assume)
+    F = try antider(g, x, something(A, Assumptions())) catch err; err isa ArgumentError || rethrow(); return nothing end
+    F isa Sym || return nothing
+    piece = try cancel(subs(F, x => k + 1) - subs(F, x => k)) catch err; _isdivzero(err) || rethrow(); return nothing end
+    summation(piece, k, lo, infhi ? Inf : hi - 1; assume = (k ∈ ℤ, Relation(:ge, k, lo)))
+end
+
 # ∫ f dx over (x, lo, hi); antider(f, x, A) is an antiderivative under the assumptions A
 function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Bool = false)
     length(xab) == 3 || throw(ArgumentError("integrate: give the limits as (x, a, b)"))
@@ -47,6 +67,8 @@ function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Boo
             throw(ArgumentError("integrate: a definite integral with the complex parameter $p is not supported (its convergence depends on Im $p)"))
     end
     f, lo, hi = (_realsyms(e, [x; collect(ps)]) for e in (Sym(f), lo, hi))
+    r = _floor_integral(f, x, lo, hi, assume, antider)
+    r === nothing || return r
     isempty(ps) || (A0 = _with_fact(A0, FactAnd(Any[p ∈ ℝ for p in _sort_by_name!(collect(ps))])))
     v = _by_cases(A0) do A
         sub = collect(A.subst)

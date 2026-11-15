@@ -106,11 +106,24 @@ function _mp_power(P, p::Int, q::Int)
     resultant(_mp_expr(P, _MP_Y), _MP_T^q - _MP_Y^p, _MP_Y)
 end
 
+const _IN_MP_ZERO = ScopedValue(false)
+
 # the irreducible factor of R (an expression in _MP_T) that vanishes at the value of e
 function _mp_select(R::Sym, e::Sym)
     _, fs = factor(Poly{SymNumber}(expand(R), [_MP_T]))
     cands = [_xcoeffs(f) for (f, _) in fs if degree(f, _MP_T) >= 1]
     length(cands) == 1 && return cands[1]
+    # e = 0, proved: the factor t (√(1 + √3) + √(3 + 3√3) - √(10 + 6√3), whose numeric
+    # residuals could not separate the factors; SymPy #8354)
+    # (simplify can ask for a minimal polynomial in turn: not from inside this check, which
+    # recursed until the stack overflowed on Julia 1.10 and 1.14)
+    i0 = findfirst(c -> length(c) == 2 && iszero(c[1]) && !iszero(c[2]), cands)
+    if i0 !== nothing && !_IN_MP_ZERO[]
+        z = with(_IN_MP_ZERO => true) do
+            try Base.inferencebarrier(simplify)(e) catch err; err isa ArgumentError || rethrow(); e end
+        end
+        iszero(z) && return cands[i0]
+    end
     for prec in (256, 1024, 4096)
         sc = setprecision(BigFloat, prec) do
             v = evaluate(e, big(0.0))
