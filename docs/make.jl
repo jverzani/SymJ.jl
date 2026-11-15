@@ -13,7 +13,8 @@ DocMeta.setdocmeta!(SymJ, :DocTestSetup, :(using SymJ); recursive=true)
 #
 # A new docstring in a listed file needs nothing here. A new source file with docstrings
 # is added to a page; until it is, `makedocs` fails (`checkdocs = :all`) naming the
-# docstrings not shown anywhere. The pages are written to src/reference/ at each build
+# docstrings not shown anywhere. A page with a submodule's docstrings names the modules
+# (`modules`; SymJ alone otherwise). The pages are written to src/reference/ at each build
 # (not committed).
 const REFERENCE = [
     (title = "Expressions and evaluation", file = "expressions",
@@ -31,7 +32,8 @@ const REFERENCE = [
     (title = "Assumptions", file = "assumptions",
      files = ["assumptions.jl", "cases.jl"]),
     (title = "Solving equations", file = "solving",
-     files = ["solve.jl", "linsolve.jl", "intervals.jl", "ineqsystems.jl"],
+     files = ["solve.jl", "linsolve.jl", "intervals.jl", "ineqsystems.jl", "fsolve.jl", "chebzeros.jl"],
+     modules = ["SymJ", "SymJ.ChebZeros"],
      see = ["rsolve", "dsolve"]),
     (title = "Sums and recurrences", file = "sums",
      files = ["summation.jl", "recurrence.jl"]),
@@ -61,7 +63,8 @@ function write_reference(dir)
         isempty(see) || println(io, "See also ", join(("[`$n`](@ref)" for n in see), ", "), ".\n")
         isempty(first_) || println(io, "```@docs\n", join(first_, "\n"), "\n```\n")
         objs = join(("getfield(SymJ, Symbol(\"$n\"))" for n in first_), ", ")
-        println(io, "```@autodocs\nModules = [SymJ]\nPages = [", join(repr.(p.files), ", "), "]")
+        # (a page's submodules, as SymJ.ChebZeros, listed in `modules`)
+        println(io, "```@autodocs\nModules = [", join(get(p, :modules, ["SymJ"]), ", "), "]\nPages = [", join(repr.(p.files), ", "), "]")
         isempty(first_) || println(io, "Filter = t -> !any(o -> t === o, ($objs,))")
         println(io, "```")
         write(joinpath(dir, p.file * ".md"), take!(io))

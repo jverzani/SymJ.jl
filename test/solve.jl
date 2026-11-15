@@ -494,3 +494,40 @@ end
     @test SymJ._isreal(x^y, Assumptions(x ≪ 0, y ∈ ℚ, y ∉ ℤ)) === false
     @test SymJ._isreal(x^y, Assumptions(x ≪ 0, y ∈ ℚ)) === nothing
 end
+
+@testset "fsolve" begin
+    @syms x y
+    F = SymJ.fsolve
+    holds(eq, r) = abs(N(subs(lhs(eq) - rhs(eq), x => r))) <= 1e-10
+    # transcendental: real roots on the line, or on an interval
+    @test N.(F(cos(x) ~ x, x)) ≈ [0.7390851332151607]
+    let eq = log(x) + sin(x) ~ 1
+        rs = F(eq, x)
+        @test length(rs) == 3
+        @test all(r -> holds(eq, r), rs)
+        @test N.(F(eq, x, (0, 4))) ≈ [1.1099563755802675, 3.3530284715132392]
+        @test N.(F(eq, x, 0, 4)) ≈ [1.1099563755802675, 3.3530284715132392]
+        # with complex roots near the axis: two more
+        rc = F(eq, x; domain = ℂ)
+        @test length(rc) == 5
+        @test count(r -> !iszero(imag(N(r))), rc) == 2
+    end
+    @test N.(F(x * exp(x^2) ~ 1, x)) ≈ [0.6529186404192047]
+    @test length(F(sin(x) ~ x / 100, x)) == 63
+    # infinitely many roots: those nearest the origin, with a warning
+    @test_logs (:warn,) match_mode = :any F(tan(x) ~ x, x)
+    # polynomials through their exact roots: real ones, all of them with domain = ℂ, in an
+    # interval; a rational function's poles are not roots
+    @test N.(F(x^5 - x + 1 ~ 0, x)) ≈ [-1.1673039782614187]
+    @test length(F(x^5 - x + 1 ~ 0, x; domain = ℂ)) == 5
+    @test N.(F(x^3 - 2x ~ 0, x, (0, 10))) ≈ [0.0, sqrt(2)]
+    @test N.(F((x^2 - 1) / (x - 1) ~ 0, x)) ≈ [-1.0]
+    @test N.(F(x^2 - 2.0 ~ 0, x)) ≈ [-sqrt(2), sqrt(2)]
+    # solve is unchanged: no exact method, an error
+    @test_throws ArgumentError solve(cos(x) ~ x, x)
+    # what fsolve does not take
+    @test_throws ArgumentError F(cos(x) ~ y, x)
+    @test_throws ArgumentError F(cos(x) ~ x, x, (0, 1); domain = ℂ)
+    @test_throws ArgumentError F(cos(x) ~ x, x; domain = ℤ)
+    @test_throws ArgumentError F(cos(x) ≪ x, x)
+end
