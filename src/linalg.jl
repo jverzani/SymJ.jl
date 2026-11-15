@@ -767,6 +767,7 @@ _rank_cases(A) = B -> _rank_case(Sym[Sym(a) for a in A], B)
 
 # the rank in the case B: generic r where the gcd of the r × r minors is nonzero, else
 # the rank with the vanishing factor's value substituted (SymPy #24613)
+const _RANK_MINORS = 24
 function _rank_case(A::Matrix{Sym}, B)
     sub = [k => v for (k, v) in B.subst]
     S = isempty(sub) ? A : Sym[cancel(subs(a, sub...)) for a in A]
@@ -774,11 +775,22 @@ function _rank_case(A::Matrix{Sym}, B)
     (r == 0 || !any(_hassymbol, S)) && return r
     m, n = size(S)
     rows, cols = collect(Iterators.take(_combinations(m, r), 200)), collect(Iterators.take(_combinations(n, r), 200))
+    # the minor on the pivot rows and columns first: nonzero (the first minors in order
+    # all vanished for a 24 × 24 matrix, and it said rank 22 where it is 16; SymPy #6011)
+    pairs = [(sort(_rref_field(permutedims(S))[2]), sort(_rref_field(S)[2]))]
     G = ZERO
     first = nothing
-    for I in rows, J in cols
+    # (a gcd of some of the minors is a multiple of theirs: its extra factors are cases
+    # found again to have rank r; at most _RANK_MINORS nonzero minors, and none once the
+    # gcd is constant: that matrix took ~200² minors of size 22)
+    count = tried = 0
+    for (I, J) in Iterators.flatten((pairs, ((I, J) for I in rows for J in cols)))
+        (count >= _RANK_MINORS || tried >= 20 * _RANK_MINORS) && break
+        !iszero(G) && !_hassymbol(G) && break
+        tried += 1
         d = cancel(LinearAlgebra.det(S[I, J]))
         iszero(d) && continue
+        count += 1
         nd = numer_denom(d)[1]
         _hassymbol(nd) || return r                   # a nonzero constant minor: rank r
         first === nothing && (first = nd)

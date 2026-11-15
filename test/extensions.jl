@@ -210,6 +210,17 @@ import PolyLog as PL
     @testset "RischIntegrate: definite integrals" begin
         ∫ = RischIntegrate.integrate
         Inf_ = Sym(Inf)
+        # a derivative at a point linear in the variable (SymPy #6407; a stack overflow)
+        let f = SymFunction(:f), t = Sym(:t)
+            df = subs(diff(f(x), x), x => x - t)
+            @test ∫(df, t) == -f(x - t)
+            @test ∫(df, (t, 0, x)) == f(x) - f(0)
+            @test ∫(diff(f(2t), t), t) == f(2t)
+        end
+        # x sin(a/x) at 0 by a limit, not substituted (SymPy #6154; a DivisionByZero)
+        let t = Sym(:t), a = Sym(:a), w = Sym(:w)
+            VERSION >= v"1.12" && @test_throws RischIntegrate.NotElementary ∫(sin(a / t) * cos(w * t) / t, (t, 0, Inf); assume = (a ≫ 0, w ≫ 0))
+        end
         # facts that fix a parameter's value in indefinite integrals (SymPy #6985)
         let k = Sym(:k), n = Sym(:n)
             @test ∫(exp(k * x), x; assume = (k ~ 0,)) == x
@@ -469,7 +480,8 @@ import PolyLog as PL
         # (RischIntegrate 1.2 on; Julia 1.10 resolves 1.0)
         if isdefined(RischIntegrate, :clausen2)
             @test RischIntegrate.integrate(1 / (A - cos(t)), (t, 0, 2PI); assume = (A ≫ 1,)) == 2PI / sqrt(A^2 - 1)
-            @test RischIntegrate.integrate(cos(t) / (A - cos(t)), (t, 0, 2PI); assume = (A ≫ 1,)) == 2PI * A / sqrt(A^2 - 1) - 2PI
+            # (by value: RischIntegrate 1.3 gives it over one denominator)
+            @test iszero(simplify(RischIntegrate.integrate(cos(t) / (A - cos(t)), (t, 0, 2PI); assume = (A ≫ 1,)) - (2PI * A / sqrt(A^2 - 1) - 2PI)))
             @test RischIntegrate.integrate(1 / (3 - cos(t)), (t, 0, 2PI)) == PI / sqrt(Sym(2))
         end
         # Bessel functions of non-integer order at 0: x^ν times a series in x² (#25678)
@@ -671,7 +683,8 @@ import PolyLog as PL
         @test_throws ArgumentError ∫(acos(x), (x, 2, 3))
         @test ∫(asin(x), (x, 0, 1)) == PI / 2 - 1
         @test ∫(sqrt(x), (x, -1, 1)) == Sym(2) / 3 + 2IM / 3
-        @test ∫(1 / (x + IM), (x, -1, 1)) == log(1 + IM) - log(IM - 1)
+        # (log(1 + i) - log(i - 1); -iπ/2 from RischIntegrate 1.3)
+        @test ∫(1 / (x + IM), (x, -1, 1)) in (log(1 + IM) - log(IM - 1), -IM * PI / 2)
         # g'(x) is not the unknown's derivative (#13691); ∫ g'(x) dx = g(x)
         @test SymJ.dsolve(diff(f(x), x) ~ a * diff(g(x), x), f(x)) == (f(x) ~ Sym(:C1) + a * g(x))
         @test ∫(diff(g(x), x), (x, 0, 1)) == g(1) - g(0)

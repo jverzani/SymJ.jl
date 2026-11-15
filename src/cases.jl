@@ -375,6 +375,8 @@ function _case_tree(run, A::Assumptions, decided::Dict{Any,Bool}, count::Ref{Int
     count[] += 1
     count[] > _MAX_CASES && return [Any[] => ArgumentError("too many cases: this case is left unsolved; assumptions that settle its conditions solve it (SymPy #12117)")]
     f = need.f
+    fsize = f isa Relation ? _nodes(f.lhs - f.rhs) : f isa Membership ? _nodes(f.x) : 0
+    fsize > _MAX_FACT_NODES && return [Any[] => ArgumentError("a condition too large to split on (of $fsize nodes): this case is left unsolved (SymPy #6818)")]
     g = _reduce_fact(f)
     branches = Pair{Any,Any}[]                       # condition => (assumptions, decided)
     c = g isa Relation ? expand(g.lhs - g.rhs) : nothing

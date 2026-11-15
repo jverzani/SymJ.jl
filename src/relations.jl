@@ -31,6 +31,7 @@ struct Relation <: AbstractSymbolic
     lhs::Sym
     rhs::Sym
 end
+free_symbols(r::Relation) = free_symbols([r.lhs, r.rhs])
 
 """
     lhs(r::Relation), rhs(r::Relation)

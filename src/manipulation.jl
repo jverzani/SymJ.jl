@@ -58,6 +58,14 @@ function _natural_lt(a::AbstractString, b::AbstractString)
     length(ta) == length(tb) ? a < b : length(ta) < length(tb)
 end
 free_symbols(::Number) = Sym[]
+# (of an array or a tuple, and of a relation (relations.jl): the union over the parts; SymPy #7204)
+function free_symbols(xs::Union{AbstractArray,Tuple})
+    s = Set{Sym}()
+    for a in xs
+        union!(s, free_symbols(a))
+    end
+    _sort_by_name!(collect(s))
+end
 
 # (internal, not exported: parameters are hidden until the name question is settled)
 #     free_parameters(ex)

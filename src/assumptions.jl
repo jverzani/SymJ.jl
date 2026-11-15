@@ -423,6 +423,9 @@ function _setsubst!(A::Assumptions, x::Sym, v::Sym)
 end
 
 # add a fact (substituted); false if it is false
+# a condition larger than this (in _nodes) is neither solved as a fact nor split on as
+# a case (cases.jl): one built of a cubic's roots by Cardano ran without end (SymPy #6818)
+const _MAX_FACT_NODES = 2000
 function _add_fact!(A::Assumptions, f)
     if f isa FactOr || f isa FactAnd
         vs = _factsyms(f)
@@ -463,7 +466,8 @@ function _add_fact!(A::Assumptions, f)
     for x in vs
         (r.op === :eq || x in bare) && _markreal!(A, x)
     end
-    if length(vs) == 1 && r.op !== :eq && only(vs) in bare
+    # (one too large is not solved for its symbol: cancel ran without end; SymPy #6818)
+    if length(vs) == 1 && r.op !== :eq && only(vs) in bare && _nodes(d) <= _MAX_FACT_NODES
         x = only(vs)
         S = try _solve_inequality(Relation(r.op, d, ZERO), x) catch; nothing end
         if S !== nothing
