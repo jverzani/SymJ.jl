@@ -97,6 +97,25 @@ function solve(eqs::AbstractVector{<:Relation}, vars::Union{AbstractVector,Tuple
             r = solve(only(eqs), x; assume = A)
             return r isa Cases ? _map_cases(dicts, r) : dicts(r)
         end
+        # every unknown real, an equation with i: its real and imaginary parts, each an
+        # equation (3x - (2 + i)y + 3i = 0 in reals is x = 2, y = 3; the linear method left x
+        # complex; SymPy #6821)
+        if all(v -> _isnamed(v) && _isreal(v, A) === true, vs) && any(e -> has(e.lhs - e.rhs, IM), eqs)
+            split = Relation[]
+            ok = true
+            for e in eqs
+                d = expand(e.lhs - e.rhs)
+                has(d, IM) || (push!(split, e); continue)
+                rf = Base.inferencebarrier(_refine)
+                re, im = rf(Base.inferencebarrier(real)(d), A), rf(Base.inferencebarrier(imag)(d), A)
+                (_has_fn(re, (:real, :imag)) || _has_fn(im, (:real, :imag))) && (ok = false; break)
+                iszero(re) || push!(split, Relation(:eq, re, ZERO))
+                iszero(im) || push!(split, Relation(:eq, im, ZERO))
+            end
+            # (solved anew, not eqs reassigned: a variable of two types in this method made
+            # Julia 1.14's inference of the package run past 40 minutes)
+            ok && !isempty(split) && return solve(split, vars; assume)
+        end
         r = with(() -> solve(eqs, vars), _SYSTEM_ASSUME => A)
         # (a family in free unknowns narrowed by their facts first: a1 + b1 = 0 with a1, b1 > 0
         # has none; SymPy #12932, #12546)

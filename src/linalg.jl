@@ -775,14 +775,21 @@ function _rank_case(A::Matrix{Sym}, B)
     m, n = size(S)
     rows, cols = collect(Iterators.take(_combinations(m, r), 200)), collect(Iterators.take(_combinations(n, r), 200))
     G = ZERO
+    first = nothing
     for I in rows, J in cols
         d = cancel(LinearAlgebra.det(S[I, J]))
         iszero(d) && continue
         nd = numer_denom(d)[1]
+        _hassymbol(nd) || return r                   # a nonzero constant minor: rank r
+        first === nothing && (first = nd)
         # (minors that are not polynomials: one minor's factors, extra cases giving r)
         G = iszero(G) ? nd : (try gcd(G, nd) catch err; err isa ArgumentError || rethrow(); G end)
-        _hassymbol(G) || return r
     end
+    # no common factor, yet the minors may vanish together (b and c at b = c = 0 in
+    # [0 b; 0 c]: rank 0; it said 1; SymPy #7146): one minor's zero a case, the rank of
+    # that case found again
+    _hassymbol(G) || (G = something(first, G))
+    _hassymbol(G) || return r
     ps = _degenerate_subst([G], B, Sym[])
     ps === nothing && return r
     _alternatives(ps) do p

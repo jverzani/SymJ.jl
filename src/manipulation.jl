@@ -243,6 +243,7 @@ function _subs(ex::Sym, d::Dict{Sym,Sym})
         ex.name === :Derivative && return _subs_derivative(ex, d)
         ex.name === :piecewise && iseven(length(ex.args)) && return _subs_piecewise(ex, d)
         _isdefint(ex) && return _subs_defint(ex, d)
+        _isindefint(ex) && return _subs_indefint(ex, d)
         _isboundsum(ex) && return _subs_bound(ex, d, apply_function)
         new = _subs_args(ex.args, d)
         new === nothing && return ex
@@ -465,6 +466,26 @@ _isderivat(ex::Sym) = ex.kind == FN && ex.name === :Derivative && length(ex.args
 # integrate takes it): v is bound, so only f's other symbols and the limits are substituted
 _isdefint(ex::Sym) = ex.kind == FN && ex.name === :Integral && length(ex.args) == 4
 _subs_defint(ex::Sym, d::Dict{Sym,Sym}) = _subs_bound(ex, d, _mkfn_node)
+
+# an indefinite Integral(f, v): v renamed by an expression, refused a constant (Integral(a(2), 2)
+# was made; SymPy #6928); f's other symbols substituted
+_isindefint(ex::Sym) = ex.kind == FN && ex.name === :Integral && length(ex.args) == 2 && _isnamed(ex.args[2])
+function _subs_indefint(ex::Sym, d::Dict{Sym,Sym})
+    # (behind an inference barrier: _subs inside _subs made Julia 1.14's inference of the
+    # package run past 40 minutes)
+    _subs = Base.inferencebarrier(SymJ._subs)
+    f, v = ex.args
+    w = get(d, v, nothing)
+    if w !== nothing
+        # (a constant: no variable; an expression, y(x) from dsolve, renames it)
+        _hassymbol(w) || throw(ArgumentError("subs: $v is the variable of the indefinite integral $ex; it takes no value ($v => $w)"))
+        d2 = copy(d); delete!(d2, v)
+        g = isempty(d2) ? f : _subs(f, d2)
+        return _mkfn_node(:Integral, Sym[_subs(g, Dict{Sym,Sym}(v => w)), w])
+    end
+    g = _subs(f, d)
+    g === f ? ex : _mkfn_node(:Integral, Sym[g, v])
+end
 
 # Sum(f, k, a, b) and Product(f, k, a, b): k is bound
 _isboundsum(ex::Sym) = ex.kind == FN && ex.name in (:Sum, :Product) && length(ex.args) == 4
@@ -1186,6 +1207,12 @@ SymJ.coeff(a*x + sin(x) + b, x, 0)          # b
 ```
 """
 function coeff(ex, x::Sym, n = 1)
+    # c·u (-x): the coefficient of u over c; another product (x*y) is no target (it was
+    # 0, silently; SymPy #7072)
+    if x.kind == MUL
+        length(x.args) == 1 && !isone(x.num) && return Base.inferencebarrier(coeff)(ex, x.args[1]^x.exps[1], n) / Sym(x.num)
+        throw(ArgumentError("coeff: the target $x is not a symbol, a function call or a power of one"))
+    end
     v, p = _coeff_var(x, n)
     e = expand(Sym(ex))
     out = ZERO

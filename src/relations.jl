@@ -181,20 +181,26 @@ end
 # (x + 1)^3 - 2 expanded at x = 2^(1/3) - 1 is -1.3e-77 on Julia 1.10); nothing when a
 # side has no such value
 function _decide_big(r::Relation)
-    L, R = _bigvalue(r.lhs, 256), _bigvalue(r.rhs, 256)
-    (L === nothing || R === nothing || !isfinite(L) || !isfinite(R)) && return nothing
-    s = max(_bigsize(r.lhs, L), _bigsize(r.rhs, R))
-    iszero(s) && return 0
-    w = L - R
-    abs(w) <= s * big(2.0)^-200 && return 0
-    abs(imag(w)) > abs(w) * big(2.0)^-200 && return nothing
-    Int(sign(real(w)))
+    # sides equal to a precision's rounding: the next precision, before they are taken equal
+    # (π^1000 - floor(π^1000) > 0 was false: its terms near 1e497 cancel below 256 bits;
+    # SymPy #6167)
+    for p in (256, 1024, 4096)
+        L, R = _bigvalue(r.lhs, p), _bigvalue(r.rhs, p)
+        (L === nothing || R === nothing || !isfinite(L) || !isfinite(R)) && return nothing
+        s = setprecision(() -> max(_bigsize(r.lhs, L), _bigsize(r.rhs, R)), BigFloat, p)
+        iszero(s) && return 0
+        w = L - R
+        abs(w) <= s * big(2.0)^(56 - p) && continue
+        abs(imag(w)) > abs(w) * big(2.0)^-200 && return nothing
+        return Int(sign(real(w)))
+    end
+    0
 end
 
 # |value| of e at 256 bits, a sum's constant and terms in absolute value added (v: its value)
 function _bigsize(e::Sym, v)
     e.kind == ADD || return abs(v)
-    sz(x) = (w = _bigvalue(x, 256); w === nothing || !isfinite(w) ? nothing : abs(w))
+    sz(x) = (w = _bigvalue(x, precision(BigFloat)); w === nothing || !isfinite(w) ? nothing : abs(w))
     s = sz(Sym(e.num))
     s === nothing && return abs(v)
     for (t, c) in zip(e.args, e.exps)

@@ -144,6 +144,15 @@ function _solve_radical_system(eqs::Vector{<:Relation}, vars::Vector{Sym})
     left(g) = any(t -> any(v -> has(t.args[1], v), vars), _radical_nodes(g)) ||
               (_hasfn(g, :cbrt) && any(v -> has(g, v), vars))
     any(e -> left(e.lhs - e.rhs), es) && return nothing
+    # (polynomial once the radicals are unknowns, else not this method's: y = e^w, w² = 1 - y²
+    # came back with no solutions, (0, 1) solving x² + y² = 1, y = eˣ; SymPy #6613)
+    uw = [vars; ws]
+    for e in es
+        at = Set{Sym}()
+        nd = numer_denom(Base.inferencebarrier(cancel)(e.lhs - e.rhs))
+        (_poly_atoms!(at, nd[1]) && _poly_atoms!(at, nd[2])) || return nothing
+        any(a -> !any(u -> _eq(a, u), uw) && any(u -> has(a, u), uw), at) && return nothing
+    end
     append!(es, [Relation(:eq, w^q, R) for ((R, q, _), w) in zip(roots, ws)])
     sols = try
         _solve_generic(es, [vars; ws])
@@ -809,9 +818,12 @@ function _solve_by_elimination(eqs::Vector{<:Relation}, vars::Vector{Sym})
         end
         ok || continue
         left = [v for v in vars if !haskey(fixed, v)]
+        # (a branch whose rest cannot be solved is no proof it has no solutions: the whole
+        # elimination gives up, as solve then says; x² + y² = 1, y = eˣ gave [], (0, 1) a
+        # solution; SymPy #6613)
         sub = isempty(rest) ? [Dict{Sym,Sym}()] :
-              try _solve_generic(rest, left) catch err; err isa ArgumentError || rethrow(); continue end
-        sub isa AbstractVector || continue
+              try _solve_generic(rest, left) catch err; err isa ArgumentError || rethrow(); return nothing end
+        sub isa AbstractVector || return nothing
         for t in sub
             d = Dict{Sym,Sym}(k => cancel(subs(v, t...)) for (k, v) in fixed)
             merge!(d, t)

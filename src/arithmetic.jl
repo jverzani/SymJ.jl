@@ -232,6 +232,14 @@ function _cfloatval(b::Sym)
     complex(Float64(b.num), Float64(b.coefs[1]))
 end
 
+# b^e1 b^e2 as b^(e1 + e2), except 0^u 0^(-u) for symbolic u: 0^u is 0, ∞ or NaN, never
+# a finite nonzero number, so the product is NaN for u ≠ 0, not 1 (SymPy #6861)
+function _powsum(b::Sym, e1::Sym, e2::Sym)
+    e = add(e1, e2)
+    (b.kind == NUMBER && iszero(b.num) && iszero(e) && (_hassymbol(e1) || _hassymbol(e2))) && return Sym(NaN)
+    pow(b, e)
+end
+
 function mul(a::Sym, b::Sym)
     ka, kb = a.kind, b.kind
     # complex floats multiplied as numbers ((2.0 + i)(1.0 + 3.0i) = -1.0 + 7.0i; SymPy #12154)
@@ -251,7 +259,7 @@ function mul(a::Sym, b::Sym)
     ba, ea = _split_pow(a)
     bb, eb = _split_pow(b)
     c = _cmp(ba, bb)
-    c == 0 && return pow(ba, add(ea, eb))
+    c == 0 && return _powsum(ba, ea, eb)
     c < 0 ? _mkmul(N1, Sym[ba, bb], Sym[ea, eb]) : _mkmul(N1, Sym[bb, ba], Sym[eb, ea])
 end
 
@@ -286,7 +294,7 @@ function _mul_factor(M::Sym, x::Sym)
     b, e = _split_pow(x)
     i, found = _search(M.args, b)
     found || return _mkmul(M.num, _insert(M.args, i, b), _insert(M.exps, i, e))
-    p = pow(b, add(M.exps[i], e))
+    p = _powsum(b, M.exps[i], e)
     if p.kind == NUMBER
         return _mkmul(M.num * p.num, _deleteat(M.args, i), _deleteat(M.exps, i))
     end
@@ -316,7 +324,7 @@ function _merge_mul(A::Sym, B::Sym)
         elseif k > 0
             push!(bases, b[j]); push!(exps, be[j]); j += 1
         else
-            c, left = _push_power!(bases, exps, a[i], pow(a[i], add(ae[i], be[j])), c, left)
+            c, left = _push_power!(bases, exps, a[i], _powsum(a[i], ae[i], be[j]), c, left)
             i += 1; j += 1
         end
     end

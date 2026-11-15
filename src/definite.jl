@@ -1042,6 +1042,13 @@ function _sampled_check(F::Sym, f::Sym, x::Sym, lo::Sym, hi::Sym, S, unlocated::
     nonreal(z) = isfinite(z) && abs(imag(z)) > 1e-9 * (1 + abs(z))
     # (points off the middle and the ends, where singular points tend to be)
     ts = [a + (b - a) * (i - 0.5 + 0.1234) / 7.25 for i in 1:7]
+    # (an interval spanning orders of magnitude on one side of 0: geometric samples too,
+    # so (1/10, 1) of (1/10, 100) is seen; x acos(1/x) is complex there; SymPy #7155)
+    if a > 0 && b / a > 10
+        append!(ts, [a * (b / a)^((i - 0.5 + 0.1234) / 7.25) for i in 1:7])
+    elseif b < 0 && a / b > 10
+        append!(ts, [b * (a / b)^((i - 0.5 + 0.1234) / 7.25) for i in 1:7])
+    end
     fs = [val(f, t) for t in ts]
     Fs = [val(F, t) for t in ts]
     complexF = any(nonreal, Fs) || any(nonreal, fs)
