@@ -541,10 +541,17 @@ end
     let z = Sym(:z), s = only(F([x + y + z ~ 6, x * y * z ~ 6, x^2 + y^2 + z^2 ~ 14], [x, y, z], [x => (0, 1.5), y => (1.5, 2.5)]))
         @test N(s[z]) ≈ 3
     end
-    # a complex solution from a complex start
-    @test N(only(F([x^2 + y^2 ~ -1, x ~ y], [x, y], [x => 0.5im, y => 0.5im]; domain = ℂ))[x]) ≈ im / sqrt(2)
-    # none found: an error, not []
-    @test_throws ArgumentError F([x^2 + y^2 ~ -1, x ~ y], [x, y])
+    # a complex solution from a complex start (not polynomial)
+    @test N(only(F([exp(x) + y^2 ~ 0, x ~ y], [x, y], [x => 0.5im, y => 0.5im]; domain = ℂ))[x]) isa Complex
+    # none found (not polynomial): an error, not []
+    @test_throws ArgumentError F([exp(x) + y^2 ~ -1, x ~ y], [x, y])
+    # a polynomial system: all its solutions, real ones (in the ranges), or complex ones too
+    @test length(F([x^3 + y^3 ~ 1, x^2 + y ~ 3], [x, y])) == 2
+    @test length(F([x^3 + y^3 ~ 1, x^2 + y ~ 3], [x, y]; domain = ℂ)) == 6
+    @test length(F([x^3 + y^3 ~ 1, x^2 + y ~ 3], [x, y], [x => (0, 10)])) == 1
+    @test F([x^2 + y^2 ~ -1, x ~ y], [x, y]) == Dict{Sym,Sym}[]
+    @test length(F([x^2 + y^2 ~ -1, x ~ y], [x, y]; domain = ℂ)) == 2
+    @test_throws ArgumentError F([x + y ~ 1, 2x + 2y ~ 2], [x, y])          # infinitely many
     @test_throws ArgumentError F([x ~ 1], [x, y])
     @test_throws ArgumentError F([x + Sym(:z) ~ 1, x - y ~ 0], [x, y])
 end

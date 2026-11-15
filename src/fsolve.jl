@@ -97,12 +97,15 @@ end
 """
     SymJ.fsolve(eqs, vars, hints = nothing; domain = ℝ)
 
-One solution of the system of equations `eqs` (a vector, each written with `~`) in the
-unknowns `vars`, numerically, as Maple's `fsolve` for a system: a vector with one `Dict`,
-as `solve` gives for a system. `eqs` must have no symbols but `vars`, and as many
+Solutions of the system of equations `eqs` (a vector, each written with `~`) in the
+unknowns `vars`, numerically, as a vector of `Dict`s as `solve` gives for a system. A
+polynomial system (polynomials or rational functions in the unknowns) gives all of its
+solutions: the real ones (in the ranges given), or with `domain = ℂ` the complex ones
+too, through `solve`'s exact elimination. Another system gives one solution, as Maple's
+`fsolve` for a system. `eqs` must have no symbols but `vars`, and as many
 equations as unknowns. Not exported.
 
-`hints` narrows the search, one pair for an unknown: `x => (a, b)` looks for x in
+For a system that is not polynomial, `hints` narrows the search, one pair for an unknown: `x => (a, b)` looks for x in
 `[a, b]`, `x => x0` starts from `x0`. An unknown without one is looked for in
 `[-10, 10]`. The search is Newton's method, damped, with the exact Jacobian, from the
 starting values given, or else from points spread over the ranges (the same each call);
@@ -115,6 +118,7 @@ elsewhere.
 SymJ.fsolve([x^2 + y^2 ~ 4, exp(x) ~ y], [x, y])                       # one of its two solutions
 SymJ.fsolve([x^2 + y^2 ~ 4, exp(x) ~ y], [x, y], [x => (0, 2)])        # x ≈ 0.4...
 SymJ.fsolve([sin(x) ~ y, x + y ~ 1], [x, y], [x => 0.5, y => 0.5])
+SymJ.fsolve([x^3 + y^3 ~ 1, x^2 + y ~ 3], [x, y])                      # all its real solutions
 ```
 """
 function fsolve(eqs::AbstractVector{<:Relation}, vars::AbstractVector, hints = nothing; domain = ℝ)
@@ -144,6 +148,12 @@ function fsolve(eqs::AbstractVector{<:Relation}, vars::AbstractVector, hints = n
             start[i] = v
         end
     end
+    # a polynomial system: all of its solutions, from solve's (Gröbner bases, then each
+    # unknown's polynomial), evaluated, those in the domain and the ranges given
+    if all(Fi -> _ispoly_system_eq(Fi, xs), F)
+        r = _fsolve_poly_system(eqs, xs, ranges, start, domain)
+        r === nothing || return r
+    end
     f = lambdify(F, xs)
     J = lambdify(Sym[diff(Fi, xj) for Fi in F, xj in xs], xs)
     T = domain == ℂ ? ComplexF64 : Float64
@@ -169,6 +179,38 @@ function fsolve(eqs::AbstractVector{<:Relation}, vars::AbstractVector, hints = n
         return [sol]
     end
     throw(ArgumentError("fsolve: no solution found in the ranges searched ($(join(("$(xs[i]) ∈ [$(ranges[i][1]), $(ranges[i][2])]" for i in 1:n if start[i] === nothing), ", "))); give other ranges or starting values"))
+end
+
+# Fi a polynomial (or a rational function) in the unknowns with numeric coefficients
+function _ispoly_system_eq(Fi::Sym, xs::Vector{Sym})
+    n, d = numer_denom(cancel(Fi))
+    atoms = Set{Sym}()
+    _poly_atoms!(atoms, n) && _poly_atoms!(atoms, d) && all(a -> any(v -> _eq(a, v), xs), atoms)
+end
+
+# every solution of a polynomial system, numerically (Dicts of floats, sorted), in the
+# domain and the ranges given; nothing when solve finds none of its forms (an error, or
+# Cases), so Newton's method is tried; an error for infinitely many solutions
+function _fsolve_poly_system(eqs, xs::Vector{Sym}, ranges, start, domain)
+    sols = try solve(collect(Relation, eqs), xs) catch err; err isa ArgumentError || rethrow(); return nothing end
+    sols isa AbstractVector || return nothing
+    out = Dict{Sym,Sym}[]
+    for s in sols
+        all(v -> haskey(s, v), xs) || throw(ArgumentError("fsolve: the system has infinitely many solutions (a free unknown); solve gives them"))
+        vals = [N(s[v]) for v in xs]
+        any(v -> v isa Number && !isfinite(v), vals) && continue
+        if domain == ℝ
+            all(v -> v isa Real || abs(imag(v)) <= 1e-10 * max(1, abs(v)), vals) || continue
+            vals = [real(v) for v in vals]
+            all(i -> start[i] !== nothing || ranges[i] == (-10.0, 10.0) || ranges[i][1] - 1e-9 <= vals[i] <= ranges[i][2] + 1e-9, eachindex(xs)) || continue
+        end
+        d = Dict{Sym,Sym}()
+        for (v, w) in zip(xs, vals)
+            d[v] = w isa Real ? Sym(w) : (abs(imag(w)) <= 1e-12 * max(1, abs(w)) ? Sym(real(w)) : Sym(real(w)) + Sym(imag(w)) * IM)
+        end
+        any(o -> all(v -> abs(N(o[v] - d[v])) <= 1e-10 * max(1, abs(N(d[v]))), xs), out) || push!(out, d)
+    end
+    sort!(out; by = d -> [(real(N(d[v])), imag(N(d[v]))) for v in xs])
 end
 
 const _PRIMES = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71)
