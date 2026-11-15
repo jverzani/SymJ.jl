@@ -123,6 +123,20 @@ function _lap_term(term::Sym, t::Sym, s::Sym)
     r = _lap_unknown(term, t, s)
     r === nothing || return r
     fs, cf = _lap_factors(term)
+    # c Σₙ g(n, t): termwise, Σₙ L{g} (a square wave as a sum of steps; SymPy #7177)
+    i = findfirst(((b, p),) -> b.kind == FN && b.name === :Sum && has(b, t) && _eq(p, ONE), fs)
+    if i !== nothing && all(j -> j == i || !has(fs[j][1], t) && !has(fs[j][2], t), eachindex(fs))
+        g, n, lo, hi = fs[i][1].args
+        c = cf * prod(Sym[b^p for (j, (b, p)) in enumerate(fs) if j != i]; init = ONE)
+        v = summation(_lap(g, t, s), n, lo, hi)
+        # (convergence cases: the transform holds where it converges, the case that does)
+        if v isa Cases
+            vals = [w for (_, w) in v.cases if w isa Sym]
+            length(vals) == 1 || throw(ArgumentError("laplace_transform: the termwise sum of $(fs[i][1]) depends on cases"))
+            v = only(vals)
+        end
+        return c * v
+    end
     # δ⁽ᵏ⁾(d(t - a)): L{f δ⁽ᵏ⁾(t - a)} = (-1)ᵏ dᵏ/dtᵏ [f e^(-st)] at t = a, over dᵏ|d| (SymPy #26775)
     for (i, (b, p)) in enumerate(fs)
         (b.kind == FN && b.name === :dirac && length(b.args) == 2 && _eq(p, ONE) &&

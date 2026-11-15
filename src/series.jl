@@ -218,6 +218,25 @@ function _psapply(name::Symbol, args::Vector{Sym}, N::Rational{Int})
     if name === :lambertw && length(args) == 1 && iszero(a0)
         return _psgeom(a, k -> k == 0 ? ZERO : Sym(-k)^(k - 1) / Sym(factorial(big(k))), N)
     end
+    # E₁ and Eᵥ at 0 (SymPy #6057, #6725): E₁(u) = -γ - log u + Σ_{k≥1} (-1)^(k+1) u^k/(k k!);
+    # Eᵥ(u) = Γ(1 - ν) u^(ν-1) - Σ_{k≥0} (-u)^k/(k! (k + 1 - ν)) for ν not an integer; for
+    # an integer n ≥ 1 the k = n - 1 term is (-u)^(n-1)/(n-1)! (ψ(n) - log u)
+    if name === :expint && iszero(a0) && (length(args) == 1 || (i == 2 && args[1].kind == NUMBER && isexact(args[1].num)))
+        ν = length(args) == 1 ? ONE : args[1]
+        u = a
+        fact(k) = Sym(factorial(big(k)))
+        if _isint(ν.num) && ν.num >= N1
+            n = _toint(ν.num)
+            logpart = _psadd(_psconst(apply_function(:digamma, Sym[Sym(n)])), _psscale(_pslog(u, N), MINUS_ONE))
+            head = _psmul(_psscale(_pspow(u, Sym(n - 1), N), Sym(-1)^(n - 1) / fact(n - 1)), logpart)
+            tail = _psgeom(u, k -> k == n - 1 ? ZERO : -Sym(-1)^k / (fact(k) * (k + 1 - n)), N)
+            return _psadd(head, tail)
+        elseif !_isint(ν.num)
+            head = _psscale(_pspow(u, ν - 1, N), apply_function(:gamma, Sym[1 - ν]))
+            tail = _psgeom(u, k -> -Sym(-1)^k / (fact(k) * (k + 1 - ν)), N)
+            return _psadd(head, tail)
+        end
+    end
     # inverse functions at their branch points ±1: through square roots, whose series
     # have half-integer powers (acosh(1 + z) = √(2z)(1 - z/12 + …); SymPy #25175)
     if length(args) == 1 && (_eq(a0, ONE) || _eq(a0, MINUS_ONE))

@@ -130,6 +130,7 @@ function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Boo
                     gr = Ax === nothing ? g : _refine(g, Ax)
                     v = _gaussian_definite(gr, x, l, h, A)
                 end
+                v === nothing && (v = _fourier_residues(g, x, l, h, A))
                 v === nothing && (v = _definite_fallback(g, x, l, h, antider, A, principal_value, 1))
                 v === nothing ? rethrow() : v
             end
@@ -349,6 +350,70 @@ function _bose_fermi_definite(f::Sym, x::Sym, lo::Sym, hi::Sym, A::Assumptions)
     c * (1 - Sym(2)^(-p)) * apply_function(:gamma, Sym[s1]) * apply_function(:zeta, Sym[s1]) / a^s1
 end
 
+# ∫ℝ R(x) e^(iωx) dx for a rational R = N/D with deg D ≥ deg N + 1, no real poles and
+# simple poles, ω real and nonzero: 2πi Σ Res over the upper half-plane for ω > 0, -2πi Σ
+# Res over the lower for ω < 0 (Jordan's lemma); cos(ωx) and sin(ωx) through e^(±iωx).
+# ∫ℝ cos x/(1 + x²) dx = π/e (SymPy #6136, #6348). nothing when it does not apply.
+function _fourier_residues(f::Sym, x::Sym, lo::Sym, hi::Sym, A::Assumptions)
+    (_isinfpt(lo) && _infsign(lo) < 0 && _isinfpt(hi) && _infsign(hi) > 0) || return nothing
+    fs = f.kind == MUL ? [(u, q) for (u, q) in zip(f.args, f.exps)] : f.kind == POW ? [(f.args[1], f.args[2])] : [(f, ONE)]
+    R = f.kind == MUL ? Sym(f.num) : ONE
+    ω, trig = nothing, nothing
+    lin(u) = _ispoly_in(u, x) && degree(Poly{Sym}(expand(u), [x]), x) == 1
+    for (u, q) in fs
+        if u === E && ω === nothing && trig === nothing && lin(q) && iszero(coeff(expand(q), x, 0))
+            w = expand(coeff(expand(q), x, 1) / IM)
+            _isreal(w, A) === true || return nothing
+            ω = w
+        elseif u.kind == FN && u.name in (:cos, :sin) && _isone(q) && ω === nothing && trig === nothing &&
+               lin(u.args[1]) && iszero(coeff(expand(u.args[1]), x, 0))
+            w = coeff(expand(u.args[1]), x, 1)
+            _isreal(w, A) === true || return nothing
+            trig = (u.name, w)
+        else
+            R *= u^q
+        end
+    end
+    (ω === nothing && trig === nothing) && return nothing
+    Nm, D = numer_denom(cancel(R))
+    (_ispoly_in(Nm, x) && _ispoly_in(D, x) && has(D, x)) || return nothing
+    degree(Poly{Sym}(expand(D), [x]), x) >= (has(Nm, x) ? degree(Poly{Sym}(expand(Nm), [x]), x) : 0) + 1 || return nothing
+    # ∫ N/D e^(iwx) dx by residues, or nothing
+    function J(w::Sym)
+        sw = _signs(w, A)
+        sw in (_POS, _NEG) || return nothing
+        roots = try _solve_eq(D ~ 0, x) catch err; err isa ArgumentError || rethrow(); return nothing end
+        roots isa AbstractVector || return nothing
+        dD = diff(D, x)
+        acc = ZERO
+        for z0 in roots
+            im0 = _refine(expand(imag(z0)), A)
+            si = _hassymbol(im0) ? _signs(im0, A) : (vi = N(im0); vi > 1e-12 ? _POS : vi < -1e-12 ? _NEG : _ZER)
+            si in (_POS, _NEG) || return nothing          # a real pole, or undecided
+            (si == _POS) == (sw == _POS) || continue
+            d1 = subs(dD, x => z0)
+            iszero(simplify(d1)) && return nothing        # a multiple pole
+            acc += subs(Nm, x => z0) * exp(IM * w * z0) / d1
+        end
+        (sw == _POS ? 2PI * IM : -2PI * IM) * acc
+    end
+    v = if ω !== nothing
+        J(ω)
+    else
+        nm, w = trig
+        jp, jm = J(w), J(-w)
+        (jp === nothing || jm === nothing) && return nothing
+        nm === :cos ? (jp + jm) / 2 : (jp - jm) / (2IM)
+    end
+    v === nothing && return nothing
+    r = simplify(v; assume = A)
+    if has(r, IM)
+        r2 = simplify(rewrite(r, cos); assume = A)
+        _nodes(r2) <= _nodes(r) && (r = r2)
+    end
+    r
+end
+
 # Gaussian integrals, for a > 0 (decided by cases): ∫ℝ e^(-ax² + bx + c) dx =
 # √(π/a) e^(b²/4a + c), and with b = 0, ∫₀^∞ xⁿ e^(-ax²) dx = Γ((n+1)/2)/(2a^((n+1)/2))
 # (over ℝ twice that for even n, 0 for odd n). SymPy #28485.
@@ -397,7 +462,8 @@ function _gaussian_definite(f::Sym, x::Sym, lo::Sym, hi::Sym, A::Assumptions)
     # a complex a: convergent for Re a > 0 (and, for n = 0, Re a = 0, a ≠ 0: Fresnel), with
     # the same formulas on the principal branch; ∫₀^∞ e^(-(1 - i)x²) was ∞ (SymPy #15292)
     if _isreal(a, A) !== true
-        ra = expand(real(a))
+        # (refined: real(i t) is 0 for a real t; e^(-i t k²) with t > 0; SymPy #6123)
+        ra = expand(_refine(real(a), A))
         conv = _holds(Relation(:gt, ra, ZERO), A) === true ||
                (n == 0 && iszero(ra) && _holds(Relation(:ne, a, ZERO), A) === true)
         conv || return nothing

@@ -48,6 +48,24 @@ function _ode_y_factors(eq::Relation, yx::Sym)
     fs
 end
 
+# y' - rᵢ for the roots rᵢ of eq as a polynomial of degree ≥ 2 in y' (y' only, as a
+# first derivative); nothing otherwise
+function _ode_derivative_roots(eq::Relation, yx::Sym)
+    (yx.kind == FN && length(yx.args) == 1 && _isnamed(yx.args[1])) || return nothing
+    x = yx.args[1]
+    D = diff(yx, x)
+    g = expand(eq.lhs - eq.rhs)
+    p = Sym(:_ode_p)
+    h = subs(g, D => p)
+    # (no other derivative left, y' really replaced)
+    (has(h, p) && !_hasfn(h, :Derivative)) || return nothing
+    P = try Poly{Sym}(h, [p]) catch; return nothing end
+    degree(P, p) >= 2 || return nothing
+    rs = try _solve_eq(h ~ 0, p) catch err; err isa ArgumentError || rethrow(); return nothing end
+    (rs isa AbstractVector && !(rs isa Cases) && !isempty(rs)) || return nothing
+    Sym[D - r for r in rs]
+end
+
 # the solutions of each factor = 0: a vector of equations, those of one factor first
 function _dsolve_factors(fs::Vector{Sym}, yx::Sym)
     out = Relation[]
@@ -151,6 +169,10 @@ function dsolve(eq::Relation, yx::Sym, ics::Pair...; series::Union{Nothing,Integ
     # to a method dividing by φ′; SymPy #10043)
     if isempty(ics) && series === nothing && method === :auto
         fs = _ode_y_factors(eq, yx)
+        fs === nothing || return _dsolve_factors(fs, yx)
+        # a polynomial of degree ≥ 2 in y' alone (no higher derivative): y' = each root,
+        # a first-order equation each (y'² = x³; SymPy #7093)
+        fs = _ode_derivative_roots(eq, yx)
         fs === nothing || return _dsolve_factors(fs, yx)
     end
     P = _ode_parse(eq, yx)

@@ -481,6 +481,10 @@ function _integrate_pieces(e::Sym, x::Sym, integ)
         iszero(plain) || (out = out + integ(plain))
     end
     _haspieces(g, x) || return iszero(g) ? out : out + integ(g)
+    # a piecewise whose conditions are free of x: each piece integrated (SymPy #6747)
+    if g.kind == FN && g.name === :piecewise && all(i -> !has(g.args[i], x), 1:2:length(g.args))
+        return out + piecewise((c => (_haspieces(v, x) ? _integrate_pieces(v, x, integ) : integ(v)) for (c, v) in _pieces(g))...)
+    end
     bps = _breakpoints(g, x)
     if bps === nothing
         # a condition quadratic in x, its roots in parameters: by the sign of the
@@ -507,6 +511,13 @@ function _integrate_pieces(e::Sym, x::Sym, integ)
     pts = Sym[]
     if length(bps) == 1 && _hassymbol(bps[1])
         append!(pts, (bps[1] - 1, bps[1] + 1))
+    elseif any(_hassymbol, bps)
+        # (ordered by the assumptions: the midpoints, and a point past each end)
+        push!(pts, bps[1] - 1)
+        for i in 1:(length(bps) - 1)
+            push!(pts, (bps[i] + bps[i+1]) / 2)
+        end
+        push!(pts, bps[end] + 1)
     else
         vals = [Float64(N(p)) for p in bps]
         for i in 0:length(bps)
@@ -526,6 +537,8 @@ function _integrate_pieces(e::Sym, x::Sym, integ)
             lo = i == 1 ? -Inf : Float64(N(bps[i-1]))
             hi = i == length(pts) ? Inf : Float64(N(bps[i]))
             F = _real_logs(F, x, p, lo, hi)
+        elseif F isa Sym && _PIECES_ASSUME[] isa Assumptions
+            F = _real_logs_assumed(F, x, p, i == 1 ? nothing : bps[i-1], i == length(pts) ? nothing : bps[i], _PIECES_ASSUME[])
         end
         push!(Fs, F)
     end
@@ -595,6 +608,26 @@ function _real_logs(F::Sym, x::Sym, p::Sym, lo::Float64, hi::Float64)
         r = -Float64(c0.num) / Float64(c1.num)
         lo < r < hi && return nothing
         Float64(N(subs(u, x => p))) < 0 || return nothing
+        log(-u)
+    end
+end
+
+# _real_logs for an interval (lo, hi) with ends in parameters (nothing for ±∞), decided by
+# the assumptions A: log(u) of a linear u with no root inside, negative at p, as log(-u)
+function _real_logs_assumed(F::Sym, x::Sym, p::Sym, lo, hi, A::Assumptions)
+    _hasfn(F, :log) || return F
+    _replace_walk(F) do t
+        (t.kind == FN && t.name === :log && length(t.args) == 1) || return nothing
+        u = t.args[1]
+        has(u, x) || return nothing
+        c1 = try coeff(expand(u), x, 1) catch; return nothing end
+        c0 = expand(u - c1 * x)
+        (c1.kind == NUMBER && !iszero(c1.num) && !has(c0, x)) || return nothing
+        r = -c0 / c1
+        outside = (lo !== nothing && _holds(Relation(:le, r, lo), A) === true) ||
+                  (hi !== nothing && _holds(Relation(:ge, r, hi), A) === true)
+        outside || return nothing
+        _holds(Relation(:lt, subs(u, x => p), ZERO), A) === true || return nothing
         log(-u)
     end
 end
@@ -690,9 +723,27 @@ end
 # F's one-sided limit at b, or (where the limit fails, as for complex exponentials) its
 # value there when F is defined at b: an antiderivative is continuous where defined.
 # Nothing when neither is known.
+# a NaN anywhere in e (a number, a sum's coefficient or constant, a product's coefficient)
+_has_nan(e::Sym) = _has_node(e, t -> (t.kind != ADD && isfloat(t.num) && isnan(Float64(t.num))) ||
+                                     (t.kind == ADD && any(c -> isfloat(c) && isnan(Float64(c)), t.coefs)))
+
 function _side_value(F::Sym, x::Sym, b::Sym, dir::Symbol)
-    l = try limit(F, x => b; dir) catch err; err isa InterruptException && rethrow(); nothing end
-    l isa Sym && return l
+    # (under the integration's assumptions: at x = -y for y > 0 the limit without them
+    # had a NaN term; SymPy #7158)
+    A = _PIECES_ASSUME[]
+    lim(G) = try
+        A isa Assumptions && _hassymbol(b) ? limit(G, x => b; dir, assume = A) : limit(G, x => b; dir)
+    catch err
+        err isa InterruptException && rethrow(); nothing
+    end
+    l = lim(F)
+    # (a NaN from ∞ - ∞ of log terms taken apart: once more with the logs expanded, so
+    # (x + y) log(x + y) appears whole)
+    if l isa Sym && A isa Assumptions && _has_nan(l) && _hasfn(F, :log)
+        G = try expand(expand_log(F; assume = A)) catch err; err isa InterruptException && rethrow(); nothing end
+        G isa Sym && (l = lim(G))
+    end
+    l isa Sym && !_has_nan(l) && return l
     v = try subs(F, x => b) catch err; _isdivzero(err) || rethrow(); return nothing end
     _defined_at(F, x, b) && _finite_value(v) ? v : nothing
 end
@@ -812,6 +863,22 @@ catch err
 end
 
 # the real numbers at which the conditions (and heaviside arguments) in e change, sorted
+# the assumptions of the integration in progress (breakpoints in parameters ordered by them)
+const _PIECES_ASSUME = ScopedValue{Any}(nothing)
+
+# rs ordered by the assumptions, or nothing (each pair decided)
+function _order_by_assumptions(rs::Vector{Sym})
+    A = _PIECES_ASSUME[]
+    A isa Assumptions || return nothing
+    lt(a, b) = (h = _holds(Relation(:lt, a, b), A); h === nothing ? error("undecided") : h)
+    try
+        return sort(rs; lt)
+    catch err
+        err isa ErrorException || rethrow()
+        return nothing
+    end
+end
+
 function _breakpoints(e::Sym, x::Sym)
     out = Sym[]
     ok = Ref(true)
@@ -833,7 +900,9 @@ function _breakpoints(e::Sym, x::Sym)
     end
     visit(e)
     (ok[] && !isempty(out)) || return nothing
-    any(_hassymbol, out) && return length(out) == 1 ? out : nothing
+    # (several in parameters: in the order the assumptions give, ±y for y > 0; SymPy #7158)
+    # (not for periodic conditions, which have their own path: |cos(x + y)|)
+    any(_hassymbol, out) && return length(out) == 1 ? out : _periodic_conditions(e, x) ? nothing : _order_by_assumptions(out)
     sort!(out; by = r -> real(_evalc(r)))
 end
 
@@ -869,8 +938,13 @@ function _pieces_at(e::Sym, x::Sym, p::Sym; extra = ())
         # symbols of p undecided
         ps = Pair{Sym,Sym}[]
         psyms = _hassymbol(p) ? free_symbols(p) : Sym[]
+        A = _PIECES_ASSUME[]
         for (c, v) in _pieces(e)
             cv = _truth(subs(c, x => p, extra...))
+            # (decided by the assumptions when p has parameters)
+            if cv.kind != NUMBER && A isa Assumptions
+                cv = _truth(try _refine(cv, A) catch err; err isa ArgumentError || rethrow(); cv end)
+            end
             cv == ZERO && continue
             if cv == ONE
                 isempty(ps) && return v
