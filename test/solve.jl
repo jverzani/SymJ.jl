@@ -530,4 +530,21 @@ end
     @test_throws ArgumentError F(cos(x) ~ x, x, (0, 1); domain = ℂ)
     @test_throws ArgumentError F(cos(x) ~ x, x; domain = ℤ)
     @test_throws ArgumentError F(cos(x) ≪ x, x)
+    # systems: one solution, in the ranges or from the starting values given
+    let eqs = [x^2 + y^2 ~ 4, exp(x) ~ y]
+        s = only(F(eqs, [x, y], [x => (0, 2)]))
+        @test N(s[x]) ≈ 0.6392630748084189
+        @test abs(N(subs(lhs(eqs[1]) - rhs(eqs[1]), s...))) <= 1e-10
+        @test N(only(F(eqs, [x, y], [x => (-3, 0)]))[x]) ≈ -1.995373170063196
+    end
+    @test N(only(F([sin(x) ~ y, x + y ~ 1], [x, y], [x => 0.5, y => 0.5]))[x]) ≈ 0.5109734293885692
+    let z = Sym(:z), s = only(F([x + y + z ~ 6, x * y * z ~ 6, x^2 + y^2 + z^2 ~ 14], [x, y, z], [x => (0, 1.5), y => (1.5, 2.5)]))
+        @test N(s[z]) ≈ 3
+    end
+    # a complex solution from a complex start
+    @test N(only(F([x^2 + y^2 ~ -1, x ~ y], [x, y], [x => 0.5im, y => 0.5im]; domain = ℂ))[x]) ≈ im / sqrt(2)
+    # none found: an error, not []
+    @test_throws ArgumentError F([x^2 + y^2 ~ -1, x ~ y], [x, y])
+    @test_throws ArgumentError F([x ~ 1], [x, y])
+    @test_throws ArgumentError F([x + Sym(:z) ~ 1, x - y ~ 0], [x, y])
 end

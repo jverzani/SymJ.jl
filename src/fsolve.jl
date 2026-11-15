@@ -91,3 +91,127 @@ function _fsolve_cheb(ex::Sym, x::Sym, lo::Float64, hi::Float64, domain)
     r = ChebZeros.cheb_all_zeros(f, lo, hi)
     _sort_roots!([Sym[Sym(v) for v in r.real]; Sym[Sym(real(c.z)) + Sym(imag(c.z)) * IM for c in r.complex]])
 end
+
+## systems: one solution, as Maple's fsolve for a system
+
+"""
+    SymJ.fsolve(eqs, vars, hints = nothing; domain = ℝ)
+
+One solution of the system of equations `eqs` (a vector, each written with `~`) in the
+unknowns `vars`, numerically, as Maple's `fsolve` for a system: a vector with one `Dict`,
+as `solve` gives for a system. `eqs` must have no symbols but `vars`, and as many
+equations as unknowns. Not exported.
+
+`hints` narrows the search, one pair for an unknown: `x => (a, b)` looks for x in
+`[a, b]`, `x => x0` starts from `x0`. An unknown without one is looked for in
+`[-10, 10]`. The search is Newton's method, damped, with the exact Jacobian, from the
+starting values given, or else from points spread over the ranges (the same each call);
+with `domain = ℂ` a complex starting value may lead to a complex solution. A system
+whose search finds no solution is an error, not an empty vector, since one may exist
+elsewhere.
+
+```julia
+@syms x y
+SymJ.fsolve([x^2 + y^2 ~ 4, exp(x) ~ y], [x, y])                       # one of its two solutions
+SymJ.fsolve([x^2 + y^2 ~ 4, exp(x) ~ y], [x, y], [x => (0, 2)])        # x ≈ 0.4...
+SymJ.fsolve([sin(x) ~ y, x + y ~ 1], [x, y], [x => 0.5, y => 0.5])
+```
+"""
+function fsolve(eqs::AbstractVector{<:Relation}, vars::AbstractVector, hints = nothing; domain = ℝ)
+    (domain == ℝ || domain == ℂ) || throw(ArgumentError("fsolve: the domain is ℝ or ℂ, not $domain"))
+    xs = Sym[Sym(v) for v in vars]
+    all(_isnamed, xs) || throw(ArgumentError("fsolve: the unknowns must be symbols"))
+    all(e -> e.op === :eq, eqs) || throw(ArgumentError("fsolve: every equation is written lhs ~ rhs"))
+    n = length(xs)
+    length(eqs) == n || throw(ArgumentError("fsolve: $(length(eqs)) equation$(length(eqs) == 1 ? "" : "s") in $n unknown$(n == 1 ? "" : "s"); give as many equations as unknowns"))
+    F = Sym[e.lhs - e.rhs for e in eqs]
+    others = [s for s in free_symbols(F) if !any(v -> _eq(v, s), xs)]
+    isempty(others) || throw(ArgumentError("fsolve: the equations have symbols other than the unknowns ($(join(others, ", "))); substitute values for them"))
+    any(_hasparameter, F) && throw(ArgumentError("fsolve: the equations have parameters; substitute values for them"))
+    # ranges and starting values from the hints
+    ranges = [(-10.0, 10.0) for _ in 1:n]
+    start = Union{Nothing,Number}[nothing for _ in 1:n]
+    for h in something(hints, Pair[])
+        h isa Pair || throw(ArgumentError("fsolve: a hint is x => (a, b) or x => x0, not $h"))
+        i = findfirst(v -> _eq(v, Sym(h.first)), xs)
+        i === nothing && throw(ArgumentError("fsolve: $(h.first) is not an unknown"))
+        if h.second isa Tuple
+            a, b = Float64.(N.(Sym.(h.second)))
+            ranges[i] = a <= b ? (a, b) : (b, a)
+        else
+            v = N(Sym(h.second))
+            domain == ℝ && !(v isa Real) && throw(ArgumentError("fsolve: a complex starting value needs domain = ℂ"))
+            start[i] = v
+        end
+    end
+    f = lambdify(F, xs)
+    J = lambdify(Sym[diff(Fi, xj) for Fi in F, xj in xs], xs)
+    T = domain == ℂ ? ComplexF64 : Float64
+    inrange(z) = domain == ℂ || all(i -> start[i] !== nothing || ranges[i][1] - 1e-9 <= real(z[i]) <= ranges[i][2] + 1e-9, 1:n)
+    # starting points: the values given; for the rest, a Halton sequence over the ranges
+    function point(k)
+        z = Vector{T}(undef, n)
+        for i in 1:n
+            z[i] = start[i] !== nothing ? T(start[i]) : T(ranges[i][1] + (ranges[i][2] - ranges[i][1]) * _halton(k, _PRIMES[i]))
+        end
+        z
+    end
+    nstarts = all(s -> s !== nothing, start) ? 1 : 200
+    for k in 1:nstarts
+        z = _damped_newton(f, J, point(k), T)
+        z === nothing && continue
+        inrange(z) || continue
+        sol = Dict{Sym,Sym}()
+        for i in 1:n
+            sol[xs[i]] = T === Float64 ? Sym(real(z[i])) :
+                (abs(imag(z[i])) <= 1e-12 * max(1, abs(z[i])) ? Sym(real(z[i])) : Sym(real(z[i])) + Sym(imag(z[i])) * IM)
+        end
+        return [sol]
+    end
+    throw(ArgumentError("fsolve: no solution found in the ranges searched ($(join(("$(xs[i]) ∈ [$(ranges[i][1]), $(ranges[i][2])]" for i in 1:n if start[i] === nothing), ", "))); give other ranges or starting values"))
+end
+
+const _PRIMES = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71)
+
+# the k-th point of the van der Corput sequence in base b (a coordinate of a Halton point)
+function _halton(k::Int, b::Int)
+    r, f = 0.0, 1.0
+    while k > 0
+        f /= b
+        r += f * (k % b)
+        k ÷= b
+    end
+    r
+end
+
+# Newton's method from z, each step halved until |F| decreases (at most 30 halvings), to
+# |F| ≤ 1e-12 (relative to the equations' scale at z) with a step near rounding; nothing
+# when it stalls, leaves the finite numbers, or the Jacobian is singular
+function _damped_newton(f, J, z::Vector{T}, ::Type{T}) where {T}
+    val(w) = (v = try T.(f(w...)) catch err; err isa Union{DomainError,DivideError} || rethrow(); nothing end)
+    v = val(z)
+    (v === nothing || !all(isfinite, v)) && return nothing
+    scale = max(1.0, maximum(abs, v))
+    for _ in 1:100
+        r = maximum(abs, v)
+        Jz = try T.(J(z...)) catch err; err isa Union{DomainError,DivideError} || rethrow(); return nothing end
+        all(isfinite, Jz) || return nothing
+        δ = try Jz \ v catch err; err isa Union{LinearAlgebra.SingularException,LinearAlgebra.LAPACKException} || rethrow(); return nothing end
+        all(isfinite, δ) || return nothing
+        t = 1.0
+        znew, vnew = z, v
+        for _ in 1:30
+            znew = z .- t .* δ
+            vnew = val(znew)
+            vnew !== nothing && all(isfinite, vnew) && maximum(abs, vnew) < r && break
+            t /= 2
+        end
+        (vnew === nothing || !all(isfinite, vnew)) && return r <= 1e-10 * scale ? z : nothing
+        # (at the root already, rounding keeps |F| from decreasing: converged)
+        maximum(abs, vnew) >= r && return r <= 1e-10 * scale ? z : nothing
+        step = maximum(abs, z .- znew)
+        z, v = znew, vnew
+        maximum(abs, v) <= 1e-12 * scale && step <= 1e-10 * max(1, maximum(abs, z)) && return z
+    end
+    nothing
+end
