@@ -1625,3 +1625,34 @@ end
     @test solve(cbrt(x) ~ -2, x) == [-8]
     @test length(solve(cbrt(x + 1) ~ x - 1, x)) == 1
 end
+
+@testset "wrong answers (SymPy review, round 17)" begin
+    @syms x y a b c k n t
+    LA = SymJ.LinearAlgebra
+    # 0^u 0^(-u) is NaN, not 1 (#6861)
+    @test isnan(Sym(0)^x * Sym(0)^(-x))
+    @test x^2 * x^(-2) == 1
+    # coeff of a multiple of a symbol; another product refused (#7072)
+    @test SymJ.coeff(5x * y^2, -x) == -5y^2
+    @test_throws ArgumentError SymJ.coeff(5x * y^2, x * y)
+    # an indefinite integral's variable takes no value (#6928)
+    u = SymFunction(:u)
+    It = SymJ._mkfn_node(:Integral, Sym[u(t), t])
+    @test_throws ArgumentError subs(It, t => 2)
+    @test subs(It, t => y) == SymJ._mkfn_node(:Integral, Sym[u(y), y])
+    # floor of constants past Float64 (#6167)
+    P = Sym(π)
+    tru = setprecision(BigFloat, 8000) do; floor(BigInt, big(π)^1000) end
+    @test BigInt(floor(P^1000).num) == tru
+    @test ceil(P^700) - floor(P^700) == 1
+    @test (P^1000 - Sym(tru) ≫ 0)()
+    @test (P^1000 - Sym(tru) ≪ 1)()
+    # a nonpolynomial system: refused, not "no solutions" (#6613)
+    @test_throws ArgumentError solve([x^2 + y^2 ~ 1, y ~ exp(x)], [x, y])
+    # real unknowns: real and imaginary parts (#6821)
+    @test solve([3x - 2y - im * y + 3im ~ 0], [x, y]; assume = (x ∈ ℝ, y ∈ ℝ)) == [Dict(x => 2, y => 3)]
+    # rank by cases: the minors vanishing together (#7146)
+    r = LA.rank(Sym[a b; a c]; generic = false)
+    @test r(a => 0, b => 0, c => 0) == 0
+    @test r(a => 1, b => 2, c => 3) == 2
+end

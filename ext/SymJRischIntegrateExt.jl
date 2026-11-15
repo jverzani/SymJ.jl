@@ -58,6 +58,13 @@ function _indefinite(ex::Sym, x::Sym; assume = nothing, kw...)
         r isa SymJ.Cases && return SymJ._map_cases(v -> v isa Sym ? c * v : v, r)
     end
     A = SymJ._assumptions(assume)
+    # values the facts fix (k ~ 0, n ~ -1) substituted first: the generic answer e^(kx)/k
+    # is not defined there (SymPy #6985); x itself is not given a value
+    if A !== nothing && !isempty(A.subst) && !haskey(A.subst, x)
+        sub = collect(A.subst)
+        ex2 = subs(ex, sub...)
+        isequal(ex2, ex) || return _indefinite(ex2, x; assume, kw...)
+    end
     if A !== nothing && _has_oracle() && !haskey(kw, :sign)
         kw = (; sign = SymJ._sign_oracle(A), kw...)
     end

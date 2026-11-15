@@ -549,11 +549,22 @@ function _constant_float(a::Sym, avoid)
     abs(v - avoid(v)) > 1e-10 * max(1, abs(v)) && return v
     # too near a jump for Float64: log(2, 2^360 - 1) + 1 is 361 - 1.4e-109, 361.0 in
     # Float64 (SymPy #26368); decided in BigFloat when the precision separates them
-    for p in (256, 1024, 4096)
+    # (a value is taken when two precisions agree on it, and it holds its fractional part:
+    # π^1000 at 1024 bits is an integer value, its floor came out 4e191 off, and π^1000 -
+    # floor(π^1000) at 1024 bits is rounding noise of size 1e189; SymPy #6167)
+    prev, pprev = nothing, 0
+    for p in (256, 1024, 4096, 16384)
         w = _bigvalue(a, p)
         (w === nothing || !iszero(imag(w))) && return nothing
         r = real(w)
-        abs(r - avoid(r)) > big(2.0)^(32 - p) * max(1, abs(r)) && return r
+        isfinite(r) || (prev = nothing; continue)
+        agree = prev !== nothing && abs(r - prev) <= big(2.0)^(64 - pprev ÷ 2) * max(1, abs(r))
+        prev, pprev = r, p
+        (agree && (iszero(r) || exponent(r) + 64 < p)) || continue
+        ok = setprecision(BigFloat, p) do
+            abs(r - avoid(r)) > big(2.0)^(32 - p) * max(1, abs(r))
+        end
+        ok && return r
     end
     nothing
 end
