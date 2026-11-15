@@ -767,10 +767,18 @@ SymJ.real_roots(x^3 - 2x - 5, x), SymJ.real_roots((x - 1)^2 * (x^2 - 2), x)
 SymJ.root_intervals(x^2 - 2, x; width = 1 // 100)
 ```
 
-For other equations, the packages for numerical root finding take SymJ expressions
-as they are, since an expression is callable (`lambdify` makes a faster function):
-`Roots.find_zero(cos(x) - x, 0.5)`, or with Newton's method and the exact derivative,
-`find_zero((lambdify(f, x), lambdify(diff(f, x), x)), x0, Roots.Newton())`.
+For an equation `solve` cannot solve exactly, `SymJ.fsolve` (as Maple's) finds its
+roots numerically: the real ones, on the whole line or an interval, and with
+`domain = ℂ` complex ones too.
+
+```@example tut
+SymJ.fsolve(cos(x) ~ x, x), SymJ.fsolve(log(x) + sin(x) ~ 1, x, (0, 4))
+```
+
+The packages for numerical root finding also take SymJ expressions as they are, since an
+expression is callable (`lambdify` makes a faster function): `Roots.find_zero(cos(x) - x,
+0.5)`, or with Newton's method and the exact derivative, `find_zero((lambdify(f, x),
+lambdify(diff(f, x), x)), x0, Roots.Newton())`.
 
 ## Sums
 
