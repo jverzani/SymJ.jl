@@ -456,6 +456,11 @@ const _SOLVE_FORMS = "solve(eq, x) for one equation (a vector of values), solve(
 solve(eq::Relation, x::Sym, rest...; kws...) = throw(ArgumentError("solve: give the unknowns of a system as a vector; use $_SOLVE_FORMS"))
 solve(eq::Relation, vars::Union{AbstractVector,Tuple}; kws...) = throw(ArgumentError("solve: a single equation takes a single unknown; use $_SOLVE_FORMS"))
 solve(eqs::AbstractVector{<:Relation}, x::Sym; kws...) = throw(ArgumentError("solve: a system takes a vector of unknowns; use $_SOLVE_FORMS"))
+# (x - 1 == 0 is a Bool, false: == compares, ~ builds the equation; SymPy #6924)
+const _SOLVE_BOOL = "== compares and gives true or false; build an equation with ~, e.g. solve(x - 1 ~ 0, x)"
+solve(b::Bool, x; kws...) = throw(ArgumentError("solve: got $b, not an equation: $_SOLVE_BOOL"))
+solve(bs::AbstractVector{Bool}, x; kws...) = throw(ArgumentError("solve: got $bs, not equations: $_SOLVE_BOOL"))
+solve(bs::AbstractVector{Bool}, x::Union{AbstractVector,Tuple}; kws...) = throw(ArgumentError("solve: got $bs, not equations: $_SOLVE_BOOL"))
 solve(ex::Sym, x::Sym) = throw(ArgumentError(
     "solve needs an equation, e.g. solve($ex ~ 0, $x); an expression is not taken to mean \"= 0\""))
 

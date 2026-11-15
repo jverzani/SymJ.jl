@@ -348,6 +348,11 @@ The names avoid the symbols in `ex`. Not exported.
 SymJ.cse((x + y)^2 + sin(x + y))      # ([t1 => x + y], t1^2 + sin(t1))
 ```
 """
+# (a relation: its two sides together, the relation rebuilt; SymPy #6263)
+function cse(r::Relation; prefix = :t)
+    reps, (l, rr) = cse((r.lhs, r.rhs); prefix)
+    reps, Relation(r.op, l, rr)
+end
 function cse(ex; prefix = :t)
     outs = map(_unity_powers, _outputs(ex))
     # common parts of sums first: terms that two or more sums share, as one placeholder

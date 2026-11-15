@@ -45,8 +45,13 @@ function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Boo
     # terms with an unknown function of x are held, ∫ₐᵇ f(x) dx, the rest integrated
     rest, held = _split_opaque(Sym(f), x)
     if !isempty(held)
-        H = _add_many(c * (_isderiv_in(g, x) ? subs(g.args[1], x => Sym(xab[3])) - subs(g.args[1], x => Sym(xab[2])) :
-                           _mkfn_node(:Integral, Sym[g, x, Sym(xab[2]), Sym(xab[3])])) for (c, g) in held)
+        Hs = Sym[]
+        for (c, g) in held
+            F = _deriv_antider(g, x)
+            push!(Hs, c * (F === nothing ? _mkfn_node(:Integral, Sym[g, x, Sym(xab[2]), Sym(xab[3])]) :
+                                           subs(F, x => Sym(xab[3])) - subs(F, x => Sym(xab[2]))))
+        end
+        H = _add_many(Hs)
         iszero(rest) && return H
         v = _definite_integral(rest, xab, assume, antider; principal_value)
         return v isa Cases ? _map_cases(w -> w + H, v) : v + H
@@ -985,8 +990,17 @@ function _singular_points(f::Sym, x::Sym, lo::Sym, hi::Sym)
     unique(pts)
 end
 
-# g = u'(x), the derivative in x of an expression u (∫ g dx = u)
-_isderiv_in(g::Sym, x::Sym) = g.kind == FN && g.name === :Derivative && length(g.args) == 2 && _eq(g.args[2], x)
+# an antiderivative in x of g when g is a derivative: u'(x) (∫ g dx = u), or u'(v) at a
+# point a x + b linear in x (∫ u'(a x + b) dx = u(a x + b)/a; SymPy #6407); else nothing
+function _deriv_antider(g::Sym, x::Sym)
+    (g.kind == FN && g.name === :Derivative) || return nothing
+    length(g.args) == 2 && _eq(g.args[2], x) && return g.args[1]
+    length(g.args) == 3 || return nothing
+    u, v = g.args[3], g.args[2]
+    a = Base.inferencebarrier(diff)(u, x)::Sym     # (barriers: precompile inference)
+    (iszero(a) || has(a, x)) && return nothing
+    (Base.inferencebarrier(subs)(g.args[1], v => u)::Sym) / a
+end
 
 # f = rest + Σ cᵢ gᵢ, the gᵢ the terms with an unknown function of x (f(x), a derivative
 # of one, a held Sum or Integral), cᵢ their factors free of x: the integrator does not
@@ -1610,7 +1624,14 @@ function _definite_fallback(g::Sym, x::Sym, l::Sym, h::Sym, antider, A, pv::Bool
     depth >= 1 || return nothing
     n = expand(g * x^2)
     (has(n, x) && !has(numer_denom(cancel(n))[2], x)) || return nothing
-    iszero(simplify(subs(n, x => ZERO))) || return nothing
+    # n(0) = 0, by a limit where 0 cannot be substituted (x sin(a/x); SymPy #6154)
+    n0 = try
+        simplify(subs(n, x => ZERO))
+    catch err
+        err isa Union{DivisionByZero,DivideError,DomainError} || rethrow()
+        _limit_or(n, x, ZERO, :+, A)
+    end
+    n0 isa Sym && iszero(n0) || return nothing
     B = -n / x
     ends = [_limit_or(B, x, Float64(h.num), :-, A), line ? _limit_or(B, x, -Inf, :+, A) : _limit_or(B, x, ZERO, :+, A)]
     all(e -> e isa Sym && !_isinfpt(e), ends) || return nothing

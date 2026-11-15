@@ -210,6 +210,17 @@ import PolyLog as PL
     @testset "RischIntegrate: definite integrals" begin
         ∫ = RischIntegrate.integrate
         Inf_ = Sym(Inf)
+        # a derivative at a point linear in the variable (SymPy #6407; a stack overflow)
+        let f = SymFunction(:f), t = Sym(:t)
+            df = subs(diff(f(x), x), x => x - t)
+            @test ∫(df, t) == -f(x - t)
+            @test ∫(df, (t, 0, x)) == f(x) - f(0)
+            @test ∫(diff(f(2t), t), t) == f(2t)
+        end
+        # x sin(a/x) at 0 by a limit, not substituted (SymPy #6154; a DivisionByZero)
+        let t = Sym(:t), a = Sym(:a), w = Sym(:w)
+            VERSION >= v"1.12" && @test_throws RischIntegrate.NotElementary ∫(sin(a / t) * cos(w * t) / t, (t, 0, Inf); assume = (a ≫ 0, w ≫ 0))
+        end
         # facts that fix a parameter's value in indefinite integrals (SymPy #6985)
         let k = Sym(:k), n = Sym(:n)
             @test ∫(exp(k * x), x; assume = (k ~ 0,)) == x

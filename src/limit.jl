@@ -54,7 +54,11 @@ function _unknown_consts!(out, e::Sym, x::Sym)
         any(c -> _eq(c, e), out) || push!(out, e)
         return out
     end
-    foreach(a -> _unknown_consts!(out, a, x), e.args)
+    # (a derivative's function and variable are bound: only its point, f'(x - t))
+    i0 = e.kind == FN && e.name === :Derivative && length(e.args) > 2 ? 3 : 1
+    for i in i0:length(e.args)
+        _unknown_consts!(out, e.args[i], x)
+    end
     e.kind == MUL && foreach(a -> _unknown_consts!(out, a, x), e.exps)
     out
 end

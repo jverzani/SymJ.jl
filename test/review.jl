@@ -1656,3 +1656,32 @@ end
     @test r(a => 0, b => 0, c => 0) == 0
     @test r(a => 1, b => 2, c => 3) == 2
 end
+
+@testset "crashes and hangs (SymPy review, round 17)" begin
+    @syms x y
+    LA = SymJ.LinearAlgebra
+    # free_symbols of an array and of a relation: the union (#7204)
+    @test free_symbols(Sym[1 x; y 1]) == [x, y]
+    @test free_symbols((x, 2)) == [x]
+    @test free_symbols(x ~ y) == [x, y]
+    # cse of a relation: its sides together (#6263)
+    reps, r = SymJ.cse(sin(x)^2 ~ sin(x))
+    @test reps == [Sym(:t1) => sin(x)]
+    @test isequal(r.lhs, Sym(:t1)^2)
+    @test isequal(r.rhs, Sym(:t1))
+    # == gives a Bool, not an equation: a message, not a MethodError (#6924)
+    @test_throws ArgumentError solve(x - 1 == 0, x)
+    @test_throws ArgumentError solve([x - 1 == 0], x)
+    @test_throws ArgumentError solve([x - 1 == 0], [x])
+    # an integer power in a series truncated as it is built (#6753)
+    @test Sym(series((1 + x^2)^10000, x, 0, 2)) == 1
+    @test Sym(series((1 + x + x^2)^200, x, 0, 3)) == 1 + 200x + 20100x^2
+    @test Sym(series((1 + x)^3, x, 0, 5)) == 1 + 3x + 3x^2 + x^3
+    @test Sym(series((1 / x + x)^3, x, 0, 2)) == 1 / x^3 + 3 / x + 3x
+    # rank by cases where the first minors all vanish: the pivot minor (#6011)
+    Z = zeros(Sym, 30, 30)
+    Z[30, 30] = x
+    r = LA.rank(Z; generic = false)
+    @test r(x => 0) == 0
+    @test r(x => 1) == 1
+end

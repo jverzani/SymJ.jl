@@ -87,15 +87,26 @@ end
 _psinv(a::_PS, N::Rational{Int}) = ((v0, c0, u) = _pslead(a);
     _psshift(_psscale(_psgeom(u, k -> isodd(k) ? -ONE : ONE, N + v0), inv(c0)), -v0))
 
+# a with the terms of exponent o or more dropped (then known to order o); a itself when
+# there are none, so an exact series stays exact
+function _pstrunc(a::_PS, o::Rational{Int})
+    all(<(o), a.e) && return a
+    keep = findall(<(o), a.e)
+    _PS(a.e[keep], a.c[keep], min(a.o, o))
+end
+
 # a^r, r a rational number or a constant expression (then a's valuation must be 0)
 function _pspow(a::_PS, r::Sym, N::Rational{Int})
     if r.kind == NUMBER && _isint(r.num) && isexact(r.num)
         k = _toint(r.num)
         k == 0 && return _psconst(ONE)
         b = k > 0 ? a : _psinv(a, N)
-        out = b
-        for _ in 2:abs(k)
-            out = _psmul(out, b)
+        # terms past what the remaining factors can bring below N dropped as they appear
+        # (an exact (1 + x²)^10000 was expanded in full; SymPy #6753)
+        vb = _val(b)
+        out = _pstrunc(b, N - (abs(k) - 1) * vb)
+        for j in 2:abs(k)
+            out = _pstrunc(_psmul(out, b), N - (abs(k) - j) * vb)
         end
         return out
     end
