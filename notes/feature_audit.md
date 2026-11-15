@@ -445,6 +445,15 @@ transforms). Of the rest, in rough order of value for calculus-level use:
    - refine: atan(sin x/cos x) outside -π/2 < x < π/2 (the + π shifts; #6495); imaginary
      assumptions (positive/negative imaginary symbols; #6106).
 
+21. **Precompile inference** (2026-11-15): the "inference of Sym() from Sym(Any...) exceeding
+   2501 frames" info line comes from printing: a Sym interpolated in an error message
+   ("… $ex") makes inference follow string(String, Sym) into all of `show`. An inference
+   barrier at `show` (or at its inner `_show` call) removes the line on Julia 1.13, but
+   makes Julia 1.14-beta1's precompile of SymJ run past 15 minutes (92 s without), so it
+   is not in. Alternatives: messages that do not interpolate expressions, or a later 1.14.
+   Total inference in the precompile workload is ~80 s over ~51k method instances, spread
+   thinly; trimming the workload is the remaining lever (not done: first calls slower).
+
 Done since the first audit: trigonometric and logarithmic expansion, gamma and combinatorial simplification, LaTeX output (a Latexify extension), resultants and Gröbner
 bases (polynomial systems are solved), real and imaginary parts and `conj`, and
 simplification under assumptions (`refine`, `simplify`).

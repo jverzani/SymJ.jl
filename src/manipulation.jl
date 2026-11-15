@@ -1128,15 +1128,17 @@ function _evalc_derivative(ex::Sym)::ComplexF64
     (_isnamed(v) && !_hassymbol(a) && k <= 8) || throw(ArgumentError("no numeric method for $ex"))
     _hasfn(f, :Derivative) && throw(ArgumentError("no numeric method for $ex"))
     setprecision(BigFloat, 256) do
-        p = Complex{BigFloat}(_ev(a, _Named(NamedTuple()), Complex{BigFloat}, Ref{Union{Nothing,Sym}}(nothing)))
+        p = Complex{BigFloat}(Base.inferencebarrier(_ev)(a, _Named(NamedTuple()), Complex{BigFloat}, Ref{Union{Nothing,Sym}}(nothing)))
         # (the points exactly, as rationals: Sym(::BigFloat) would round them to Float64)
         ex_(r) = Sym(SymNumber(Rational{BigInt}(r)))
         pt(t) = iszero(imag(t)) ? ex_(real(t)) : ex_(real(t)) + IM * ex_(imag(t))
         # (a real point in real BigFloat: ζ, among others, has no complex BigFloat method)
         T = iszero(imag(p)) ? BigFloat : Complex{BigFloat}
-        ev(g, F) = Complex{BigFloat}(_ev(g, _Named(NamedTuple()), F, Ref{Union{Nothing,Sym}}(nothing)))
+        # (barriers: inferring subs and _ev at Complex{BigFloat} from here took 15 s of the
+        # package's precompile)
+        ev(g, F) = Complex{BigFloat}(Base.inferencebarrier(_ev)(g, _Named(NamedTuple()), F, Ref{Union{Nothing,Sym}}(nothing)))
         function val(t)
-            g = subs(f, v => pt(t))
+            g = Base.inferencebarrier(subs)(f, v => pt(t))::Sym
             T === BigFloat || return ev(g, T)
             try ev(g, BigFloat) catch err; err isa DomainError || rethrow(); ev(g, Complex{BigFloat}) end
         end
