@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Solving equations — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=b57f1784">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=97fe990a">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Solving equations — SymJ.jl">
   <meta property="og:title" content="Solving equations — SymJ.jl">
@@ -75,7 +75,7 @@
 <div class="md-docstring" id="CommonSolve.solve-Tuple{Relation, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>CommonSolve.solve</code> — <span class="md-docstring-sig">Tuple{Relation, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/ba36b595546cf29c548d15dea5b8b8acaa1ed2ab/src/solve.jl#L14-L86" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/0077adbfa14e25d99641dcc0e238812c50020c54/src/solve.jl#L14-L86" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -115,10 +115,33 @@ solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !
 </div>
 </div>
 </div>
+<div class="md-docstring" id="SymJ.fsolve">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.fsolve</code> — <span class="md-docstring-sig">Union{Tuple{Relation, Sym}, Tuple{Relation, Sym, Tuple{Any, Any}}}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/0077adbfa14e25d99641dcc0e238812c50020c54/src/fsolve.jl#L6-L34" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.fsolve(eq, x, (a, b) = (-Inf, Inf); domain = ℝ)</code></pre>
+</div>
+<p>The roots of the equation <code class="md-code-inline">eq</code> (written with <code class="md-code-inline">~</code>) in <code class="md-code-inline">x</code>, numerically, as Maple&#39;s <code class="md-code-inline">fsolve</code>: by default the real roots in the interval <code class="md-code-inline">[a, b]</code> (the whole line when it is not given; either end may be infinite), sorted, each once, as floats. <code class="md-code-inline">eq</code> must have no symbol but <code class="md-code-inline">x</code>. Not exported.</p>
+<p>With <code class="md-code-inline">domain = ℂ</code> the complex roots too: for a polynomial (or a rational function) all of them; for another equation the real ones and the complex ones near the real axis that the rootfinder can vouch for (each polished on the equation itself), so complex roots far from the axis may be missing. An interval is for real roots only: it is not taken together with <code class="md-code-inline">domain = ℂ</code>.</p>
+<p>Polynomials are solved through their exact roots (correctly rounded real ones). Other equations are approximated on the interval by Chebyshev interpolants, piece by piece, and the roots of those checked against the equation: a feature narrower than the samples&#39; spacing can be missed. The search stops at about 120 roots, those nearest the middle of the interval (the origin on the whole line), with a warning: <code class="md-code-inline">tan(x) ~ x</code> has infinitely many.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms x
+SymJ.fsolve(cos(x) ~ x, x)                       # [0.7390851332151607]
+SymJ.fsolve(log(x) + sin(x) ~ 1, x, (0, 4))      # [1.1099…, 3.3530…]
+SymJ.fsolve(x^5 - x + 1 ~ 0, x)                  # [-1.1673039782614187]
+SymJ.fsolve(x^5 - x + 1 ~ 0, x; domain = ℂ)      # five roots</code></pre>
+</div>
+</div>
+</div>
 <div class="md-docstring" id="SymJ.SymInterval">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymInterval</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/ba36b595546cf29c548d15dea5b8b8acaa1ed2ab/src/intervals.jl#L10-L15" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/0077adbfa14e25d99641dcc0e238812c50020c54/src/intervals.jl#L10-L15" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -131,7 +154,7 @@ solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !
 <div class="md-docstring" id="SymJ.SymSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/ba36b595546cf29c548d15dea5b8b8acaa1ed2ab/src/intervals.jl#L23-L30" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/0077adbfa14e25d99641dcc0e238812c50020c54/src/intervals.jl#L23-L30" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -144,7 +167,7 @@ solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !
 <div class="md-docstring" id="SymJ.CylindricalSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.CylindricalSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/ba36b595546cf29c548d15dea5b8b8acaa1ed2ab/src/ineqsystems.jl#L13-L25" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/0077adbfa14e25d99641dcc0e238812c50020c54/src/ineqsystems.jl#L13-L25" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -153,6 +176,74 @@ solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !
 </div>
 <p>The solution of a system of linear inequalities in several unknowns, as nested bounds (a cylindrical description): the last unknown ranges over an interval, and each earlier one lies between bounds in the later ones; unknowns fixed by equations are given last. Not exported.</p>
 <p>Calling substitutes into the constraints it was solved from: <code class="md-code-inline">C(x =&gt; 1, y =&gt; 4)</code> is a <code class="md-code-inline">Bool</code> once every unknown has a value; with some unknowns given, <code class="md-code-inline">C(y =&gt; 1)</code> is the solution set in the others (a <code class="md-code-inline">SymSet</code> for one, a <code class="md-code-inline">CylindricalSet</code> for several). <code class="md-code-inline">pt in C</code> for a point given as a <code class="md-code-inline">Dict</code> is the same test.</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.ChebZeros.cheb_all_zeros-Tuple{Any}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.ChebZeros.cheb_all_zeros</code> — <span class="md-docstring-sig">Tuple{Any}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/0077adbfa14e25d99641dcc0e238812c50020c54/src/chebzeros.jl#L475-L501" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">cheb_all_zeros(f, a, b; ctol=1e-6, polish=true, kwargs...)
+cheb_all_zeros(f; kwargs...)        # whole real line</code></pre>
+</div>
+<p>Real zeros of <code class="md-code-inline">f</code> on [a, b] (as <code class="md-code-inline">cheb_zeros</code>; a and b may be infinite), plus the complex zeros of the Chebyshev proxy that can be trusted. Returns a named tuple <code class="md-code-inline">(real, complex)</code>.</p>
+<p><code class="md-code-inline">complex</code> holds the non-real zeros, each a named tuple <code class="md-code-inline">(z, rho, errest, polished)</code>:</p>
+<ul class="md-list-tight">
+<li><p><code class="md-code-inline">rho</code> – Bernstein-ellipse parameter of the root for the piece it came from (1 = on the piece; larger = farther out)</p>
+</li>
+<li><p><code class="md-code-inline">errest</code> – estimated |p - f| / max|f| there for the proxy p: ε·ρⁿ, with ε the relative size of the discarded Chebyshev coefficients and n the degree. A root is kept only if <code class="md-code-inline">errest ≤ ctol</code>. The root&#39;s own error is roughly errest·max|f| / |f′(z)|.</p>
+</li>
+<li><p><code class="md-code-inline">polished</code> – true if complex secant steps on f converged. If f accepts complex input, roots that don&#39;t polish are dropped; if it doesn&#39;t, the proxy&#39;s roots are returned unpolished.</p>
+</li>
+</ul>
+<p>Each piece has its own ellipse, so the trusted region is a union of ellipses hugging the real axis. Near-real conjugate pairs that are really a double real zero are dropped (that zero is in <code class="md-code-inline">real</code>).</p>
+<p>On an infinite interval the real zeros come from the mapped search, and complex zeros are looked for (on the finite interval) in a window around them: |x - c| ≤ R, with R = max(10·scale, 2·max|r - c|) over the real zeros r, and c the center (whole line) or the finite end (half-line).</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.ChebZeros.cheb_zeros-Tuple{Any}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.ChebZeros.cheb_zeros</code> — <span class="md-docstring-sig">Tuple{Any}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/0077adbfa14e25d99641dcc0e238812c50020c54/src/chebzeros.jl#L279-L315" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">cheb_zeros(f, a, b; kwargs...)
+cheb_zeros(f; kwargs...)             # whole real line, same as cheb_zeros(f, -Inf, Inf)</code></pre>
+</div>
+<p>Find all zeros of a continuous function <code class="md-code-inline">f</code> on <code class="md-code-inline">[a, b]</code> with a Chebyshev-proxy rootfinder. Returns a sorted vector.</p>
+<p><code class="md-code-inline">a</code> and/or <code class="md-code-inline">b</code> may be infinite. Then the interval is mapped onto [-1, 1]:</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">(-∞, ∞):  x = center + scale·t/(1-t²)
+[a, ∞):   x = a + scale·(1+t)/(1-t)
+(-∞, b]:  x = b - scale·(1-t)/(1+t)</code></pre>
+</div>
+<p>and f&#39;s values are squashed by y ↦ (y/σ)/√(1+(y/σ)²), σ a typical |f| from a few samples (same zeros and signs, but bounded). This works when f is &quot;tame at infinity&quot;: it tends to a limit, or to ±∞ like a power or an exponential. If f oscillates forever (sin(x)) there are infinitely many zeros; you get those that could be resolved and a warning. <code class="md-code-inline">scale</code> (default 1) should be roughly the size of x where the action is. A zero far out is still found (and then polished to full accuracy in x), but at a cost in function evaluations.</p>
+<p>Keywords:</p>
+<ul class="md-list-tight">
+<li><p><code class="md-code-inline">maxdeg</code>   – largest interpolant degree on a piece before it is split (128)</p>
+</li>
+<li><p><code class="md-code-inline">tol</code>      – relative size (vs. max|f| on the piece) below which coefficients count as zero</p>
+</li>
+<li><p><code class="md-code-inline">maxdepth</code> – maximum number of subdivisions</p>
+</li>
+<li><p><code class="md-code-inline">maxzeros</code>  – stop once about this many zeros are found (120); with <code class="md-code-inline">maxtotaldeg</code>, a              budget on the total degree of the piecewise polynomial proxy (5000) for an f              that oscillates without crossing zero. When either runs out, the zeros              nearest the middle (or the origin, or the finite end of a half-line) are              returned, with a warning</p>
+</li>
+<li><p><code class="md-code-inline">imtol</code>    – how far from the real axis an eigenvalue may be and still be a candidate</p>
+</li>
+<li><p><code class="md-code-inline">ztol</code>     – for zeros without a sign change, accept if |f(x)| ≤ ztol·max|f|</p>
+</li>
+<li><p><code class="md-code-inline">plateau</code>  – coefficients that level off below plateau·max|f| count as noise (noisy f)</p>
+</li>
+<li><p><code class="md-code-inline">pairtol</code>  – unbracketed candidates closer than pairtol·w are one even-order zero              (w = b - a, or its local equivalent under the map)</p>
+</li>
+<li><p><code class="md-code-inline">scale</code>, <code class="md-code-inline">center</code> – the maps above (infinite intervals only)</p>
+</li>
+</ul>
 </div>
 </div>
       </article>
@@ -172,6 +263,6 @@ solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=b57f1784"></script>
+  <script src="../../assets/materialdocs.js?v=97fe990a"></script>
 </body>
 </html>

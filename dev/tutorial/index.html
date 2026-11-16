@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=54354f78">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=9ca18129">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -1118,7 +1118,17 @@ end</code></pre>
  (-91//64, -181//128, 1)
  (181//128, 91//64, 1)</code></pre>
 </div>
-<p>For other equations, the packages for numerical root finding take SymJ expressions as they are, since an expression is callable (<code class="md-code-inline">lambdify</code> makes a faster function): <code class="md-code-inline">Roots.find_zero(cos(x) - x, 0.5)</code>, or with Newton&#39;s method and the exact derivative, <code class="md-code-inline">find_zero((lambdify(f, x), lambdify(diff(f, x), x)), x0, Roots.Newton())</code>.</p>
+<p>For an equation <code class="md-code-inline">solve</code> cannot solve exactly, <code class="md-code-inline">SymJ.fsolve</code> (as Maple&#39;s) finds its roots numerically: the real ones, on the whole line or an interval, and with <code class="md-code-inline">domain = ℂ</code> complex ones too.</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.fsolve(cos(x) ~ x, x), SymJ.fsolve(log(x) + sin(x) ~ 1, x, (0, 4))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \left[ 0.7390851332151607 \right], \; \left[ 1.1099563755802675, \; 3.3530284715132392 \right] \right)\]
+</div>
+</div>
+<p>The packages for numerical root finding also take SymJ expressions as they are, since an expression is callable (<code class="md-code-inline">lambdify</code> makes a faster function): <code class="md-code-inline">Roots.find_zero(cos(x) - x, 0.5)</code>, or with Newton&#39;s method and the exact derivative, <code class="md-code-inline">find_zero((lambdify(f, x), lambdify(diff(f, x), x)), x0, Roots.Newton())</code>.</p>
 <h2 id="Sums" class="md-heading">Sums<a href="#Sums" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p><code class="md-code-inline">SymJ.summation(f, k, a, b)</code> (not exported) sums <code class="md-code-inline">f</code> over <code class="md-code-inline">k = a, …, b</code>, in closed form where it finds one; <code class="md-code-inline">b</code> may be <code class="md-code-inline">Inf</code>:</p>
 <div class="md-multi-output">
@@ -2272,6 +2282,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=54354f78"></script>
+  <script src="../assets/materialdocs.js?v=9ca18129"></script>
 </body>
 </html>
