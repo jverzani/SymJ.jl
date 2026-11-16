@@ -419,6 +419,8 @@ Base.:-(cs::Cases) = _cases_values_op(-, cs)
 series(cs::Cases, x::Sym, x0 = 0, n::Real = 6) = _cases_values_op(v -> series(v, x, x0, n), cs)
 # (the derivative of a sum with cases, Σ xᵏ; SymPy #14211)
 Base.diff(cs::Cases, x::Sym, args...) = _cases_values_op(v -> diff(v, x, args...), cs)
+# each case's value numerically, a vector of roots elementwise (a MethodError; SymPy #5333)
+N(cs::Cases) = _map_cases(v -> v isa AbstractVector ? map(N, v) : N(v), cs)
 
 # Σ over k of each case's value, its conditions assumed; a case with its own cases
 # within gives one case for each (Σₙ Σₖ aⁿbᵏ; SymPy #14235). Conditions on k: an error.

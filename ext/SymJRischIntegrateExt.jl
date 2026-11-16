@@ -140,6 +140,24 @@ function _unwrap(r)
     (r.elementary isa Union{Sym,Number} && all(t -> t isa RischIntegrate.HypTerm, r.rootsums)) || return r
     Sym(r.elementary) + SymJ._add_many(_hypterm(h) for h in r.rootsums)
 end
+# d/dx of an answer with root sums: the elementary part's derivative plus each RootSum's,
+# exact in ℚ(x) by RischIntegrate (diff of ∫ (4x - 5)/(x⁵ - x + 1) was a MethodError;
+# SymPy #5284)
+function Base.diff(F::RischIntegrate.IntegralWithRootSums, x::SymJ.Sym)
+    u = _unwrap(F)
+    u isa SymJ.Sym && return diff(u, x)
+    string(x) == F.var || throw(ArgumentError("diff: the integral is in $(F.var), not $x"))
+    upoly(p) = SymJ._add_many(SymJ.Sym[Sym(SymJ.SymNumber(c)) * x^(i - 1) for (i, c) in enumerate(p.c)])
+    d = diff(Sym(F.elementary), x)
+    for rs in F.rootsums
+        (rs isa RischIntegrate.RootSum && (rs.arg === nothing || string(rs.arg) == F.var)) ||
+            throw(ArgumentError("diff: a root sum over a substituted variable is not supported"))
+        q = RischIntegrate.rootsum_derivative(rs)
+        d += upoly(q.num) / upoly(q.den)
+    end
+    SymJ.cancel(d)
+end
+
 function _hypterm(h)
     q(v) = Sym(SymJ.SymNumber(v))
     x = Sym(Symbol(h.var))
