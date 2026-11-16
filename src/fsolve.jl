@@ -56,13 +56,14 @@ fsolve(eq::Relation, x::Sym, a::Real, b::Real; kws...) = fsolve(eq, x, (a, b); k
 function _fsolve_poly(ex::Sym, x::Sym, lo::Float64, hi::Float64, domain)
     n, d = numer_denom(cancel(ex))
     atoms = Set{Sym}()
-    (_poly_atoms!(atoms, n) && _poly_atoms!(atoms, d) && all(a -> _eq(a, x), atoms)) || return nothing
+    (_poly_atoms!(atoms, n) && _poly_atoms!(atoms, d) && all(a -> _eq(a, x) || !_hassymbol(a), atoms)) || return nothing
     P = try Poly{Sym}(expand(n), [x]) catch; return nothing end
     deg = degree(P, x)
     deg == 0 && return Sym[]
     cs = Sym[coeff(n, x, k) for k in 0:deg]
     pole(r) = has(d, x) && abs(N(subs(d, x => r))) <= 1e-12 * max(1, abs(N(r)))
-    if domain == ℝ && _isexactex(n)
+    # (correctly rounded real roots for rational coefficients; numeric ones otherwise)
+    if domain == ℝ && all(ci -> ci.kind == NUMBER && isexact(ci.num), cs)
         rs = unique(real_roots(n, x))
         return Sym[Sym(r) for r in rs if lo <= r <= hi && !pole(Sym(r))]
     end
@@ -185,7 +186,8 @@ end
 function _ispoly_system_eq(Fi::Sym, xs::Vector{Sym})
     n, d = numer_denom(cancel(Fi))
     atoms = Set{Sym}()
-    _poly_atoms!(atoms, n) && _poly_atoms!(atoms, d) && all(a -> any(v -> _eq(a, v), xs), atoms)
+    # (constant atoms, as 10^(1/20), are coefficients)
+    _poly_atoms!(atoms, n) && _poly_atoms!(atoms, d) && all(a -> any(v -> _eq(a, v), xs) || !_hassymbol(a), atoms)
 end
 
 # every solution of a polynomial system, numerically (Dicts of floats, sorted), in the

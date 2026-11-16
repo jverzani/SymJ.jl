@@ -552,6 +552,9 @@ end
     @test F([x^2 + y^2 ~ -1, x ~ y], [x, y]) == Dict{Sym,Sym}[]
     @test length(F([x^2 + y^2 ~ -1, x ~ y], [x, y]; domain = ℂ)) == 2
     @test_throws ArgumentError F([x + y ~ 1, 2x + 2y ~ 2], [x, y])          # infinitely many
+    # constant coefficients that are not numbers (√2, 10^(1/20)): still polynomial, all solutions
+    @test length(F([sqrt(Sym(2)) * x ~ y, x^2 + y^2 ~ 3], [x, y])) == 2
+    @test N.(F(sqrt(Sym(2)) * x^2 - 1 ~ 0, x)) ≈ [-2^(-1 / 4), 2^(-1 / 4)]
     @test_throws ArgumentError F([x ~ 1], [x, y])
     @test_throws ArgumentError F([x + Sym(:z) ~ 1, x - y ~ 0], [x, y])
 end
