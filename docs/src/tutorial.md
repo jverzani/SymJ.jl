@@ -409,10 +409,12 @@ solve(x^3 - 3x + 1 ~ 0, x)
 solve(x^4 - 10x^2 + 1 ~ 0, x)
 ```
 
-From degree five, roots are computed numerically:
+From degree five, an irreducible polynomial generally has no roots in radicals (those in
+special forms, as `x^5 ~ 2`, are still solved exactly), and `solve`, exact only, says so; `SymJ.fsolve` finds the roots numerically, the real ones or,
+with `domain = ℂ`, all of them:
 
 ```@example tut
-solve(x^5 - x + 1 ~ 0, x)
+SymJ.fsolve(x^5 - x + 1 ~ 0, x), SymJ.fsolve(x^5 - x + 1 ~ 0, x; domain = ℂ)
 ```
 
 ## Rational functions

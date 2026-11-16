@@ -454,6 +454,11 @@ transforms). Of the rest, in rough order of value for calculus-level use:
    Total inference in the precompile workload is ~80 s over ~51k method instances, spread
    thinly; trimming the workload is the remaining lever (not done: first calls slower).
 
+22. **Solvable quintics** (2026-11-15): `solve` is exact only (#171), so an irreducible
+   factor of degree ≥ 5 it finds no radicals for is an error pointing to `fsolve`. The
+   solvable ones (Galois group in F₂₀, as `x^5 - 5x + 12`) do have roots in radicals; a
+   resolvent-sextic test and the Dummit/Spearman–Williams formulas would give them.
+
 Done since the first audit: trigonometric and logarithmic expansion, gamma and combinatorial simplification, LaTeX output (a Latexify extension), resultants and Gröbner
 bases (polynomial systems are solved), real and imaginary parts and `conj`, and
 simplification under assumptions (`refine`, `simplify`).

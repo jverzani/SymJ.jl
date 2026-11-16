@@ -13,6 +13,12 @@
 
 import CommonSolve: solve
 
+# a solve called by the user is exact or an error: an irreducible factor of degree ≥ 5
+# that it finds no roots in radicals for is an error pointing to fsolve (decided 2026-11-15); inside
+# SymJ (eigenvalues, dsolve, fsolve's polynomial systems) its roots are numeric. nothing:
+# not inside a solve; true: the user's; false: numeric roots asked for.
+const _SOLVE_STRICT = ScopedValue{Union{Nothing,Bool}}(nothing)
+
 """
     solve(eq::Relation, x; assume = nothing, drop_empty = false)
 
@@ -21,8 +27,10 @@ vector of distinct expressions. The equation must be polynomial or rational in `
 its coefficients may involve other symbols. Solutions are exact through
 degree 4 and for equations that factor into such pieces (and for higher degrees in
 special forms: `a xⁿ + b`, cyclotomic polynomials, compositions); an irreducible factor
-of higher degree with no roots in radicals is an error, as `solve` gives only exact
-solutions: [`SymJ.fsolve`](@ref) gives its roots numerically. Solutions are sorted, real
+of higher degree that `solve` finds no roots in radicals for is an error, as `solve` gives
+only exact solutions: [`SymJ.fsolve`](@ref) gives its roots numerically. (Most such
+factors have no roots in radicals; the solvable quintics, as `x^5 - 5x + 12`, are not
+recognized yet.) Solutions are sorted, real
 ones first. An equation with no solution gives an empty
 vector. A solution must be in the equation's domain: `(x^2 - 1)/(x - 1) ~ 2` has none,
 though cancelling gives `x + 1 = 2`. For a system, `solve([eqs...], [vars...])`, giving a vector of `Dict`s;
@@ -88,12 +96,6 @@ solutions alone: the conditions under which they hold are then not shown.
 solve(x^2 ~ a, x; assume = (x ≫ 0,), drop_empty = true)   # [√a] (for a > 0)
 ```
 """
-# a solve called by the user is exact or an error: an irreducible factor of degree ≥ 5
-# with no roots in radicals is an error pointing to fsolve (decided 2026-11-15); inside
-# SymJ (eigenvalues, dsolve, fsolve's polynomial systems) its roots are numeric. nothing:
-# not inside a solve; true: the user's; false: numeric roots asked for.
-const _SOLVE_STRICT = ScopedValue{Union{Nothing,Bool}}(nothing)
-
 function solve(eq::Relation, x::Sym; assume = nothing, drop_empty::Bool = false)
     _SOLVE_STRICT[] === nothing && return with(() -> solve(eq, x; assume, drop_empty), _SOLVE_STRICT => true)
     # c floor(u) + d = 0 (or ceil) holds on intervals of u: its solution set, as for an
@@ -1685,7 +1687,8 @@ function _solve_irreducible(c::Vector{Sym}, f)
         "solve: an irreducible factor of degree $d with symbolic coefficients"))
     if _SOLVE_STRICT[] === true
         p = f === nothing ? _add_many(Sym[c[k] * Sym(:x)^(k - 1) for k in eachindex(c)]) : Sym(f)
-        throw(ArgumentError("solve: the irreducible factor $p of degree $d has no roots in radicals; " *
+        throw(ArgumentError("solve: no roots in radicals found for the irreducible factor $p of degree $d " *
+                            "(most such factors have none; some solvable quintics are not covered either); " *
                             "for numeric roots use SymJ.fsolve (fsolve(eq, x) for the real ones, " *
                             "fsolve(eq, x; domain = ℂ) for all; fsolve(eqs, vars) for a system)"))
     end

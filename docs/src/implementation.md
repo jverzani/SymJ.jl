@@ -335,7 +335,10 @@ exact rational function type kept in canonical form, so that its zero tests are 
   taken to mean "= 0", on pedagogical grounds.
 - **Polynomials are factored first.** The left side minus the right is reduced with
   `cancel`, so no root is a pole, and the numerator is factored. Each irreducible factor
-  is solved by formula up to degree four, numerically beyond.
+  is solved by formula up to degree four. Beyond that, a factor in a special form
+  (`a xⁿ + b`, cyclotomic, a composition) is still exact; any other is an error that
+  points to `SymJ.fsolve`, so `solve`'s answers are exact. SymJ's own callers
+  (eigenvalues, `dsolve`, `fsolve`'s polynomial systems) get numeric roots there instead.
   - A cubic with three real roots is solved in trigonometric form, which is exact and
     real, where Cardano's formula would need complex numbers.
 - **One function of the unknown.** When the unknown appears through one function, such
