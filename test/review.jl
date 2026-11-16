@@ -978,13 +978,14 @@ end
     @test solve(c^2 ~ -1, c; assume = (real(c) ≫ -1,)) == [-IM, IM]
     @test refine(imag(x); assume = (x ≫ 0,)) == 0
     # huge coefficients: roots in BigFloat, not NaN (#15355)
-    r = solve(x^5 - big(10)^400 * x + 1 ~ 0, x)
+    # (fsolve's: solve gives only exact roots)
+    r = SymJ.fsolve(x^5 - big(10)^400 * x + 1 ~ 0, x; domain = ℂ)
     @test all(v -> !isnan(abs(N(v))), r)
-    @test length(solve(x^5 - big(10)^400 * x + 1 ~ 0, x; assume = (x ∈ ℝ,))) == 3
+    @test length(SymJ.fsolve(x^5 - big(10)^400 * x + 1 ~ 0, x)) == 3
     # (u)^n = c through its base, exactly; numeric roots polished (#15296)
     @test solve((1 + x)^5 ~ 3 // 2, x; assume = (x ∈ ℝ,)) == [(Sym(3) / 2)^(1 // 5) - 1]
     @test maximum(abs(N((1 + v)^30 - 3 // 2)) for v in solve((1 + x)^30 ~ 3 // 2, x)) < 1e-12
-    q = solve(x^5 - x + 1 ~ 0, x)
+    q = SymJ.fsolve(x^5 - x + 1 ~ 0, x; domain = ℂ)                  # (solve gives only exact roots)
     @test count(v -> imag(N(v)) != 0 && any(w -> N(w) == conj(N(v)), q), q) == 4    # exact conjugate pairs
     # relations among cosines in a rank (#15585)
     @syms z
@@ -1097,7 +1098,8 @@ end
     @test solve([x + y ~ 2, x - y ~ 0], [x, y]; assume = (x ∈ ℤ, y ∈ ℤ)) == [Dict(x => 1, y => 1)]
     @test isempty(solve([x^2 ~ 2, y ~ 1], [x, y]; assume = (x ∈ ℚ,)))
     # back-substitution at 256 bits: no points with residuals to 1e34 (#14799)
-    S = solve([x^2 + y^2 + w^2 ~ 1, x^5 + y - 3 // 10 ~ 0, x * y * w ~ 1 // 100], [x, y, w])
+    # (fsolve's: solve gives only exact solutions)
+    S = SymJ.fsolve([x^2 + y^2 + w^2 ~ 1, x^5 + y - 3 // 10 ~ 0, x * y * w ~ 1 // 100], [x, y, w]; domain = ℂ)
     @test length(S) == 22
     res(d) = (z = [ComplexF64(N(d[v])) for v in (x, y, w)];
               maximum(abs, (z[1]^2 + z[2]^2 + z[3]^2 - 1, z[1]^5 + z[2] - 0.3, z[1] * z[2] * z[3] - 0.01)))

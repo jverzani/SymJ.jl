@@ -7,7 +7,9 @@
 # coefficients) and each irreducible factor solved:
 #   degree 1 and 2: the usual formulas; a xⁿ + b: (-b/a)^(1/n) (-1)^(2k/n);
 #   degree 3: Cardano; degree 4: Ferrari (biquadratic ones as quadratics in x²);
-#   degree ≥ 5 with numeric coefficients: numeric roots (Aberth's iteration).
+#   degree ≥ 5 with numeric coefficients, in no special form: an error pointing to
+#   SymJ.fsolve for a solve the user called; numeric roots (Aberth's iteration) for
+#   SymJ's own uses (eigenvalues, dsolve, fsolve's polynomial systems): _SOLVE_STRICT.
 
 import CommonSolve: solve
 
@@ -17,9 +19,11 @@ import CommonSolve: solve
 The solutions of the equation `eq` (written with `~`, e.g. `x^2 ~ 4`) for `x`, as a
 vector of distinct expressions. The equation must be polynomial or rational in `x`;
 its coefficients may involve other symbols. Solutions are exact through
-degree 4 and for equations that factor into such pieces; irreducible factors of higher
-degree with numeric coefficients give numeric (floating point) roots. Numeric
-solutions are sorted, real ones first. An equation with no solution gives an empty
+degree 4 and for equations that factor into such pieces (and for higher degrees in
+special forms: `a xⁿ + b`, cyclotomic polynomials, compositions); an irreducible factor
+of higher degree with no roots in radicals is an error, as `solve` gives only exact
+solutions: [`SymJ.fsolve`](@ref) gives its roots numerically. Solutions are sorted, real
+ones first. An equation with no solution gives an empty
 vector. A solution must be in the equation's domain: `(x^2 - 1)/(x - 1) ~ 2` has none,
 though cancelling gives `x + 1 = 2`. For a system, `solve([eqs...], [vars...])`, giving a vector of `Dict`s;
 mixing the forms (`solve(eq, [x])`, `solve([eq], x)`) is an error. An unknown may also
@@ -84,7 +88,14 @@ solutions alone: the conditions under which they hold are then not shown.
 solve(x^2 ~ a, x; assume = (x ≫ 0,), drop_empty = true)   # [√a] (for a > 0)
 ```
 """
+# a solve called by the user is exact or an error: an irreducible factor of degree ≥ 5
+# with no roots in radicals is an error pointing to fsolve (decided 2026-11-15); inside
+# SymJ (eigenvalues, dsolve, fsolve's polynomial systems) its roots are numeric. nothing:
+# not inside a solve; true: the user's; false: numeric roots asked for.
+const _SOLVE_STRICT = ScopedValue{Union{Nothing,Bool}}(nothing)
+
 function solve(eq::Relation, x::Sym; assume = nothing, drop_empty::Bool = false)
+    _SOLVE_STRICT[] === nothing && return with(() -> solve(eq, x; assume, drop_empty), _SOLVE_STRICT => true)
     # c floor(u) + d = 0 (or ceil) holds on intervals of u: its solution set, as for an
     # inequality (SymPy #25001)
     eq.op === :eq && _isnamed(x) && (S = _solve_floor(eq, x, assume); S !== nothing) && return S
@@ -1672,6 +1683,12 @@ function _solve_irreducible(c::Vector{Sym}, f)
     r === nothing || return r
     all(ci -> !_hassymbol(ci), c) || throw(ArgumentError(
         "solve: an irreducible factor of degree $d with symbolic coefficients"))
+    if _SOLVE_STRICT[] === true
+        p = f === nothing ? _add_many(Sym[c[k] * Sym(:x)^(k - 1) for k in eachindex(c)]) : Sym(f)
+        throw(ArgumentError("solve: the irreducible factor $p of degree $d has no roots in radicals; " *
+                            "for numeric roots use SymJ.fsolve (fsolve(eq, x) for the real ones, " *
+                            "fsolve(eq, x; domain = ℂ) for all; fsolve(eqs, vars) for a system)"))
+    end
     _numeric_roots(c)
 end
 
