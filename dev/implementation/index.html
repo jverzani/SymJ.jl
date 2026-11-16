@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Implementation — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=344a3a0a">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=a6a835aa">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Implementation — SymJ.jl">
   <meta property="og:title" content="Implementation — SymJ.jl">
@@ -239,7 +239,7 @@ end</code></pre>
 <ul class="md-list-tight">
 <li><p><strong>An equation is required.</strong> It must be written <code class="md-code-inline">lhs ~ rhs</code>. A bare expression is not taken to mean &quot;= 0&quot;, on pedagogical grounds.</p>
 </li>
-<li><p><strong>Polynomials are factored first.</strong> The left side minus the right is reduced with <code class="md-code-inline">cancel</code>, so no root is a pole, and the numerator is factored. Each irreducible factor is solved by formula up to degree four, numerically beyond.</p>
+<li><p><strong>Polynomials are factored first.</strong> The left side minus the right is reduced with <code class="md-code-inline">cancel</code>, so no root is a pole, and the numerator is factored. Each irreducible factor is solved by formula up to degree four. Beyond that, a factor in a special form (<code class="md-code-inline">a xⁿ + b</code>, cyclotomic, a composition) is still exact; any other is an error that points to <code class="md-code-inline">SymJ.fsolve</code>, so <code class="md-code-inline">solve</code>&#39;s answers are exact. SymJ&#39;s own callers (eigenvalues, <code class="md-code-inline">dsolve</code>, <code class="md-code-inline">fsolve</code>&#39;s polynomial systems) get numeric roots there instead.</p>
 <ul class="md-list-tight">
 <li><p>A cubic with three real roots is solved in trigonometric form, which is exact and real, where Cardano&#39;s formula would need complex numbers.</p>
 </li>
@@ -349,6 +349,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=344a3a0a"></script>
+  <script src="../assets/materialdocs.js?v=a6a835aa"></script>
 </body>
 </html>

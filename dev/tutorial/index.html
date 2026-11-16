@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=ab8de2dd">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=45792292">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -602,14 +602,14 @@ reduced(x^2 - y^2, G, x, y), reduced(x^3, G, x, y)</code></pre>
 \[\left[  - \sqrt{2 \cdot \sqrt{6} + 5}, \;  - \sqrt{-2 \cdot \sqrt{6} + 5}, \; \sqrt{-2 \cdot \sqrt{6} + 5}, \; \sqrt{2 \cdot \sqrt{6} + 5} \right]\]
 </div>
 </div>
-<p>From degree five, roots are computed numerically:</p>
+<p>From degree five, an irreducible polynomial generally has no roots in radicals (those in special forms, as <code class="md-code-inline">x^5 ~ 2</code>, are still solved exactly), and <code class="md-code-inline">solve</code>, exact only, says so; <code class="md-code-inline">SymJ.fsolve</code> finds the roots numerically, the real ones or, with <code class="md-code-inline">domain = ℂ</code>, all of them:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">solve(x^5 - x + 1 ~ 0, x)</code></pre>
+<pre><code class="language-julia">SymJ.fsolve(x^5 - x + 1 ~ 0, x), SymJ.fsolve(x^5 - x + 1 ~ 0, x; domain = ℂ)</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\left[ -1.1673039782614187, \; -1.0839541013177107 \cdot i - 0.18123244446987538, \; 1.0839541013177107 \cdot i - 0.18123244446987538, \; -0.35247154603172626 \cdot i + 0.7648844336005848, \; 0.35247154603172626 \cdot i + 0.7648844336005848 \right]\]
+\[\left( \left[ -1.1673039782614187 \right], \; \left[ -1.1673039782614187, \; -1.0839541013177107 \cdot i - 0.18123244446987538, \; 1.0839541013177107 \cdot i - 0.18123244446987538, \; -0.35247154603172626 \cdot i + 0.7648844336005848, \; 0.35247154603172626 \cdot i + 0.7648844336005848 \right] \right)\]
 </div>
 </div>
 <h2 id="Rational-functions" class="md-heading">Rational functions<a href="#Rational-functions" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
@@ -2282,6 +2282,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=ab8de2dd"></script>
+  <script src="../assets/materialdocs.js?v=45792292"></script>
 </body>
 </html>
