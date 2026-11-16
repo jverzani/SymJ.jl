@@ -224,7 +224,7 @@ Base.gcd(a::Number, b::Sym; kws...) = gcd(Sym(a), b; kws...)
 Base.lcm(a::Sym, b::Number; kws...) = lcm(a, Sym(b); kws...)
 Base.lcm(a::Number, b::Sym; kws...) = lcm(Sym(a), b; kws...)
 # three or more, or a vector, folded pairwise as Base's (gcd(2, 4, x) was a MethodError;
-# SymPy #5232)
+# SymPy #5135)
 Base.gcd(a::Sym, b::Union{Sym,Number}, c::Union{Sym,Number}, ds::Union{Sym,Number}...; kws...) =
     foldl((u, v) -> gcd(u, v; kws...), (b, c, ds...); init = a)
 Base.lcm(a::Sym, b::Union{Sym,Number}, c::Union{Sym,Number}, ds::Union{Sym,Number}...; kws...) =

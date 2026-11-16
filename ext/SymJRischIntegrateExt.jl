@@ -142,7 +142,7 @@ function _unwrap(r)
 end
 # d/dx of an answer with root sums: the elementary part's derivative plus each RootSum's,
 # exact in ℚ(x) by RischIntegrate (diff of ∫ (4x - 5)/(x⁵ - x + 1) was a MethodError;
-# SymPy #5284)
+# SymPy #5231)
 function Base.diff(F::RischIntegrate.IntegralWithRootSums, x::SymJ.Sym)
     u = _unwrap(F)
     u isa SymJ.Sym && return diff(u, x)

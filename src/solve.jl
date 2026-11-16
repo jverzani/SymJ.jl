@@ -634,7 +634,7 @@ function _solve_weierstrass(eq::Relation, n::Sym, x::Sym, w::Sym)
 end
 
 # the size of a root for a relative tolerance: 1 for a root in parameters, whose residual
-# can still be free of them (π/(4a) in sin(ax) = cos(ax); N(r) raised; SymPy #5132, #5114)
+# can still be free of them (π/(4a) in sin(ax) = cos(ax); N(r) raised; SymPy #4467)
 _root_scale(r::Sym) = _hassymbol(r) ? 1.0 : (w = try N(r) catch; 1.0 end; max(1, abs(w)))
 
 # eq holds at x = r: exactly, or numerically when no symbols are left

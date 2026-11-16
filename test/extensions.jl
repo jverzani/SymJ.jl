@@ -210,7 +210,7 @@ import PolyLog as PL
     @testset "RischIntegrate: definite integrals" begin
         ∫ = RischIntegrate.integrate
         Inf_ = Sym(Inf)
-        # the derivative of an answer with root sums (a MethodError; SymPy #5284)
+        # the derivative of an answer with root sums (a MethodError; SymPy #5231)
         isdefined(RischIntegrate, :HypTerm) && @test iszero(SymJ.cancel(diff(∫((4x - 5) / (x^5 - x + 1), x), x) - (4x - 5) / (x^5 - x + 1)))
         # a variable that is not a symbol is refused (SymPy #4459); ∫₀^(π/2) cos(x)^(2n) for
         # an integer n > 0 by the limit at π/2, not 0 (SymPy #5804)

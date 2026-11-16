@@ -1857,16 +1857,16 @@ end
     # Σ binomial(k, j) (-1)^j p(j)/k: k = 0, where the summand is undefined, is no case
     # (DivisionByZero; #5790)
     @test SymJ.summation((-1)^j * binomial(k, j) * j / k, j, 0, k) == SymJ.piecewise((k ~ 1) => -1, true => 0)
-    # factor of a sum that cancels to 0 (#5180)
+    # factor of a sum that cancels to 0 (#5153)
     @test iszero(factor(exp(x) / (1 + exp(x)) - 1 / (1 + exp(-x))))
-    # gcd and lcm of three or more, and of a vector (#5232)
+    # gcd and lcm of three or more, and of a vector (#5135)
     @test gcd(Sym(2), Sym(4), x) == 1
     @test lcm(Sym(2), Sym(4), Sym(6)) == 12
     @test gcd(Sym[4, 6, 8]) == 2
-    # solve checking a root in a parameter (N raised; #5132, #5114)
+    # solve checking a root in a parameter (N raised; #4467)
     @test Set(solve(sin(a * x) ~ cos(a * x), x)) == Set([PI / (4a), 5PI / (4a)])
     @test length(solve(2^exp(y^2 / x) + 2 ~ 0, y)) == 2
-    # N of a Cases (#5333)
+    # N of a Cases
     let cs = SymJ.Cases{Any}([Any[a ≫ 0] => Sym(1) / 3, Any[a ≪ 0] => Sym[PI, Sym(2)]])
         @test N(cs)[1].second ≈ 1 / 3
         @test N(cs)[2].second ≈ [π, 2.0]
