@@ -13,6 +13,10 @@ function _lambertw_num(z::Number, k::Integer = 0)
         err isa Union{MethodError,DomainError} || rethrow()
     end
     c = complex(float(z))
+    # a real z below the branch point -1/e: LambertW's complex method (the iteration
+    # started at log1p(-1) = -∞ and gave NaN for W(-1); SymPy #5673, #5215)
+    v = try lambertw(c, k) catch err; err isa Union{MethodError,DomainError} || rethrow(); nothing end
+    v isa Number && isfinite(v) && return v
     w = if k == 0 && abs(c + exp(-one(real(c)))) < 0.5
         p = sqrt(2 * (exp(one(real(c))) * c + 1))
         -1 + p - p^2 / 3

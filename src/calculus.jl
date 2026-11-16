@@ -302,6 +302,16 @@ function _diff(ex::Sym, x::Sym)
             end
             return isempty(terms) ? ZERO : _add_many(terms)
         end
+        # |u| of a complex-valued u (an i in it), x real: d|u|/dx = Re(conj(u) u')/|u|, not
+        # u u'/|u|, which holds for real u only (SymPy #4757)
+        if ex.name === :abs && length(ex.args) == 1 && _has_imag_unit(ex.args[1])
+            u = ex.args[1]
+            du = _diff(u, x)
+            iszero(du) && return ZERO
+            # (x real, as diff takes it: the real part through x's own parts)
+            B = _with_fact(Assumptions(), x ∈ ℝ)
+            return expand(_refine(real(expand(conj(u) * du)), something(B, Assumptions()))) / ex
+        end
         terms = Sym[]
         for i in eachindex(ex.args)
             da = _diff(ex.args[i], x)
@@ -314,3 +324,7 @@ function _diff(ex::Sym, x::Sym)
         return _add_many(terms)
     end
 end
+
+# an i in e (also as the factor (-1)^(1/2) of a product, which has() does not see)
+_has_imag_unit(e::Sym) = _has_node(e, t -> _eq(t, IM) || (t.kind == MUL && any(i -> _eq(t.args[i]^t.exps[i], IM), eachindex(t.args))) ||
+                                          (t.kind == ADD && any(a -> _eq(a, IM), t.args)))

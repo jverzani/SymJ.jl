@@ -874,6 +874,9 @@ function _hyp_endpoint(F::Sym, x::Sym, p::Sym, dir::Symbol, A)
 end
 
 function _finite_value(v::Sym)
+    # (a NaN among symbols, as from 0^(2n - 1) 0^(1 - 2n) at an end, is no value: the
+    # limit is taken; SymPy #5804)
+    _has_nan(v) && return false
     _hassymbol(v) && return true
     w = try N(v) catch; return false end
     isfinite(w)

@@ -210,6 +210,13 @@ import PolyLog as PL
     @testset "RischIntegrate: definite integrals" begin
         ∫ = RischIntegrate.integrate
         Inf_ = Sym(Inf)
+        # a variable that is not a symbol is refused (SymPy #4459); ∫₀^(π/2) cos(x)^(2n) for
+        # an integer n > 0 by the limit at π/2, not 0 (SymPy #5804)
+        @test_throws ArgumentError ∫(sin(x), sin(x))
+        VERSION >= v"1.12" && let n = Sym(:n)                            # (the older RischIntegrate cannot)
+            @test iszero(simplify(∫(cos(x)^(2n), (x, 0, PI / 2); assume = (n ∈ ℤ, n ≫ 0)) -
+                                  sqrt(PI) * SymJ.SpecialFunctionsSupport.SF.gamma(n + Sym(1) // 2) / (2SymJ.SpecialFunctionsSupport.SF.gamma(n + 1))))
+        end
         # Fourier-type integrals by residues (SymPy #6136, #6348); a Gaussian e^(-i t k²)
         # with t > 0 (SymPy #6123)
         let k = Sym(:k), a = Sym(:a), t = Sym(:t)

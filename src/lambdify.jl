@@ -363,7 +363,10 @@ function cse(ex; prefix = :t)
     outs = _cse_subproducts!(subsums, outs)
     # a product's factor b^p is counted as the power it is (exp(u) in exp(u)*sin(u) and
     # in exp(u) + 1 alike)
-    factors(e) = e.kind == MUL ? Sym[isone(p) ? b : b^p for (b, p) in zip(e.args, e.exps)] : e.args
+    # (a derivative, an integral, a sum: an atom, not entered: f(x) in f'(x) replaced by
+    # t1 made the derivative d t1/dx = 0; SymPy #5085)
+    bound(e) = e.kind == FN && e.name in (:Derivative, :Integral, :Sum, :Product)
+    factors(e) = bound(e) ? Sym[] : e.kind == MUL ? Sym[isone(p) ? b : b^p for (b, p) in zip(e.args, e.exps)] : e.args
     counts = Dict{Sym,Int}()
     function count!(e)
         n = get(counts, e, 0)
@@ -386,7 +389,7 @@ function cse(ex; prefix = :t)
     function rep(e)
         haskey(memo, e) && return memo[e]
         isempty(e.args) && return e
-        r = e.kind == MUL ? Sym(e.num) * prod((rep(f) for f in factors(e)); init = ONE) :
+        r = bound(e) ? e : e.kind == MUL ? Sym(e.num) * prod((rep(f) for f in factors(e)); init = ONE) :
             _rebuild_node(e, Sym[rep(a) for a in e.args])
         if get(counts, e, 0) > 1 && e.kind in (ADD, MUL, POW, FN)
             t = fresh()
