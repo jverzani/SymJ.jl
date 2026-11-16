@@ -194,7 +194,8 @@ end
 # domain and the ranges given; nothing when solve finds none of its forms (an error, or
 # Cases), so Newton's method is tried; an error for infinitely many solutions
 function _fsolve_poly_system(eqs, xs::Vector{Sym}, ranges, start, domain)
-    sols = try solve(collect(Relation, eqs), xs) catch err; err isa ArgumentError || rethrow(); return nothing end
+    # (numeric roots asked for: solve's elimination with its high-degree factors' roots)
+    sols = try with(() -> solve(collect(Relation, eqs), xs), _SOLVE_STRICT => false) catch err; err isa ArgumentError || rethrow(); return nothing end
     sols isa AbstractVector || return nothing
     out = Dict{Sym,Sym}[]
     for s in sols

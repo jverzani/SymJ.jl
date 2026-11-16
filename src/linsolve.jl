@@ -82,6 +82,8 @@ function solve(eqs::AbstractVector, vars::Union{AbstractVector,Tuple}; assume = 
 end
 
 function solve(eqs::AbstractVector{<:Relation}, vars::Union{AbstractVector,Tuple}; assume = nothing)
+    # (the user's solve: exact or an error, as for one equation; _SOLVE_STRICT in solve.jl)
+    _SOLVE_STRICT[] === nothing && return with(() -> solve(eqs, vars; assume), _SOLVE_STRICT => true)
     # assumptions: about the unknowns, they choose the domain (x ∈ ℝ: abs(x) as ±x, real
     # solutions only) and filter the solutions; about parameters, they decide cases
     if assume !== nothing

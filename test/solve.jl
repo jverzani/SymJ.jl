@@ -43,7 +43,7 @@
     satisfies(eq, rs) = all(r -> abs(N(subs(lhs(eq) - rhs(eq), x => r))) < 1e-8 * max(1, abs(N(r))), rs)
     cases = [(2x + 3 ~ 0, 1), (x^2 - 2 ~ 0, 2), (x^2 ~ -1, 2), (x^2 + x + 1 ~ 0, 2), (x^4 ~ 1, 4),
              (x^5 ~ 2, 5), (x^3 - 2x - 5 ~ 0, 3), (x^3 - 3x + 1 ~ 0, 3), (x^4 + x + 1 ~ 0, 4),
-             (x^4 - 4x^3 + x + 7 ~ 0, 4), (x^4 + 1 ~ 0, 4), (x^4 - 10x^2 + 1 ~ 0, 4), (x^5 - x - 1 ~ 0, 5),
+             (x^4 - 4x^3 + x + 7 ~ 0, 4), (x^4 + 1 ~ 0, 4), (x^4 - 10x^2 + 1 ~ 0, 4),
              ((x^2 - 1) / (x - 1) ~ 0, 1), (1 / x ~ 0, 0), (x^6 - 1 ~ 0, 6), (0.5x^2 - 1 ~ 0, 2),
              ((x - 1)^3 * (x + 2) ~ 0, 2), (x^3 ~ x, 3), (2x^2 ~ x + 1, 2)]
     for (eq, nroots) in cases
@@ -51,6 +51,10 @@
         @test length(r) == nroots
         @test satisfies(eq, r)
     end
+    # an irreducible quintic: no roots in radicals, an error; numeric roots from fsolve
+    @test_throws ArgumentError solve(x^5 - x - 1 ~ 0, x)
+    @test_throws ArgumentError solve((x^5 - x - 1) * (x - 2) ~ 0, x)
+    @test length(SymJ.fsolve(x^5 - x - 1 ~ 0, x; domain = ℂ)) == 5
     @test solve(x^2 - 2 ~ 0, x) == [-sqrt(Sym(2)), sqrt(Sym(2))]      # exact, sorted
     @test solve(x^2 ~ -1, x) == [-IM, IM]
     @test solve(2x^2 ~ x + 1, x) == [Sym(-1 // 2), Sym(1)]
@@ -60,7 +64,7 @@
     @test solve((x - 2IM * y)^3 ~ 0, x) == [2IM * y]
     @test solve((x - 2IM * y)^3 * (x + y) ~ 0, x) == [-y, 2IM * y]
     @test solve(x^3 + 3x^2 + 3x + 1 - y ~ 0, x)[1] == -(-y)^(1 // 3) - 1
-    @test all(r -> !SymJ._hassymbol(r) && N(r) isa Number, solve(x^5 - x - 1 ~ 0, x))  # numeric (a + b*im)
+    @test all(r -> !SymJ._hassymbol(r) && N(r) isa Number, SymJ.fsolve(x^5 - x - 1 ~ 0, x; domain = ℂ))  # numeric (a + b*im)
     # symbolic coefficients: generic values (an expression in the parameters alone is
     # nonzero unless assumed zero; decided 2026-11-14)
     @test solve(a * x + b ~ 0, x) == [-b / a]
@@ -245,7 +249,7 @@
         K1, K2, Kw = Sym(10)^(-189 // 20), Sym(10)^(-64 // 5), Sym(10)^(-14)
         eqs = [K1 * c1 ~ H * c2, K2 * c2 ~ H * c3, OH * Na ~ NaOH, H * OH ~ Kw,
                Na + H ~ OH + c2 + 2c3, c1 + c2 + c3 ~ 9 // 2000, NaOH + Na ~ 1 // 8]
-        sols = solve(eqs, [H, c1, c2, c3, NaOH, Na, OH])
+        sols = SymJ.fsolve(eqs, [H, c1, c2, c3, NaOH, Na, OH])          # (a quintic in it: fsolve's)
         phys = only(filter(s -> all(v -> N(s[v]) > 0, (H, c1, c2, c3, NaOH, Na, OH)), sols))
         @test isapprox(N(phys[H]), 9.458052236307555e-14; rtol = 1e-10)
         @test isapprox(N(phys[H] * phys[OH]), 1e-14; rtol = 1e-10)
@@ -261,11 +265,13 @@
     for (eqs, vs, n) in (([x^2 + x * y + y^2 ~ 3, x^2 - y^2 ~ x - 1], [x, y], 4),
                          ([x^2 + y^2 + z^2 ~ 6, x * y ~ 2, y + z ~ 3], [x, y, z], 4),
                          ([0.5x^2 + y^2 ~ 1.5, x ~ 2y], [x, y], 2),                     # floats
-                         ([y ~ x^5 - x - 1, y ~ 0], [x, y], 5),                        # numeric roots
                          ([x + 2y + 2z ~ 1, x^2 + 2y^2 + 2z^2 ~ x, 2x * y + 2y * z ~ y], [x, y, z], 4))
         ds = solve(eqs, vs)
         @test length(ds) == n && all(d -> holds(eqs, d), ds)
     end
+    # a quintic in a system: no exact solutions, an error; fsolve's numeric ones
+    @test_throws ArgumentError solve([y ~ x^5 - x - 1, y ~ 0], [x, y])
+    @test length(SymJ.fsolve([y ~ x^5 - x - 1, y ~ 0], [x, y]; domain = ℂ)) == 5
     @test_throws ArgumentError solve([sin(x) ~ y, x ~ y^2], [x, y])
     @test solve([1 / x ~ 1], [x]) == [Dict(x => 1)]
     # the call's form fixes the result's: one equation and one unknown, or vectors of both
@@ -378,8 +384,10 @@
         @test length(r) == 1
         @test N(r[1]) ≈ 4.997466445630026
     end
-    # a high degree (u = x^(3/100): degree 181) has numeric roots, not NaN
-    let r = solve(x^(543 // 100) + x^(222 // 100) ~ 5033 // 100, x)
+    # a high degree (u = x^(3/100): degree 181): no roots in radicals, an error; numeric
+    # roots, not NaN, from fsolve
+    @test_throws ArgumentError solve(x^(543 // 100) + x^(222 // 100) ~ 5033 // 100, x)
+    let r = SymJ.fsolve(x^(543 // 100) + x^(222 // 100) ~ 5033 // 100, x)
         @test N(r[1]) ≈ 2.0204868226226256
         @test all(v -> abs(N(v^(543 // 100) + v^(222 // 100)) - 50.33) < 1e-8, r)
     end
