@@ -223,6 +223,14 @@ Base.gcd(a::Sym, b::Number; kws...) = gcd(a, Sym(b); kws...)
 Base.gcd(a::Number, b::Sym; kws...) = gcd(Sym(a), b; kws...)
 Base.lcm(a::Sym, b::Number; kws...) = lcm(a, Sym(b); kws...)
 Base.lcm(a::Number, b::Sym; kws...) = lcm(Sym(a), b; kws...)
+# three or more, or a vector, folded pairwise as Base's (gcd(2, 4, x) was a MethodError;
+# SymPy #5135)
+Base.gcd(a::Sym, b::Union{Sym,Number}, c::Union{Sym,Number}, ds::Union{Sym,Number}...; kws...) =
+    foldl((u, v) -> gcd(u, v; kws...), (b, c, ds...); init = a)
+Base.lcm(a::Sym, b::Union{Sym,Number}, c::Union{Sym,Number}, ds::Union{Sym,Number}...; kws...) =
+    foldl((u, v) -> lcm(u, v; kws...), (b, c, ds...); init = a)
+Base.gcd(v::AbstractVector{Sym}; kws...) = isempty(v) ? ZERO : foldl((u, w) -> gcd(u, w; kws...), v)
+Base.lcm(v::AbstractVector{Sym}; kws...) = isempty(v) ? ONE : foldl((u, w) -> lcm(u, w; kws...), v)
 
 # polynomials with symbolic coefficients (sqrt(2), parameters): through cancel, monic
 function Base.gcd(p::Poly, q::Poly)

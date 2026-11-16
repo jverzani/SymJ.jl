@@ -63,6 +63,9 @@ function _factor_sym(ex::Sym; gcd_method::Symbol = :auto)
     r = _FACTOR_EXPS[] ? _factor_exp_powers(ex; gcd_method) : nothing
     r === nothing || return r
     n, d = numer_denom(_cancel(ex; gcd_method))
+    # (a sum that cancels to 0 only once its exponentials are written as powers of one,
+    # e^x/(1 + e^x) - 1/(1 + e^-x); SymPy #5153)
+    iszero(n) && return ZERO
     atoms = Set{Sym}()
     (_poly_atoms!(atoms, n) && _poly_atoms!(atoms, d)) || return ex
     gs = sort!(collect(atoms); lt = _lt)

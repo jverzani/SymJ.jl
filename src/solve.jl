@@ -646,13 +646,17 @@ function _solve_weierstrass(eq::Relation, n::Sym, x::Sym, w::Sym)
     out
 end
 
+# the size of a root for a relative tolerance: 1 for a root in parameters, whose residual
+# can still be free of them (π/(4a) in sin(ax) = cos(ax); N(r) raised; SymPy #4467)
+_root_scale(r::Sym) = _hassymbol(r) ? 1.0 : (w = try N(r) catch; 1.0 end; max(1, abs(w)))
+
 # eq holds at x = r: exactly, or numerically when no symbols are left
 function _holds_at_point(eq::Relation, x::Sym, r::Sym)
     d = try subs(eq.lhs - eq.rhs, x => r) catch err; _isdivzero(err) && return false; rethrow() end
     (iszero(d) || iszero(cancel(d))) && return true
     _hassymbol(d) && return iszero(simplify(d))
     v = try N(d) catch; return false end
-    abs(v) <= 1e-9 * max(1, abs(N(r)))
+    abs(v) <= 1e-9 * _root_scale(r)
 end
 
 function _solve_through(eq::Relation, n::Sym, x::Sym, bad::Vector{Sym})
@@ -1541,7 +1545,7 @@ function _satisfies(eq::Relation, x::Sym, r::Sym)
         # a constant: its value decides, as cancel would (cancel of a quartic's nested
         # radical roots ran for minutes; SymPy #13625)
         v = try N(d) catch; return true end
-        return abs(v) <= 1e-9 * max(1, abs(N(r)))
+        return abs(v) <= 1e-9 * _root_scale(r)
     end
     iszero(cancel(d)) && return true
     if _hassymbol(d)
@@ -1569,7 +1573,7 @@ function _satisfies(eq::Relation, x::Sym, r::Sym)
         return _decide(Relation(:eq, u, ZERO), A)
     end
     v = try N(d) catch; return true end
-    abs(v) <= 1e-9 * max(1, abs(N(r)))
+    abs(v) <= 1e-9 * _root_scale(r)
 end
 
 # With parameters left, a candidate is dropped only when the equation fails at every one

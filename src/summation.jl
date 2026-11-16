@@ -659,7 +659,14 @@ function _binomial_theorem(f::Sym, k::Sym, n::Sym)
         # n 0^(n-1) is not defined at n = 0; the sum is its values at n = 0, …, d
         ps = Pair[]
         for j in 0:d
-            v = _add_many(subs(f, n => Sym(j), k => Sym(i)) for i in 0:j)
+            # (a value of n where the summand is not defined, 1/n at n = 0: not one of the
+            # sum's cases; it raised DivisionByZero; SymPy #5790)
+            v = try
+                _add_many(Sym[subs(f, n => Sym(j), k => Sym(i)) for i in 0:j])
+            catch err
+                _isdivzero(err) || rethrow()
+                continue
+            end
             iszero(v) || push!(ps, (n ~ j) => v)
         end
         isempty(ps) && return ZERO
