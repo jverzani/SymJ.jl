@@ -1813,3 +1813,41 @@ end
         @test length(r) == 4
     end
 end
+
+@testset "wrong answers (SymPy review, round 18)" begin
+    @syms x y n
+    f = SymFunction(:f)
+    SF = SymJ.SpecialFunctionsSupport.SF
+    # a Sym equal to a Julia number hashes as it: Sets and Dicts mix them (#5720, #5072)
+    @test hash(Sym(1)) == hash(1)
+    @test 1 in Set([Sym(1)])
+    @test haskey(Dict(Sym(1) // 2 => :a), 1 // 2)
+    @test hash(Sym(2.5)) == hash(2.5)
+    @test hash(Sym(1 + 2im)) == hash(1 + 2im)
+    @test hash(PI) == hash(π)
+    # cse does not enter a derivative (#5085)
+    let (reps, r) = SymJ.cse(diff(f(x), x) + f(x))
+        @test iszero(expand(subs(r, reps...) - (diff(f(x), x) + f(x))))
+    end
+    # |u|' for a complex-valued u, x real: Re(conj(u) u')/|u| (#4757)
+    @test N(subs(diff(abs(x + IM * x^2), x), x => 1)) ≈ 3 / sqrt(2)
+    @test diff(abs(x^2 + 1), x) == 2x * (x^2 + 1) / abs(x^2 + 1)
+    # coeff of a sum, of a power with the variable in its exponent; a number is refused
+    # (#4934, #4917, #4411)
+    @test SymJ.coeff(3 * (x + 1)^2 + 2 * (x + 1), x + 1) == 2
+    @test SymJ.coeff(2x^(1 + x) + x, x^(1 + x)) == 2
+    @test_throws ArgumentError SymJ.coeff(3x^2 + 5, x^0)
+    # 0^a 0^b with exponents of signs not known alike: NaN, not combined (#5804)
+    @test isnan(Sym(0)^(2n - 1) * Sym(0)^(1 - 2n + Sym(1) // 2))
+    @test Sym(0)^n * Sym(0)^(2n) == Sym(0)^(3n)
+    # N of complex infinities (#5412)
+    @test N(IM * Sym(Inf)) === complex(0.0, Inf)
+    @test N(3 + IM * Sym(Inf)) === complex(3.0, Inf)
+    # W(-1) (#5673, #5215)
+    @test N(SymJ.lambertw(Sym(-1))) ≈ -0.31813150520476413 + 1.3372357014306895im
+    # log base 1 (#5100)
+    @test isnan(log(Sym(1), Sym(1)))
+    # gcd and lcm of rational numbers as Julia's (#4900)
+    @test gcd(Sym(2) / 7, Sym(11) / 14) == Sym(1) // 14
+    @test lcm(Sym(2) / 7, Sym(11) / 14) == Sym(22) // 7
+end

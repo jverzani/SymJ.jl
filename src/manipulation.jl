@@ -965,6 +965,9 @@ function _checked_value(ex::Sym, z::ComplexF64)
     (ex.kind == NUMBER || ex.kind == CONSTANT) && return z
     ps = (256, 512, 1024, 2048)
     if !isfinite(z)
+        # (an infinity in ex itself: the value is that infinity, not an overflow; im*Inf
+        # at 256 bits became Inf + Inf*im; SymPy #5412)
+        _has_nonfinite(ex) && return z
         # an overflow or underflow on the way (1/log(1003/1000)^1000 is 1/0 in Float64,
         # then NaN; SymPy #27278): BigFloat's exponent range does not, and then precision
         w = _bigvalue(ex, 256)
@@ -1039,6 +1042,13 @@ function _evlog_pow(b::Sym, e::Sym)
     ev * log(C(_ev(b, _Named(NamedTuple()), C, Ref{Union{Nothing,Sym}}(nothing))))
 end
 
+# a b for complex a, b with an exact zero part taken as zero times anything: ∞ i is
+# (0 + ∞i), not (NaN + ∞i) from 0·∞ (N(im*Inf) was Inf + Inf*im; SymPy #5412)
+function _cmulz(a::ComplexF64, b::ComplexF64)
+    m(x, y) = (iszero(x) || iszero(y)) ? 0.0 : x * y
+    complex(m(real(a), real(b)) - m(imag(a), imag(b)), m(real(a), imag(b)) + m(imag(a), real(b)))
+end
+
 function _evalc(ex::Sym)::ComplexF64
     k = ex.kind
     k == NUMBER && return Float64(ex.num)
@@ -1051,13 +1061,13 @@ function _evalc(ex::Sym)::ComplexF64
     if k == ADD
         s = complex(Float64(ex.num))
         for i in eachindex(ex.args)
-            s += Float64(ex.coefs[i]) * _evalc(ex.args[i])
+            s += _cmulz(complex(Float64(ex.coefs[i])), _evalc(ex.args[i]))
         end
         return s
     elseif k == MUL
         p = complex(Float64(ex.num))
         for i in eachindex(ex.args)
-            p *= _cpow(ex.args[i], ex.exps[i])
+            p = _cmulz(p, _cpow(ex.args[i], ex.exps[i]))
         end
         return p
     elseif k == POW
@@ -1149,6 +1159,10 @@ function _evalc_derivative(ex::Sym)::ComplexF64
 end
 
 function _cpow(b::Sym, e::Sym)
+    # (-1)^q, q rational: e^(iπq) exactly at the quarter points (i is 0 + 1im, not
+    # 6e-17 + 1im, which with ∞ gave an infinite real part; SymPy #5412)
+    b.kind == NUMBER && isexact(b.num) && _isN1(-b.num) && e.kind == NUMBER && isexact(e.num) &&
+        return cispi(Float64(e.num))
     z = _evalc(b)
     # (an integer exponent past Int: as a float, Inf or 0 then; _toint raised
     # InexactError on 10²³; SymPy #11004)
@@ -1217,6 +1231,15 @@ SymJ.coeff(a*x + sin(x) + b, x, 0)          # b
 ```
 """
 function coeff(ex, x::Sym, n = 1)
+    # a number (x^0 is 1) is no target: the constant term is coeff(ex, x, 0) (it was 0,
+    # silently; SymPy #4411)
+    x.kind == NUMBER && throw(ArgumentError("coeff: the target $x is a number; for the constant term give the variable, coeff(ex, x, 0)"))
+    # a sum (x + 1), or a power whose exponent has its base's symbol (x^(1 + x)): the
+    # coefficient of a fresh u put in its place (both were 0; SymPy #4934, #4917)
+    if x.kind == ADD || (x.kind == POW && any(s -> has(x.args[2], s), free_symbols(x.args[1])))
+        u = _fresh_dummy(Sym(ex) + x)
+        return Base.inferencebarrier(coeff)(subs(Sym(ex), x => u), u, n)
+    end
     # c·u (-x): the coefficient of u over c; another product (x*y) is no target (it was
     # 0, silently; SymPy #7072)
     if x.kind == MUL

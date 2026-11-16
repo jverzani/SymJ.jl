@@ -17,6 +17,9 @@ using PrecompileTools: @setup_workload, @compile_workload
 # (floats in the integrand, which the integrator takes as the rationals they stand for:
 # the answer's numbers floats again, not 27-digit fractions; found in the review)
 function RischIntegrate.integrate(ex::Sym, x::Sym; assume = nothing, kw...)
+    # (a variable that is not a symbol was taken as a constant: ∫ sin(x) d(sin(x)) gave
+    # sin(x)^2; SymPy #4459)
+    SymJ._isnamed(x) || throw(ArgumentError("integrate: $x is not a symbol; integrate with respect to a symbol (substitute u = $x first)"))
     r = _unwrap(_indefinite(ex, x; assume, kw...))
     # exp(c log u) as u^c, the integrand's own form (xⁿ log x had exp(n log x) back)
     r isa Sym && (r = SymJ._exp_log_powers(r))
@@ -26,6 +29,7 @@ end
 # an answer by cases (an inner definite integral's) integrated case by case, each with
 # its conditions among the assumptions; an infinite value or an error stays (SymPy #23610)
 function RischIntegrate.integrate(cs::SymJ.Cases, x::Sym; assume = nothing, kw...)
+    SymJ._isnamed(x) || throw(ArgumentError("integrate: $x is not a symbol"))
     A0 = something(SymJ._assumptions(assume), SymJ.Assumptions())
     SymJ.Cases{Any}(Any[c.first => _case_integral(c.second, c.first, x, A0; kw...) for c in cs.cases])
 end

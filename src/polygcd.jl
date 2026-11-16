@@ -206,10 +206,17 @@ end
 GCD and LCM of expressions that are polynomials with numeric coefficients in their
 symbols, computed through [`Poly`](@ref); `method = :zippel` as for polynomials.
 """
-Base.gcd(a::Sym, b::Sym; method::Symbol = :auto) =
+# (two exact rational numbers: Julia's gcd and lcm of rationals, gcd(2//7, 11//14) =
+# 1//14, not the polynomial gcd over ℚ, 1, as for Base.gcd; SymPy #4900)
+_isexactnum(a::Sym) = a.kind == NUMBER && isexact(a.num)
+function Base.gcd(a::Sym, b::Sym; method::Symbol = :auto)
+    _isexactnum(a) && _isexactnum(b) && return Sym(SymNumber(gcd(_rat(a.num), _rat(b.num))))
     _with_widening(() -> Sym(_gcd_poly(_poly_pair(a, b)...; method)))
-Base.lcm(a::Sym, b::Sym; method::Symbol = :auto) =
+end
+function Base.lcm(a::Sym, b::Sym; method::Symbol = :auto)
+    _isexactnum(a) && _isexactnum(b) && return Sym(SymNumber(lcm(_rat(a.num), _rat(b.num))))
     _with_widening(() -> Sym(_lcm_poly(_poly_pair(a, b)...; method)))
+end
 
 Base.gcd(a::Sym, b::Number; kws...) = gcd(a, Sym(b); kws...)
 Base.gcd(a::Number, b::Sym; kws...) = gcd(Sym(a), b; kws...)

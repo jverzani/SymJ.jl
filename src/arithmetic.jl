@@ -239,9 +239,18 @@ end
 
 # b^e1 b^e2 as b^(e1 + e2), except 0^u 0^(-u) for symbolic u: 0^u is 0, ∞ or NaN, never
 # a finite nonzero number, so the product is NaN for u ≠ 0, not 1 (SymPy #6861)
+# More generally 0^e1 0^e2 with symbolic exponents of signs not known alike is NaN: one
+# may be 0 and the other ∞ (0^(2n - 1) (0²)^(1/2 - n) at n > 0 was combined to 0, and
+# ∫₀^(π/2) cos(x)^(2n) dx came out 0; SymPy #5804). They combine when one is a positive
+# number times the other (0^n 0^(2n) = 0^(3n)).
 function _powsum(b::Sym, e1::Sym, e2::Sym)
     e = add(e1, e2)
-    (b.kind == NUMBER && iszero(b.num) && iszero(e) && (_hassymbol(e1) || _hassymbol(e2))) && return Sym(NaN)
+    if b.kind == NUMBER && iszero(b.num) && (_hassymbol(e1) || _hassymbol(e2))
+        iszero(e) && return Sym(NaN)
+        c1, t1 = _split_coef(e1)
+        c2, t2 = _split_coef(e2)
+        (_eq(t1, t2) && sign(c1) == sign(c2)) || return Sym(NaN)
+    end
     pow(b, e)
 end
 

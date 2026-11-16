@@ -511,6 +511,8 @@ register_function!(:log; julia = log,
         end
         length(args) == 2 || throw(ArgumentError("log takes one or two arguments"))
         b, x = args
+        # base 1: log x/log 1 is undefined, 0/0 at x = 1 (it was 0; SymPy #5100)
+        isone(b) && return isone(x) ? Sym(NaN) : nothing
         isone(x) && return ZERO
         _eq(b, x) && return ONE
         b === E && return apply_function(:log, Sym[x])

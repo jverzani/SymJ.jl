@@ -143,7 +143,26 @@ Sym(z::Complex) = Sym(real(z)) + Sym(imag(z)) * IM
 
 ## Structural order, equality, hashing
 
-Base.hash(x::Sym, h::UInt) = hash(x.hash, h)
+# the Julia number a SymNumber stands for (as _jlnum, defined later), and its hash
+_julia_value(n::SymNumber) = n.tag == T_FLOAT ? n.f : n.tag == T_SMALL ? (n.d == 1 ? n.n : n.n // n.d) : n.big::Rational{BigInt}
+_hash_as_julia(n::SymNumber, h::UInt) = hash(_julia_value(n), h)
+
+# A Sym equal (==, isequal) to a Julia number hashes as that number, so Sets and Dicts
+# mix them (1 in Set([Sym(1)]); SymPy #5720, #5072): numbers, a + b i, i, π and ℯ
+function Base.hash(x::Sym, h::UInt)
+    k = x.kind
+    k == NUMBER && return _hash_as_julia(x.num, h)
+    if k == CONSTANT
+        x.name === :pi && return hash(π, h)
+        x.name === :E && return hash(ℯ, h)
+    end
+    if !isempty(x.args) && _eq(x, IM)
+        return hash(im, h)
+    elseif k == ADD && length(x.args) == 1 && _eq(x.args[1], IM)
+        return hash(Complex(_julia_value(x.num), _julia_value(x.coefs[1])), h)
+    end
+    hash(x.hash, h)
+end
 
 function _cmpvec(a::Vector{Sym}, b::Vector{Sym})
     la, lb = length(a), length(b)
