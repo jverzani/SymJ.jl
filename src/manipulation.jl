@@ -200,6 +200,12 @@ subs(ex::Number, args...) = Sym(ex)
 
 # whole nodes, unless a target is a power, a sum or a product, also matched algebraically
 function _subs_top(ex::Sym, d::Dict{Sym,Sym})
+    # a target c M, c a number ≠ 1 and M a power or product: M => v/c, so M is found in any
+    # term (subs(2x² + y, 2x² => s) was unchanged; SymPy #5217)
+    if any(k -> k.kind == MUL && !isone(k.num) && _subs_compound(k / Sym(k.num)), keys(d))
+        d = Dict{Sym,Sym}((k.kind == MUL && !isone(k.num) && (M = k / Sym(k.num); _subs_compound(M))) ?
+                          (M => v / Sym(k.num)) : (k => v) for (k, v) in d)
+    end
     ck = [k => v for (k, v) in d if _subs_compound(k)]
     isempty(ck) ? _subs(ex, d) : _subs_alg(ex, d, ck)
 end
@@ -865,15 +871,26 @@ function _expand_generic(ex::Sym)
 end
 expand(x::Number) = Sym(x)
 
+# a product that merged powers into a sum to a positive integer power, √(1 + x)√(1 + x) =
+# x + 1: expanded again (expand was not idempotent; SymPy #5743)
+_merged_sum(p::Sym) = p.kind == ADD ||
+    (p.kind == POW && p.args[1].kind == ADD && _nonneg_int(p.args[2])) ||
+    (p.kind == MUL && any(i -> p.args[i].kind == ADD && _nonneg_int(p.exps[i]), eachindex(p.args)))
+
 function _expand_mul(a::Sym, b::Sym)
-    (a.kind == ADD || b.kind == ADD) || return mul(a, b)
+    if !(a.kind == ADD || b.kind == ADD)
+        p = mul(a, b)
+        return _merged_sum(p) && !_merged_sum(a) && !_merged_sum(b) ? expand(p) : p
+    end
     ta, ca = _termlist(a)
     tb, cb = _termlist(b)
     d = Dict{Sym,SymNumber}()
     sizehint!(d, length(ta) * length(tb))
     c = N0
     for i in eachindex(ta), j in eachindex(tb)
-        c = _accum_sym!(d, c, mul(ta[i], tb[j]), ca[i] * cb[j])
+        p = mul(ta[i], tb[j])
+        _merged_sum(p) && !_merged_sum(ta[i]) && !_merged_sum(tb[j]) && (p = expand(p))
+        c = _accum_sym!(d, c, p, ca[i] * cb[j])
     end
     _add_from_dict(c, d)
 end

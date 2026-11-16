@@ -256,6 +256,18 @@ function _solve_polynomial_system(eqs::Vector{<:Relation}, vars::Vector{Sym})
         atoms = Set{Sym}()
         _poly_atoms!(atoms, n) ||
             throw(ArgumentError("solve: complex floating point coefficients in a nonlinear system are not supported"))
+        # an exponential factor of the whole equation, never 0, divided out (e^(xy) in
+        # each of e^(xy)(1 - y(3 - x - y)) = 0, …; SymPy #4509)
+        for a in collect(atoms)
+            (a.kind == POW && _eq(a.args[1], E) && any(v -> has(a, v), vars)) || continue
+            q = cancel(n / a)
+            has(q, a) && continue
+            qn, qd = numer_denom(q)
+            any(v -> has(qd, v), vars) && continue
+            n = qn
+            empty!(atoms)
+            _poly_atoms!(atoms, n)
+        end
         for a in atoms
             !any(v -> _eq(a, v), vars) && any(v -> has(a, v), vars) &&
                 throw(ArgumentError("solve: nonlinear systems must be polynomial or rational in $(join(vars, ", ")), not involve $a"))

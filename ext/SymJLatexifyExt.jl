@@ -19,9 +19,63 @@ using Latexify
 # integer literals (parsed as @int128_str or @big_str calls) as integers; a piecewise
 # function as an if chain (typeset as cases), heaviside and dirac as θ and δ
 _expr(x) = _letters(Meta.parse(string(x)))
-_letters(s::Symbol) = s === :ℯ ? :e : s === :im ? :i : s
+_letters(s::Symbol) = s === :ℯ ? :e : s === :im ? :i : _greek_name(s)
+# a name spelled with a Greek letter's name, or with several subscripts: beta_13_2 as
+# \beta_{13,2} (it was beta_{13\_2}; SymPy #4576)
+const _GREEK = Set(["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta", "iota",
+    "kappa", "lambda", "mu", "nu", "xi", "omicron", "pi", "rho", "sigma", "tau", "upsilon", "phi",
+    "chi", "psi", "omega", "Gamma", "Delta", "Theta", "Lambda", "Xi", "Pi", "Sigma", "Upsilon",
+    "Phi", "Psi", "Omega"])
+function _greek_name(s::Symbol)
+    parts = split(String(s), '_')
+    (any(isempty, parts) || !(parts[1] in _GREEK || length(parts) > 2)) && return s
+    base = parts[1] in _GREEK ? (parts[1] == "omicron" ? "o" : "\\" * parts[1]) : parts[1]
+    Latexify.LaTeXString(length(parts) == 1 ? base : base * "_{" * join(parts[2:end], ",") * "}")
+end
+# a float with an exponent in standard form, 1.0e20 as 1.0 \cdot 10^{20} (SymPy #4429)
+function _letters(v::Float64)
+    t = string(v)
+    occursin('e', t) || return v
+    m, x = split(t, 'e')
+    Latexify.LaTeXString(m * " \\cdot 10^{" * string(parse(Int, x)) * "}")
+end
+_rawx(a) = Latexify.latexraw(_letters(a))
+# Sum, Integral and Derivative nodes in their notation (they were typeset as calls;
+# SymPy #4767, #4438)
+function _calculus(e::Expr)
+    f, as = e.args[1], e.args[2:end]
+    if f === :Sum && length(as) == 4
+        return Latexify.LaTeXString("\\sum_{" * _rawx(as[2]) * "=" * _rawx(as[3]) * "}^{" * _rawx(as[4]) * "} " * _rawx(as[1]))
+    elseif f === :Integral && length(as) == 2
+        # (printed Integral(f, x) or Integral(f, (x, a, b)))
+        v, lim = as[2], ""
+        if v isa Expr && v.head === :tuple && length(v.args) == 3
+            v, lim = v.args[1], "_{" * _rawx(v.args[2]) * "}^{" * _rawx(v.args[3]) * "}"
+        end
+        return Latexify.LaTeXString("\\int" * lim * " " * _rawx(as[1]) * " \\, d" * _rawx(v))
+    elseif f === :Derivative && length(as) == 2
+        vars = Any[as[2]]
+        F = as[1]
+        while F isa Expr && F.head === :call && F.args[1] === :Derivative && length(F.args) == 3
+            pushfirst!(vars, F.args[3])
+            F = F.args[2]
+        end
+        partial = !(F isa Expr && F.head === :call && length(F.args) == 2)
+        d = partial ? "\\partial" : "d"
+        n = length(vars)
+        num = n == 1 ? d : d * "^{" * string(n) * "}"
+        den = join((d * " " * _rawx(v) * (k == 1 ? "" : "^{" * string(k) * "}") for (v, k) in
+                    [(v, count(==(v), vars)) for v in unique(vars)]), " ")
+        return Latexify.LaTeXString("\\frac{" * num * "}{" * den * "} " * _rawx(F))
+    end
+    nothing
+end
 function _letters(e::Expr)
     e.head === :macrocall && e.args[end] isa String && return parse(BigInt, e.args[end])
+    if e.head === :call && e.args[1] in (:Sum, :Integral, :Derivative)
+        r = _calculus(e)
+        r === nothing || return r
+    end
     if e.head === :call && e.args[1] === :piecewise
         return _ifchain(map(_letters, e.args[2:end]))
     elseif e.head === :call && e.args[1] === :DifferenceRoot
@@ -65,7 +119,9 @@ _letters(v) = v
 const _OPS = Dict(:eq => :(=), :lt => :<, :le => :≤, :gt => :>, :ge => :≥, :ne => :≠)
 
 Latexify.@latexrecipe function _(x::Sym)
-    return _expr(x)
+    e = _expr(x)
+    # (a LaTeXString alone, a Sum or a name, in a block: it gets its $ delimiters)
+    return e isa Latexify.LaTeXString ? Expr(:block, e) : e
 end
 
 Latexify.@latexrecipe function _(r::Relation)

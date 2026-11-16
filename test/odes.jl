@@ -73,8 +73,9 @@
     # particular solution
     @test D(y'(x) ~ y(x)^2 - 2 / x^2, y(x)).rhs == (-2x^3 + C1) / (x^4 + C1 * x)
     @test D(y'(x) ~ y(x)^2 + 4, y(x)).rhs == (2C1 * sin(2x) - 2cos(2x)) / (C1 * cos(2x) + sin(2x))   # not an Integral
-    @test D(y'(x) ~ 1 + x^2 - 2x * y(x) + y(x)^2, y(x)).rhs == x + 1 / (C1 - x)                  # y₁ = x
-    @test D(y'(x) ~ exp(2x) + (1 - 2exp(x)) * y(x) + y(x)^2, y(x)).rhs == exp(x) + 1 / (C1 / exp(x) - 1)   # y₁ = eˣ
+    # (through the linear equation's normal form, the constant's sign the other way)
+    @test iszero(simplify(D(y'(x) ~ 1 + x^2 - 2x * y(x) + y(x)^2, y(x)).rhs - (x - 1 / (C1 + x))))
+    @test iszero(simplify(D(y'(x) ~ exp(2x) + (1 - 2exp(x)) * y(x) + y(x)^2, y(x)).rhs - (exp(x) - 1 / (C1 / exp(x) + 1))))
     r = D(y'(x) ~ -y(x)^2 + 2 / x^2, y(x), y(1) => 1)
     @test iszero(simplify(diff(r.rhs, x) + r.rhs^2 - 2 / x^2)) && subs(r.rhs, x => 1) == 1
     # series solutions: Taylor at an ordinary point, Frobenius at a regular singular point

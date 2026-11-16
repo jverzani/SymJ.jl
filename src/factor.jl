@@ -39,6 +39,16 @@ factor(x^2*y^2 - 1)             # (x*y - 1)*(x*y + 1)
 `gcd_method` (`:auto`, `:dense` or `:zippel`; see [`gcd`](@ref)) chooses the method for the gcds of the
 squarefree decomposition and, for expressions, of `cancel`.
 
+With `assume` (facts, as for [`solve`](@ref)), a radical of a product is split into
+radicals of its factors where the facts make that valid: real factors, no two of which
+can be negative together. Common radical factors then come out:
+
+```julia
+factor(sqrt(1 - x^2) + sqrt(1 - x); assume = (x ∈ ℝ,))    # sqrt(1 - x)*(sqrt(x + 1) + 1)
+```
+
+Without facts symbols are complex, and `√(ab) = √a √b` can fail (x = 2 + i above).
+
 Multivariate inputs are factored through Kronecker substitution, whose cost grows
 with the product of the degrees in each variable; very large inputs throw an
 `ArgumentError` rather than run for a long time.
@@ -54,7 +64,42 @@ function _factor_poly(p::Poly{SymNumber}; gcd_method::Symbol = :auto)
     unit, out
 end
 
-factor(ex::Sym; gcd_method::Symbol = :auto) = _with_widening(_factor_sym, ex; gcd_method)
+function factor(ex::Sym; gcd_method::Symbol = :auto, assume = nothing)
+    if assume !== nothing
+        A = something(_assumptions(assume), Assumptions())
+        ex = _split_radicals(_refine(ex, A), A; gcd_method)
+    end
+    _with_widening(_factor_sym, ex; gcd_method)
+end
+
+# u^r (r a non-integer rational) with u a product, factored first, as Π fᵢ^r where valid
+# under A: the fᵢ real, and no two negative together (a nonnegative one, or a nonnegative
+# sum: 1 - x and 1 + x for real x), so at most one contributes an argument π
+# (factor(√(1 - x²) + √(1 - x)) with x real; SymPy #5149)
+function _split_radicals(e::Sym, A; gcd_method::Symbol = :auto)
+    _replace_walk(e) do t
+        t.kind == POW || return nothing
+        b, r = t.args
+        (r.kind == NUMBER && isexact(r.num) && !_isint(r.num) && _hassymbol(b)) || return nothing
+        fb = _factor_sym(b; gcd_method)
+        fb.kind == MUL || return nothing
+        fs = Sym[fb.args[i]^fb.exps[i] for i in eachindex(fb.args)]
+        c = fb.num
+        c < N0 && (fs[1] = expand(-fs[1]); c = -c)          # (-(x - 1)(x + 1): 1 - x)
+        all(f -> _isreal(f, A) === true, fs) || return nothing
+        length(fs) <= 4 || return nothing
+        nn(f) = _holds(Relation(:ge, f, ZERO), A) === true
+        ok(gs) = all(nn(gs[i]) || nn(gs[j]) || nn(expand(gs[i] + gs[j])) for i in eachindex(gs) for j in (i + 1):length(gs))
+        # (the signs of an even number of factors may be changed: (-x - 1)(x - 1) as
+        # (x + 1)(1 - x))
+        for mask in 0:(2^length(fs) - 1)
+            iseven(count_ones(mask)) || continue
+            gs = [isodd(mask >> (i - 1)) ? expand(-f) : f for (i, f) in enumerate(fs)]
+            ok(gs) && return Sym(c)^r * prod(g^r for g in gs)
+        end
+        nothing
+    end
+end
 function _factor_sym(ex::Sym; gcd_method::Symbol = :auto)
     iszero(ex) && return ZERO                      # (an error, as the zero polynomial; SymPy #11151)
     # exponentials e^(c u), several rational c for one u: a polynomial in t = e^(u/q), q

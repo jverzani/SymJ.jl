@@ -932,6 +932,19 @@ function _asdiff(r::_AS, D)
     end
 end
 
+# ∫ s dx term by term, at a finite point and with no log t in the coefficients:
+# ∫ c t^e dt = c t^(e+1)/(e+1), the order one more (integrate of a SymSeries was an error
+# in RischIntegrate; SymPy #4831)
+function _integrate_series(s::SymSeries, x::Sym)
+    _eq(x, s.x) || throw(ArgumentError("integrate: the series is in $(s.x), not $x"))
+    (s.x0 isa Real && isinf(s.x0)) && throw(ArgumentError("integrate: a series at ±∞ is not integrated term by term"))
+    isempty(s.pcs) || throw(ArgumentError("integrate: a series with exponential terms is not integrated term by term"))
+    p = s.ps
+    (any(e -> e == -1, p.e) || any(c -> has(c, _LOGT), p.c)) &&
+        throw(ArgumentError("integrate: a series with a 1/(x - x0) or log term is not integrated term by term"))
+    SymSeries(s.x, s.x0, _ps(p.e .+ 1, [c / Sym(SymNumber(e + 1)) for (e, c) in zip(p.e, p.c)], p.o == _INF ? _INF : p.o + 1), s.n + 1)
+end
+
 function Base.diff(s::SymSeries, x::Sym)
     _eq(x, s.x) || return _with(s, _asdiff(_as(s), p -> _ps(p.e, [diff(c, x) for c in p.c], p.o)))
     d = _asdiff(_as(s), _psderiv)

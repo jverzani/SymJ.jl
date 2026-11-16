@@ -505,7 +505,12 @@ function rsolve(eq, yn::Sym, inits::Pair...; assume = nothing)
         init[_toint(lhs.args[1].num)] = Sym(v)
     end
     if isempty(init)
-        for i in 0:(d - 1)
+        # (from past the last nonnegative integer zero of the leading coefficient, where the
+        # recurrence does not give the next value: n y(n+1) = 2(n+1) y(n) from y(1), not
+        # y(0), which determines nothing after it; SymPy #5507)
+        zs = _int_roots!(Int[], p[end], n)
+        s0 = isempty(zs) ? 0 : max(0, maximum(zs) + 1)
+        for i in s0:(s0 + d - 1)
             init[i] = apply_function(yname, Sym[Sym(i)])
         end
     end

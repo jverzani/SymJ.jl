@@ -140,6 +140,9 @@ function _unwrap(r)
     (r.elementary isa Union{Sym,Number} && all(t -> t isa RischIntegrate.HypTerm, r.rootsums)) || return r
     Sym(r.elementary) + SymJ._add_many(_hypterm(h) for h in r.rootsums)
 end
+# a series, term by term (SymPy #4831)
+RischIntegrate.integrate(s::SymJ.SymSeries, x::SymJ.Sym) = SymJ._integrate_series(s, x)
+
 # d/dx of an answer with root sums: the elementary part's derivative plus each RootSum's,
 # exact in ℚ(x) by RischIntegrate (diff of ∫ (4x - 5)/(x⁵ - x + 1) was a MethodError;
 # SymPy #5231)

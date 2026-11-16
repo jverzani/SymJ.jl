@@ -357,6 +357,16 @@ function _refine_rule(e::Sym, A::Assumptions)
             m == _POS && return ONE
             m == _NEG && return -ONE
             m == _ZER && return ZERO
+            # factors of known sign come out (sign(p x) = sign(x) for p > 0; SymPy #4708)
+            if u.kind == MUL
+                c, rest = sign(u.num), Sym[]
+                for (b, p) in zip(u.args, u.exps)
+                    t = b^p
+                    sb = _signs(t, A)
+                    sb == _POS ? nothing : sb == _NEG ? (c = -c) : push!(rest, t)
+                end
+                length(rest) < length(u.args) && return Sym(c) * sign(prod(rest; init = ONE))
+            end
             return nothing
         elseif f === :log
             if u.kind == POW
@@ -634,7 +644,7 @@ simplify(1 - cos(x)^2)                           # sin(x)^2
 function simplify(ex; assume = nothing)
     A = _assumptions(assume)
     A === nothing && (A = Assumptions())
-    e = _refine(Sym(ex), A)
+    e = _alpha_unify(_refine(Sym(ex), A))
     r = _simplify(e, A)
     # once more when the first pass changed it: a candidate of the result may reach
     # further (2cos(x)sin(x)sin(π cos x) is sin(2x)sin(π cos x); SymPy #18231)
@@ -642,8 +652,43 @@ function simplify(ex; assume = nothing)
         r2 = _simplify(r, A)
         _nodes(r2) < _nodes(r) && (r = r2)
     end
+    # floats that are short binary fractions (0.5, 1.5) as the rationals they are, the
+    # result back in floats when smaller: exp(1.5a) and exp(0.5a) are then powers of one
+    # (a sum of exp(ax) over x = -0.5, 0.5 was not 2.0cosh(0.5a); SymPy #5822)
+    if _hassymbol(r) && _has_node(r, t -> t.kind != ADD && isfloat(t.num)) && _short_binary_floats(r)
+        q = Base.inferencebarrier(_exactfloats)(r)
+        rq = try _simplify(q, A) catch err; err isa InterruptException && rethrow(); q end
+        rf = Base.inferencebarrier(_floatify)(rq)
+        _nodes(rf) < _nodes(r) && (r = rf)
+    end
     r
 end
+# every float in e (coefficients and exponents) a multiple of 1/1024 below 2^20
+_short_binary_floats(e::Sym) = !_has_node(e, t -> begin
+    ok(c) = !isfloat(c) || (v = Float64(c); isfinite(v) && abs(v) < 2^20 && isinteger(v * 1024))
+    !(ok(t.num) && (t.kind != ADD || all(ok, t.coefs)) && (t.kind != MUL || all(x -> x.kind != NUMBER || ok(x.num), t.exps)))
+end)
+# definite integrals and sums that differ in their bound variable only, given the same
+# one, so like terms combine: ∫₀¹ f(x) dx - ∫₀¹ f(y) dy is 0 (SymPy #5539)
+function _alpha_unify(e::Sym)
+    _has_node(e, t -> t.kind == FN && t.name in (:Integral, :Sum) && length(t.args) == 4) || return e
+    seen = Sym[]
+    _replace_walk(e) do t
+        (t.kind == FN && t.name in (:Integral, :Sum) && length(t.args) == 4) || return nothing
+        f, v, lo, hi = t.args
+        for u in seen
+            (u.name === t.name && _eq(u.args[3], lo) && _eq(u.args[4], hi)) || continue
+            w = u.args[2]
+            _eq(w, v) && return nothing
+            (has(f, w) || has(lo, w) || has(hi, w)) && continue
+            g = subs(f, v => w)
+            _eq(g, u.args[1]) && return u
+        end
+        push!(seen, t)
+        nothing
+    end
+end
+
 # a conjunction of facts without those the others imply (x ≪ 1 & x ≪ 2 is x ≪ 1), a
 # disjunction without those that imply another; one fact left is that fact (SymPy #23391)
 function simplify(f::Union{FactAnd,FactOr}; assume = nothing)
@@ -1773,6 +1818,18 @@ function _circ_simplify(e::Sym, M::_Circ)
         iszero(ds) && return e
         for q in (cancel(ns / ds), ns / ds)
             r = try back(q) catch; continue end
+            consider(r)
+        end
+    end
+    # one base: numerator and denominator reduced each its own way, or left: sin²/cos² is
+    # then tan², 1/cos² - 1 = (1 - cos²)/cos² too (SymPy #4621)
+    if length(bases) == 1
+        red(q, o) = o === nothing ? q : _circ_reduce(q, vars, (o,), M)
+        for on in (true, false, nothing), od in (true, false, nothing)
+            on === od && on !== nothing && continue
+            ds = red(d, od)
+            iszero(ds) && continue
+            r = try back(red(n, on) / ds) catch; continue end
             consider(r)
         end
     end

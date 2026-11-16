@@ -133,6 +133,28 @@ end
 
 _limit_floatify(v) = v isa Sym && !_isinfpt(v) ? _floatify(v) : v
 
+const _ZETA_DEPTH = ScopedValue(0)
+function _zeta_limit(f::Sym, x::Sym, x0, dir, assume)
+    zs = Sym[]
+    _has_node(f, t -> (t.kind == FN && t.name === :zeta && length(t.args) == 1 && has(t, x) &&
+                       !any(z -> _eq(z, t), zs) && push!(zs, t); false))
+    big = Sym[]
+    for z in zs
+        u = z.args[1]
+        Lu = with(() -> limit(u, x => x0; dir, assume), _ZETA_DEPTH => 1)
+        Lu isa Sym && _isinfpt(Lu) || continue
+        Lu.num < N0 && throw(ArgumentError("limit: zeta($u) has no limit as $u → -∞"))
+        push!(big, z)
+    end
+    isempty(big) && return nothing
+    cut(m) = subs(f, (z => _add_many(Sym[Sym(j)^(-z.args[1]) for j in 1:m]) for z in big)...)
+    L3 = with(() -> limit(cut(3), x => x0; dir, assume), _ZETA_DEPTH => 1)
+    L4 = with(() -> limit(cut(4), x => x0; dir, assume), _ZETA_DEPTH => 1)
+    (L3 isa Sym && L4 isa Sym && (_eq(L3, L4) || iszero(simplify(L3 - L4)))) ||
+        throw(ArgumentError("limit: the limit of zeta's series at +∞ is not settled by its first terms"))
+    L3
+end
+
 function _limit(f, xx0::Pair, dir, assume)
     x, x0 = Sym(xx0.first), xx0.second
     _isnamed(x) || throw(ArgumentError("limit: $x is not a symbol"))
@@ -146,6 +168,13 @@ function _limit(f, xx0::Pair, dir, assume)
             (t.kind == FN && t.name === :harmonic && length(t.args) == 1 && has(t.args[1], x)) ?
                 apply_function(:digamma, Sym[t.args[1] + 1]) + Sym(Base.MathConstants.eulergamma) : nothing
         end
+    end
+    # ζ(u) with u → +∞, which Gruntz does not take: its Dirichlet series 1 + 2⁻ᵘ + 3⁻ᵘ + …,
+    # cut after 3⁻ᵘ, the answer checked with 4⁻ᵘ added; u → -∞: no limit (zeros at the
+    # negative even integers between growing values) (ζ(2k) as k → ∞ is 1; SymPy #6909)
+    if _ZETA_DEPTH[] == 0 && _has_node(f, t -> t.kind == FN && t.name === :zeta && length(t.args) == 1 && has(t, x))
+        L = Base.inferencebarrier(_zeta_limit)(f, x, x0, dir, assume)
+        L === nothing || return L
     end
     # spherical Bessel functions of small integer order in their elementary forms, which
     # Gruntz takes: j₀(u) = sin u/u, … (SymPy #11776)

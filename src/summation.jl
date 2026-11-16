@@ -954,7 +954,15 @@ function _gosper_form(ρ::Sym, k::Sym)
     h = Sym(Symbol("_gosper_h"))
     R = try resultant(A, expand(subs(B, k => k + h)), k) catch; return nothing end
     for j in _nonneg_int_roots(R, h)
-        g = gcd(A, expand(subs(B, k => k + j)))
+        Bj = expand(subs(B, k => k + j))
+        # (symbolic coefficients, e from e^k, through the gcd of polynomials in k over
+        # them; the numeric gcd refused Σ k e^k; SymPy #4598, #4599)
+        g = try
+            gcd(A, Bj)
+        catch err
+            err isa ArgumentError || rethrow()
+            Sym(gcd(Poly{Sym}(A, [k]), Poly{Sym}(Bj, [k])))
+        end
         has(g, k) || continue
         A = cancel(A / g)
         B = cancel(B / subs(g, k => k - j))

@@ -737,6 +737,23 @@ _nonneg_int(e::Sym) = e.kind == NUMBER && _isint(e.num) && sign(e.num) >= 0
 function Poly(ex, gs::Sym...)
     ex = Sym(ex)
     g = Sym[gs...]
+    # a generator b^u (u with symbols): its powers b^(k u) in ex as powers of it, through a
+    # fresh symbol (Poly(2^(2x), 2^x), Poly(exp(2x), exp(x)) were errors; SymPy #5853)
+    if any(t -> t.kind == POW && _hassymbol(t.args[2]), g)
+        ts, seen = Sym[], ex + _add_many(g)
+        for t in g
+            t.kind == POW && _hassymbol(t.args[2]) || (push!(ts, t); continue)
+            d = _fresh_dummy(seen)
+            push!(ts, d)
+            seen += d
+        end
+        sub = [g[i] => ts[i] for i in eachindex(g) if !_eq(ts[i], g[i])]
+        ex2 = subs(ex, sub...)
+        if !any(p -> has(ex2, p.first), sub)
+            P = Poly(ex2, ts...)
+            return _checked_gens(typeof(P)(g, P.layout, P.monos, P.coefs))
+        end
+    end
     _checked_gens(_has_numeric_coefs(ex, g) ? Poly{SymNumber}(ex, g) : Poly{Sym}(ex, g))
 end
 Poly{C}(ex, gs::Sym...) where {C} = _checked_gens(Poly{C}(Sym(ex), Sym[gs...]))
@@ -890,7 +907,9 @@ function _topoly(::Type{C}, ::Type{M}, ex::Sym, gs, L::_Layout, index) where {C,
     elseif k == POW && _nonneg_int(ex.args[2])
         return _topoly(C, M, ex.args[1], gs, L, index)^_toint(ex.args[2].num)
     end
-    any(g -> has(ex, g), gs) && throw(ArgumentError("$ex is not polynomial in $(join(gs, ", "))"))
+    # (a symbol bound inside, as x in ∫₀¹ f(x) dx, is not the generator; SymPy #5602)
+    any(g -> g.kind == SYMBOL ? g in free_symbols(ex) : has(ex, g), gs) &&
+        throw(ArgumentError("$ex is not polynomial in $(join(gs, ", "))"))
     _constpoly(C, gs, L, _tocoef(C, ex), M)
 end
 

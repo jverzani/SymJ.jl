@@ -199,7 +199,8 @@ function _pcompile(p::Sym, P::_PatBuild)
             _hasslot(f) ? push!(others, _pcompile(f, P)) : push!(lits, f)
         end
     end
-    _PN(_P_MUL, p; num = p.num, kids = _written_order(others, P), lits, slots = _slot_order(slots, P), divides = !isempty(slots))
+    _PN(_P_MUL, p; num = p.num, kids = _written_order(others, P), lits, slots = _slot_order(slots, P),
+        divides = !isempty(slots) || any(q -> q.kind == _P_POW && _recip_pat(q), others))
 end
 
 # defaults first, then scaled slots, then slots with predicates, each as written: so the
@@ -374,9 +375,15 @@ end
 function _pm_pow(p::_PNode, s::Sym, B::_Binds, k::_Goal)::Bool
     pb, pe = p.kids
     s.kind == POW && _pm(pb, s.args[1], B, _gmatch(pe, s.args[2], k)) && return true
+    # a reciprocal against a number: ~b^-1 against 3 is b = 1/3 (x/~b against 3x had no
+    # match; SymPy #4559)
+    _recip_pat(p) && s.kind == NUMBER && !iszero(s.num) && _pm(pb, Sym(inv(s.num)), B, k) && return true
     _exp_one(pe, B) || return false
     _bind(B, pe.name, ONE, pe.pred, _gmatch(pb, s, k))
 end
+
+# a power pattern ~b^-1
+_recip_pat(p::_PNode) = p.kids[1].kind == _P_SLOT && p.kids[2].kind == _P_LIT && _eq(p.kids[2].sym, MINUS_ONE)
 
 # can the exponent pattern pe be 1, so that b^pe matches b: a default exponent ~!n, or
 # a slot already bound to 1 (x^(~!n) * (c + x^(~n)))
@@ -425,7 +432,8 @@ function _quickfail(p::_PNode, s::Sym)
         any(q -> q.kind == _P_SLOT && (q.flavor == _SL_STAR || q.flavor == _SL_PLUS), p.kids) && return false
         return length(s.args) != length(p.kids)
     end
-    K == _P_POW && return !(s.kind == POW || (p.kids[2].kind == _P_SLOT && p.kids[2].flavor in (_SL_ONE, _SL_DEF)))
+    K == _P_POW && return !(s.kind == POW || (p.kids[2].kind == _P_SLOT && p.kids[2].flavor in (_SL_ONE, _SL_DEF)) ||
+                            (_recip_pat(p) && s.kind == NUMBER))
     if K == _P_ADD || K == _P_MUL
         need = length(p.lits) + length(p.kids) + count(sl -> !_zero_ok(sl), p.slots)
         have = K == _P_ADD ? (s.kind == ADD ? length(s.args) + (s.num != N0) : !iszero(s)) :
@@ -451,7 +459,7 @@ end
 function _headok(q::_PNode, e::Sym, B)
     q.kind == _P_FN && return e.kind == FN && e.name === q.name
     q.kind == _P_HEAD && return e.kind == FN
-    q.kind == _P_POW && return e.kind == POW || _exp_one(q.kids[2], B)
+    q.kind == _P_POW && return e.kind == POW || _exp_one(q.kids[2], B) || (_recip_pat(q) && e.kind == NUMBER)
     true
 end
 

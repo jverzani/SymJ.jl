@@ -686,7 +686,9 @@ function _defined_roots(rs::AbstractVector, e::Sym, x::Sym, B::Assumptions)
                             (_hassymbol(ρ) || _isreal_const(ρ) === true) || continue
                             w = try simplify(subs(v, p => ρ)) catch err; _isdivzero(err) || rethrow(); continue end
                             iszero(w) || continue
-                            _decide(Relation(:ne, p, ρ), B) || return false
+                            # (p ≠ ρ by default, generic parameters: a case only when assumed;
+                            # the roots of (a/x)¹² - 2(a/x)⁶ had a case a = 0, round 18)
+                            _pnz(expand(p - ρ), B) || return false
                         end
                         continue
                     end
@@ -958,8 +960,10 @@ function _allowed(r::Sym, x::Sym, A::Assumptions)
     no = get(A.notin, x, Int8(0))
     no > 0 && !_decide(Membership(r, NumberSet(no), true), A) && return false
     S === nothing || _inset(r, S, A) || return false
+    # (r - v in the parameters alone is nonzero by default, decided 2026-11-14: the root a of
+    # an equation with x ≠ 0 was split on a = 0; round-18 review)
     for v in get(A.excluded, x, Sym[])
-        _decide(Relation(:ne, r, v), A) || return false
+        _pnz(expand(r - v), A) || return false
     end
     for c in A.lin                                # relations of x with other symbols
         any(t -> has(t, x), keys(c.a)) || continue
@@ -968,7 +972,7 @@ function _allowed(r::Sym, x::Sym, A::Assumptions)
     end
     for d in A.nonzero
         has(d, x) || continue
-        _decide(Relation(:ne, expand(subs(d, x => r)), ZERO), A) || return false
+        _pnz(expand(subs(d, x => r)), A) || return false
     end
     true
 end
