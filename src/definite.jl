@@ -42,6 +42,16 @@ function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Boo
     length(xab) == 3 || throw(ArgumentError("integrate: give the limits as (x, a, b)"))
     x, lo, hi = Sym(xab[1]), _endpoint(xab[2]), _endpoint(xab[3])
     _isnamed(x) || throw(ArgumentError("integrate: $x is not a symbol"))
+    # equal finite limits: 0, for any integrand (an unknown f(x) was held as an Integral;
+    # SymPy #5098)
+    lo isa Sym && hi isa Sym && _eq(lo, hi) && !_isinfpt(lo) && return ZERO
+    # over the whole line, a product with two or more deltas in x: sifted by one, δ(m x + c)
+    # at a = -c/m (weight 1/|m|), the rest (the other deltas too) taken there:
+    # ∫ x₂ δ(x - x₂) δ(x₂ - x₁) dx₂ = x δ(x - x₁) (SymPy #5588)
+    if _isinfpt(lo) && _isinfpt(hi) && lo.num < N0 < hi.num
+        r = _sift_deltas(Sym(f), x)
+        r === nothing || return r
+    end
     # terms with an unknown function of x are held, ∫ₐᵇ f(x) dx, the rest integrated
     rest, held = _split_opaque(Sym(f), x)
     if !isempty(held) && (P = _total_derivative(held, x)) !== nothing
@@ -571,6 +581,23 @@ _fact_holds(c, A) = c isa _NotFact ? (h = _fact_holds(c.f, A); h === nothing ? n
 
 _endpoint(v) = v isa Real && isinf(v) ? Sym(Float64(v)) : Sym(v)
 _isinfpt(p::Sym) = p.kind == NUMBER && isfloat(p.num) && isinf(Float64(p.num))
+
+function _sift_deltas(f::Sym, x::Sym)
+    f.kind == MUL || return nothing
+    ds = [i for i in eachindex(f.args) if f.args[i].kind == FN && f.args[i].name === :dirac &&
+          length(f.args[i].args) == 1 && has(f.args[i], x) && _isone(f.exps[i])]
+    length(ds) >= 2 || return nothing
+    for i in ds
+        u = expand(f.args[i].args[1])
+        c = subs(u, x => ZERO)
+        m = expand(subs(u, x => ONE) - c)
+        (m.kind == NUMBER && isexact(m.num) && !iszero(m.num) && iszero(expand(u - m * x - c))) || continue
+        a = expand(-c / m)
+        rest = f / f.args[i]
+        return subs(rest, x => a) / abs(m)
+    end
+    nothing
+end
 _infsign(p::Sym) = Float64(p.num) > 0 ? 1 : -1
 
 function _definite(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A::Assumptions, pv::Bool = false)

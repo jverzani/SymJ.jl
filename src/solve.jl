@@ -1361,12 +1361,14 @@ function _invert(g::Sym, r::Sym, x::Sym)
                 (isone(r) || (A !== nothing && _hassymbol(r) && _decide(Relation(:eq, r, ONE), A))) && return [(e, ZERO)]
                 return Tuple{Sym,Sym}[]
             end
+            # (generic parameters, decided 2026-11-14: b ≠ 0, 1 unless assumed; these were
+            # cases by default, round-18 review)
             if A !== nothing && _hassymbol(b)
-                if _decide(Relation(:eq, b, ONE), A)
+                if !_pnz(b - ONE, A)
                     _decide(Relation(:eq, r, ONE), A) && throw(_identity_error(x, g ~ r))
                     return Tuple{Sym,Sym}[]
                 end
-                if _decide(Relation(:eq, b, ZERO), A)
+                if !_pnz(b, A)
                     _decide(Relation(:eq, r, ZERO), A) &&
                         throw(ArgumentError("solve: 0^$e = 0 holds wherever the real part of $e is positive, not at points"))
                     _decide(Relation(:eq, r, ONE), A) && return [(e, ZERO)]     # 0^0 = 1

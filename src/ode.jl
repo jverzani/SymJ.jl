@@ -28,9 +28,12 @@ function _ode_drop_factors(eq::Relation, yx::Sym)
     g = eq.lhs - eq.rhs
     f = g.kind == MUL ? g : (try factor(g) catch err; err isa InterruptException && rethrow(); g end)
     f.kind == MUL || return eq
-    keep = [(b, q) for (b, q) in zip(f.args, f.exps) if has(b, yx)]
+    # (an exponential with y in it, never 0, is dropped too: e^(-2λ)(λ'² - λ'' - 2λ'/r) = 0;
+    # SymPy #5279)
+    isexp(b, q) = (_eq(b, E) && has(q, yx)) || (b.kind == POW && _eq(b.args[1], E) && has(b, yx))
+    keep = [(b, q) for (b, q) in zip(f.args, f.exps) if has(b, yx) && !isexp(b, q)]
     # (only polynomial factors dropped: exp(-t) taken out of a Laplace problem left a worse one)
-    all(((b, q),) -> has(b, yx) || (_ispoly_in_all(b) && q.kind == NUMBER), zip(f.args, f.exps)) || return eq
+    all(((b, q),) -> has(b, yx) || isexp(b, q) || (_ispoly_in_all(b) && q.kind == NUMBER), zip(f.args, f.exps)) || return eq
     (length(keep) == length(f.args) && isone(f.num)) && return eq
     length(keep) == 1 && _isone(keep[1][2]) || return eq
     keep[1][1] ~ 0
@@ -567,6 +570,8 @@ function _ode_linear(P::_ODE, Cs)
         r === nothing || return r
         r = n == 2 && iszero(g) ? _ode_bessel(cs, x, Cs) : nothing
         r === nothing || return r
+        r = n == 2 ? _ode_normal_form(a, g, x, Cs) : nothing
+        r === nothing || return r
         n == 2 && return _ode_reduction_of_order(a, g, x, Cs)
         return nothing
     end
@@ -593,6 +598,28 @@ function _ode_bessel(cs::Vector{Sym}, x::Sym, Cs)
     root(q) = q.kind == POW && _eq(q.args[2], Sym(2)) ? q.args[1] : _ode_tidy(sqrt(q))
     α, ν = root(α2), root(ν2)
     (:explicit, Cs[1] * apply_function(:besselj, Sym[ν, α * x]) + Cs[2] * apply_function(:bessely, Sym[ν, α * x]))
+end
+
+# y'' + p y' + q y = g through y = w v, w = e^(-∫p/2): v'' + I v = g/w with the invariant
+# I = q - p²/4 - p'/2; when I is a constant, v has constant coefficients (y'' + 2y'/x + y
+# = 0 is v'' + v = 0, y = (C1 sin x + C2 cos x)/x; SymPy #4414)
+function _ode_normal_form(a::Vector{Sym}, g::Sym, x::Sym, Cs)
+    p, q = _ode_tidy(a[2] / a[3]), _ode_tidy(a[1] / a[3])
+    I = _ode_tidy(simplify(q - p^2 / 4 - diff(p, x) / 2))
+    w = _ode_tidy(exp(-_integrate(p, x) / 2))
+    _hasfn(w, :Integral) && return nothing
+    if !has(I, x)
+        S = _ode_constcoeff(Sym[I, ZERO, ONE], _ode_tidy(g / (a[3] * w)), x, Cs)
+        return (:explicit, _ode_tidy(expand(w * S)))
+    end
+    # v'' + I(x) v = 0 with I(1/t)/t⁴ = K a constant: v = x u(1/x), u'' + K u = 0 in t = 1/x
+    # (v'' + v/x⁴ = 0, from the Riccati y' = y² + x⁻⁴; SymPy #5348)
+    iszero(g) || return nothing
+    t = Sym(:_ode_t)
+    K = _ode_tidy(simplify(subs(I, x => 1 / t) / t^4))
+    has(K, t) && return nothing
+    U = _ode_constcoeff(Sym[K, ZERO, ONE], ZERO, t, Cs)
+    (:explicit, _ode_tidy(expand(w * x * subs(U, t => 1 / x))))
 end
 
 # a₂y'' + a₁y' + a₀y = g with a homogeneous solution y₁ found (a polynomial of degree at

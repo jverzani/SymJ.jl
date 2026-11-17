@@ -459,6 +459,27 @@ transforms). Of the rest, in rough order of value for calculus-level use:
    solvable ones (Galois group in F₂₀, as `x^5 - 5x + 12`) do have roots in radicals; a
    resolvent-sextic test and the Dummit/Spearman–Williams formulas would give them.
 
+23. **Gaps from the eighteenth SymPy review (#4409–#5908)**:
+   - integrate with a float base, 2.718…^(-2πix) (RischIntegrate: more than 8
+     transcendental constants; the exact exp(-2πix) works; extra-6).
+   - canonical form of sums inside products: -(x + y)/z is (-x - y)/z but (x + y)/(-z)
+     is -(x + y)/z, and their difference does not cancel without simplify; (-x - 1)/(-y - 1)
+     stays (#4596, #4592). Pulling the sign or content out of such sums would change how
+     many results print; left (user decision 2026-11-16).
+   - printing x^(1/3): pasted back into Julia it is a Float64 exponent; printing rational
+     exponents as 1//3 would round-trip (#5458). Left for now (user 2026-11-16: tempting
+     later, for round trips from the command line).
+   - deep nesting (f(f(…f(x))) 10,000 deep) overflows the stack in printing and diff;
+     SymPy raises RecursionError too (#5557).
+   - expand is not idempotent where radicals merge into a sum inside a product:
+     expand((1 - √(1+x))√(1+x) y) is -(x + 1)y + √(x + 1)y, and a second expand gives
+     -xy + √(x + 1)y - y (#5743). Every fix tried (re-expanding merged sums in the
+     multiplication loop, or a second pass for small results) changed the intermediate
+     forms cancel builds and made checking an ODE system's solution 5× slower, or hours on
+     Julia 1.10; dropped (2026-11-16).
+   - N of a besseli/gamma expression cancelling in Float64: no BigFloat besseli for the
+     high-precision check (#5691).
+
 Done since the first audit: trigonometric and logarithmic expansion, gamma and combinatorial simplification, LaTeX output (a Latexify extension), resultants and Gröbner
 bases (polynomial systems are solved), real and imaginary parts and `conj`, and
 simplification under assumptions (`refine`, `simplify`).

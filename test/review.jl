@@ -697,10 +697,10 @@ end
     # k = a, a + 1, … up to a non-integer bound (#19745)
     @test SymJ.summation(x, x, 1, Sym(3) // 2) == 1
     @test SymJ.summation(x, x, Sym(1) // 2, Sym(7) // 2) == 8
-    # a root at a parametric pole: a case (a = 0, where 0 is the pole)
-    r = solve(x^2 / (a + x) - 2 ~ 0, x)
-    @test r isa SymJ.Cases
-    @test any(cv -> cv.first == Any[a ~ 0] && cv.second == [Sym(2)], r)
+    # a root at a parametric pole: generic a by default (decided 2026-11-14), the case
+    # a = 0, where 0 is the pole, when assumed
+    @test solve(x^2 / (a + x) - 2 ~ 0, x) == [1 - sqrt(2a + 1), 1 + sqrt(2a + 1)]
+    @test solve(x^2 / (a + x) - 2 ~ 0, x; assume = (a ~ 0,)) == [2]
 end
 
 @testset "missing cases (SymPy review, round 8)" begin
@@ -1045,7 +1045,8 @@ end
     @test solve(abs(x - 2) ~ 0, x) == [2]
     @test solve((x^2 - 7x + 11)^(x^2 - 13x + 42) ~ 1, x) == [2, 3, 4, 5, 6, 7]
     @test solve(x^x ~ 1, x) == [1]
-    @test solve(y^x ~ z, x) isa SymJ.Cases
+    @test solve(y^x ~ z, x) == [log(z) / log(y)]                  # generic y (2026-11-14)
+    @test solve(y^x ~ z, x; assume = (y ~ 1,)) == Sym[]
     # angle with a positive real part (#15945)
     @test refine(angle(a + IM * F); assume = (a ≫ 0, F ∈ ℝ)) == atan(F / a)
     # constants inside function arguments simplified (#15129)
@@ -1873,4 +1874,95 @@ end
         @test N(cs)[1].second ≈ 1 / 3
         @test N(cs)[2].second ≈ [π, 2.0]
     end
+end
+
+@testset "missing cases (SymPy review, round 18)" begin
+    @syms x y z a b p s k n m r t
+    f = SymFunction(:f); g = SymFunction(:g); h = SymFunction(:h); u = SymFunction(:u)
+    SF = SymJ.SpecialFunctionsSupport.SF
+    # f(f⁻¹(u)) = u (#5346)
+    @test coth(acoth(x)) == x
+    @test sec(asec(x)) == x
+    @test tanh(atanh(x)) == x
+    # inverse trig values at π/12, π/10, π/8 (#5342)
+    @test asin((sqrt(Sym(6)) - sqrt(Sym(2))) / 4) == PI / 12
+    @test acos((sqrt(Sym(6)) + sqrt(Sym(2))) / 4) == PI / 12
+    @test asin((sqrt(Sym(5)) - 1) / 4) == PI / 10
+    @test asin(sqrt(2 - sqrt(Sym(2))) / 2) == PI / 8
+    # sign of a complex constant, positive factors out (#5763, #4708)
+    @test sign(3 + 4IM) == Sym(3) / 5 + 4IM / 5
+    @test sign(2x) == sign(x)
+    @test refine(sign(p * x); assume = (p ≫ 0,)) == sign(x)
+    # real and imag through a complex constant factor (#5166)
+    @test real((1 + IM) * x) == real(x) - imag(x)
+    # a power of a product, its integer part split (#5728)
+    let A = sqrt(x * sqrt(y))
+        @test A * A^8 == A^9
+    end
+    # subs of a target with a coefficient (#5217)
+    @test subs(2x^2 + y, 2x^2 => s) == s + y
+    @test subs(1 + 2x * y, 2x * y => s) == 1 + s
+    # a pattern's reciprocal slot takes the coefficient (#4559)
+    @test match(SymJ.pattern(:(x / ~b)), 3x)[:b] == Sym(1) // 3
+    # Poly in a power of an exponential; a bound variable is not the generator (#5853, #5602)
+    @test SymJ.coefficients(Poly(exp(2x) + 3exp(x) + 1, exp(x))) == [1, 3, 1]
+    @test_throws ArgumentError Poly(exp(x) + exp(x / 2), exp(x))
+    @test SymJ.degree(Poly(SymJ._mkfn_node(:Integral, Sym[f(x), x, Sym(0), Sym(1)]) * x + x^2, x), x) == 2
+    # trig: 1/cos² - 1 is tan² (#4621)
+    @test simplify(1 / cos(x)^2 - 1) == tan(x)^2
+    # floats that are binary fractions in exponents (#5822)
+    @test simplify(SymJ.summation(exp(a * x), x, -0.5, 0.5)) == 2.0 * cosh(0.5a)
+    # derivative of a Sum, term by term (#5312)
+    @test diff(SymJ.summation(x^k / k, k, 1, n), x) == (x^n - 1) / (x - 1)
+    # Leibniz with the bound variable named as the outer one (#5086)
+    @test diff(SymJ._mkfn_node(:Integral, Sym[f(x), x, g(x), h(x)]), x) ==
+          diff(h(x), x) * f(h(x)) - diff(g(x), x) * f(g(x))
+    # bound variables unified (#5539)
+    @test iszero(simplify(SymJ._mkfn_node(:Integral, Sym[f(x), x, Sym(0), Sym(1)]) -
+                          SymJ._mkfn_node(:Integral, Sym[f(y), y, Sym(0), Sym(1)])))
+    # ODEs: the normal form, a Riccati through it, an exponential factor (#4414, #5348, #5279)
+    @test SymJ.dsolve(diff(u(x), x, 2) + 2 / x * diff(u(x), x) + u(x) ~ 0, u(x)).rhs ==
+          (Sym(:C1) * cos(x) + Sym(:C2) * sin(x)) / x
+    let S = SymJ.dsolve(diff(f(x), x) ~ f(x)^2 + x^(-4), f(x)).rhs
+        @test iszero(simplify(diff(S, x) - S^2 - x^(-4)))
+    end
+    let λ = SymFunction(:lam)
+        @test SymJ.dsolve(exp(-2λ(r)) * (diff(λ(r), r)^2 - diff(λ(r), r, 2) - 2diff(λ(r), r) / r) ~ 0, λ(r)) isa Relation
+    end
+    # rsolve past a zero of the leading coefficient (#5507)
+    @test SymJ.rsolve(2f(n - 1) + (1 - n) * f(n) / n ~ 0, f(n), f(1) => 2) == 2^n * n
+    # Gosper with e^m (#4598, #4599)
+    @test N(subs(SymJ.summation(m * exp(m), m, 0, a), a => 4)) ≈ sum(j * exp(j) for j in 0:4)
+    @test N(SymJ.summation(m^2 + m * exp(m), m, -Sym(3) / 2, Sym(3) / 2)) ≈
+          sum(j^2 + j * exp(j) for j in -1.5:1.5)
+    # a system with a never-zero common factor (#4509)
+    @test length(solve([-y * (3 - x - y) * exp(x * y) + exp(x * y) ~ 0,
+                        -x * (3 - x - y) * exp(x * y) + exp(x * y) ~ 0], [x, y])) == 2
+    # generic parameters (round-18 extras)
+    @test solve(a^x ~ y, x) == [log(y) / log(a)]
+    @test length(solve(diff((a / x)^12 - 2(a / x)^6, x) ~ 0, x)) == 6
+    # E(1) and K's pole (round-18 extra)
+    @test SF.ellipe(Sym(1)) == 1
+    @test_throws SymJ.DivisionByZero SF.ellipk(Sym(1))
+    # factor with facts: a radical split where valid (#5149)
+    @test factor(sqrt(1 - x^2) + sqrt(1 - x); assume = (x ∈ ℝ,)) == sqrt(1 - x) * (sqrt(x + 1) + 1)
+    @test factor(sqrt(1 - x^2) + sqrt(1 - x)) == sqrt(1 - x^2) + sqrt(1 - x)
+    @test factor(sqrt(x^2 - 1) + sqrt(x - 1); assume = (x ∈ ℝ,)) == sqrt(x^2 - 1) + sqrt(x - 1)
+end
+
+@testset "limits through GruntzLimit 1.7 (SymPy review, rounds 17-18)" begin
+    @syms x z a n k
+    SF = SymJ.SpecialFunctionsSupport.SF
+    # a constant in the parameters that is 0 (sin² + cos² - 1; #6364, #6843)
+    @test iszero(simplify(limit(z / (sqrt(1 + z) * sin(a)^2 + sqrt(1 - z) * cos(a)^2 - 1), z => 0) + 2 / cos(2a)))
+    @test limit((n + 1) * x^(n + 1) / (x^(n + 1) - 1) - x / (x - 1), x => 1) == n / 2
+    # zeta: at 2, and at +∞ through its series in SymJ; no limit at -∞ (#6909)
+    @test limit(SF.zeta(x), x => 2) == PI^2 / 6
+    @test limit(SF.zeta(2k), k => Inf) == 1
+    @test limit((SF.zeta(x) - 1) * 2^x, x => Inf) == 1
+    @test_throws ArgumentError limit(SF.zeta(x), x => -Inf)
+    # an irrational power of a negative side (#7096)
+    @test_throws GruntzError limit(x^(-sqrt(Sym(2))), x => 0; dir = :-)
+    # polygamma with an order tending to an integer (#5415)
+    @test limit(SF.polygamma(2 + 1 / x, 3 + exp(-x)), x => Inf) == Sym(9) / 4 - 2SF.zeta(Sym(3))
 end

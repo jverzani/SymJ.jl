@@ -8,7 +8,8 @@ module SpecialFunctionsSupport
 import SpecialFunctions as SF
 using ..SymJ
 using ..SymJ: Sym, apply_function, register_function!, _symbolic_signatures, _unary, _odd,
-            PI, ZERO, ONE, NUMBER, isexact, _isint, _toint, _rat, SymNumber, _could_extract_minus
+            PI, ZERO, ONE, NUMBER, isexact, _isint, _toint, _rat, SymNumber, _could_extract_minus,
+            DivisionByZero
 
 # name => argument counts
 const FUNCTIONS = [
@@ -245,8 +246,12 @@ function __init__()
     reg(:sphericalbessely; diff = dx((ν, a) -> SF.sphericalbessely(ν - 1, a) - (ν + 1) * SF.sphericalbessely(ν, a) / a))
     foreach(reg, (:besseljx, :besselyx, :besselix, :besselkx, :besselh, :besselhx, :hankelh1x, :hankelh2x, :jinc))
 
-    reg(:ellipk; eval = at0(PI / 2), diff = d1(m -> (SF.ellipe(m) - (1 - m) * SF.ellipk(m)) / (2m * (1 - m))))
-    reg(:ellipe; eval = at0(PI / 2), diff = d1(m -> (SF.ellipe(m) - SF.ellipk(m)) / (2m)))
+    # (at m = 1: E(1) = 1, and K has a pole there; they stayed unevaluated, round 18)
+    reg(:ellipk; eval = args -> (length(args) == 1 && isone(args[1]) && throw(DivisionByZero("ellipk(1): a pole"));
+                                 at0(PI / 2)(args)),
+        diff = d1(m -> (SF.ellipe(m) - (1 - m) * SF.ellipk(m)) / (2m * (1 - m))))
+    reg(:ellipe; eval = args -> (length(args) == 1 && isone(args[1])) ? ONE : at0(PI / 2)(args),
+        diff = d1(m -> (SF.ellipe(m) - SF.ellipk(m)) / (2m)))
     nothing
 end
 

@@ -354,6 +354,15 @@ end
           raw"$\begin{cases} \left[ \sqrt{a} \right] & a > 0 \\ \left[ \; \right] & \lnot \left( a > 0 \right) \end{cases}$"
     @test occursin(raw"-3 < a < 3", L(solve(x^2 ~ 9, x; assume = @assume(x > a))))
     @test latexify(x / 2) == latexify(:(x / 2))
+    # Σ, ∫, d/dt notation; Greek names; floats in standard form (SymPy #4767, #4438, #4576, #4429)
+    let i = Sym(:i), N = Sym(:N), t = Sym(:t), u = SymFunction(:u), φ = SymFunction(:phi)
+        @test String(latexify(SymJ.summation(u(i), i, 1, N))) == raw"$\sum_{i=1}^{N} u\left( i \right)$"
+        @test String(latexify(diff(u(t), t))) == raw"$\frac{d}{d t} u\left( t \right)$"
+        @test String(latexify(diff(φ(t, x), t))) == raw"$\frac{\partial}{\partial t} \phi\left( t, x \right)$"
+        @test String(latexify(Sym(:beta_13_2))) == raw"$\beta_{13,2}$"
+        @test String(latexify(Sym(1.0e20) * x)) == raw"$1.0 \cdot 10^{20} \cdot x$"
+        @test String(latexify(SymJ._mkfn_node(:Integral, Sym[u(x), x, Sym(0), Sym(1)]))) == raw"$\int_{0}^{1} u\left( x \right) \, dx$"
+    end
     # Julia's numbers and mixed tuples are left to their own display
     @test !showable(MIME"text/latex"(), 1.5) && !showable(MIME"text/latex"(), (x, 1.0)) &&
           !showable(MIME"text/latex"(), [1, 2])

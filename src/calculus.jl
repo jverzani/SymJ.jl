@@ -219,10 +219,33 @@ function _diff(ex::Sym, x::Sym)
         return mul(ex, add(mul(de, log(b)), mul(mul(e, db), pow(b, MINUS_ONE))))
     elseif ex.name === :Integral && length(ex.args) == 2 && _eq(ex.args[2], x)
         return ex.args[1]
-    elseif ex.name === :Integral && length(ex.args) == 4 && !has(ex.args[1], x)
-        # Integral(f, s, a, b) = ∫ₐᵇ f ds: f(b) b' - f(a) a'
+    elseif ex.name === :Integral && length(ex.args) == 4
+        # Integral(f, s, a, b) = ∫ₐᵇ f ds: f(b) b' - f(a) a' + ∫ₐᵇ ∂f/∂x ds (Leibniz). A
+        # bound variable named x is renamed first: ∫_{g(x)}^{h(x)} f(x) dx in x was left
+        # unevaluated (SymPy #5086)
         f, v, lo, hi = ex.args
-        return add(mul(subs(f, v => hi), _diff(hi, x)), mul(MINUS_ONE, mul(subs(f, v => lo), _diff(lo, x))))
+        if _eq(v, x)
+            w = _fresh_dummy(ex)
+            f, v = subs(f, x => w), w
+        end
+        r = add(mul(subs(f, v => hi), _diff(hi, x)), mul(MINUS_ONE, mul(subs(f, v => lo), _diff(lo, x))))
+        df = _diff(f, x)
+        iszero(df) || (r = add(r, _mkfn_node(:Integral, Sym[df, v, lo, hi])))
+        return r
+    elseif ex.name === :Sum && length(ex.args) == 4 && !_eq(ex.args[2], x) &&
+           !has(ex.args[3], x) && !has(ex.args[4], x)
+        # Σ term by term: the summand's derivative summed again, a Sum if no closed form
+        # (d/dx Σ xᵏ/k stayed a Derivative; SymPy #5312)
+        f, k, lo, hi = ex.args
+        df = _diff(f, x)
+        iszero(df) && return ZERO
+        r = try
+            Base.inferencebarrier(summation)(df, k, lo, hi)
+        catch err
+            err isa ArgumentError || rethrow()
+            nothing
+        end
+        return r isa Sym ? r : _mkfn_node(:Sum, Sym[df, k, lo, hi])
     elseif _isderivat(ex) && (_eq(ex.args[2], x) || !has(ex.args[1], x))
         # F′(a) for F = F(t): F″(a) a′ (a constant unless the point has x)
         F, t, a = ex.args

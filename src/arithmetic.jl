@@ -431,6 +431,13 @@ function pow(b::Sym, e::Sym)
             if en == SymNumber(1 // 2) && bk == ADD && !_hassymbol(b) && _negative_real_const(b)
                 return mul(IM, pow(_scale(b, SymNumber(-1)), e))
             end
+            # a product to n + r, n an integer and 0 < |r| < 1: bⁿ bʳ, as the integer power of
+            # a product distributes (A⁹ and A A⁸ for A = √(x√y) differed; SymPy #5728)
+            if bk == MUL && abs(en) > N1
+                q = _rat(en)
+                n = SymNumber(div(numerator(q), denominator(q)))
+                return mul(pow(b, Sym(n)), pow(b, Sym(en - n)))
+            end
         end
         return _mkpow_node(b, e)
     end

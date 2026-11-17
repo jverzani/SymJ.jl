@@ -200,6 +200,12 @@ subs(ex::Number, args...) = Sym(ex)
 
 # whole nodes, unless a target is a power, a sum or a product, also matched algebraically
 function _subs_top(ex::Sym, d::Dict{Sym,Sym})
+    # a target c M, c a number ≠ 1 and M a power or product: M => v/c, so M is found in any
+    # term (subs(2x² + y, 2x² => s) was unchanged; SymPy #5217)
+    if any(k -> k.kind == MUL && !isone(k.num) && _subs_compound(k / Sym(k.num)), keys(d))
+        d = Dict{Sym,Sym}((k.kind == MUL && !isone(k.num) && (M = k / Sym(k.num); _subs_compound(M))) ?
+                          (M => v / Sym(k.num)) : (k => v) for (k, v) in d)
+    end
     ck = [k => v for (k, v) in d if _subs_compound(k)]
     isempty(ck) ? _subs(ex, d) : _subs_alg(ex, d, ck)
 end

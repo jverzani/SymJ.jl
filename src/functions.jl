@@ -369,6 +369,16 @@ register_function!(:tan; julia = tan,
 # acos(v) = π/2 - asin(v)
 const _ASIN_VALUES = Pair{Sym,Sym}[ZERO => ZERO, HALF => PI / 6, sqrt(Sym(2)) / 2 => PI / 4,
                                    sqrt(Sym(3)) / 2 => PI / 3, ONE => PI / 2]
+# the sines of π/12, π/10, π/8, π/5 and their complements, added at the end of the module
+# (built from sums and nested radicals, which need code defined later; asin((√6 - √2)/4)
+# stayed; SymPy #5342)
+function _more_asin_values!()
+    push!(_ASIN_VALUES, (sqrt(Sym(6)) - sqrt(Sym(2))) / 4 => PI / 12,
+          (sqrt(Sym(6)) + sqrt(Sym(2))) / 4 => 5PI / 12,
+          (sqrt(Sym(5)) - 1) / 4 => PI / 10, (sqrt(Sym(5)) + 1) / 4 => 3PI / 10,
+          sqrt(2 - sqrt(Sym(2))) / 2 => PI / 8, sqrt(2 + sqrt(Sym(2))) / 2 => 3PI / 8,
+          sqrt(10 - 2sqrt(Sym(5))) / 4 => PI / 5, sqrt(10 + 2sqrt(Sym(5))) / 4 => 2PI / 5)
+end
 const _ATAN_VALUES = Pair{Sym,Sym}[ZERO => ZERO, sqrt(Sym(3)) / 3 => PI / 6, ONE => PI / 4,
                                    sqrt(Sym(3)) => PI / 3, 2 - sqrt(Sym(3)) => PI / 12,
                                    2 + sqrt(Sym(3)) => 5PI / 12, sqrt(Sym(2)) - 1 => PI / 8,
@@ -423,15 +433,15 @@ register_function!(:atan; julia = atan,
     diff = (args, i) -> inv(1 + args[1]^2))
 
 register_function!(:sinh; julia = sinh,
-    eval = _unary(a -> iszero(a) ? ZERO : _odd(:sinh, a)),
+    eval = _unary(a -> something(_of_own_inverse(:sinh, a), Some(iszero(a) ? ZERO : _odd(:sinh, a)))),
     diff = (args, i) -> cosh(args[1]))
 
 register_function!(:cosh; julia = cosh,
-    eval = _unary(a -> iszero(a) ? ONE : _even(:cosh, a)),
+    eval = _unary(a -> something(_of_own_inverse(:cosh, a), Some(iszero(a) ? ONE : _even(:cosh, a)))),
     diff = (args, i) -> sinh(args[1]))
 
 register_function!(:tanh; julia = tanh,
-    eval = _unary(a -> iszero(a) ? ZERO : _odd(:tanh, a)),
+    eval = _unary(a -> something(_of_own_inverse(:tanh, a), Some(iszero(a) ? ZERO : _odd(:tanh, a)))),
     diff = (args, i) -> 1 - tanh(args[1])^2)
 
 register_function!(:asinh; julia = asinh,
@@ -557,8 +567,16 @@ _hasfn(ex::Sym, name::Symbol) =
     (ex.kind == FN && ex.name === name) || any(a -> _hasfn(a, name), ex.args) || any(a -> _hasfn(a, name), ex.exps)
 
 # f(a) = num(a) / den(a), with num and den among the existing functions (num may be ONE)
+# f(f⁻¹(u)) = u, for every u where it is defined (coth(acoth(x)) stayed; SymPy #5346)
+const _OWN_INVERSE = Dict(:sec => :asec, :csc => :acsc, :cot => :acot, :sech => :asech, :csch => :acsch,
+                          :coth => :acoth, :sinh => :asinh, :cosh => :acosh, :tanh => :atanh)
+_of_own_inverse(name::Symbol, a::Sym) =
+    a.kind == FN && length(a.args) == 1 && a.name === get(_OWN_INVERSE, name, nothing) ? a.args[1] : nothing
+
 function _ratio_rule(name::Symbol, num::Union{Nothing,Symbol}, den::Symbol, parity::Symbol)
     _unary(function (a)
+        v = _of_own_inverse(name, a)
+        v === nothing || return v
         d = apply_function(den, Sym[a])
         n = num === nothing ? ONE : apply_function(num, Sym[a])
         if !_hasfn(d, den) && (num === nothing || !_hasfn(n, num))
@@ -662,6 +680,20 @@ register_function!(:sign; julia = sign,
         v = _constant_float(a, _ -> 0.0)
         v === nothing || return Sym(Int(sign(v)))
         _exact_jump_value(a, ZERO) && return ZERO
+        # a complex constant: a/|a| (sign(3 + 4i) = 3/5 + 4i/5; SymPy #5763)
+        if !_hassymbol(a) && _has_imag_unit(a)
+            m = abs(a)
+            _isfn(m, :abs) || iszero(m) || return expand(a / m)
+        end
+        # a positive constant factor dropped (sign(2x) = sign(x); SymPy #4708)
+        if a.kind == MUL
+            pos = [i for i in eachindex(a.args) if !_hassymbol(a.args[i]) &&
+                   (w = _constant_float(a.args[i]^a.exps[i], _ -> 0.0); w !== nothing && w > 0)]
+            if !isone(abs(a.num)) || !isempty(pos)
+                rest = Sym(sign(a.num)) * prod((a.args[i]^a.exps[i] for i in eachindex(a.args) if !(i in pos)); init = ONE)
+                _eq(rest, a) || return sign(rest)
+            end
+        end
         _odd(:sign, a)
     end))
 

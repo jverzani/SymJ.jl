@@ -125,6 +125,17 @@ function _part(u::Sym, part::Int)
             t = b^q
             _realconst(t) && return t * apply_function(f, Sym[expand(u / t)])
         end
+        # a complex constant factor c = α + iβ: Re(c w) = α Re w - β Im w, Im(c w) =
+        # α Im w + β Re w (real((1 + i)x) stayed; SymPy #5166)
+        for (b, q) in zip(u.args, u.exps)
+            t = b^q
+            _hassymbol(t) && continue
+            ct = _const_parts(t)
+            (ct === nothing || iszero(expand(ct[2]))) && continue
+            w = u / t
+            rw, iw = apply_function(:real, Sym[w]), apply_function(:imag, Sym[w])
+            return part == 1 ? ct[1] * rw - ct[2] * iw : ct[1] * iw + ct[2] * rw
+        end
     elseif u.kind == FN && length(u.args) == 1 && u.name in _REALFNS
         return part == 1 ? u : ZERO                         # real(abs(z)) = abs(z)
     elseif u.kind == FN && u.name === :conj && length(u.args) == 1

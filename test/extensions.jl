@@ -210,6 +210,13 @@ import PolyLog as PL
     @testset "RischIntegrate: definite integrals" begin
         ∫ = RischIntegrate.integrate
         Inf_ = Sym(Inf)
+        # equal limits; two deltas over the line; a series term by term (SymPy #5098, #5588, #4831)
+        let f = SymFunction(:f), a = Sym(:a), x1 = Sym(:x1), x2 = Sym(:x2)
+            @test iszero(∫(f(x), (x, a, a)))
+            # (sifted by either delta, by the factors' order, which differs between Julia versions)
+            @test ∫(x2 * SymJ.dirac(x - x2) * SymJ.dirac(x2 - x1), (x2, -Inf, Inf)) in (x1 * SymJ.dirac(x1 - x), x * SymJ.dirac(x - x1))
+        end
+        @test Sym(∫(series(sin(x), x, 0, 6), x)) == x^2 / 2 - x^4 / 24 + x^6 / 720
         # the derivative of an answer with root sums (a MethodError; SymPy #5231)
         isdefined(RischIntegrate, :HypTerm) && @test iszero(SymJ.cancel(diff(∫((4x - 5) / (x^5 - x + 1), x), x) - (4x - 5) / (x^5 - x + 1)))
         # a variable that is not a symbol is refused (SymPy #4459); ∫₀^(π/2) cos(x)^(2n) for
