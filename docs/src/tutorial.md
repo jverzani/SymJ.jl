@@ -1,34 +1,45 @@
 # Tutorial
 
-This page works through the symbolic side of calculus with SymJ: making variables and
-expressions, evaluating and substituting, polynomials and rational functions, solving
-equations, and limits, derivatives and integrals. It follows the outline of the
-[Giac page of Calculus with Julia](https://github.com/jverzani/CalculusWithJuliaNotes.jl/blob/main/quarto/alternatives/giac.qmd).
+This page works through the symbolic side of calculus with SymJ:
+making variables and expressions, evaluating and substituting,
+polynomials and rational functions, solving equations, and limits,
+derivatives and integrals. It follows the outline of the [Giac page of
+Calculus with
+Julia](https://github.com/jverzani/CalculusWithJuliaNotes.jl/blob/main/quarto/alternatives/giac.qmd).
 
-SymJ is one of several ways to do symbolic mathematics in Julia:
+SymJ is one of several ways to do symbolic mathematics in Julia. Other packages include:
 
-- [SymPy.jl](https://github.com/JuliaPy/SymPy.jl) connects to the Python library SymPy,
-  a full-featured computer algebra system, which needs a Python installation.
-- [Giac.jl](https://github.com/s-celles/Giac.jl) wraps Giac, a mature computer algebra
-  system written in C++.
-- [Symbolics.jl](https://github.com/JuliaSymbolics/Symbolics.jl) is a numerically
-  oriented system written in Julia, the basis of ModelingToolkit.
-- [SymEngine.jl](https://github.com/symengine/SymEngine.jl) wraps SymEngine, a fast
-  symbolic manipulation library written in C++.
+- [SymPy](https://github.com/JuliaPy/SymPy.jl) connects to the
+  Python library SymPy, a full-featured computer algebra system, which
+  needs a Python installation.
 
-SymJ is written in Julia, aims to be fast, and keeps numbers exact. Limits are computed
-by [GruntzLimit](https://github.com/jverzani/GruntzLimit.jl) (a dependency) and integrals
-by [RischIntegrate](https://github.com/jverzani/RischIntegrate.jl), two packages that work
-on the expressions of several symbolic systems, SymJ's among them.
+- [Giac](https://github.com/s-celles/Giac.jl) wraps Giac, a mature
+  computer algebra system written in C++.
+
+- [Symbolics](https://github.com/JuliaSymbolics/Symbolics.jl) is a
+  numerically oriented system written in Julia, the basis of
+  ModelingToolkit.
+
+- [SymEngine](https://github.com/symengine/SymEngine.jl) wraps
+  SymEngine, a fast symbolic manipulation library written in C++.
+
+SymJ is written in Julia, aims to be fast, and keeps numbers
+exact. Limits are computed by
+[GruntzLimit](https://github.com/jverzani/GruntzLimit.jl) (a
+dependency) and integrals by
+[RischIntegrate](https://github.com/jverzani/RischIntegrate.jl), two
+packages that work on the expressions of several symbolic systems,
+SymJ's among them.
 
 !!! note "Julia versions"
-    SymJ and GruntzLimit support Julia 1.10 and later. RischIntegrate needs Julia 1.12 or
-    later, so the section on integrals needs that version.
+    SymJ and GruntzLimit support Julia 1.10 and later. RischIntegrate
+    needs Julia 1.12 or later, so the section on integrals needs that version.
 
 !!! note "Typeset output in notebooks"
-    With [Latexify](https://github.com/korsbo/Latexify.jl) loaded (`using Latexify`),
-    SymJ's results also display as LaTeX, as on this page. Notebooks that render LaTeX,
-    such as Jupyter (through IJulia) and Pluto, then show them as typeset mathematics;
+    With [Latexify](https://github.com/korsbo/Latexify.jl) loaded
+    (`using Latexify`), SymJ's results also display as LaTeX, as on
+    this page. Notebooks that render LaTeX, such as Jupyter
+    (through IJulia) and Pluto, then show them as typeset mathematics;
     `latexify(ex)` gives the LaTeX itself.
 
 ```@example tut
@@ -38,11 +49,13 @@ using RischIntegrate
 
 A few ideas run through the package:
 
-- Variables are made with `@syms`, and generic Julia code (`+`, `sin`, `^`, …) builds
-  expressions from them.
+- Symbolic variables are made with `@syms` or `Sym`, and generic Julia code (`+`, `sin`, `^`, …) builds symbolic expressions from them.
+
 - Expressions are kept in a canonical form as they are built.
+
 - Numbers stay exact unless a floating point number is involved.
-- Expressions are callable: with numbers they evaluate, with pairs they substitute.
+
+- Expressions are callable: depending on how they are called, a Julia number or a symbolic expression will be returned.
 
 ## Symbolic variables
 
@@ -52,39 +65,40 @@ The `@syms` macro makes variables and binds them to the same names:
 @syms x y
 ```
 
-`Sym(:z)` makes one without binding a name, and `symbols` makes several from a string:
+`Sym(:z)` makes one without binding a name when called with a symbol or string.
 
 ```@example tut
 z = Sym(:z)
-a, b, c = symbols("a b c")
 ```
 
-A symbolic function, with no rules of its own, is made with `@syms f()`:
+(`Sym` is also used to create symbolic numbers.)
+
+A symbolic function is made with `@syms f()`:
 
 ```@example tut
 @syms f()
 f(x^2)
 ```
 
-An indexed family of variables is an array of symbols named by their indices (the
-array itself is indexed from 1):
+(`SymFunction` is also used for this task.)
+
+An indexed family of variables is an array of symbols named by their
+indices (the array itself is indexed from 1):
 
 ```@example tut
 @syms xs[0:3] A[1:2, 1:2]
-xs, A
+xs[1], A[1,1]
 ```
 
 ## Symbolic numbers
 
-When a symbolic value meets a Julia integer or rational, the number becomes an exact
-symbolic number:
+When a symbolic value meets a Julia integer or rational, the number becomes an exact symbolic number:
 
 ```@example tut
 2x, x / 3, (1 // 2) * x
 ```
 
-`Sym` makes an exact number directly. Exact numbers keep radicals and π exact, and
-simplify standard values:
+`Sym` makes an exact number directly. Exact numbers keep radicals and π exact, and simplify standard values:
 
 ```@example tut
 Sym(1 // 3), sqrt(Sym(8)), cos(Sym(π) / 6), Sym(2)^100
@@ -99,69 +113,95 @@ expression makes the result a float, so `x * (1/2)` is not `x/2`:
 x / 2 == x * (1 // 2), x / 2 == x * (1 / 2)
 ```
 
-The same holds for `sqrt(2)` or `pi * 2` evaluated before meeting a symbol. Use `1//2`,
-`Sym(2)`, or let a symbolic value come first:
+The same holds for `sqrt(2)` or `pi * 2` evaluated before meeting a symbol. Use `1//2`, `Sym(2)`, or let a symbolic value come first:
 
 ```@example tut
 sqrt(2) * x, sqrt(Sym(2)) * x, 2 * (pi * x)
 ```
 
+A common idiom is to use `one(x)` or `zero(x)` instead of `1` or `0`.
+
 ## Expressions
 
-Expressions are built by applying functions to variables. They are kept in a canonical
-form: like terms are collected, numbers are combined, and products of powers merge.
+Expressions are formed with combinations of symbolic numbers, variables, and deferred function calls.
+
+For symbolic numbers, there are some useful functions.
+
+Functions with no numeric argument stay unevaluated, while exact values at standard points are simplified:
+
+```@example tut
+sin(x), sin(Sym(π) / 4), log(Sym(1)), sin(Sym(2))
+```
+
+
+The `unwrap_const` function returns a Julia value, when there are no free variables:
+
+```@example tut
+ex = Sym(pi)^2/4
+SymJ.unwrap_const(ex)
+```
+The `rationalize` function replaces the floating-point numbers in an expression by nearby rationals:
+
+```@example tut
+rationalize(0.5x + 1.25)
+```
+
+`SymJ.nsimplify` recognizes floats as exact numbers: rationals, algebraic numbers of low degree in radicals, and rational combinations of given constants:
+
+```@example tut
+(
+SymJ.nsimplify(0.5x + 1.4142135623730951),
+SymJ.nsimplify(1.618033988749895),
+SymJ.nsimplify(2.0943951023931953; constants = [pi])
+)
+```
+
+An expression is a tree: an operation applied to arguments. SymJ implements
+TermInterface, so `operation` and `arguments` take it apart; `isexpr` checks if there is an expression tree (or a leaf):
+
+```@example tut
+using SymJ: operation, arguments, isexpr
+F = 9 // 5 * (y - 32)
+operation(F), arguments(F), isexpr(F), isexpr(Sym(9//5))
+```
+
+Expressions are built by applying functions to variables. They are kept in a canonical form: like terms are collected, numbers are combined, and products of powers merge.
 
 ```@example tut
 ex = x + 2x - y + x * y * x
 ```
 
 ```@example tut
-exp(x) * exp(2x), (x * y)^3, sin(-x)
+(
+exp(x) * exp(2x),
+(x * y)^3,
+sin(-x)
+)
 ```
 
-Functions with no numeric argument stay unevaluated, while exact values at standard
-points are simplified:
-
-```@example tut
-sin(x), sin(Sym(π) / 4), log(Sym(1)), sin(2)
-```
+There are functions to extract and manipulate parts of expressions.
 
 `SymJ.gather` groups the terms of an expression by powers of a variable (SymPy's
 `collect`), and `SymJ.coeff` picks out one coefficient:
 
 ```@example tut
 @syms a b c
-SymJ.gather(a * x^2 + b * x^2 + a * x - b * x + c, x), SymJ.coeff((x + y)^3, x^2)
+ex = a * x^2 + b * x^2 + a * x - b * x + c
 ```
-
-For evaluation, `SymJ.horner` writes a polynomial in nested form, and `SymJ.cse` names
-the subexpressions that occur more than once:
 
 ```@example tut
-SymJ.horner(3x^4 - 2x^3 + x - 7, x), SymJ.cse((x + y)^2 + sin(x + y))
+SymJ.gather(ex, x), SymJ.coeff(ex, x^2)
 ```
 
-`rationalize` replaces the floating-point numbers in an expression by nearby rationals:
+For evaluation, `SymJ.horner` writes a polynomial in nested form, and `SymJ.cse` names the subexpressions that occur more than once:
 
 ```@example tut
-rationalize(0.5x + 1.25)
+(
+SymJ.horner(3x^4 - 2x^3 + x - 7, x),
+SymJ.cse((x + y)^2 + sin(x + y))
+)
 ```
 
-`SymJ.nsimplify` recognizes floats as exact numbers: rationals, algebraic numbers of low
-degree in radicals, and rational combinations of given constants:
-
-```@example tut
-SymJ.nsimplify(0.5x + 1.4142135623730951), SymJ.nsimplify(1.618033988749895), SymJ.nsimplify(2.0943951023931953; constants = [pi])
-```
-
-An expression is a tree: an operation applied to arguments. SymJ implements
-TermInterface, so `operation` and `arguments` take it apart:
-
-```@example tut
-using SymJ: operation, arguments
-F = 9 // 5 * (y - 32)
-operation(F), arguments(F)
-```
 
 ## Substitution
 
@@ -181,7 +221,11 @@ A power, sum or product is also found where it occurs algebraically, not only as
 
 ```@example tut
 @syms w
-subs(exp(x - exp(-x)), exp(-x) => w), subs(x^2 * log(x)^2, x * log(x) => w), subs(2a + 2b + c, a + b => w)
+(
+subs(exp(x - exp(-x)), exp(-x) => w),
+subs(x^2 * log(x)^2, x * log(x) => w),
+subs(2a + 2b + c, a + b => w)
+)
 ```
 
 Calling an expression with pairs does the same:
@@ -204,69 +248,64 @@ lhs(eq), rhs(eq)
 
 ## Numerical evaluation
 
-Calling an expression with a number evaluates it with Julia's arithmetic on that number,
-so the result is a Julia number of the matching type:
+Calling an expression with a number evaluates it with Julia's arithmetic on that number, so the result is a Julia number of the matching type:
 
 ```@example tut
 u = x^2 - 2x + 1
 u(3), u(3.0), u(1 // 3), u(big(2.5))
 ```
 
-Called with no arguments, a constant expression gives its value as a Julia number, exact
-where it can be (`(Sym(1)/2)()` is `1//2`); `SymJ.unwrap_const` is the same as a
-function, for `map`, and leaves expressions with variables alone. `float` gives the
-value as a float:
+Called with no arguments, a constant expression gives its value as a
+Julia number, exact where it can be (`(Sym(1)/2)()` is `1//2`);
+`SymJ.unwrap_const` is the same and can be used with higher-level functions like `map`. This function leaves expressions with variables alone.
+
+`N` is a function which returns a `Float64` value for a numeric expression.
 
 ```@example tut
 map(SymJ.unwrap_const, [Sym(3) / 4, sqrt(Sym(2)), u]), float(Sym(pi) / 4)
 ```
 
-Julia's number types convert a value that fits them, and throw an `InexactError` for
-one that does not: `Int(Sym(3))`, `Rational(Sym(7)/2)`, `BigFloat(Sym(pi))` at the
-current precision. Rounding works as for numbers, with a rounding mode, `digits` or
-`sigdigits` (exactly: a rational), or to an integer type:
+Julia's number types convert a value that fits them, and throw an `InexactError` for one that does not: `Int(Sym(3))`, `Rational(Sym(7)/2)`, `BigFloat(Sym(pi))` at the current precision. Rounding works as for numbers, with a rounding mode, `digits` or `sigdigits` (exactly: a rational), or to an integer type:
 
 ```@example tut
-round(Sym(pi); digits = 2), floor(Int, Sym(7) / 2), round(Sym(5) / 2, RoundNearestTiesAway)
+(
+round(Sym(pi); digits = 2), floor(Int, Sym(7) / 2),
+round(Sym(5) / 2, RoundNearestTiesAway)
+)
 ```
 
-`isreal`, `isfinite`, `isinf` and `isnan` answer `true` only when it is known: `isreal(x)`
-is `false` for a symbol, which is complex unless an enclosing `@assuming` block says
-otherwise (as `isinteger(x)` is `false`). A real expression is finite.
+`isreal`, `isfinite`, `isinf` and `isnan` answer `true` only when it
+is known: `isreal(x)` is `false` for a symbol, which is complex unless
+an enclosing `@assuming` block says otherwise (as `isinteger(x)` is
+`false`). A real expression is finite.
 
-Because the arithmetic is generic, automatic differentiation and other number types work
-through it. An expression can also be broadcast over a collection:
+Because the arithmetic is generic, automatic differentiation and other
+number types work through it. An expression can also be broadcast over
+a collection:
 
 ```@example tut
 u.(0:4)
 ```
 
-With several variables, keywords give their values by name. When every variable has a
-numeric value the result is a Julia number, and otherwise
-the expression with the given values substituted:
+With several variables, keywords give their values by name. When every
+variable has a numeric value the result is a Julia number, and
+otherwise the expression with the given values substituted:
 
 ```@example tut
 ex = a * x^2 + b * x + c
 ex(; x = 2, a = 1, b = -3, c = 2), ex(; x = 2)
 ```
 
-Names that don't appear are ignored, so one set of values can be used for several
-expressions:
+Names that don't appear are ignored, so one set of values can be used
+for several expressions:
 
 ```@example tut
 vals = (; x = 1.5, y = 2.0)
 [e(; vals...) for e in (x + y, x * y, x^y)]
 ```
 
-`N` gives the floating point value of a constant expression, and calling it with no
-arguments gives a Julia number:
 
-```@example tut
-N(sqrt(Sym(2)) + Sym(π)), (Sym(3) // 4)()
-```
-
-Calling interprets the expression each time. For many evaluations, `lambdify` compiles
-it into a Julia function, as fast as one written by hand:
+Calling interprets the expression each time. For many evaluations, `lambdify` compiles it into a Julia function, as fast as one written by hand:
 
 ```@example tut
 g = lambdify(sin(x)^2 + exp(-x / 2), x)
@@ -275,13 +314,22 @@ g(1.0)
 
 ## Plotting
 
-Since an expression in one variable is callable, it can be passed where a function is
-expected, for instance to a plotting package:
+Since an expression in one variable is callable, it can be passed where a function is expected, for instance to a plotting package:
 
 ```julia
 using Plots
 plot(sin(x)^2 * exp(-x / 4), 0, 4pi)
 ```
+
+For plot recipes requiring a multivariate function, a specification of variables might be needed:
+
+
+```julia
+ex = x^2 - 2y^2
+xs = ys = range(-3, 3, 100)
+contour(xs, ys, (x,y) -> ex(; x, y))
+```
+
 
 ## Polynomials
 
@@ -293,8 +341,7 @@ A polynomial expression can be expanded with `expand`:
 p = expand((x - 1) * (x - 2) * (x + 3))
 ```
 
-`Poly` converts an expression into a polynomial in given generators. Its coefficients
-and exponents are available, and `Sym` converts it back:
+`Poly` converts an expression into a sparse, multivariate polynomial in given generators. Its coefficients and exponents are available; `Sym` converts it back to an expression.
 
 ```@example tut
 P = Poly(p, x)
@@ -307,6 +354,8 @@ Other symbols become coefficients:
 Q = Poly(a * x^2 + b * x + c, x)
 coefficients(Q)
 ```
+
+Some evaluations are more performant using the `Poly` type.
 
 ### Evaluation and shifts
 
@@ -336,26 +385,33 @@ The greatest common divisor of polynomials:
 gcd(expand((x - 1)^2 * (x + y)), expand((x - 1) * (x + y)^2))
 ```
 
-`SymJ.decompose` writes a polynomial as a composition of polynomials that do not
-decompose further, `p = g₁(g₂(⋯))`. `solve` uses it: an irreducible polynomial of degree
-above 4 whose components have degree at most 4 has its roots found through them, exactly:
+The least common multiple is implemented in `lcm`.
+
+`SymJ.decompose` writes a polynomial as a composition of polynomials
+that do not decompose further, `p = g₁(g₂(⋯))`. `solve` uses it: an
+irreducible polynomial of degree above 4 whose components have degree
+at most 4 has its roots found through them, exactly:
 
 ```@example tut
 p = expand((x^2 + x)^3 - 2)
 SymJ.decompose(p, x), solve(p ~ 0, x)[1:2]
 ```
 
-`SymJ.minimal_polynomial` gives the irreducible polynomial with integer coefficients
-that an algebraic number is a root of:
+`SymJ.minimal_polynomial` gives the irreducible polynomial with
+integer coefficients that an algebraic number is a root of:
 
 ```@example tut
-SymJ.minimal_polynomial(sqrt(Sym(2)) + sqrt(Sym(3)), x), SymJ.minimal_polynomial(cos(Sym(pi) / 7), x)
+(
+SymJ.minimal_polynomial(sqrt(Sym(2)) + sqrt(Sym(3)), x),
+SymJ.minimal_polynomial(cos(Sym(pi) / 7), x)
+)
 ```
 
 ### Resultants
 
-The resultant of two polynomials in `x` is zero exactly when they have a common root.
-It is a polynomial in the other variables, so it eliminates `x` from a system:
+The resultant of two polynomials in `x` is zero exactly when they have
+a common root. It is a polynomial in the other variables, so it
+eliminates `x` from a system:
 
 ```@example tut
 resultant(x^2 + y^2 - 1, x - y, x)
@@ -370,9 +426,9 @@ discriminant(a*x^2 + b*x + c, x), discriminant(x^3 + a*x + b, x)
 
 ### Gröbner bases
 
-A Gröbner basis of a set of polynomials generates the same ideal and has the same
-common zeros. In the lex order, the default, it is triangular: the last polynomials
-involve only the last variables.
+A Gröbner basis of a set of polynomials generates the same ideal and
+has the same common zeros. In the lex order, the default, it is
+triangular: the last polynomials involve only the last variables.
 
 ```@example tut
 groebner([x^2 + y^2 - 1, x*y - 1//4], x, y)
@@ -384,8 +440,8 @@ The basis is `[1]` exactly when the polynomials have no common zero:
 groebner([x^2 + y^2 - 1, x^2 + y^2 - 4], x, y)
 ```
 
-`reduced` divides by the basis. The remainder is zero exactly when a polynomial is in
-the ideal:
+`reduced` divides by the basis. The remainder is zero exactly when a
+polynomial is in the ideal:
 
 ```@example tut
 G = groebner([x^2 + y^2 - 1, x - y], x, y)
@@ -394,8 +450,9 @@ reduced(x^2 - y^2, G, x, y), reduced(x^3, G, x, y)
 
 ### Roots
 
-`solve` finds the roots of a polynomial. Degrees up to four are solved exactly, with
-real roots of cubics given in trigonometric form (no complex numbers needed):
+We will see more uses later, but `solve` finds the roots of a
+polynomial. Degrees up to four are solved exactly, with real roots of
+cubics given in trigonometric form (no complex numbers needed):
 
 ```@example tut
 solve(p ~ 0, x)
@@ -409,9 +466,14 @@ solve(x^3 - 3x + 1 ~ 0, x)
 solve(x^4 - 10x^2 + 1 ~ 0, x)
 ```
 
-From degree five, an irreducible polynomial generally has no roots in radicals (those in
-special forms, as `x^5 ~ 2`, are still solved exactly), and `solve`, exact only, says so; `SymJ.fsolve` finds the roots numerically, the real ones or,
-with `domain = ℂ`, all of them:
+(Neither of the last two examples can be factored with `factor`, which provides factorization into irreducibles over the rationals.)
+
+From degree five, it is possible there are no roots in
+radicals. Those of special forms, such as `x^5 ~ 2`, are still solved
+exactly by `solve`.
+
+When exact roots aren't identifiable, `SymJ.fsolve` finds the
+roots numerically, the real ones by default (with `domain = ℂ` all of them):
 
 ```@example tut
 SymJ.fsolve(x^5 - x + 1 ~ 0, x), SymJ.fsolve(x^5 - x + 1 ~ 0, x; domain = ℂ)
@@ -430,7 +492,7 @@ cancel(r)
 cancel(1 / x + 1 / (x + 1))
 ```
 
-`numer_denom` gives the numerator and denominator without reducing:
+The `numerator` and `denominator` generics return the top and bottom of a rational expression. The function `numer_denom` gives the numerator and denominator without reducing:
 
 ```@example tut
 numer_denom(r)
@@ -438,7 +500,8 @@ numer_denom(r)
 
 ### Partial fractions
 
-`apart` decomposes a rational function into a polynomial part and simple fractions:
+`apart` decomposes a rational function into a polynomial part and
+simple fractions:
 
 ```@example tut
 apart((x^3 + 1) / (x^2 - 1), x)
@@ -456,29 +519,24 @@ apart(1 / ((x - a) * (x - b)), x)
 
 ## Simplification
 
-Expressions are kept in a canonical form as they are built, but that form does not
-cancel fractions, combine radicals or apply identities that need facts. `simplify`
-tries several transformations and keeps the smallest result:
+Expressions are kept in a canonical form as they are built, but that form does not cancel fractions, combine radicals or apply identities that need facts. `simplify` tries several transformations and keeps the smallest result:
 
 ```@example tut
-simplify((x^2 - 1) / (x - 1)), simplify((x + 1)^2 - x^2), simplify(sqrt(Sym(2)) * sqrt(Sym(3)))
+(simplify((x^2 - 1) / (x - 1)),
+simplify((x + 1)^2 - x^2),
+simplify(sqrt(Sym(2)) * sqrt(Sym(3))))
 ```
 
 ```@example tut
 simplify(x / (x + 1) + 1 / (x + 1)), simplify(x^2 + 2x + 1)
 ```
 
-Identities such as `sqrt(x^2) = x` hold only for some values. Symbols are complex unless
-a fact says otherwise, so these need assumptions:
-
-```@example tut
-simplify(sqrt(x^2)), simplify(sqrt(x^2); assume = @assume(x > 0)), simplify(sqrt(x^2); assume = @assume(x in Reals))
-```
-
 Trigonometric identities are recognised, including multiple angles and sums of angles:
 
 ```@example tut
-simplify(1 - cos(x)^2), simplify(2sin(x) * cos(x)), simplify(sin(x) * cos(y) + cos(x) * sin(y))
+(simplify(1 - cos(x)^2),
+simplify(2sin(x) * cos(x)),
+simplify(sin(x) * cos(y) + cos(x) * sin(y)))
 ```
 
 ```@example tut
@@ -488,26 +546,54 @@ simplify(sin(3x) - 3sin(x) + 4sin(x)^3), simplify(1 / (1 + tan(x)^2))
 Hyperbolic functions are treated the same way, and exponentials combine with both:
 
 ```@example tut
-simplify(cosh(x)^2 - sinh(x)^2), simplify(exp(x) + exp(-x)), simplify(cos(x) + im * sin(x))
+(simplify(cosh(x)^2 - sinh(x)^2),
+simplify(exp(x) + exp(-x)),
+simplify(cos(x) + im * sin(x)))
 ```
 
 ```@example tut
-simplify(1 - tanh(x)^2), simplify(1 + tan(x)^2), simplify(cosh(x) / sinh(x))
+(simplify(1 - tanh(x)^2),
+simplify(1 + tan(x)^2),
+simplify(cosh(x) / sinh(x)))
 ```
 
 Logarithms combine and radicals denest; with symbols, where the assumptions allow:
 
 ```@example tut
-simplify(log(Sym(2)) + log(Sym(3))), simplify(sqrt(3 + 2sqrt(Sym(2)))), simplify(1 / (1 + sqrt(Sym(2))))
+(
+simplify(log(Sym(2)) + log(Sym(3))),
+simplify(sqrt(3 + 2sqrt(Sym(2)))),
+simplify(1 / (1 + sqrt(Sym(2))))
+)
 ```
+
+### Assumptions
+
+Identities such as `sqrt(x^2) = x` hold only for some values.
+In most uses, symbolic variables are complex unless the assumptions say otherwise, so without them only the identities that hold for complex numbers apply. Assumptions can be given to a function call to change this behavior. Facts are specified through assumptions, which are passed to the `assume` keyword argument. In the following, we use the `@assume` macro which affords a more familiar syntax (`x > 0` evaluates to a `Bool`, but in the macro is the same as the symbolic statement `x ≫ 0`).
 
 ```@example tut
-simplify(log(x) + log(y); assume = @assume(x > 0, y > 0)), simplify(sqrt(x^2 + 2x + 1); assume = @assume(x > -1))
+(
+simplify(sqrt(x^2)),
+simplify(sqrt(x^2); assume = @assume(x > 0)),     # or assume = (x ≫ 0)
+simplify(sqrt(x^2); assume = @assume(x in Reals)) # or assume = (x ∈ ℝ)
+)
 ```
 
-`real`, `imag`, `conj` and `angle` evaluate constants exactly; for symbols, which are
-complex, they take apart what holds for every value, and `refine` does the rest under
-assumptions:
+The Unicode shortcut `ℝ` (`\bbR<tab>`) can be used instead of the named domain, as can shortcuts for other elements of `SymJ.NumberSet`: `Integers, Rationals, and Complexes`.
+
+
+
+```@example tut
+(
+simplify(log(x) + log(y); assume = @assume(x > 0, y > 0)),
+simplify(sqrt(x^2 + 2x + 1); assume = @assume(x > -1))
+)
+```
+
+`real`, `imag`, `conj` and `angle` evaluate constants exactly; for
+symbols, which are complex, they take apart what holds for every
+value, and `refine` does the rest under assumptions:
 
 ```@example tut
 real(Sym(2) + 3im), conj(x + im), refine(real(exp(im * x)); assume = @assume(x in Reals))
@@ -517,58 +603,84 @@ real(Sym(2) + 3im), conj(x + im), refine(real(exp(im * x)); assume = @assume(x i
 
 ```@example tut
 @syms n
-refine(log(exp(x)); assume = @assume(x in Reals)), refine(sin(x + 2n*Sym(π)); assume = @assume(n in Integers))
+(
+refine(log(exp(x)); assume = @assume(x in Reals)),
+refine(sin(x + 2n*Sym(π)); assume = @assume(n in Integers))
+)
 ```
 
-The transformations `simplify` tries are also available on their own, unexported:
-`SymJ.simplify_rational`, `SymJ.simplify_powers`, `SymJ.simplify_trig`,
-`SymJ.simplify_hyperbolic`, `SymJ.simplify_log`, `SymJ.simplify_radicals` and
-`SymJ.simplify_gamma`. The last combines factorials, binomials and gamma functions whose
-arguments differ by integers, and writes factorial ratios as binomials:
+### More fine-grained simplification
+
+The transformations `simplify` tries are also available on their own,
+unexported: `SymJ.simplify_rational`, `SymJ.simplify_powers`,
+`SymJ.simplify_trig`, `SymJ.simplify_hyperbolic`, `SymJ.simplify_log`,
+`SymJ.simplify_radicals` and `SymJ.simplify_gamma`. The last combines
+factorials, binomials and gamma functions whose arguments differ by
+integers, and writes factorial ratios as binomials:
 
 ```@example tut
 @syms k
-SymJ.simplify_gamma(factorial(n + 2) / factorial(n)), SymJ.simplify_gamma(binomial(n + 1, k) / binomial(n, k)), SymJ.simplify_gamma(factorial(n) / (factorial(k) * factorial(n - k)))
+(
+SymJ.simplify_gamma(factorial(n + 2) / factorial(n)),
+SymJ.simplify_gamma(binomial(n + 1, k) / binomial(n, k)),
+SymJ.simplify_gamma(factorial(n) / (factorial(k) * factorial(n - k)))
+)
 ```
 
 With SpecialFunctions' `gamma` it also applies the reflection formula
 (`gamma(x)gamma(1 - x) = π/sin(πx)`) and the duplication formula.
 
-Expansion goes the other way. `SymJ.expand_trig` writes trigonometric and hyperbolic
-functions of sums and integer multiples through functions of the terms:
+
+Expansion goes the other way. `SymJ.expand_trig` writes trigonometric
+and hyperbolic functions of sums and integer multiples through
+functions of the terms:
 
 ```@example tut
-SymJ.expand_trig(sin(x + y)), SymJ.expand_trig(cos(3x)), SymJ.expand_trig(tan(2x))
+(
+SymJ.expand_trig(sin(x + y)),
+SymJ.expand_trig(cos(3x)),
+SymJ.expand_trig(tan(2x))
+)
 ```
 
-`SymJ.rewrite(ex, target)` writes the functions of an expression through another one:
-trigonometric and hyperbolic functions through `exp`, inverse ones through `log`,
-`tan` and `sec` through `sin` and `cos`, exponentials with imaginary parts through `cos`
-and `sin`, factorials through `gamma` and back. `fs => target` rewrites only the
+`SymJ.rewrite(ex, target)` writes the functions of an expression
+through another one: trigonometric and hyperbolic functions through
+`exp`, inverse ones through `log`, `tan` and `sec` through `sin` and
+`cos`, exponentials with imaginary parts through `cos` and `sin`,
+factorials through `gamma` and back. `fs => target` rewrites only the
 functions `fs`:
 
 ```@example tut
-SymJ.rewrite(sin(x), exp), SymJ.rewrite(exp(im * x), cos), SymJ.rewrite(asinh(x), log), SymJ.rewrite(tan(x) + cos(x), tan => sin)
+(
+SymJ.rewrite(sin(x), exp),
+SymJ.rewrite(exp(im * x), cos),
+SymJ.rewrite(asinh(x), log),
+SymJ.rewrite(tan(x) + cos(x), tan => sin)
+)
 ```
 
-`SymJ.expand_log` splits logarithms of products and powers where the assumptions allow
-it; `force = true` takes every base as positive:
+`SymJ.expand_log` splits logarithms of products and powers where the assumptions allow it; `force = true` takes every base as positive:
 
 ```@example tut
-SymJ.expand_log(log(x^2 * y); assume = @assume(x > 0, y > 0)), SymJ.expand_log(log(x * y)), SymJ.expand_log(log(x / y); force = true)
+(
+SymJ.expand_log(log(x^2 * y); assume = @assume(x > 0, y > 0)),
+SymJ.expand_log(log(x * y)),
+SymJ.expand_log(log(x / y); force = true)
+)
 ```
 
 ## Solving equations
 
-An equation is written with `~`, which binds more loosely than everything else, so no
-parentheses are needed:
+An equation is written with `~`:
 
 ```@example tut
 solve(x^2 + 2x ~ 3, x)
 ```
 
-Equations in which `x` appears through one function are solved by solving for that
-function first:
+This infix operator binds more loosely than everything else, so no
+parentheses are typically needed. Answers to `solve(eqn, var)` are usually a vector of `Sym` values, empty when there are no identified solutions, or `Cases` when the answer depends on the values of the parameters.
+
+Equations in which `x` appears through one function are solved by solving for that function first:
 
 ```@example tut
 solve(exp(2x) - 3exp(x) + 2 ~ 0, x)
@@ -578,31 +690,37 @@ solve(exp(2x) - 3exp(x) + 2 ~ 0, x)
 solve(sqrt(x + 1) ~ x - 1, x)
 ```
 
-Several logarithms of the unknown are combined; roots where a logarithm would be complex
-(here `x = -2`) are dropped:
+Several logarithms of the unknown are combined; roots where a logarithm would be complex (here `x = -2`) are dropped:
 
 ```@example tut
 solve(log(x) + log(x - 1) ~ log(Sym(6)), x)
 ```
 
-A product is zero where one of its factors is, so a product (or a sum with a common
-factor) is solved factor by factor. A factor that is never zero, such as `(a/x)^x`,
-gives no roots, and a root where another factor is undefined is dropped (`x*log(x)` has
-none at `0`). This finds critical points:
+A product is zero where one of its factors is, so a product (or a sum
+with a common factor) is solved factor by factor. A factor that is
+never zero, such as `(a/x)^x`, gives no roots, and a root where
+another factor is undefined is dropped (`x*log(x)` none at `0`).
 
 ```@example tut
-solve(diff((a / x)^x, x) ~ 0, x), solve(diff(x^2 * exp(-x), x) ~ 0, x), solve(x * log(x) ~ 0, x)
+solve(x * log(x) ~ 0, x)
 ```
 
-Some equations need the Lambert W function:
+This example shows how to find critical points:
+
+```@example tut
+solve(diff((a / x)^x, x) ~ 0, x), solve(diff(x^2 * exp(-x), x) ~ 0, x)
+```
+
+Some equations need the Lambert W function, from the
+[LambertW](https://github.com/jlapeyre/LambertW.jl) package:
 
 ```@example tut
 solve(x * exp(x) ~ 1, x)
 ```
 
-Symbols other than the unknown are allowed. They take generic values: an expression in
-them alone is taken to be nonzero, so the quadratic formula comes out as it is usually
-written:
+Symbols other than the unknown are allowed.
+
+Such symbols take *generic values*: an expression in them alone is taken to be nonzero, so the quadratic formula comes out as it is usually written:
 
 ```@example tut
 solve(a * x^2 + b * x + c ~ 0, x)
@@ -615,15 +733,14 @@ solve(a * x^2 + b * x + c ~ 0, x; assume = @assume(a == 0))
 ```
 
 A symbolic exponent gives the principal root only. `x^n = 1` has `n` roots for a
-positive integer `n`, but their number depends on `n`, so with `n` symbolic the answer
-is the principal one:
+positive integer `n`, but their number depends on `n`, so with `n` symbolic the answer is the principal one:
 
 ```@example tut
 @syms n
 solve(x^n ~ 1, x; assume = @assume(n in Integers, n > 0))
 ```
 
-With a number for `n`, all of them:
+With a number for `n`, all of them are identified:
 
 ```@example tut
 solve(x^3 ~ 1, x)
@@ -631,9 +748,7 @@ solve(x^3 ~ 1, x)
 
 ### Inequalities
 
-`<` and its relatives compare numbers and return `true` or `false`, so inequalities use
-other operators: `≪` (typed `\ll`), `≦` (`\leqq`), `≫` (`\gg`), `≧` (`\geqq`) and `≶`
-(`\lessgtr`). The solution is a union of intervals:
+`<` and its relatives compare numbers and return `true` or `false`, so inequalities use other operators: `≪` (typed `\ll`), `≦` (`\leqq`), `≫` (`\gg`), `≧` (`\geqq`) and `≶` (`\lessgtr`). The solution is a union of intervals:
 
 ```@example tut
 solve(x^2 - 1 ≫ 0, x)
@@ -645,8 +760,7 @@ solve((x - 1) / (x + 2) ≧ 0, x)
 
 ### Systems
 
-A system of equations gives a vector of solutions, each a `Dict` from the unknowns to
-their values. A linear system has at most one:
+A system of equations gives a vector of solutions, each a `Dict` from the unknowns to their values. A linear system's answer is a single solution (possibly in terms of free unknowns), yet a vector is returned:
 
 ```@example tut
 solve([x + y ~ 3, x - y ~ 1], [x, y])
@@ -675,20 +789,15 @@ With infinitely many solutions, the unknowns left free map to themselves:
 solve([x^2 + y^2 ~ 1], [x, y])
 ```
 
-A system of linear inequalities gives a description of the region, each unknown between
-bounds in the ones after it:
+A system of linear inequalities gives a description of the region, each unknown between bounds in the ones after it:
 
 ```@example tut
 solve([x ≧ 0, y ≧ 0, x + y ≦ 1], [x, y])
 ```
 
-### Assumptions
+### More on assumptions
 
-Symbols are complex numbers unless a fact says otherwise. Facts are relations, such as
-`x > 0`, or membership in one of `Integers ⊂ Rationals ⊂ Reals ⊂ Complexes` (also
-written `ℤ ⊂ ℚ ⊂ ℝ ⊂ ℂ`), such as `n in Integers`. The `@assume` macro writes them with
-Julia's operators, including `&&`, `||`, `!` and chained comparisons. They are given to
-`solve` with the `assume` keyword, and only the solutions they allow are kept:
+Symbols are complex numbers unless a fact says otherwise. Facts are relations, such as `x > 0`, or membership in one of `Integers ⊂ Rationals ⊂ Reals ⊂ Complexes` (also written `ℤ ⊂ ℚ ⊂ ℝ ⊂ ℂ`), such as `n in Integers`. The `@assume` macro writes them with Julia's operators, including `&&`, `||`, `!` and chained comparisons. They are given to `solve` with the `assume` keyword, and only the solutions they allow are kept:
 
 ```@example tut
 solve(x^2 ~ 4, x; assume = @assume(x > 0))
@@ -698,15 +807,15 @@ solve(x^2 ~ 4, x; assume = @assume(x > 0))
 solve(x^2 + 1 ~ 0, x; assume = @assume(x in Reals))
 ```
 
-Without the macro, relations use the symbolic operators: `x ≫ 0` (or `Gt(x, 0)`), and
-`n ∈ ℤ` for membership.
+Without the macro, relations use the symbolic operators: `x ≫ 0` (or
+`Gt(x, 0)`), and `n ∈ ℤ` for membership.
 
 ```@example tut
 solve(x^2 ~ 2, x; assume = (x ∈ ℚ,))
 ```
 
-`@assuming` gives facts for a block of code (as does the function `assuming`, with a
-`do` block):
+`@assuming` gives facts for a block of code (as does the function
+`assuming`, with a `do` block):
 
 ```@example tut
 @assuming x > 0 begin
@@ -714,12 +823,14 @@ solve(x^2 ~ 2, x; assume = (x ∈ ℚ,))
 end
 ```
 
-The facts are read by the operations that take `assume` (`refine`, `simplify`, `solve`,
-`limit`, …), not by arithmetic: an expression is built the same way inside a block as
-outside it, so it never depends on the facts in force. `(a^4)^(3/4)` is not `a^3` for
-every `a` (it is `1` at `a = -1` and at `a = im`), so `16(a^4)^(3/4)/(9a^2)` keeps
-`(a^4)^(3/4)` even with `a > 0` assumed; `simplify` or `refine` in the block applies
-the facts, and `refine = true` refines the block's value with them:
+The facts are read by the operations that take `assume` (`refine`,
+`simplify`, `solve`, `limit`, …), not by arithmetic: an expression is
+built the same way inside a block as outside it, so it never depends
+on the facts in force. `(a^4)^(3/4)` is not `a^3` for every `a` (it is
+`1` at `a = -1` and at `a = im`), so `16(a^4)^(3/4)/(9a^2)` keeps
+`(a^4)^(3/4)` even with `a > 0` assumed; `simplify` or `refine` in the
+block applies the facts, and `refine = true` refines the block's value
+with them:
 
 ```@example tut
 @assuming a > 0 begin
@@ -733,6 +844,8 @@ end
     16(a^4)^(3//4) / (9a^2)
 end
 ```
+
+#### Cases
 
 When the answer depends on something the facts leave open, the result lists the cases:
 
@@ -752,14 +865,16 @@ Calling the cases with a value gives the answer for it:
 cs(a => 4), cs(a => -1)
 ```
 
-Contradictory facts are an error (`@assume(x > 1 && x < 0)`), and the `Assumptions`
-value `@assume` makes can be reused: `A = @assume(x > 0, n in Integers)`, then
-`assume = A`.
+Contradictory facts are an error (`@assume(x > 1 && x < 0)`), and the
+`Assumptions` value `@assume` makes can be reused: `A = @assume(x > 0,
+n in Integers)`, then `assume = A`.
 
-The real roots of a polynomial with rational coefficients can be found numerically,
-with certainty, when the closed form is unwieldy (`solve` gives this cubic's roots
-through complex cube roots). `SymJ.real_roots` gives them correctly rounded, each repeated
-by its multiplicity, and `SymJ.root_intervals` exact isolating intervals:
+The real roots of a polynomial with rational coefficients can be found
+numerically, with certainty, when the closed form is unwieldy (`solve`
+gives this cubic's roots through complex cube
+roots). `SymJ.real_roots` gives them correctly rounded, each repeated
+by its multiplicity, and `SymJ.root_intervals` exact isolating
+intervals:
 
 ```@example tut
 SymJ.real_roots(x^3 - 2x - 5, x), SymJ.real_roots((x - 1)^2 * (x^2 - 2), x)
@@ -769,31 +884,38 @@ SymJ.real_roots(x^3 - 2x - 5, x), SymJ.real_roots((x - 1)^2 * (x^2 - 2), x)
 SymJ.root_intervals(x^2 - 2, x; width = 1 // 100)
 ```
 
-For an equation `solve` cannot solve exactly, `SymJ.fsolve` (as Maple's) finds its
-roots numerically: the real ones, on the whole line or an interval, and with
-`domain = ℂ` complex ones too.
+For an equation `solve` cannot solve exactly, `SymJ.fsolve` (with name
+and functionality mirroring Maple's function) finds its roots numerically: the
+real ones, on the whole line or an interval, and with `domain = ℂ`
+complex ones too.
 
 ```@example tut
 SymJ.fsolve(cos(x) ~ x, x), SymJ.fsolve(log(x) + sin(x) ~ 1, x, (0, 4))
 ```
 
-The packages for numerical root finding also take SymJ expressions as they are, since an
-expression is callable (`lambdify` makes a faster function): `Roots.find_zero(cos(x) - x,
-0.5)`, or with Newton's method and the exact derivative, `find_zero((lambdify(f, x),
-lambdify(diff(f, x), x)), x0, Roots.Newton())`.
+### External zero finding
+
+The packages for numerical root finding also take SymJ expressions as
+they are, since an expression is callable (`lambdify` makes a faster
+function): `Roots.find_zero(cos(x) - x, 0.5)`, or with Newton's method
+and the exact derivative, `find_zero((lambdify(f, x), lambdify(diff(f,
+x), x)), x0, Roots.Newton())`.
 
 ## Sums
 
-`SymJ.summation(f, k, a, b)` (not exported) sums `f` over `k = a, …, b`, in closed form
-where it finds one; `b` may be `Inf`:
+`SymJ.summation(f, (k, a, b))` (not exported) sums `f` over `k = a, …, b`, in closed form where it finds one; `b` may be `Inf`:
 
 ```@example tut
 @syms k n r
-SymJ.summation(k^2, k, 1, n), SymJ.summation(r^k, k, 0, n), SymJ.summation(1 / (k * (k + 1)), k, 1, n)
+(
+SymJ.summation(k^2, (k, 1, n)),
+SymJ.summation(r^k, (k, 0, n)),
+SymJ.summation(1 / (k * (k + 1)), (k, 1, n))
+)
 ```
 
 ```@example tut
-SymJ.summation(1 / k^2, k, 1, Inf), SymJ.summation(x^k / factorial(k), k, 0, Inf)
+SymJ.summation(1 / k^2, (k, 1, Inf)), SymJ.summation(x^k / factorial(k), (k, 0, Inf))
 ```
 
 Definite sums of binomials, which have no antidifference, come from Zeilberger's
@@ -801,53 +923,55 @@ algorithm:
 
 ```@example tut
 @syms m
-SymJ.summation(binomial(n, k)^2, k, 0, n), SymJ.summation(binomial(n, k) * binomial(m, n - k), k, 0, n)
+(
+SymJ.summation(binomial(n, k)^2, (k, 0, n)),
+SymJ.summation(binomial(n, k) * binomial(m, n - k), (k, 0, n))
+)
 ```
 
-When Zeilberger's recurrence is of higher order, its hypergeometric solutions (found by
-Petkovšek's algorithm Hyper) may still give the sum; here Binet's formula for the
-Fibonacci numbers:
+When Zeilberger's recurrence is of higher order, its hypergeometric solutions (found by Petkovšek's algorithm Hyper) may still give the sum; here Binet's formula for the Fibonacci numbers:
 
 ```@example tut
-SymJ.summation(binomial(n - k, k), k, 0, n)
+SymJ.summation(binomial(n - k, k), (k, 0, n))
 ```
 
 Bounds other than the summand's own give an inhomogeneous recurrence, solved as well:
 
 ```@example tut
-SymJ.summation(binomial(n, k), k, 0, n - 1), SymJ.summation(binomial(2n, k), k, 0, n)
+SymJ.summation(binomial(n, k), (k, 0, n - 1)), SymJ.summation(binomial(2n, k), (k, 0, n))
 ```
 
-The same algorithm solves linear recurrences, `SymJ.rsolve` (not exported), from initial
-values or in terms of them:
+The same algorithm solves linear recurrences, `SymJ.rsolve` (not exported), from initial values or in terms of them:
 
 ```@example tut
 @syms w()
-SymJ.rsolve(w(n + 2) ~ w(n + 1) + w(n), w(n), w(0) => 0, w(1) => 1), SymJ.rsolve(w(n + 1) ~ 2w(n) + 1, w(n))
+(SymJ.rsolve(w(n + 2) ~ w(n + 1) + w(n), w(n), w(0) => 0, w(1) => 1),
+SymJ.rsolve(w(n + 1) ~ 2w(n) + 1, w(n)))
 ```
 
-When a recurrence has too few hypergeometric solutions, its order is reduced through
-one of them; the solutions are then iterated sums of hypergeometric terms (harmonic
-numbers, or a `Sum` that does not close), and the right side may be any function of
-`n`:
+When a recurrence has too few hypergeometric solutions, its order is
+reduced through one of them; the solutions are then iterated sums of
+hypergeometric terms (harmonic numbers, or a `Sum` that does not
+close), and the right side may be any function of `n`:
 
 ```@example tut
-SymJ.rsolve(w(n + 1) - w(n) ~ 1 / (n + 1), w(n), w(0) => 0), SymJ.rsolve(w(n + 1) ~ (n + 1) * w(n) + 1, w(n), w(0) => 1)
+(
+SymJ.rsolve(w(n + 1) - w(n) ~ 1 / (n + 1), w(n), w(0) => 0),
+SymJ.rsolve(w(n + 1) ~ (n + 1) * w(n) + 1, w(n), w(0) => 1))
+
 ```
 
 ```@example tut
-SymJ.summation((-1)^(k + 1) * binomial(n, k) / k, k, 1, n)
+SymJ.summation((-1)^(k + 1) * binomial(n, k) / k, (k, 1, n))
 ```
 
-Solutions that are hypergeometric only on every second (or `m`-th) term are found too,
-as piecewise functions of `mod(n, m)`:
+Solutions that are hypergeometric only on every second (or `m`-th) term are found too, as piecewise functions of `mod(n, m)`:
 
 ```@example tut
-SymJ.summation((-1)^k * binomial(n, k)^2, k, 0, n)
+SymJ.summation((-1)^k * binomial(n, k)^2, (k, 0, n))
 ```
 
-With no closed form, `rsolve` returns the recurrence itself, which is evaluated at
-integers by unrolling it:
+With no closed form, `rsolve` returns the recurrence itself, which is evaluated at integers by unrolling it:
 
 ```@example tut
 F = SymJ.rsolve((n + 2)^2 * w(n + 2) - (7n^2 + 21n + 16) * w(n + 1) - 8(n + 1)^2 * w(n) ~ 0, w(n), w(0) => 1, w(1) => 2)
@@ -860,31 +984,34 @@ F = SymJ.rsolve((n + 2)^2 * w(n + 2) - (7n^2 + 21n + 16) * w(n + 1) - 8(n + 1)^2
 Harmonic numbers times a term that has an antidifference are summed by parts:
 
 ```@example tut
-SymJ.summation(k * SymJ.harmonic(k), k, 1, n)
+SymJ.summation(k * SymJ.harmonic(k), (k, 1, n))
 ```
 
 `SymJ.harmonic(n, m)` is the generalized harmonic number `1 + 1/2^m + ... + 1/n^m`:
 
 ```@example tut
-SymJ.summation(1 / k^2, k, 1, n), SymJ.summation(SymJ.harmonic(k) / k, k, 1, n)
+(
+SymJ.summation(1 / k^2, (k, 1, n)),
+SymJ.summation(SymJ.harmonic(k) / k, (k, 1, n))
+)
 ```
 
-Whether a series converges can depend on a parameter; the answer then has cases, which
-assumptions settle:
+Whether a series converges can depend on a parameter; the answer then
+has cases, which assumptions settle:
 
 ```@example tut
-SymJ.summation(r^k, k, 0, Inf)
+SymJ.summation(r^k, (k, 0, Inf))
 ```
 
 ```@example tut
-SymJ.summation(k * r^k, k, 0, Inf; assume = @assume(0 < r < 1))
+SymJ.summation(k * r^k, (k, 0, Inf); assume = @assume(0 < r < 1))
 ```
 
 ## Matrices
 
-Matrices of expressions are Julia arrays of `Sym`. With `LinearAlgebra`, `det`, `inv`,
-`lu` and `\` work exactly, pivoting on the first nonzero entry rather than comparing
-magnitudes:
+Matrices of expressions are Julia arrays of `Sym`. With
+`LinearAlgebra`, `det`, `inv`, `lu` and `\` work exactly, pivoting (for exact entries) on
+the first nonzero entry rather than comparing magnitudes:
 
 ```@example tut
 using LinearAlgebra
@@ -902,8 +1029,9 @@ F.L, F.U
 A \ [x, y]
 ```
 
-Row reduction (`SymJ.rref`, not exported, as it is not a LinearAlgebra function), rank,
-null spaces, and eigenvalues (with multiplicity) and eigenvectors:
+Row reduction (`SymJ.rref`, not exported, as it is not a LinearAlgebra
+function), rank, null spaces, and eigenvalues (with multiplicity) and
+eigenvectors:
 
 ```@example tut
 SymJ.rref(Sym[1 2 3; 4 5 6; 7 8 9]), nullspace(Sym[1 2 3; 4 5 6; 7 8 9])
@@ -913,16 +1041,22 @@ SymJ.rref(Sym[1 2 3; 4 5 6; 7 8 9]), nullspace(Sym[1 2 3; 4 5 6; 7 8 9])
 eigvals(Sym[1 2; 3 4]), eigvecs([a b; b a])
 ```
 
-`dot` and `norm` work entry by entry. Symbols are complex, so `dot` conjugates its first
-argument; for real symbols, `refine` under the assumptions removes the conjugates:
+`dot` and `norm` work entry by entry. Symbols are complex, so `dot`
+conjugates its first argument; for real symbols, `refine` under the
+assumptions removes the conjugates:
 
 ```@example tut
 u = [x, y, 1]
-dot(u, [1, 2, 3]), norm(u), refine(dot(u, u); assume = @assume(x in Reals, y in Reals))
+(
+dot(u, [1, 2, 3]),
+norm(u),
+refine(dot(u, u); assume = @assume(x in Reals, y in Reals))
+)
 ```
 
-QR factorization by exact Gram–Schmidt, and functions of matrices through the Jordan
-form (`SymJ.jordan_form`), such as the exponential that solves `x' = A x`:
+QR factorization by exact Gram–Schmidt, and functions of matrices
+through the Jordan form (`SymJ.jordan_form`), such as the exponential
+that solves `x' = A x`:
 
 ```@example tut
 Q, R = qr(Sym[3 1; 4 2])
@@ -954,10 +1088,11 @@ det([x 1; 1 x] - λ * I(2))
 
 ## Piecewise functions
 
-`SymJ.piecewise(c₁ => v₁, c₂ => v₂, …)` (not exported) is the value of the first piece
-whose condition holds; a condition is a relation, a tuple of relations that all hold, or
-`true`. It is an expression like any other: substitution picks a piece, and `diff`,
-`limit`, `refine` and `lambdify` take it piece by piece:
+`SymJ.piecewise(c₁ => v₁, c₂ => v₂, …)` (not exported) is the value of
+the first piece whose condition holds; a condition is a relation, a
+tuple of relations that all hold, or `true`. It is an expression like
+any other: substitution picks a piece, and `diff`, `limit`, `refine`
+and `lambdify` take it piece by piece:
 
 ```@example tut
 pw = SymJ.piecewise(x ≪ 0 => -x, (0 ≦ x, x ≪ 1) => x^2, true => 1)
@@ -968,17 +1103,19 @@ pw, pw(x => -2), diff(pw, x)
 limit(pw, x => 0), limit(pw, x => 1; dir = :-)
 ```
 
-The unit step `SymJ.heaviside` (½ at 0) and the delta `SymJ.dirac` are its derivative
-pair; `SymJ.piecewise(ex)` writes `heaviside`, `sign`, `abs`, `max` and `min` as pieces:
+The unit step `SymJ.heaviside` (½ at 0) and the delta `SymJ.dirac` are
+its derivative pair; `SymJ.piecewise(ex)` writes `heaviside`, `sign`,
+`abs`, `max` and `min` as pieces:
 
 ```@example tut
 H = SymJ.heaviside
 diff(H(x - 1), x), SymJ.piecewise(abs(x - 1))
 ```
 
-`SymJ.piecewise_fold` combines piecewise functions in a sum, product or other
-expression into one, merging neighbouring pieces that agree; `simplify` does it when
-the result is smaller (a definite integral with a parameter gives such sums):
+`SymJ.piecewise_fold` combines piecewise functions in a sum, product
+or other expression into one, merging neighbouring pieces that agree;
+`simplify` does it when the result is smaller (a definite integral
+with a parameter gives such sums):
 
 ```@example tut
 SymJ.piecewise_fold(abs(x) + abs(x - 1), x)
@@ -993,9 +1130,9 @@ SymJ.piecewise_fold(abs(x - a) + abs(x - b), x)
 
 ## Limits
 
-`limit(f, x => x0)` is the limit of `f` as `x` tends to `x0`, a number, an expression or
-`Inf`. It is computed by Gruntz's algorithm, through GruntzLimit. An infinite limit is
-`Sym(Inf)` or `Sym(-Inf)`:
+`limit(f, x => x0)` is the limit of `f` as `x` tends to `x0`, a
+number, an expression or `Inf`. It is computed by Gruntz's algorithm,
+through GruntzLimit. An infinite limit is `Sym(Inf)` or `Sym(-Inf)`:
 
 ```@example tut
 limit(sin(x) / x, x => 0)
@@ -1004,6 +1141,8 @@ limit(sin(x) / x, x => 0)
 ```@example tut
 limit((1 + 1 / x)^x, x => Inf), limit(x * ((1 + 1 / x)^x - ℯ), x => Inf)
 ```
+
+Using symbolic numbers is important in many limits.
 
 ```@example tut
 limit((sin(x) - sin(Sym(π) / 6)) / (x - Sym(π) / 6), x => Sym(π) / 6)
@@ -1014,6 +1153,9 @@ The limit is two-sided unless `dir = :+` or `dir = :-` asks for a one-sided one:
 ```@example tut
 limit(x * exp(1 / x), x => 0; dir = :-), limit(x^x, x => 0; dir = :+)
 ```
+
+All of `-`, `:-`, `"-"`, `"+"`, `:+`, and `+` can be used to specify a one-sided direction.
+
 
 The algorithm handles cancellations that numerical evaluation cannot follow:
 
@@ -1027,8 +1169,8 @@ Other symbols may appear:
 limit((1 + a / x)^(b * x), x => Inf)
 ```
 
-The other symbols are taken to be real numbers. When the limit depends on their values,
-`limit` gives it for each case:
+The other symbols are taken to be real numbers. When the limit depends
+on their values, `limit` gives it for each case:
 
 ```@example tut
 limit(x^a, x => Inf)
@@ -1037,13 +1179,15 @@ limit(x^a, x => Inf)
 Assumptions, as in the section on solving, settle cases:
 
 ```@example tut
-limit(x^a, x => Inf; assume = @assume(a > 1)), limit((a^x + b^x)^(1 / x), x => Inf; assume = @assume(a > b > 0))
+(
+limit(x^a, x => Inf; assume = @assume(a > 1)),
+limit((a^x + b^x)^(1 / x), x => Inf; assume = @assume(a > b > 0))
+)
 ```
 
 ## Derivatives
 
-`diff(f, x)` differentiates with respect to `x`, and `diff(f, x, n)` gives the `n`-th
-derivative:
+`diff(f, x)` differentiates with respect to `x`, and `diff(f, x, n)` gives the `n`-th derivative:
 
 ```@example tut
 diff(sin(x)^2 * exp(x), x)
@@ -1053,11 +1197,14 @@ diff(sin(x)^2 * exp(x), x)
 diff(x^x, x), diff(atan(x), x, 3)
 ```
 
-Mixed partial derivatives take the variables in order: `diff(f, x, y)` differentiates
-with respect to `x`, then `y`:
+Mixed partial derivatives take the variables in order: `diff(f, x, y)` differentiates with respect to `x`, then `y`:
 
 ```@example tut
-diff(x^3 * y^2, x, y), diff(sin(x * y), x, y), diff(x^2 * y * z, x, x, y, z)
+(
+diff(x^3 * y^2, x, y),
+diff(sin(x * y), x, y),
+diff(x^2 * y * z, x, x, y, z)
+)
 ```
 
 A symbolic function gives an unevaluated derivative:
@@ -1066,8 +1213,7 @@ A symbolic function gives an unevaluated derivative:
 diff(f(x^2), x)
 ```
 
-For implicit differentiation, write `y` as a function `u(x)`, differentiate, and solve
-for the derivative:
+For implicit differentiation, write `y` as a function `u(x)`, differentiate, and solve for the derivative:
 
 ```@example tut
 @syms u()
@@ -1075,10 +1221,9 @@ F = x^2 + u(x)^2 - 1
 solve(diff(F, x) ~ 0, diff(u(x), x))
 ```
 
-### Critical points
+### Example: critical points
 
-The critical points of a function are the zeros of its derivative, and the second
-derivative classifies them:
+The critical points of a function are the zeros of its derivative, and the second derivative classifies them:
 
 ```@example tut
 h = x^3 - 6x^2 + 9x + 1
@@ -1092,7 +1237,7 @@ h2 = diff(h, x, 2)
 
 So 1 is a local maximum and 3 a local minimum.
 
-### Tangent lines
+### Example: tangent lines
 
 The tangent line at `c` is `h(c) + h'(c)(x - c)`:
 
@@ -1103,8 +1248,7 @@ expand(h(c₀) + diff(h, x)(c₀) * (x - c₀))
 
 ## Series
 
-`series(ex, x, x0, n)` expands `ex` about `x0` with an error of order `(x - x0)^n`;
-`x0` defaults to 0 and `n` to 6:
+`series(ex, x, x0, n)` expands `ex` about `x0` with an error of order `(x - x0)^n`; `x0` defaults to 0 and `n` to 6:
 
 ```@example tut
 series(sin(x), x)
@@ -1114,8 +1258,7 @@ series(sin(x), x)
 series(exp(x), x, 1, 3)
 ```
 
-Laurent series (negative powers), Puiseux series (fractional powers), logarithmic terms
-and expansions at infinity (in powers of `1/x`) are included:
+Laurent series (negative powers), Puiseux series (fractional powers), logarithmic terms and expansions at infinity (in powers of `1/x`) are included:
 
 ```@example tut
 series(cot(x), x, 0, 4), series(sqrt(x + x^2), x, 0, 3)
@@ -1125,30 +1268,41 @@ series(cot(x), x, 0, 4), series(sqrt(x + x^2), x, 0, 3)
 series(x^x, x, 0, 3), series(sqrt(x^2 + x), x, Inf, 3)
 ```
 
-At `±Inf` an expansion may need a factor that is not a power of `x`: terms
-`exp(g)*(series)`, `cos(h)*(series)` and `sin(h)*(series)`, from `exp`, `sin` and `cos`
-of growing arguments and from the asymptotic expansions of SpecialFunctions' `erf`,
-`erfc`, `erfi`, `erfcx`, `expinti`, `expint`, `sinint`, `cosint`, the Bessel functions
-and `gamma` (Stirling's series). Factors that cancel do cancel:
+At `±Inf` an expansion may need a factor that is not a power of `x`:
+terms `exp(g)*(series)`, `cos(h)*(series)` and `sin(h)*(series)`, from
+`exp`, `sin` and `cos` of growing arguments and from the asymptotic
+expansions of SpecialFunctions' `erf`, `erfc`, `erfi`, `erfcx`,
+`expinti`, `expint`, `sinint`, `cosint`, the Bessel functions and
+`gamma` (Stirling's series; the special functions need to be brought
+in from SpecialFunctions to be used directly). Factors that cancel do
+cancel:
 
 ```@example tut
 series(sin(x) / x + exp(-x) * (1 + 1/x), x, Inf, 4)
 ```
 
-```julia
-series(erf(x), x, Inf, 4)      # 1 + exp(-x^2)*(-1/(sqrt(π)*x) + 1/(2*sqrt(π)*x^3) + O(1/x^4))
-series(exp(x^2) * erfc(x), x, Inf, 4)   # 1/(sqrt(π)*x) - 1/(2*sqrt(π)*x^3) + O(1/x^4)
-```
 
+```@example tut
+using SpecialFunctions: erf, erfc
+series(erf(x), x, Inf, 4)
+```
 Exponentially small terms are kept: `erf(x)` at `Inf` is not just `1`.
 
-A series is an object that keeps its error term. Series about the same point can be
-added, multiplied and divided, with the order tracked, and `Sym` drops the `O` term:
+
+```@example tut
+series(exp(x^2) * erfc(x), x, Inf, 4)
+```
+
+
+A series is an object that keeps its error term. Series about the same
+point can be added, multiplied and divided, with the order tracked:
 
 ```@example tut
 s, c = series(sin(x), x), series(cos(x), x)
 s / c
 ```
+
+Calling `Sym` on a series drops the `O` term:
 
 ```@example tut
 Sym(s)
@@ -1156,8 +1310,9 @@ Sym(s)
 
 ## Integrals
 
-Antiderivatives come from `integrate`, from RischIntegrate, an implementation of the
-Risch algorithm. It decides whether an elementary antiderivative exists, and finds it:
+Antiderivatives come from `integrate`, from RischIntegrate, an
+implementation of the Risch algorithm. It decides whether an
+elementary antiderivative exists, and finds it when it can.
 
 ```@example tut
 integrate(x^2 * exp(x), x)
@@ -1179,8 +1334,7 @@ integrate(sin(x)^3, x), integrate(sqrt(1 - x^2), x)
 integrate(x * log(x), x), integrate(1 / (x * log(x)), x)
 ```
 
-Piecewise functions, `heaviside`, `abs` and `sign` are integrated interval by interval,
-the antiderivative made continuous; a `dirac` picks out a value:
+Piecewise functions, `heaviside`, `abs` and `sign` are integrated interval by interval, the antiderivative made continuous; a `dirac` picks out a value:
 
 ```@example tut
 integrate(x * H(x - 1), x), integrate(cos(x) * SymJ.dirac(x - 1), x)
@@ -1188,8 +1342,7 @@ integrate(x * H(x - 1), x), integrate(cos(x) * SymJ.dirac(x - 1), x)
 
 ### Definite integrals
 
-A definite integral is the difference of an antiderivative's values at the end points.
-Calling the antiderivative with exact numbers keeps the answer exact:
+A definite integral is the difference of an antiderivative's values at the end points. Calling the antiderivative with exact numbers keeps the answer exact:
 
 ```@example tut
 F = integrate(x^2, x)
@@ -1200,31 +1353,36 @@ F(3) - F(0)
 integrate(abs(x - 1), (x, 0, 3))
 ```
 
-`integrate(f, (x, a, b))` splits the interval at the points where `f` is singular and
-takes one-sided limits there and at infinite limits, so improper integrals come out
-right; one that diverges is `±∞`, or an error when it has no value:
+`integrate(f, (x, a, b))` splits the interval at the points where `f` is singular and takes one-sided limits there and at infinite limits, so improper integrals come out right; one that diverges is `±∞`, or an error when it has no value:
 
 ```@example tut
-integrate(1 / (1 + x^2), (x, 0, Inf)), integrate(exp(-x^2), (x, -Inf, Inf)), integrate(log(x), (x, 0, 1)), integrate(1 / x^2, (x, -1, 1))
+(integrate(1 / (1 + x^2), (x, 0, Inf)),
+integrate(exp(-x^2), (x, -Inf, Inf)), integrate(log(x), (x, 0, 1)),
+integrate(1 / x^2, (x, -1, 1)))
 ```
 
-Some antiderivatives are known only numerically: RischIntegrate's `₂F₁` terms and sums
-over the roots of a polynomial, which it can evaluate but SymJ cannot hold. A definite
-integral through one, over numeric limits where `f` is not singular, is a float:
+Some antiderivatives are known only numerically: RischIntegrate's
+`₂F₁` terms and sums over the roots of a polynomial, which it can
+evaluate but SymJ cannot hold. A definite integral through one, over
+numeric limits where `f` is not singular, is a float:
 `integrate(x / sqrt(1 - x^3), (x, 0, 1//2))` is `0.12832…`.
 
-`principal_value = true` asks for the Cauchy principal value instead: a singular point
-inside is approached from both sides at once, lim_{ε→0⁺} (∫ₐ^{s-ε} + ∫_{s+ε}^b) f, and an
-integral over (-∞, ∞) is the limit of ∫ from -R to R. An integral that converges keeps its
-value; a singular end point is not crossed, so ∫₀¹ 1/x is still `∞`:
+`principal_value = true` asks for the Cauchy principal value instead:
+a singular point inside is approached from both sides at once,
+lim_{ε→0⁺} (∫ₐ^{s-ε} + ∫_{s+ε}^b) f, and an integral over (-∞, ∞) is
+the limit of ∫ from -R to R. An integral that converges keeps its value; a
+singular end point is not crossed, so ∫₀¹ 1/x is still `∞`:
 
 ```@example tut
 pv(f, ab) = integrate(f, ab; principal_value = true)
-pv(1 / x, (x, -1, 2)), pv(1 / x^3, (x, -1, 2)), pv(tan(x), (x, 0, π)), pv(x / (1 + x^2), (x, -Inf, Inf))
+(pv(1 / x, (x, -1, 2)),
+pv(1 / x^3, (x, -1, 2)),
+pv(tan(x), (x, 0, π)),
+pv(x / (1 + x^2), (x, -Inf, Inf)))
 ```
 
-With a parameter the answer may depend on its sign; the cases are listed unless the
-assumptions decide them:
+With a parameter the answer may depend on its sign; the cases are
+listed unless the assumptions decide them:
 
 ```@example tut
 integrate(exp(-a * x), (x, 0, Inf))
@@ -1234,8 +1392,9 @@ integrate(exp(-a * x), (x, 0, Inf))
 integrate(exp(-a * x), (x, 0, Inf); assume = @assume(a > 0))
 ```
 
-Where the formula divides by a parameter, the parameter takes a generic value (nonzero,
-as for `solve`); the special value is a case only when assumed:
+Where the formula divides by a parameter, the parameter takes a
+generic value (nonzero, as for `solve`); the special value is a case
+only when assumed:
 
 ```@example tut
 @syms c
@@ -1246,18 +1405,20 @@ integrate(exp(c * x), (x, 0, 1))
 integrate(exp(c * x), (x, 0, 1); assume = @assume(c == 0))
 ```
 
-An iterated integral lists its intervals innermost first. The inner integral may have
-cases on the outer variable (here on the sign of `x`, for `y^m`); the outer interval keeps
-the ones it allows, or is split where they change:
+An iterated integral lists its intervals innermost first. The inner
+integral may have cases on the outer variable (here on the sign of
+`x`, for `y^m`); the outer interval keeps the ones it allows, or is
+split where they change:
 
 ```@example tut
 @syms n m
 integrate(x^n * y^m, (y, 0, x), (x, 0, 1); assume = @assume(n > 0, m > 0))
 ```
 
-The variable of integration is real, as are the parameters of a definite integral, so the
-`conj` that `dot` puts on symbols drops out. A line integral, the work of ⟨-y, x⟩ around
-the unit circle:
+The variable of integration, by default, is assumed to be real, as are
+the parameters of a definite integral, so the `conj` that `dot` puts
+on symbols drops out. A line integral, the work of ⟨-y, x⟩ around the
+unit circle:
 
 ```@example tut
 r = [cos(t), sin(t)]
@@ -1271,31 +1432,33 @@ G(x => Sym(π)) - G(x => 0)
 
 ## Differential equations
 
-`SymJ.dsolve` solves an ordinary differential equation for an unknown function. The
-function is made with `@syms y()`, and its derivatives are written `y'(x)`, `y''(x)`
-(or `diff(y(x), x)`). The answer is an equation, with constants `C1, C2, …`:
+`SymJ.dsolve` solves an ordinary differential equation for an unknown
+function. The function is made with `@syms y()`, and its derivatives
+are written `y'(x)`, `y''(x)` (or `diff(y(x), x)`). The answer is an
+equation, with constants `C1, C2, …`:
 
 ```@example tut
 @syms y()
 SymJ.dsolve(y'(x) + 2y(x) ~ exp(x), y(x))
 ```
 
-The prime goes on the function, before the call. After the call, `'` is Julia's
-adjoint of the value `y(x)`, its complex conjugate, and not a derivative:
+The prime goes on the function, before the call. After the call, `'`
+is Julia's adjoint of the value `y(x)`, its complex conjugate, and not
+a derivative:
 
 ```@example tut
 y'(x), y(x)'
 ```
 
-First-order equations that are linear, separable, Bernoulli, exact or homogeneous are
-recognized:
+First-order equations that are linear, separable, Bernoulli, exact or
+homogeneous are recognized:
 
 ```@example tut
 SymJ.dsolve(y'(x) ~ x * y(x)^2, y(x)), SymJ.dsolve(y'(x) ~ (x + y(x)) / x, y(x))
 ```
 
-A Riccati equation, `y' = q₀ + q₁ y + q₂ y²`, is made linear (of second order), or
-solved from a particular solution:
+A Riccati equation, `y' = q₀ + q₁ y + q₂ y²`, is made linear (of
+second order), or solved from a particular solution:
 
 ```@example tut
 SymJ.dsolve(y'(x) ~ y(x)^2 - 2 / x^2, y(x))
@@ -1307,12 +1470,15 @@ When `y` cannot be solved for, the solution is implicit:
 SymJ.dsolve(2x * y(x) + (x^2 + 3y(x)^2) * y'(x) ~ 0, y(x))
 ```
 
-Linear equations with constant coefficients, of any order, are solved through the roots
-of the characteristic polynomial; a right side is handled by undetermined coefficients,
-or by variation of parameters:
+Linear equations with constant coefficients, of any order, are solved
+through the roots of the characteristic polynomial; a right side is
+handled by undetermined coefficients, or by variation of parameters:
 
 ```@example tut
-SymJ.dsolve(y''(x) + 2y'(x) + 5y(x) ~ 0, y(x)), SymJ.dsolve(y''(x) + y(x) ~ sin(x), y(x))
+(
+SymJ.dsolve(y''(x) + 2y'(x) + 5y(x) ~ 0, y(x)),
+SymJ.dsolve(y''(x) + y(x) ~ sin(x), y(x))
+)
 ```
 
 ```@example tut
@@ -1325,15 +1491,15 @@ Cauchy–Euler equations, with coefficients `x^k` on `y⁽ᵏ⁾`, are solved to
 SymJ.dsolve(x^2 * y''(x) - 2y(x) ~ 0, y(x))
 ```
 
-An equation of second order without `x`, `y'' = f(y, y')`, is reduced to first order
-with `p = y'` as a function of `y`:
+An equation of second order without `x`, `y'' = f(y, y')`, is reduced
+to first order with `p = y'` as a function of `y`:
 
 ```@example tut
 SymJ.dsolve(y(x) * y''(x) ~ y'(x)^2, y(x))
 ```
 
-When `y'` has two branches, `±sqrt(…)`, there is a solution for each; initial
-conditions pick one:
+When `y'` has two branches, `±sqrt(…)`, there is a solution for each;
+initial conditions pick one:
 
 ```@example tut
 SymJ.dsolve(y''(x) ~ 2y(x)^3, y(x), y(0) => 1, y'(0) => 1)
@@ -1349,22 +1515,22 @@ SymJ.dsolve(y''(x) + y(x) ~ 0, y(x), y(0) => 0, y'(0) => 1)
 SymJ.dsolve(y'(x) ~ -x / y(x), y(x), y(0) => 2)
 ```
 
-With `series = n` the solution is a series, here about `0` (Airy's equation), with error
-`O(x^n)`:
+With `series = n` the solution is a series, here about `0` (Airy's
+equation), with error `O(x^n)`:
 
 ```@example tut
 SymJ.dsolve(y''(x) - x * y(x) ~ 0, y(x); series = 8)
 ```
 
-At a regular singular point it is a Frobenius series, which can have a `log` term
-(Bessel's equation of order 0):
+At a regular singular point it is a Frobenius series, which can have a
+`log` term (Bessel's equation of order 0):
 
 ```@example tut
 SymJ.dsolve(x^2 * y''(x) + x * y'(x) + x^2 * y(x) ~ 0, y(x); series = 6)
 ```
 
-A right side with a step or an impulse (`SymJ.heaviside`, `SymJ.dirac`) is handled by
-Laplace transforms:
+A right side with a step or an impulse (`SymJ.heaviside`,
+`SymJ.dirac`) is handled by Laplace transforms:
 
 ```@example tut
 SymJ.dsolve(y''(x) + y(x) ~ SymJ.heaviside(x - 1), y(x), y(0) => 0, y'(0) => 0)
@@ -1375,19 +1541,23 @@ The transforms themselves are `SymJ.laplace_transform` and
 
 ```@example tut
 @syms s
-SymJ.laplace_transform(x * sin(x), x, s), SymJ.inverse_laplace_transform(exp(-2s) / (s^2 + 1), s, x)
+(
+SymJ.laplace_transform(x * sin(x), x, s),
+SymJ.inverse_laplace_transform(exp(-2s) / (s^2 + 1), s, x)
+)
 ```
 
-A system of linear equations with constant coefficients is given as vectors of
-equations and unknowns. The answer is a vector of equations:
+A system of linear equations with constant coefficients is given as
+vectors of equations and unknowns. The answer is a vector of
+equations:
 
 ```@example tut
 @syms t u() v()
 SymJ.dsolve([u'(t) ~ u(t) - v(t), v'(t) ~ 5u(t) - 3v(t)], [u(t), v(t)])
 ```
 
-Higher derivatives, right sides and initial conditions (one for each unknown and each
-order below its highest) are allowed:
+Higher derivatives, right sides and initial conditions (one for each
+unknown and each order below its highest) are allowed:
 
 ```@example tut
 SymJ.dsolve([u''(t) + v(t) ~ 0, v'(t) ~ u(t) + t], [u(t), v(t)], u(0) => 1, u'(0) => 0, v(0) => 0)
@@ -1395,17 +1565,19 @@ SymJ.dsolve([u''(t) + v(t) ~ 0, v'(t) ~ u(t) + t], [u(t), v(t)], u(0) => 1, u'(0
 
 ## Pattern matching
 
-`SymJ.pattern` (not exported) makes a pattern from a quoted expression, with `~x` marking
-a slot. `match` gives the first match as a `Dict`, `eachmatch` every match, and
-`occursin` whether a part of an expression matches:
+`SymJ.pattern` (not exported) makes a pattern from a quoted
+expression, with `~x` marking a slot (the syntax comes from the
+SymbolicUtils package). `match` gives the first match as a `Dict`,
+`eachmatch` every match, and `occursin` whether a part of an
+expression matches:
 
 ```@example tut
 p = SymJ.pattern(:(~!a * sin(~x) + ~~r))
 match(p, 3sin(2x) + x + 1)
 ```
 
-In a sum or product a slot takes a group of terms (factors), so there can be several
-matches; `~!a` is 1 when there is no factor for it:
+In a sum or product a slot takes a group of terms (factors), so there
+can be several matches; `~!a` is 1 when there is no factor for it:
 
 ```@example tut
 @syms a b c
@@ -1422,9 +1594,10 @@ A head slot matches a function and binds it:
 match(SymJ.pattern(:((~f)(~x)^2)), cos(x)^2)
 ```
 
-A rule rewrites what a pattern matches. `SymJ.@rule lhs => rhs` takes the right side as
-Julia code, with `~x` the matched value; `SymJ.rewrite` applies rules to every part of an
-expression until nothing changes, and `replace` applies them once:
+A rule rewrites what a pattern matches. `SymJ.@rule lhs => rhs` takes
+the right side as Julia code, with `~x` the matched value;
+`SymJ.rewrite` applies rules to every part of an expression until
+nothing changes, and `replace` applies them once:
 
 ```@example tut
 r = SymJ.@rule log(~x * ~y) => log(~x) + log(~y)
@@ -1436,17 +1609,17 @@ pyth = SymJ.@rule sin(~x)^2 + cos(~x)^2 + ~~r => 1 + ~r
 SymJ.rewrite(3 + sin(2x)^2 + cos(2x)^2 + x, pyth)
 ```
 
-`replace` also takes `old => new` pairs, applied in one pass from the leaves up: a
-quoted pattern and template, a predicate and a function of the subexpression, or a
-subexpression and its value:
+`replace` also takes `old => new` pairs, applied in one pass from the
+leaves up: a quoted pattern and template, a predicate and a function
+of the subexpression, or a subexpression and its value:
 
 ```@example tut
 replace(sin(a) + sin(b)^2, :(sin(~u)) => :(cos(~u))),
 replace(x^2 + 3x + 5, (e -> SymJ.isnumber(e) && e > 2) => (e -> e - 1))
 ```
 
-A predicate on a slot, or a right side that gives `nothing`, limits where a rule
-applies:
+A predicate on a slot, or a right side that gives `nothing`, limits
+where a rule applies:
 
 ```@example tut
 d = SymJ.@rule (~x)^(~n::isinteger) => ~n * (~x)^(~n - 1)

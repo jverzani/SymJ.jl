@@ -128,7 +128,7 @@ function _lap_term(term::Sym, t::Sym, s::Sym)
     if i !== nothing && all(j -> j == i || !has(fs[j][1], t) && !has(fs[j][2], t), eachindex(fs))
         g, n, lo, hi = fs[i][1].args
         c = cf * prod(Sym[b^p for (j, (b, p)) in enumerate(fs) if j != i]; init = ONE)
-        v = summation(_lap(g, t, s), n, lo, hi)
+        v = _summation_kab(_lap(g, t, s), n, lo, hi)
         # (convergence cases: the transform holds where it converges, the case that does)
         if v isa Cases
             vals = [w for (_, w) in v.cases if w isa Sym]

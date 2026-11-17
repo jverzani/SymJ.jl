@@ -261,7 +261,7 @@ end
 function _dal_close(e::Sym)
     isempty(e.args) && return e
     e = _rebuild_node(e, Sym[_dal_close(a) for a in e.args])
-    e.kind == FN && e.name === :Sum && length(e.args) == 4 ? summation(e.args...) : e
+    e.kind == FN && e.name === :Sum && length(e.args) == 4 ? _summation_kab(e.args...) : e
 end
 
 ## Liouvillian solutions: interlaced hypergeometric terms

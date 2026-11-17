@@ -27,7 +27,17 @@ const _GREEK = Set(["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta",
     "chi", "psi", "omega", "Gamma", "Delta", "Theta", "Lambda", "Xi", "Pi", "Sigma", "Upsilon",
     "Phi", "Psi", "Omega"])
 function _greek_name(s::Symbol)
-    parts = split(String(s), '_')
+    str = String(s)
+    # an array element from @syms A[1:2, 1:2]: A₁_₂ as A_{1,2}, x₋₁ as x_{-1} (Latexify made
+    # each subscript character _1, A_1__{2}, which is not LaTeX and stopped the display)
+    m = match(r"^([^₀-₉₋]+?)([₀-₉₋]+(?:_[₀-₉₋]+)*)$", str)
+    if m !== nothing
+        idx = [map(c -> c == '₋' ? '-' : Char('0' + (c - '₀')), p) for p in split(m.captures[2], '_')]
+        b = String(m.captures[1])
+        base = b in _GREEK ? (b == "omicron" ? "o" : "\\" * b) : Latexify.latexraw(Symbol(b))
+        return Latexify.LaTeXString(base * "_{" * join(idx, ",") * "}")
+    end
+    parts = split(str, '_')
     (any(isempty, parts) || !(parts[1] in _GREEK || length(parts) > 2)) && return s
     base = parts[1] in _GREEK ? (parts[1] == "omicron" ? "o" : "\\" * parts[1]) : parts[1]
     Latexify.LaTeXString(length(parts) == 1 ? base : base * "_{" * join(parts[2:end], ",") * "}")
@@ -148,6 +158,9 @@ function _tex(d::AbstractDict{Sym,Sym})
 end
 _tex(v::AbstractVector{<:AbstractDict{Sym,Sym}}) = isempty(v) ? "\\left[ \\; \\right]" :
     "\\left[ \\begin{array}{l} " * join(map(_tex, v), " \\\\ ") * " \\end{array} \\right]"
+# equations (a system, or dsolve's answer for one), one per line
+_tex(v::AbstractVector{<:Relation}) = isempty(v) ? "\\left[ \\; \\right]" :
+    "\\left[ \\begin{array}{l} " * join(map(_tex, v), " \\\\ ") * " \\end{array} \\right]"
 
 # (-∞, -1) ∪ [2, 3] ∪ {5}
 _end(e, lower) = e === nothing ? (lower ? "-\\infty" : "\\infty") : _raw(e)
@@ -212,7 +225,8 @@ _tex(cs::Cases) = "\\begin{cases} " *
     join((_texanswer(v) * " & " * _texconds(conds) for (conds, v) in cs.cases), " \\\\ ") * " \\end{cases}"
 
 const _TeX = Union{Sym,Relation,SymNumber,Poly,SymSeries,AbstractArray{Sym},AbstractArray{SymNumber},
-                   AbstractDict{Sym,Sym},AbstractVector{<:AbstractDict{Sym,Sym}},SymSet,CylindricalSet,Cases}
+                   AbstractDict{Sym,Sym},AbstractVector{<:AbstractDict{Sym,Sym}},AbstractVector{<:Relation},
+                   SymSet,CylindricalSet,Cases}
 _tex(t::Tuple) = "\\left( " * join(map(_tex, t), ", \\; ") * " \\right)"
 
 ## display
