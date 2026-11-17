@@ -471,6 +471,12 @@ transforms). Of the rest, in rough order of value for calculus-level use:
      later, for round trips from the command line).
    - deep nesting (f(f(…f(x))) 10,000 deep) overflows the stack in printing and diff;
      SymPy raises RecursionError too (#5557).
+   - expand is not idempotent where radicals merge into a sum inside a product:
+     expand((1 - √(1+x))√(1+x) y) is -(x + 1)y + √(x + 1)y, and a second expand gives
+     -xy + √(x + 1)y - y (#5743). Every fix tried (re-expanding merged sums in the
+     multiplication loop, or a second pass for small results) changed the intermediate
+     forms cancel builds and made checking an ODE system's solution 5× slower, or hours on
+     Julia 1.10; dropped (2026-11-16).
    - N of a besseli/gamma expression cancelling in Float64: no BigFloat besseli for the
      high-precision check (#5691).
 

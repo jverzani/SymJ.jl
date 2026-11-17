@@ -908,7 +908,7 @@ function _topoly(::Type{C}, ::Type{M}, ex::Sym, gs, L::_Layout, index) where {C,
         return _topoly(C, M, ex.args[1], gs, L, index)^_toint(ex.args[2].num)
     end
     # (a symbol bound inside, as x in ∫₀¹ f(x) dx, is not the generator; SymPy #5602)
-    any(g -> g.kind == SYMBOL ? g in free_symbols(ex) : has(ex, g), gs) &&
+    any(g -> has(ex, g) && (g.kind != SYMBOL || g in free_symbols(ex)), gs) &&
         throw(ArgumentError("$ex is not polynomial in $(join(gs, ", "))"))
     _constpoly(C, gs, L, _tocoef(C, ex), M)
 end

@@ -871,26 +871,15 @@ function _expand_generic(ex::Sym)
 end
 expand(x::Number) = Sym(x)
 
-# a product that merged powers into a sum to a positive integer power, √(1 + x)√(1 + x) =
-# x + 1: expanded again (expand was not idempotent; SymPy #5743)
-_merged_sum(p::Sym) = p.kind == ADD ||
-    (p.kind == POW && p.args[1].kind == ADD && _nonneg_int(p.args[2])) ||
-    (p.kind == MUL && any(i -> p.args[i].kind == ADD && _nonneg_int(p.exps[i]), eachindex(p.args)))
-
 function _expand_mul(a::Sym, b::Sym)
-    if !(a.kind == ADD || b.kind == ADD)
-        p = mul(a, b)
-        return _merged_sum(p) && !_merged_sum(a) && !_merged_sum(b) ? expand(p) : p
-    end
+    (a.kind == ADD || b.kind == ADD) || return mul(a, b)
     ta, ca = _termlist(a)
     tb, cb = _termlist(b)
     d = Dict{Sym,SymNumber}()
     sizehint!(d, length(ta) * length(tb))
     c = N0
     for i in eachindex(ta), j in eachindex(tb)
-        p = mul(ta[i], tb[j])
-        _merged_sum(p) && !_merged_sum(ta[i]) && !_merged_sum(tb[j]) && (p = expand(p))
-        c = _accum_sym!(d, c, p, ca[i] * cb[j])
+        c = _accum_sym!(d, c, mul(ta[i], tb[j]), ca[i] * cb[j])
     end
     _add_from_dict(c, d)
 end

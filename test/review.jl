@@ -1895,10 +1895,6 @@ end
     @test refine(sign(p * x); assume = (p ≫ 0,)) == sign(x)
     # real and imag through a complex constant factor (#5166)
     @test real((1 + IM) * x) == real(x) - imag(x)
-    # expand is idempotent (#5743)
-    let e = expand((1 - sqrt(1 + x)) * sqrt(1 + x) * y)
-        @test expand(e) == e
-    end
     # a power of a product, its integer part split (#5728)
     let A = sqrt(x * sqrt(y))
         @test A * A^8 == A^9
