@@ -241,9 +241,19 @@ function _psapply(name::Symbol, args::Vector{Sym}, N::Rational{Int})
     # have half-integer powers (acosh(1 + z) = √(2z)(1 - z/12 + …); SymPy #25175)
     if length(args) == 1 && (_eq(a0, ONE) || _eq(a0, MINUS_ONE))
         w = args[1]
+        # an argument passing 1 upwards along the real line (1 + x): acos = -i·acosh,
+        # the value above the cut (N's, as Julia's acos(2 + 0im)), and real for x < 0; the
+        # half-angle form takes the value below the cut there (SymPy #4004)
+        up = false
+        if _eq(a0, ONE) && name in (:acos, :asin)
+            _, c1, _ = _pslead(h)
+            up = !has(c1, _LOGT) && _csign(c1) == 1
+        end
         r = if name === :acos
+            up ? -IM * 2asinh(sqrt((w - 1) / 2)) :
             _eq(a0, ONE) ? 2asin(sqrt((1 - w) / 2)) : PI - 2asin(sqrt((1 + w) / 2))
         elseif name === :asin
+            up ? PI / 2 + IM * 2asinh(sqrt((w - 1) / 2)) :
             _eq(a0, ONE) ? PI / 2 - 2asin(sqrt((1 - w) / 2)) : -PI / 2 + 2asin(sqrt((1 + w) / 2))
         elseif name === :acosh && _eq(a0, ONE)
             2asinh(sqrt((w - 1) / 2))
@@ -701,6 +711,9 @@ The series of `ex` in `x` about `x0`, with the error `O((x - x0)^n)`: the terms 
 below `n` are exact. At `x0 = Inf` (or `-Inf`) it is a series in `1/x`, with error
 `O((1/x)^n)`. Laurent series (negative powers), Puiseux series (fractional powers) and
 logarithmic terms (`log(x)` in the coefficients, as for `x^x` at 0) are included.
+Fractional powers and logarithms are those of `x - x0 > 0`: such a series is the
+expansion on the right of `x0` (`sqrt(-x)` at 0 is `im*sqrt(x)`, and `acos(1 + x)`
+is `-im*sqrt(2)*sqrt(x) + …`, the value `N` gives above the branch cut).
 
 At `±Inf`, an expansion may need an exponential or oscillating factor: terms
 `exp(g)*(series)`, `cos(h)*(series)` and `sin(h)*(series)` with `g`, `h` growing at the

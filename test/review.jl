@@ -1966,3 +1966,42 @@ end
     # polygamma with an order tending to an integer (#5415)
     @test limit(SF.polygamma(2 + 1 / x, 3 + exp(-x)), x => Inf) == Sym(9) / 4 - 2SF.zeta(Sym(3))
 end
+
+@testset "wrong answers (SymPy review, round 19)" begin
+    @syms x a k s t r
+    n = SymFunction(:n)
+    SF = SymJ.SpecialFunctionsSupport.SF
+    # acos and asin at the branch point 1: the value N gives above the cut (Julia's), real
+    # for x < 0 (#4004)
+    sa = Sym(series(acos(1 + x), x, 0, 4))
+    @test N(subs(sa, x => -Sym(1) // 1000)) ≈ acos(0.999) rtol = 1e-9
+    @test N(subs(sa, x => Sym(1) // 1000)) ≈ acos(1.001 + 0im) rtol = 1e-9
+    sb = Sym(series(asin(1 + x), x, 0, 4))
+    @test N(subs(sb, x => -Sym(1) // 1000)) ≈ asin(0.999) rtol = 1e-9
+    @test N(subs(sb, x => Sym(1) // 1000)) ≈ asin(1.001 + 0im) rtol = 1e-9
+    sc = Sym(series(sin(2acos(1 / (1 - x))), x, 0, 4))
+    @test N(subs(sc, x => -Sym(1) // 1000)) ≈ sin(2acos(1 / 1.001)) rtol = 1e-6
+    # ∞ times a sum is not distributed (∞π - ∞ was NaN; #3802, #3738)
+    @test Sym(Inf) * (PI - 1) == Sym(Inf)
+    @test Sym(Inf) * (1 - PI) == Sym(-Inf)
+    @test Sym(Inf) * (sqrt(Sym(2)) - 1) == Sym(Inf)
+    @test subs(Sym(Inf) * (x + 1), x => -3) == Sym(-Inf)
+    # coeff of a power of something not a symbol (#4167)
+    @test SymJ.coeff(a * exp(-4k * s) + x, exp(-4k * s)) == a
+    @test SymJ.coeff(2 * (x + 1)^2 + 3, (x + 1)^2) == 2
+    @test SymJ.coeff(a * exp(2x) + 3exp(x), exp(x)) == 3
+    # rref of a float matrix: the pivots exactly 1.0 (#4227)
+    g = (1 + sqrt(5.0)) / 2
+    @test N(SymJ.rref(Sym[1.0 1/g; g 1.0])[1, 1]) === 1.0
+    # fsolve: candidates in a decaying tail no longer use up the search, and σ at least
+    # |f| at the middle (both roots were missed; round-19 extra under #3571)
+    ea = 0.004 * (8exp(-300t) - 8exp(-1200t)) * (720000exp(-300t) - 11520000exp(-1200t)) +
+         0.004 * (9600exp(-1200t) - 2400exp(-300t))^2
+    @test length(SymJ.fsolve(ea ~ 0, t, (0, 1))) == 2
+    @test length(SymJ.fsolve(ea ~ 0, t)) == 2
+    # LaTeX: Γ and B for gamma and beta (not Euler's γ; #3911); a derivative's power in
+    # parentheses (#3179)
+    @test String(latexify(SF.gamma(x))) == raw"$\Gamma\left( x \right)$"
+    @test String(latexify(SF.beta(x, k))) == raw"$\mathrm{B}\left( x, k \right)$"
+    @test String(latexify(diff(n(r), r)^2)) == raw"$\left(\frac{d}{d r} n\left( r \right)\right)^{2}$"
+end

@@ -113,9 +113,15 @@ function _piece!(cands, f, a::T, b::T, opts, lastlevel::Bool) where {T}
                 ε = max(opts.tol, maximum(abs, view(c, K+1:n+1); init=zero(T)) / vscale)
                 push!(opts.cplx, (; a, b, λs, ε, d=K - 1, vscale))
             end
+            # (all samples of one sign: a candidate where f has that sign too, with no dip
+            # below the samples around it, is the interpolant's noise, not a zero; where f
+            # spans many orders of magnitude, e^(-600x), the noise gave candidates enough
+            # to exhaust maxzeros before the true zeros were reached)
+            onesign = all(>(0), v) || all(<(0), v)
             for λ in λs
                 if abs(imag(λ)) ≤ opts.imtol && -1 - opts.imtol ≤ real(λ) ≤ 1 + opts.imtol
                     x = clamp(mid + rad * real(λ), a, b)
+                    onesign && _no_dip(f, x, v, mid, rad, n) && continue
                     push!(cands, Candidate(x, vscale))
                 end
             end
@@ -143,6 +149,20 @@ function _piece!(cands, f, a::T, b::T, opts, lastlevel::Bool) where {T}
         end
     end
     0, true
+end
+
+# f(x) of the samples' sign v and no smaller in size than the samples on either side of x
+# (the sample points mid + rad cos(jπ/n) decrease with j)
+function _no_dip(f, x::T, v, mid::T, rad::T, n::Int) where {T}
+    fx = f(x)
+    (isfinite(fx) && !iszero(fx) && sign(fx) == sign(v[1])) || return false
+    j = 0
+    while j < n && mid + rad * cospi(T(j + 1) / n) >= x
+        j += 1
+    end
+    lo = abs(v[j+1])
+    j < n && (lo = min(lo, abs(v[j+2])))
+    abs(fx) >= lo
 end
 
 # Refinement of [a, b], nearest `focus` first: the unresolved piece nearest `focus` is
@@ -352,6 +372,11 @@ function _zeros(f, a::T, b::T, opts) where {T}
     ys = filter(y -> isfinite(y) && !iszero(y),
                 [abs(fs(X(clamp(cospi(T(j) / 32), -tmax, tmax)))) for j in 0:32])
     σ = isempty(ys) ? one(T) : sort(ys)[(length(ys) + 1) ÷ 2]
+    # (and at least |f| at the focus: where f spans many orders of magnitude the median can
+    # be far below f's size where the zeros are, and f/σ was ±1 there, a step whose narrow
+    # dip between two zeros the samples missed; 1e-78 for a sum of e^(-300x), e^(-1200x))
+    f0 = abs(fs(X(isinf(a) && isinf(b) ? zero(T) : isinf(b) ? -tmax : tmax)))
+    isfinite(f0) && f0 > σ && (σ = f0)
     F = _squash(f, σ)
     G = t -> F(X(clamp(t, -tmax, tmax)))
     focus = isinf(a) && isinf(b) ? zero(T) : isinf(b) ? -one(T) : one(T)   # x = center, a or b

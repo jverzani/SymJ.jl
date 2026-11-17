@@ -910,4 +910,19 @@ import PolyLog as PL
         @test_throws ArgumentError series(1 / (1 + exp(x)), x, Inf, 3)
         @test_throws ArgumentError series(exp(1 / x), x, 0, 3)
     end
+
+    @testset "wrong answers (SymPy review, round 19)" begin
+        @syms y
+        # a piecewise ramp's squared difference quotient: the antiderivative at y = 1 (and
+        # y = 0) was NaN, a 0·log 0 at the point (#4313)
+        u = SymJ.piecewise(x ≪ 0 => 0, x ≪ 1 => x, true => 1)
+        g = (u - subs(u, x => y))^2 / (x - y)^2
+        F = RischIntegrate.integrate(g, x)
+        @test subs(F, y => 1) == RischIntegrate.integrate(subs(g, y => 1), x)
+        @test subs(F, y => 0) == RischIntegrate.integrate(subs(g, y => 0), x)
+        # a piecewise in the parameters only: a constant for the integrator (it crashed)
+        uy = subs(u, x => y)
+        G = RischIntegrate.integrate((x - uy)^2 / (x - y)^2, x)
+        @test iszero(simplify(subs(diff(G, x) - (x - uy)^2 / (x - y)^2, y => Sym(1) // 2)))
+    end
 end
