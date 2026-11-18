@@ -1106,6 +1106,7 @@ function _simplify(e::Sym, A::Assumptions)
               _prime_base_powers, _recip_trig_flip, _pi_shift_expand,
               x -> (y = _digamma_shift(x); y === nothing ? nothing : simplify_rational(y)),
               x -> huge ? nothing : _conjugate_radical_den(x),
+              x -> huge ? nothing : _radical_sum_reduce(x),
               simplify_rational ∘ powers, expansion ∘ simplify_rational, expansion ∘ radicals,
               simplify_rational ∘ radicals,
               x -> (c = expansion(x); c === nothing ? nothing : simplify_rational(c)),
@@ -2849,4 +2850,60 @@ function _dirac_sift(e::Sym)
         _finite_value(r) || _hassymbol(r) || return nothing
         r * t.args[i]
     end
+end
+
+# powers u^(p/q) of a sum u (not integer p/q) written through one s = u^(1/q) per base,
+# u^(p/q) = u^⌊p/q⌋ s^(p mod q), the whole over a common denominator and reduced with
+# s^q = u: the relations among √u, u^(3/2), u^(5/2) that cancel keeps apart (the
+# derivative of SymPy #4231's antiderivative minus the integrand was a quotient with a
+# numerator identically 0). 0 when the numerator reduces to 0, else the reduced quotient;
+# nothing when there are no such powers
+function _radical_sum_reduce(e::Sym)
+    bases = Dict{Sym,Int}()
+    _has_node(e, t -> begin
+        pairs = t.kind == POW ? ((t.args[1], t.args[2]),) : t.kind == MUL ? zip(t.args, t.exps) : ()
+        for (b, p) in pairs
+            (b.kind == ADD && _hassymbol(b) && p.kind == NUMBER && isexact(p.num) && !_isint(p.num)) || continue
+            bases[b] = lcm(get(bases, b, 1), Int(_denominator(p.num)))
+        end
+        false
+    end)
+    (isempty(bases) || length(bases) > 2 || any(>(4), values(bases))) && return nothing
+    rel = [(b, Sym(Symbol("_rsr", i)), expand(b), q) for (i, (b, q)) in enumerate(bases)]   # (u, s, u expanded, q)
+    function rep(b, p)
+        (p.kind == NUMBER && isexact(p.num) && !_isint(p.num)) || return nothing
+        for (u, sv, ub, q) in rel
+            _eq(b, u) || continue
+            k = _toint(q * p.num)
+            return ub^fld(k, q) * sv^mod(k, q)
+        end
+        nothing
+    end
+    g = _replace_walk(e) do t
+        if t.kind == POW
+            return rep(t.args[1], t.args[2])
+        elseif t.kind == MUL && any(((b, p),) -> rep(b, p) !== nothing, zip(t.args, t.exps))
+            return Sym(t.num) * prod(something(rep(b, p), b^p) for (b, p) in zip(t.args, t.exps))
+        end
+        nothing
+    end
+    _eq(g, e) && return nothing
+    n, d = numer_denom(cancel(g))
+    function reduce_s(w)
+        w = expand(w)
+        for (_, sv, ub, q) in rel
+            has(w, sv) || continue
+            P = try Poly{Sym}(w, [sv]) catch err; err isa ArgumentError || rethrow(); return nothing end
+            w = expand(_add_many(Sym(cf) * ub^fld(ev[1], q) * sv^mod(ev[1], q)
+                                 for (ev, cf) in zip(exponent_vectors(P), coefficients(P))))
+        end
+        w
+    end
+    nr = reduce_s(n)
+    nr === nothing && return nothing
+    iszero(nr) && return ZERO
+    dr = reduce_s(d)
+    dr === nothing && return nothing
+    back = [sv => u^(1 // q) for (u, sv, _, q) in rel]
+    subs(nr, back...) / subs(dr, back...)
 end

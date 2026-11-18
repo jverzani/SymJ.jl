@@ -511,6 +511,28 @@ transforms). Of the rest, in rough order of value for calculus-level use:
      cardinality (#2995), Boolean algebra (#2943), ranges attached to symbols (#3588),
      the method of brackets (#4344), a Degree constant (#4180).
 
+25. **Gaps from the twentieth SymPy review (#945–#2908, #31017–#31179)** (2026-11-18):
+   - matrix expressions: MatrixSymbol, symbolic shapes and slicing, block matrices
+     (BlockDiagMatrix, `block_collapse`) (#2778, #2748, #2452, #2459, #2460, #31178).
+   - number theory: a Chinese remainder function `crt` for users (#31177, #31126);
+     modular equations over ℤ in solve (#31048).
+   - sets: Range sets and iteration over unions (#31145); symbolic intervals with a
+     measure (#31030).
+   - transforms: the Fourier transform (#2803); residues (`residue`; a series shows the
+     1/(z - a) coefficient) (#2519).
+   - `eliminate` (Mathematica's Eliminate; groebner by hand) (#2720); boolean constraints
+     in solve's systems (#2715); symbolic Boolean algebra, Xor/Implies/Equivalent/ITE
+     (#2697, #1441).
+   - lambdify with nested argument groups (#2790); symbol-name modifiers in display,
+     xHat as x̂ (#2518); Lie-symmetry infinitesimals of ODEs (#2372).
+   - from the fixes: a two-sided `asech`, `asec`, `acsc` series at a branch point
+     (only points inside a cut were made consistent); √(sinh² u + 1) = cosh u for real u
+     in simplify (found checking Kamke 1.113); homogeneous ODEs with |x| (they are solved
+     with `assume = (x ≫ 0,)` or `(x ≪ 0,)`); conditions on cos(a) and other bounded
+     functions in solve's cases are not reduced (x = cos(a)√(x² + 1) has redundant cases);
+     ∫₀¹ log(x^i)² and other integrals whose antiderivative jumps at infinitely many
+     points are refused.
+
 Done since the first audit: trigonometric and logarithmic expansion, gamma and combinatorial simplification, LaTeX output (a Latexify extension), resultants and Gröbner
 bases (polynomial systems are solved), real and imaginary parts and `conj`, and
 simplification under assumptions (`refine`, `simplify`).
