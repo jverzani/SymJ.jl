@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=1d525096">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=9abcf0b9">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -73,15 +73,15 @@
       <div class="md-article-actions"><a class="md-icon-btn md-edit-link" href="https://github.com/jverzani/SymJ.jl/blob/main/docs/src/tutorial.md" title="Edit source on GitHub" aria-label="Edit source on GitHub"><svg class="md-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 000-1.41l-2.34-2.34a.996.996 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></a></div>
 <h1 id="Tutorial" class="md-heading">Tutorial<a href="#Tutorial" class="md-heading-anchor" aria-label="Link to this section">#</a></h1>
 <p>This page works through the symbolic side of calculus with SymJ: making variables and expressions, evaluating and substituting, polynomials and rational functions, solving equations, and limits, derivatives and integrals. It follows the outline of the <a href="https://github.com/jverzani/CalculusWithJuliaNotes.jl/blob/main/quarto/alternatives/giac.qmd">Giac page of Calculus with Julia</a>.</p>
-<p>SymJ is one of several ways to do symbolic mathematics in Julia:</p>
-<ul class="md-list-tight">
-<li><p><a href="https://github.com/JuliaPy/SymPy.jl">SymPy.jl</a> connects to the Python library SymPy, a full-featured computer algebra system, which needs a Python installation.</p>
+<p>SymJ is one of several ways to do symbolic mathematics in Julia. Other packages include:</p>
+<ul>
+<li><p><a href="https://github.com/JuliaPy/SymPy.jl">SymPy</a> connects to the Python library SymPy, a full-featured computer algebra system, which needs a Python installation.</p>
 </li>
-<li><p><a href="https://github.com/s-celles/Giac.jl">Giac.jl</a> wraps Giac, a mature computer algebra system written in C++.</p>
+<li><p><a href="https://github.com/s-celles/Giac.jl">Giac</a> wraps Giac, a mature computer algebra system written in C++.</p>
 </li>
-<li><p><a href="https://github.com/JuliaSymbolics/Symbolics.jl">Symbolics.jl</a> is a numerically oriented system written in Julia, the basis of ModelingToolkit.</p>
+<li><p><a href="https://github.com/JuliaSymbolics/Symbolics.jl">Symbolics</a> is a numerically oriented system written in Julia, the basis of ModelingToolkit.</p>
 </li>
-<li><p><a href="https://github.com/symengine/SymEngine.jl">SymEngine.jl</a> wraps SymEngine, a fast symbolic manipulation library written in C++.</p>
+<li><p><a href="https://github.com/symengine/SymEngine.jl">SymEngine</a> wraps SymEngine, a fast symbolic manipulation library written in C++.</p>
 </li>
 </ul>
 <p>SymJ is written in Julia, aims to be fast, and keeps numbers exact. Limits are computed by <a href="https://github.com/jverzani/GruntzLimit.jl">GruntzLimit</a> (a dependency) and integrals by <a href="https://github.com/jverzani/RischIntegrate.jl">RischIntegrate</a>, two packages that work on the expressions of several symbolic systems, SymJ&#39;s among them.</p>
@@ -105,14 +105,14 @@ using RischIntegrate</code></pre>
 </div>
 </div>
 <p>A few ideas run through the package:</p>
-<ul class="md-list-tight">
-<li><p>Variables are made with <code class="md-code-inline">@syms</code>, and generic Julia code (<code class="md-code-inline">+</code>, <code class="md-code-inline">sin</code>, <code class="md-code-inline">^</code>, …) builds expressions from them.</p>
+<ul>
+<li><p>Symbolic variables are made with <code class="md-code-inline">@syms</code> or <code class="md-code-inline">Sym</code>, and generic Julia code (<code class="md-code-inline">+</code>, <code class="md-code-inline">sin</code>, <code class="md-code-inline">^</code>, …) builds symbolic expressions from them.</p>
 </li>
 <li><p>Expressions are kept in a canonical form as they are built.</p>
 </li>
 <li><p>Numbers stay exact unless a floating point number is involved.</p>
 </li>
-<li><p>Expressions are callable: with numbers they evaluate, with pairs they substitute.</p>
+<li><p>Expressions are callable: depending on how they are called, a Julia number or a symbolic expression will be returned.</p>
 </li>
 </ul>
 <h2 id="Symbolic-variables" class="md-heading">Symbolic variables<a href="#Symbolic-variables" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
@@ -126,18 +126,18 @@ using RischIntegrate</code></pre>
 \[\left( x, \; y \right)\]
 </div>
 </div>
-<p><code class="md-code-inline">Sym(:z)</code> makes one without binding a name, and <code class="md-code-inline">symbols</code> makes several from a string:</p>
+<p><code class="md-code-inline">Sym(:z)</code> makes one without binding a name when called with a symbol or string.</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">z = Sym(:z)
-a, b, c = symbols(&quot;a b c&quot;)</code></pre>
+<pre><code class="language-julia">z = Sym(:z)</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\left( a, \; b, \; c \right)\]
+\[z\]
 </div>
 </div>
-<p>A symbolic function, with no rules of its own, is made with <code class="md-code-inline">@syms f()</code>:</p>
+<p>(<code class="md-code-inline">Sym</code> is also used to create symbolic numbers.)</p>
+<p>A symbolic function is made with <code class="md-code-inline">@syms f()</code>:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -148,20 +148,16 @@ f(x^2)</code></pre>
 \[f\left( x^{2} \right)\]
 </div>
 </div>
+<p>(<code class="md-code-inline">SymFunction</code> is also used for this task.)</p>
 <p>An indexed family of variables is an array of symbols named by their indices (the array itself is indexed from 1):</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">@syms xs[0:3] A[1:2, 1:2]
-xs, A</code></pre>
+xs[1], A[1,1]</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\left( \left[ xs_0, \; xs_1, \; xs_2, \; xs_3 \right], \; \left[
-\begin{array}{cc}
-A_1__{1} &amp; A_1__{2} \\
-A_2__{1} &amp; A_2__{2} \\
-\end{array}
-\right] \right)\]
+\[\left( xs_{0}, \; A_{1,1} \right)\]
 </div>
 </div>
 <h2 id="Symbolic-numbers" class="md-heading">Symbolic numbers<a href="#Symbolic-numbers" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
@@ -204,54 +200,30 @@ A_2__{1} &amp; A_2__{2} \\
 \[\left( 1.4142135623730951 \cdot x, \; \sqrt{2} \cdot x, \; 2 \cdot x \cdot \pi \right)\]
 </div>
 </div>
+<p>A common idiom is to use <code class="md-code-inline">one(x)</code> or <code class="md-code-inline">zero(x)</code> instead of <code class="md-code-inline">1</code> or <code class="md-code-inline">0</code>.</p>
 <h2 id="Expressions" class="md-heading">Expressions<a href="#Expressions" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
-<p>Expressions are built by applying functions to variables. They are kept in a canonical form: like terms are collected, numbers are combined, and products of powers merge.</p>
-<div class="md-multi-output">
-<div class="md-code-block">
-<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">ex = x + 2x - y + x * y * x</code></pre>
-</div>
-<div class="md-math md-math-display">
-\[x^{2} \cdot y + 3 \cdot x - y\]
-</div>
-</div>
-<div class="md-multi-output">
-<div class="md-code-block">
-<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">exp(x) * exp(2x), (x * y)^3, sin(-x)</code></pre>
-</div>
-<div class="md-math md-math-display">
-\[\left( e^{3 \cdot x}, \; x^{3} \cdot y^{3}, \;  - \sin\left( x \right) \right)\]
-</div>
-</div>
+<p>Expressions are formed with combinations of symbolic numbers, variables, and deferred function calls.</p>
+<p>For symbolic numbers, there are some useful functions.</p>
 <p>Functions with no numeric argument stay unevaluated, while exact values at standard points are simplified:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">sin(x), sin(Sym(π) / 4), log(Sym(1)), sin(2)</code></pre>
-</div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(sin(x), sqrt(2)/2, 0, 0.9092974268256817)</code></pre>
-</div>
-<p><code class="md-code-inline">SymJ.gather</code> groups the terms of an expression by powers of a variable (SymPy&#39;s <code class="md-code-inline">collect</code>), and <code class="md-code-inline">SymJ.coeff</code> picks out one coefficient:</p>
-<div class="md-multi-output">
-<div class="md-code-block">
-<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">@syms a b c
-SymJ.gather(a * x^2 + b * x^2 + a * x - b * x + c, x), SymJ.coeff((x + y)^3, x^2)</code></pre>
+<pre><code class="language-julia">sin(x), sin(Sym(π) / 4), log(Sym(1)), sin(Sym(2))</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\left( \left( a + b \right) \cdot x^{2} + \left( a - b \right) \cdot x + c, \; 3 \cdot y \right)\]
+\[\left( \sin\left( x \right), \; \frac{\sqrt{2}}{2}, \; 0, \; \sin\left( 2 \right) \right)\]
 </div>
 </div>
-<p>For evaluation, <code class="md-code-inline">SymJ.horner</code> writes a polynomial in nested form, and <code class="md-code-inline">SymJ.cse</code> names the subexpressions that occur more than once:</p>
+<p>The <code class="md-code-inline">unwrap_const</code> function returns a Julia value, when there are no free variables:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">SymJ.horner(3x^4 - 2x^3 + x - 7, x), SymJ.cse((x + y)^2 + sin(x + y))</code></pre>
+<pre><code class="language-julia">ex = Sym(pi)^2/4
+SymJ.unwrap_const(ex)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(((3*x - 2)*x^2 + 1)*x - 7, (Pair{Sym, Sym}[t1 =&gt; x + y], t1^2 + sin(t1)))</code></pre>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">2.4674011002723395</code></pre>
 </div>
-<p><code class="md-code-inline">rationalize</code> replaces the floating-point numbers in an expression by nearby rationals:</p>
+<p>The <code class="md-code-inline">rationalize</code> function replaces the floating-point numbers in an expression by nearby rationals:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -265,21 +237,80 @@ SymJ.gather(a * x^2 + b * x^2 + a * x - b * x + c, x), SymJ.coeff((x + y)^3, x^2
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">SymJ.nsimplify(0.5x + 1.4142135623730951), SymJ.nsimplify(1.618033988749895), SymJ.nsimplify(2.0943951023931953; constants = [pi])</code></pre>
+<pre><code class="language-julia">(
+SymJ.nsimplify(0.5x + 1.4142135623730951),
+SymJ.nsimplify(1.618033988749895),
+SymJ.nsimplify(2.0943951023931953; constants = [pi])
+)</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( \frac{x}{2} + \sqrt{2}, \; \frac{\sqrt{5}}{2} + \frac{1}{2}, \; \frac{2 \cdot \pi}{3} \right)\]
 </div>
 </div>
-<p>An expression is a tree: an operation applied to arguments. SymJ implements TermInterface, so <code class="md-code-inline">operation</code> and <code class="md-code-inline">arguments</code> take it apart:</p>
+<p>An expression is a tree: an operation applied to arguments. SymJ implements TermInterface, so <code class="md-code-inline">operation</code> and <code class="md-code-inline">arguments</code> take it apart; <code class="md-code-inline">isexpr</code> checks if there is an expression tree (or a leaf):</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">using SymJ: operation, arguments
+<pre><code class="language-julia">using SymJ: operation, arguments, isexpr
 F = 9 // 5 * (y - 32)
-operation(F), arguments(F)</code></pre>
+operation(F), arguments(F), isexpr(F), isexpr(Sym(9//5))</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(+, Sym[9*y/5, -288/5])</code></pre>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">(+, Sym[9*y/5, -288/5], true, false)</code></pre>
+</div>
+<p>Expressions are built by applying functions to variables. They are kept in a canonical form: like terms are collected, numbers are combined, and products of powers merge.</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">ex = x + 2x - y + x * y * x</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[x^{2} \cdot y + 3 \cdot x - y\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">(
+exp(x) * exp(2x),
+(x * y)^3,
+sin(-x)
+)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( e^{3 \cdot x}, \; x^{3} \cdot y^{3}, \;  - \sin\left( x \right) \right)\]
+</div>
+</div>
+<p>There are functions to extract and manipulate parts of expressions.</p>
+<p><code class="md-code-inline">SymJ.gather</code> groups the terms of an expression by powers of a variable (SymPy&#39;s <code class="md-code-inline">collect</code>), and <code class="md-code-inline">SymJ.coeff</code> picks out one coefficient:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms a b c
+ex = a * x^2 + b * x^2 + a * x - b * x + c</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[a \cdot x^{2} + b \cdot x^{2} + a \cdot x - b \cdot x + c\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.gather(ex, x), SymJ.coeff(ex, x^2)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \left( a + b \right) \cdot x^{2} + \left( a - b \right) \cdot x + c, \; a + b \right)\]
+</div>
+</div>
+<p>For evaluation, <code class="md-code-inline">SymJ.horner</code> writes a polynomial in nested form, and <code class="md-code-inline">SymJ.cse</code> names the subexpressions that occur more than once:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">(
+SymJ.horner(3x^4 - 2x^3 + x - 7, x),
+SymJ.cse((x + y)^2 + sin(x + y))
+)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">(((3*x - 2)*x^2 + 1)*x - 7, (Pair{Sym, Sym}[t1 =&gt; x + y], t1^2 + sin(t1)))</code></pre>
 </div>
 <h2 id="Substitution" class="md-heading">Substitution<a href="#Substitution" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <p><code class="md-code-inline">subs</code> replaces symbols, or whole subexpressions, by other values:</p>
@@ -307,7 +338,11 @@ subs(ex, x =&gt; y - 1)</code></pre>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">@syms w
-subs(exp(x - exp(-x)), exp(-x) =&gt; w), subs(x^2 * log(x)^2, x * log(x) =&gt; w), subs(2a + 2b + c, a + b =&gt; w)</code></pre>
+(
+subs(exp(x - exp(-x)), exp(-x) =&gt; w),
+subs(x^2 * log(x)^2, x * log(x) =&gt; w),
+subs(2a + 2b + c, a + b =&gt; w)
+)</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( \frac{1}{w \cdot e^{w}}, \; w^{2}, \; c + 2 \cdot w \right)\]
@@ -353,7 +388,8 @@ u(3), u(3.0), u(1 // 3), u(big(2.5))</code></pre>
 </div>
 <pre class="md-output md-output-text"><code class="nohighlight ansi">(4, 4.0, 4//9, 2.25)</code></pre>
 </div>
-<p>Called with no arguments, a constant expression gives its value as a Julia number, exact where it can be (<code class="md-code-inline">(Sym(1)/2)()</code> is <code class="md-code-inline">1//2</code>); <code class="md-code-inline">SymJ.unwrap_const</code> is the same as a function, for <code class="md-code-inline">map</code>, and leaves expressions with variables alone. <code class="md-code-inline">float</code> gives the value as a float:</p>
+<p>Called with no arguments, a constant expression gives its value as a Julia number, exact where it can be (<code class="md-code-inline">(Sym(1)/2)()</code> is <code class="md-code-inline">1//2</code>); <code class="md-code-inline">SymJ.unwrap_const</code> is the same and can be used with higher-level functions like <code class="md-code-inline">map</code>. This function leaves expressions with variables alone.</p>
+<p><code class="md-code-inline">N</code> is a function which returns a <code class="md-code-inline">Float64</code> value for a numeric expression.</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -365,7 +401,10 @@ u(3), u(3.0), u(1 // 3), u(big(2.5))</code></pre>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">round(Sym(pi); digits = 2), floor(Int, Sym(7) / 2), round(Sym(5) / 2, RoundNearestTiesAway)</code></pre>
+<pre><code class="language-julia">(
+round(Sym(pi); digits = 2), floor(Int, Sym(7) / 2),
+round(Sym(5) / 2, RoundNearestTiesAway)
+)</code></pre>
 </div>
 <pre class="md-output md-output-text"><code class="nohighlight ansi">(157/50, 3, 3)</code></pre>
 </div>
@@ -404,14 +443,6 @@ ex(; x = 2, a = 1, b = -3, c = 2), ex(; x = 2)</code></pre>
  3.0
  2.25</code></pre>
 </div>
-<p><code class="md-code-inline">N</code> gives the floating point value of a constant expression, and calling it with no arguments gives a Julia number:</p>
-<div class="md-multi-output">
-<div class="md-code-block">
-<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">N(sqrt(Sym(2)) + Sym(π)), (Sym(3) // 4)()</code></pre>
-</div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(4.555806215962888, 3//4)</code></pre>
-</div>
 <p>Calling interprets the expression each time. For many evaluations, <code class="md-code-inline">lambdify</code> compiles it into a Julia function, as fast as one written by hand:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -428,6 +459,13 @@ g(1.0)</code></pre>
 <pre><code class="language-julia">using Plots
 plot(sin(x)^2 * exp(-x / 4), 0, 4pi)</code></pre>
 </div>
+<p>For plot recipes requiring a multivariate function, a specification of variables might be needed:</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">ex = x^2 - 2y^2
+xs = ys = range(-3, 3, 100)
+contour(xs, ys, (x,y) -&gt; ex(; x, y))</code></pre>
+</div>
 <h2 id="Polynomials" class="md-heading">Polynomials<a href="#Polynomials" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <h3 id="Construction" class="md-heading">Construction<a href="#Construction" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <p>A polynomial expression can be expanded with <code class="md-code-inline">expand</code>:</p>
@@ -440,7 +478,7 @@ plot(sin(x)^2 * exp(-x / 4), 0, 4pi)</code></pre>
 \[x^{3} - 7 \cdot x + 6\]
 </div>
 </div>
-<p><code class="md-code-inline">Poly</code> converts an expression into a polynomial in given generators. Its coefficients and exponents are available, and <code class="md-code-inline">Sym</code> converts it back:</p>
+<p><code class="md-code-inline">Poly</code> converts an expression into a sparse, multivariate polynomial in given generators. Its coefficients and exponents are available; <code class="md-code-inline">Sym</code> converts it back to an expression.</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -460,6 +498,7 @@ coefficients(Q)</code></pre>
 \[\left[ a, \; b, \; c \right]\]
 </div>
 </div>
+<p>Some evaluations are more performant using the <code class="md-code-inline">Poly</code> type.</p>
 <h3 id="Evaluation-and-shifts" class="md-heading">Evaluation and shifts<a href="#Evaluation-and-shifts" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <p>A polynomial is evaluated by calling it; a shift is a substitution:</p>
 <div class="md-multi-output">
@@ -500,6 +539,7 @@ coefficients(Q)</code></pre>
 \[x \cdot y + x^{2} - x - y\]
 </div>
 </div>
+<p>The least common multiple is implemented in <code class="md-code-inline">lcm</code>.</p>
 <p><code class="md-code-inline">SymJ.decompose</code> writes a polynomial as a composition of polynomials that do not decompose further, <code class="md-code-inline">p = g₁(g₂(⋯))</code>. <code class="md-code-inline">solve</code> uses it: an irreducible polynomial of degree above 4 whose components have degree at most 4 has its roots found through them, exactly:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -515,7 +555,10 @@ SymJ.decompose(p, x), solve(p ~ 0, x)[1:2]</code></pre>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">SymJ.minimal_polynomial(sqrt(Sym(2)) + sqrt(Sym(3)), x), SymJ.minimal_polynomial(cos(Sym(pi) / 7), x)</code></pre>
+<pre><code class="language-julia">(
+SymJ.minimal_polynomial(sqrt(Sym(2)) + sqrt(Sym(3)), x),
+SymJ.minimal_polynomial(cos(Sym(pi) / 7), x)
+)</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( x^{4} - 10 \cdot x^{2} + 1, \; 8 \cdot x^{3} - 4 \cdot x^{2} - 4 \cdot x + 1 \right)\]
@@ -574,7 +617,7 @@ reduced(x^2 - y^2, G, x, y), reduced(x^3, G, x, y)</code></pre>
 <pre class="md-output md-output-text"><code class="nohighlight ansi">((Sym[x + y, 0], 0), (Sym[x*y + x^2 + y^2, y], y/2))</code></pre>
 </div>
 <h3 id="Roots" class="md-heading">Roots<a href="#Roots" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
-<p><code class="md-code-inline">solve</code> finds the roots of a polynomial. Degrees up to four are solved exactly, with real roots of cubics given in trigonometric form (no complex numbers needed):</p>
+<p>We will see more uses later, but <code class="md-code-inline">solve</code> finds the roots of a polynomial. Degrees up to four are solved exactly, with real roots of cubics given in trigonometric form (no complex numbers needed):</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -602,7 +645,9 @@ reduced(x^2 - y^2, G, x, y), reduced(x^3, G, x, y)</code></pre>
 \[\left[  - \sqrt{2 \cdot \sqrt{6} + 5}, \;  - \sqrt{-2 \cdot \sqrt{6} + 5}, \; \sqrt{-2 \cdot \sqrt{6} + 5}, \; \sqrt{2 \cdot \sqrt{6} + 5} \right]\]
 </div>
 </div>
-<p>From degree five, an irreducible polynomial generally has no roots in radicals (those in special forms, as <code class="md-code-inline">x^5 ~ 2</code>, are still solved exactly), and <code class="md-code-inline">solve</code>, exact only, says so; <code class="md-code-inline">SymJ.fsolve</code> finds the roots numerically, the real ones or, with <code class="md-code-inline">domain = ℂ</code>, all of them:</p>
+<p>(Neither of the last two examples can be factored with <code class="md-code-inline">factor</code>, which provides factorization into irreducibles over the rationals.)</p>
+<p>From degree five, it is possible there are no roots in radicals. Those of special forms, such as <code class="md-code-inline">x^5 ~ 2</code>, are still solved exactly by <code class="md-code-inline">solve</code>.</p>
+<p>When exact roots aren&#39;t identifiable, <code class="md-code-inline">SymJ.fsolve</code> finds the roots numerically, the real ones by default (with <code class="md-code-inline">domain = ℂ</code> all of them):</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -633,7 +678,7 @@ cancel(r)</code></pre>
 \[\frac{2 \cdot x + 1}{x^{2} + x}\]
 </div>
 </div>
-<p><code class="md-code-inline">numer_denom</code> gives the numerator and denominator without reducing:</p>
+<p>The <code class="md-code-inline">numerator</code> and <code class="md-code-inline">denominator</code> generics return the top and bottom of a rational expression. The function <code class="md-code-inline">numer_denom</code> gives the numerator and denominator without reducing:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -678,7 +723,9 @@ cancel(r)</code></pre>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">simplify((x^2 - 1) / (x - 1)), simplify((x + 1)^2 - x^2), simplify(sqrt(Sym(2)) * sqrt(Sym(3)))</code></pre>
+<pre><code class="language-julia">(simplify((x^2 - 1) / (x - 1)),
+simplify((x + 1)^2 - x^2),
+simplify(sqrt(Sym(2)) * sqrt(Sym(3))))</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( x + 1, \; 2 \cdot x + 1, \; \sqrt{6} \right)\]
@@ -693,21 +740,13 @@ cancel(r)</code></pre>
 \[\left( 1, \; \left( x + 1 \right)^{2} \right)\]
 </div>
 </div>
-<p>Identities such as <code class="md-code-inline">sqrt(x^2) = x</code> hold only for some values. Symbols are complex unless a fact says otherwise, so these need assumptions:</p>
-<div class="md-multi-output">
-<div class="md-code-block">
-<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">simplify(sqrt(x^2)), simplify(sqrt(x^2); assume = @assume(x &gt; 0)), simplify(sqrt(x^2); assume = @assume(x in Reals))</code></pre>
-</div>
-<div class="md-math md-math-display">
-\[\left( \sqrt{x^{2}}, \; x, \; \left|x\right| \right)\]
-</div>
-</div>
 <p>Trigonometric identities are recognised, including multiple angles and sums of angles:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">simplify(1 - cos(x)^2), simplify(2sin(x) * cos(x)), simplify(sin(x) * cos(y) + cos(x) * sin(y))</code></pre>
+<pre><code class="language-julia">(simplify(1 - cos(x)^2),
+simplify(2sin(x) * cos(x)),
+simplify(sin(x) * cos(y) + cos(x) * sin(y)))</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( \sin^{2}\left( x \right), \; \sin\left( 2 \cdot x \right), \; \sin\left( x + y \right) \right)\]
@@ -726,7 +765,9 @@ cancel(r)</code></pre>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">simplify(cosh(x)^2 - sinh(x)^2), simplify(exp(x) + exp(-x)), simplify(cos(x) + im * sin(x))</code></pre>
+<pre><code class="language-julia">(simplify(cosh(x)^2 - sinh(x)^2),
+simplify(exp(x) + exp(-x)),
+simplify(cos(x) + im * sin(x)))</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( 1, \; 2 \cdot \cosh\left( x \right), \; e^{i \cdot x} \right)\]
@@ -735,7 +776,9 @@ cancel(r)</code></pre>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">simplify(1 - tanh(x)^2), simplify(1 + tan(x)^2), simplify(cosh(x) / sinh(x))</code></pre>
+<pre><code class="language-julia">(simplify(1 - tanh(x)^2),
+simplify(1 + tan(x)^2),
+simplify(cosh(x) / sinh(x)))</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( \mathrm{sech}^{2}\left( x \right), \; \sec^{2}\left( x \right), \; \coth\left( x \right) \right)\]
@@ -745,16 +788,39 @@ cancel(r)</code></pre>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">simplify(log(Sym(2)) + log(Sym(3))), simplify(sqrt(3 + 2sqrt(Sym(2)))), simplify(1 / (1 + sqrt(Sym(2))))</code></pre>
+<pre><code class="language-julia">(
+simplify(log(Sym(2)) + log(Sym(3))),
+simplify(sqrt(3 + 2sqrt(Sym(2)))),
+simplify(1 / (1 + sqrt(Sym(2))))
+)</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( \log\left( 6 \right), \; \sqrt{2} + 1, \; \sqrt{2} - 1 \right)\]
 </div>
 </div>
+<h3 id="Assumptions" class="md-heading">Assumptions<a href="#Assumptions" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p>Identities such as <code class="md-code-inline">sqrt(x^2) = x</code> hold only for some values. In most uses, symbolic variables are complex unless the assumptions say otherwise, so without them only the identities that hold for complex numbers apply. Assumptions can be given to a function call to change this behavior. Facts are specified through assumptions, which are passed to the <code class="md-code-inline">assume</code> keyword argument. In the following, we use the <code class="md-code-inline">@assume</code> macro which affords a more familiar syntax (<code class="md-code-inline">x &gt; 0</code> evaluates to a <code class="md-code-inline">Bool</code>, but in the macro is the same as the symbolic statement <code class="md-code-inline">x ≫ 0</code>).</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">simplify(log(x) + log(y); assume = @assume(x &gt; 0, y &gt; 0)), simplify(sqrt(x^2 + 2x + 1); assume = @assume(x &gt; -1))</code></pre>
+<pre><code class="language-julia">(
+simplify(sqrt(x^2)),
+simplify(sqrt(x^2); assume = @assume(x &gt; 0)),     # or assume = (x ≫ 0)
+simplify(sqrt(x^2); assume = @assume(x in Reals)) # or assume = (x ∈ ℝ)
+)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \sqrt{x^{2}}, \; x, \; \left|x\right| \right)\]
+</div>
+</div>
+<p>The Unicode shortcut <code class="md-code-inline">ℝ</code> (<code class="md-code-inline">\bbR&lt;tab&gt;</code>) can be used instead of the named domain, as can shortcuts for other elements of <code class="md-code-inline">SymJ.NumberSet</code>: <code class="md-code-inline">Integers, Rationals, and Complexes</code>.</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">(
+simplify(log(x) + log(y); assume = @assume(x &gt; 0, y &gt; 0)),
+simplify(sqrt(x^2 + 2x + 1); assume = @assume(x &gt; -1))
+)</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( \log\left( x \cdot y \right), \; x + 1 \right)\]
@@ -775,18 +841,26 @@ cancel(r)</code></pre>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">@syms n
-refine(log(exp(x)); assume = @assume(x in Reals)), refine(sin(x + 2n*Sym(π)); assume = @assume(n in Integers))</code></pre>
+(
+refine(log(exp(x)); assume = @assume(x in Reals)),
+refine(sin(x + 2n*Sym(π)); assume = @assume(n in Integers))
+)</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( x, \; \sin\left( x \right) \right)\]
 </div>
 </div>
+<h3 id="More-fine-grained-simplification" class="md-heading">More fine-grained simplification<a href="#More-fine-grained-simplification" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <p>The transformations <code class="md-code-inline">simplify</code> tries are also available on their own, unexported: <code class="md-code-inline">SymJ.simplify_rational</code>, <code class="md-code-inline">SymJ.simplify_powers</code>, <code class="md-code-inline">SymJ.simplify_trig</code>, <code class="md-code-inline">SymJ.simplify_hyperbolic</code>, <code class="md-code-inline">SymJ.simplify_log</code>, <code class="md-code-inline">SymJ.simplify_radicals</code> and <code class="md-code-inline">SymJ.simplify_gamma</code>. The last combines factorials, binomials and gamma functions whose arguments differ by integers, and writes factorial ratios as binomials:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">@syms k
-SymJ.simplify_gamma(factorial(n + 2) / factorial(n)), SymJ.simplify_gamma(binomial(n + 1, k) / binomial(n, k)), SymJ.simplify_gamma(factorial(n) / (factorial(k) * factorial(n - k)))</code></pre>
+(
+SymJ.simplify_gamma(factorial(n + 2) / factorial(n)),
+SymJ.simplify_gamma(binomial(n + 1, k) / binomial(n, k)),
+SymJ.simplify_gamma(factorial(n) / (factorial(k) * factorial(n - k)))
+)</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( \left( n + 1 \right) \cdot \left( n + 2 \right), \; \frac{n + 1}{ - k + n + 1}, \; \binom{n}{k} \right)\]
@@ -797,7 +871,11 @@ SymJ.simplify_gamma(factorial(n + 2) / factorial(n)), SymJ.simplify_gamma(binomi
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">SymJ.expand_trig(sin(x + y)), SymJ.expand_trig(cos(3x)), SymJ.expand_trig(tan(2x))</code></pre>
+<pre><code class="language-julia">(
+SymJ.expand_trig(sin(x + y)),
+SymJ.expand_trig(cos(3x)),
+SymJ.expand_trig(tan(2x))
+)</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( \cos\left( x \right) \cdot \sin\left( y \right) + \cos\left( y \right) \cdot \sin\left( x \right), \; -3 \cdot \cos\left( x \right) + 4 \cdot \cos^{3}\left( x \right), \; \frac{-2 \cdot \tan\left( x \right)}{\tan^{2}\left( x \right) - 1} \right)\]
@@ -807,7 +885,12 @@ SymJ.simplify_gamma(factorial(n + 2) / factorial(n)), SymJ.simplify_gamma(binomi
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">SymJ.rewrite(sin(x), exp), SymJ.rewrite(exp(im * x), cos), SymJ.rewrite(asinh(x), log), SymJ.rewrite(tan(x) + cos(x), tan =&gt; sin)</code></pre>
+<pre><code class="language-julia">(
+SymJ.rewrite(sin(x), exp),
+SymJ.rewrite(exp(im * x), cos),
+SymJ.rewrite(asinh(x), log),
+SymJ.rewrite(tan(x) + cos(x), tan =&gt; sin)
+)</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( \frac{ - i \cdot \left( \frac{-1}{e^{i \cdot x}} + e^{i \cdot x} \right)}{2}, \; \cos\left( x \right) + i \cdot \sin\left( x \right), \; \log\left( \sqrt{x^{2} + 1} + x \right), \; \cos\left( x \right) + \frac{\sin\left( x \right)}{\cos\left( x \right)} \right)\]
@@ -817,14 +900,18 @@ SymJ.simplify_gamma(factorial(n + 2) / factorial(n)), SymJ.simplify_gamma(binomi
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">SymJ.expand_log(log(x^2 * y); assume = @assume(x &gt; 0, y &gt; 0)), SymJ.expand_log(log(x * y)), SymJ.expand_log(log(x / y); force = true)</code></pre>
+<pre><code class="language-julia">(
+SymJ.expand_log(log(x^2 * y); assume = @assume(x &gt; 0, y &gt; 0)),
+SymJ.expand_log(log(x * y)),
+SymJ.expand_log(log(x / y); force = true)
+)</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( 2 \cdot \log\left( x \right) + \log\left( y \right), \; \log\left( x \cdot y \right), \; \log\left( x \right) - \log\left( y \right) \right)\]
 </div>
 </div>
 <h2 id="Solving-equations" class="md-heading">Solving equations<a href="#Solving-equations" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
-<p>An equation is written with <code class="md-code-inline">~</code>, which binds more loosely than everything else, so no parentheses are needed:</p>
+<p>An equation is written with <code class="md-code-inline">~</code>:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -834,6 +921,7 @@ SymJ.simplify_gamma(factorial(n + 2) / factorial(n)), SymJ.simplify_gamma(binomi
 \[\left[ -3, \; 1 \right]\]
 </div>
 </div>
+<p>This infix operator binds more loosely than everything else, so no parentheses are typically needed. Answers to <code class="md-code-inline">solve(eqn, var)</code> are usually a vector of <code class="md-code-inline">Sym</code> values, empty when there are no identified solutions, or <code class="md-code-inline">Cases</code> when the answer depends on the values of the parameters.</p>
 <p>Equations in which <code class="md-code-inline">x</code> appears through one function are solved by solving for that function first:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -863,17 +951,27 @@ SymJ.simplify_gamma(factorial(n + 2) / factorial(n)), SymJ.simplify_gamma(binomi
 \[\left[ 3 \right]\]
 </div>
 </div>
-<p>A product is zero where one of its factors is, so a product (or a sum with a common factor) is solved factor by factor. A factor that is never zero, such as <code class="md-code-inline">(a/x)^x</code>, gives no roots, and a root where another factor is undefined is dropped (<code class="md-code-inline">x*log(x)</code> has none at <code class="md-code-inline">0</code>). This finds critical points:</p>
+<p>A product is zero where one of its factors is, so a product (or a sum with a common factor) is solved factor by factor. A factor that is never zero, such as <code class="md-code-inline">(a/x)^x</code>, gives no roots, and a root where another factor is undefined is dropped (<code class="md-code-inline">x*log(x)</code> none at <code class="md-code-inline">0</code>).</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">solve(diff((a / x)^x, x) ~ 0, x), solve(diff(x^2 * exp(-x), x) ~ 0, x), solve(x * log(x) ~ 0, x)</code></pre>
+<pre><code class="language-julia">solve(x * log(x) ~ 0, x)</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\left( \left[ \frac{a}{e} \right], \; \left[ 0, \; 2 \right], \; \left[ 1 \right] \right)\]
+\[\left[ 1 \right]\]
 </div>
 </div>
-<p>Some equations need the Lambert W function:</p>
+<p>This example shows how to find critical points:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve(diff((a / x)^x, x) ~ 0, x), solve(diff(x^2 * exp(-x), x) ~ 0, x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \left[ \frac{a}{e} \right], \; \left[ 0, \; 2 \right] \right)\]
+</div>
+</div>
+<p>Some equations need the Lambert W function, from the <a href="https://github.com/jlapeyre/LambertW.jl">LambertW</a> package:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -883,7 +981,8 @@ SymJ.simplify_gamma(factorial(n + 2) / factorial(n)), SymJ.simplify_gamma(binomi
 \[\left[ \mathrm{lambertw}\left( 1 \right) \right]\]
 </div>
 </div>
-<p>Symbols other than the unknown are allowed. They take generic values: an expression in them alone is taken to be nonzero, so the quadratic formula comes out as it is usually written:</p>
+<p>Symbols other than the unknown are allowed.</p>
+<p>Such symbols take <em>generic values</em>: an expression in them alone is taken to be nonzero, so the quadratic formula comes out as it is usually written:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -914,7 +1013,7 @@ solve(x^n ~ 1, x; assume = @assume(n in Integers, n &gt; 0))</code></pre>
 \[\left[ 1 \right]\]
 </div>
 </div>
-<p>With a number for <code class="md-code-inline">n</code>, all of them:</p>
+<p>With a number for <code class="md-code-inline">n</code>, all of them are identified:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -945,7 +1044,7 @@ solve(x^n ~ 1, x; assume = @assume(n in Integers, n &gt; 0))</code></pre>
 </div>
 </div>
 <h3 id="Systems" class="md-heading">Systems<a href="#Systems" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
-<p>A system of equations gives a vector of solutions, each a <code class="md-code-inline">Dict</code> from the unknowns to their values. A linear system has at most one:</p>
+<p>A system of equations gives a vector of solutions, each a <code class="md-code-inline">Dict</code> from the unknowns to their values. A linear system&#39;s answer is a single solution (possibly in terms of free unknowns), yet a vector is returned:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -1004,7 +1103,7 @@ solve(x^n ~ 1, x; assume = @assume(n in Integers, n &gt; 0))</code></pre>
 \[y \in \left[ 0, 1 \right], \; x \in \left[ 0,  - y + 1 \right]\]
 </div>
 </div>
-<h3 id="Assumptions" class="md-heading">Assumptions<a href="#Assumptions" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<h3 id="More-on-assumptions" class="md-heading">More on assumptions<a href="#More-on-assumptions" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <p>Symbols are complex numbers unless a fact says otherwise. Facts are relations, such as <code class="md-code-inline">x &gt; 0</code>, or membership in one of <code class="md-code-inline">Integers ⊂ Rationals ⊂ Reals ⊂ Complexes</code> (also written <code class="md-code-inline">ℤ ⊂ ℚ ⊂ ℝ ⊂ ℂ</code>), such as <code class="md-code-inline">n in Integers</code>. The <code class="md-code-inline">@assume</code> macro writes them with Julia&#39;s operators, including <code class="md-code-inline">&amp;&amp;</code>, <code class="md-code-inline">||</code>, <code class="md-code-inline">!</code> and chained comparisons. They are given to <code class="md-code-inline">solve</code> with the <code class="md-code-inline">assume</code> keyword, and only the solutions they allow are kept:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -1070,6 +1169,7 @@ end</code></pre>
 \[\frac{16 \cdot a}{9}\]
 </div>
 </div>
+<h4 id="Cases" class="md-heading">Cases<a href="#Cases" class="md-heading-anchor" aria-label="Link to this section">#</a></h4>
 <p>When the answer depends on something the facts leave open, the result lists the cases:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -1118,7 +1218,7 @@ end</code></pre>
  (-91//64, -181//128, 1)
  (181//128, 91//64, 1)</code></pre>
 </div>
-<p>For an equation <code class="md-code-inline">solve</code> cannot solve exactly, <code class="md-code-inline">SymJ.fsolve</code> (as Maple&#39;s) finds its roots numerically: the real ones, on the whole line or an interval, and with <code class="md-code-inline">domain = ℂ</code> complex ones too.</p>
+<p>For an equation <code class="md-code-inline">solve</code> cannot solve exactly, <code class="md-code-inline">SymJ.fsolve</code> (with name and functionality mirroring Maple&#39;s function) finds its roots numerically: the real ones, on the whole line or an interval, and with <code class="md-code-inline">domain = ℂ</code> complex ones too.</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -1128,14 +1228,19 @@ end</code></pre>
 \[\left( \left[ 0.7390851332151607 \right], \; \left[ 1.1099563755802675, \; 3.3530284715132392 \right] \right)\]
 </div>
 </div>
+<h3 id="External-zero-finding" class="md-heading">External zero finding<a href="#External-zero-finding" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <p>The packages for numerical root finding also take SymJ expressions as they are, since an expression is callable (<code class="md-code-inline">lambdify</code> makes a faster function): <code class="md-code-inline">Roots.find_zero(cos(x) - x, 0.5)</code>, or with Newton&#39;s method and the exact derivative, <code class="md-code-inline">find_zero((lambdify(f, x), lambdify(diff(f, x), x)), x0, Roots.Newton())</code>.</p>
 <h2 id="Sums" class="md-heading">Sums<a href="#Sums" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
-<p><code class="md-code-inline">SymJ.summation(f, k, a, b)</code> (not exported) sums <code class="md-code-inline">f</code> over <code class="md-code-inline">k = a, …, b</code>, in closed form where it finds one; <code class="md-code-inline">b</code> may be <code class="md-code-inline">Inf</code>:</p>
+<p><code class="md-code-inline">SymJ.summation(f, (k, a, b))</code> (not exported) sums <code class="md-code-inline">f</code> over <code class="md-code-inline">k = a, …, b</code>, in closed form where it finds one; <code class="md-code-inline">b</code> may be <code class="md-code-inline">Inf</code>:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">@syms k n r
-SymJ.summation(k^2, k, 1, n), SymJ.summation(r^k, k, 0, n), SymJ.summation(1 / (k * (k + 1)), k, 1, n)</code></pre>
+(
+SymJ.summation(k^2, (k, 1, n)),
+SymJ.summation(r^k, (k, 0, n)),
+SymJ.summation(1 / (k * (k + 1)), (k, 1, n))
+)</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( \frac{\left( 2 \cdot n + 1 \right) \cdot n \cdot \left( n + 1 \right)}{6}, \; \frac{r^{n + 1} - 1}{r - 1}, \; \frac{n}{n + 1} \right)\]
@@ -1144,7 +1249,7 @@ SymJ.summation(k^2, k, 1, n), SymJ.summation(r^k, k, 0, n), SymJ.summation(1 / (
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">SymJ.summation(1 / k^2, k, 1, Inf), SymJ.summation(x^k / factorial(k), k, 0, Inf)</code></pre>
+<pre><code class="language-julia">SymJ.summation(1 / k^2, (k, 1, Inf)), SymJ.summation(x^k / factorial(k), (k, 0, Inf))</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( \frac{\pi^{2}}{6}, \; e^{x} \right)\]
@@ -1155,7 +1260,10 @@ SymJ.summation(k^2, k, 1, n), SymJ.summation(r^k, k, 0, n), SymJ.summation(1 / (
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">@syms m
-SymJ.summation(binomial(n, k)^2, k, 0, n), SymJ.summation(binomial(n, k) * binomial(m, n - k), k, 0, n)</code></pre>
+(
+SymJ.summation(binomial(n, k)^2, (k, 0, n)),
+SymJ.summation(binomial(n, k) * binomial(m, n - k), (k, 0, n))
+)</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( \binom{2 \cdot n}{n}, \; \binom{m + n}{m} \right)\]
@@ -1165,7 +1273,7 @@ SymJ.summation(binomial(n, k)^2, k, 0, n), SymJ.summation(binomial(n, k) * binom
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">SymJ.summation(binomial(n - k, k), k, 0, n)</code></pre>
+<pre><code class="language-julia">SymJ.summation(binomial(n - k, k), (k, 0, n))</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( \frac{ - \sqrt{5}}{10} + \frac{1}{2} \right) \cdot \left( \frac{ - \sqrt{5}}{2} + \frac{1}{2} \right)^{n} + \left( \frac{\sqrt{5}}{10} + \frac{1}{2} \right) \cdot \left( \frac{\sqrt{5}}{2} + \frac{1}{2} \right)^{n}\]
@@ -1175,7 +1283,7 @@ SymJ.summation(binomial(n, k)^2, k, 0, n), SymJ.summation(binomial(n, k) * binom
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">SymJ.summation(binomial(n, k), k, 0, n - 1), SymJ.summation(binomial(2n, k), k, 0, n)</code></pre>
+<pre><code class="language-julia">SymJ.summation(binomial(n, k), (k, 0, n - 1)), SymJ.summation(binomial(2n, k), (k, 0, n))</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( 2^{n} - 1, \; \frac{4^{n}}{2} + \frac{\binom{2 \cdot n}{n}}{2} \right)\]
@@ -1186,7 +1294,8 @@ SymJ.summation(binomial(n, k)^2, k, 0, n), SymJ.summation(binomial(n, k) * binom
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">@syms w()
-SymJ.rsolve(w(n + 2) ~ w(n + 1) + w(n), w(n), w(0) =&gt; 0, w(1) =&gt; 1), SymJ.rsolve(w(n + 1) ~ 2w(n) + 1, w(n))</code></pre>
+(SymJ.rsolve(w(n + 2) ~ w(n + 1) + w(n), w(n), w(0) =&gt; 0, w(1) =&gt; 1),
+SymJ.rsolve(w(n + 1) ~ 2w(n) + 1, w(n)))</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( \frac{\sqrt{5} \cdot \left(  - \left( \frac{ - \sqrt{5}}{2} + \frac{1}{2} \right)^{n} + \left( \frac{\sqrt{5}}{2} + \frac{1}{2} \right)^{n} \right)}{5}, \; 2^{n} \cdot \left( w\left( 0 \right) + 1 \right) - 1 \right)\]
@@ -1196,7 +1305,9 @@ SymJ.rsolve(w(n + 2) ~ w(n + 1) + w(n), w(n), w(0) =&gt; 0, w(1) =&gt; 1), SymJ.
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">SymJ.rsolve(w(n + 1) - w(n) ~ 1 / (n + 1), w(n), w(0) =&gt; 0), SymJ.rsolve(w(n + 1) ~ (n + 1) * w(n) + 1, w(n), w(0) =&gt; 1)</code></pre>
+<pre><code class="language-julia">(
+SymJ.rsolve(w(n + 1) - w(n) ~ 1 / (n + 1), w(n), w(0) =&gt; 0),
+SymJ.rsolve(w(n + 1) ~ (n + 1) * w(n) + 1, w(n), w(0) =&gt; 1))</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( \mathrm{harmonic}\left( n \right), \; \left( \sum_{k=0}^{n - 1} \frac{1}{\mathrm{factorial}\left( k + 1 \right)} + 1 \right) \cdot \mathrm{factorial}\left( n \right) \right)\]
@@ -1205,7 +1316,7 @@ SymJ.rsolve(w(n + 2) ~ w(n + 1) + w(n), w(n), w(0) =&gt; 0, w(1) =&gt; 1), SymJ.
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">SymJ.summation((-1)^(k + 1) * binomial(n, k) / k, k, 1, n)</code></pre>
+<pre><code class="language-julia">SymJ.summation((-1)^(k + 1) * binomial(n, k) / k, (k, 1, n))</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\mathrm{harmonic}\left( n \right)\]
@@ -1215,7 +1326,7 @@ SymJ.rsolve(w(n + 2) ~ w(n + 1) + w(n), w(n), w(0) =&gt; 0, w(1) =&gt; 1), SymJ.
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">SymJ.summation((-1)^k * binomial(n, k)^2, k, 0, n)</code></pre>
+<pre><code class="language-julia">SymJ.summation((-1)^k * binomial(n, k)^2, (k, 0, n))</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\begin{cases}
@@ -1247,7 +1358,7 @@ SymJ.rsolve(w(n + 2) ~ w(n + 1) + w(n), w(n), w(0) =&gt; 0, w(1) =&gt; 1), SymJ.
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">SymJ.summation(k * SymJ.harmonic(k), k, 1, n)</code></pre>
+<pre><code class="language-julia">SymJ.summation(k * SymJ.harmonic(k), (k, 1, n))</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\frac{\mathrm{harmonic}\left( n \right) \cdot n \cdot \left( n + 1 \right)}{2} - \frac{n \cdot \left( n - 1 \right)}{4}\]
@@ -1257,7 +1368,10 @@ SymJ.rsolve(w(n + 2) ~ w(n + 1) + w(n), w(n), w(0) =&gt; 0, w(1) =&gt; 1), SymJ.
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">SymJ.summation(1 / k^2, k, 1, n), SymJ.summation(SymJ.harmonic(k) / k, k, 1, n)</code></pre>
+<pre><code class="language-julia">(
+SymJ.summation(1 / k^2, (k, 1, n)),
+SymJ.summation(SymJ.harmonic(k) / k, (k, 1, n))
+)</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( \mathrm{harmonic}\left( n, 2 \right), \; \frac{\left( \mathrm{harmonic}\left( n \right) \right)^{2}}{2} + \frac{\mathrm{harmonic}\left( n, 2 \right)}{2} \right)\]
@@ -1267,7 +1381,7 @@ SymJ.rsolve(w(n + 2) ~ w(n + 1) + w(n), w(n), w(0) =&gt; 0, w(1) =&gt; 1), SymJ.
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">SymJ.summation(r^k, k, 0, Inf)</code></pre>
+<pre><code class="language-julia">SymJ.summation(r^k, (k, 0, Inf))</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\begin{cases} \text{the series diverges} &amp; r \leq -1 \\ \frac{1}{ - r + 1} &amp; -1 &lt; r &lt; 1 \\ \text{the series diverges} &amp; r \geq 1 \end{cases}\]
@@ -1276,14 +1390,14 @@ SymJ.rsolve(w(n + 2) ~ w(n + 1) + w(n), w(n), w(0) =&gt; 0, w(1) =&gt; 1), SymJ.
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">SymJ.summation(k * r^k, k, 0, Inf; assume = @assume(0 &lt; r &lt; 1))</code></pre>
+<pre><code class="language-julia">SymJ.summation(k * r^k, (k, 0, Inf); assume = @assume(0 &lt; r &lt; 1))</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\frac{r}{\left( r - 1 \right)^{2}}\]
 </div>
 </div>
 <h2 id="Matrices" class="md-heading">Matrices<a href="#Matrices" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
-<p>Matrices of expressions are Julia arrays of <code class="md-code-inline">Sym</code>. With <code class="md-code-inline">LinearAlgebra</code>, <code class="md-code-inline">det</code>, <code class="md-code-inline">inv</code>, <code class="md-code-inline">lu</code> and <code class="md-code-inline">\</code> work exactly, pivoting on the first nonzero entry rather than comparing magnitudes:</p>
+<p>Matrices of expressions are Julia arrays of <code class="md-code-inline">Sym</code>. With <code class="md-code-inline">LinearAlgebra</code>, <code class="md-code-inline">det</code>, <code class="md-code-inline">inv</code>, <code class="md-code-inline">lu</code> and <code class="md-code-inline">\</code> work exactly, pivoting (for exact entries) on the first nonzero entry rather than comparing magnitudes:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -1371,7 +1485,11 @@ a &amp; b \\
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">u = [x, y, 1]
-dot(u, [1, 2, 3]), norm(u), refine(dot(u, u); assume = @assume(x in Reals, y in Reals))</code></pre>
+(
+dot(u, [1, 2, 3]),
+norm(u),
+refine(dot(u, u); assume = @assume(x in Reals, y in Reals))
+)</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( \mathrm{conj}\left( x \right) + 2 \cdot \mathrm{conj}\left( y \right) + 3, \; \sqrt{\left( \left|x\right| \right)^{2} + \left( \left|y\right| \right)^{2} + 1}, \; x^{2} + y^{2} + 1 \right)\]
@@ -1563,6 +1681,7 @@ a + b - 2 \cdot x &amp; \text{if } x \leq a\\
 \[\left( e, \; \frac{ - e}{2} \right)\]
 </div>
 </div>
+<p>Using symbolic numbers is important in many limits.</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -1582,6 +1701,7 @@ a + b - 2 \cdot x &amp; \text{if } x \leq a\\
 \[\left( 0, \; 1 \right)\]
 </div>
 </div>
+<p>All of <code class="md-code-inline">-</code>, <code class="md-code-inline">:-</code>, <code class="md-code-inline">&quot;-&quot;</code>, <code class="md-code-inline">&quot;+&quot;</code>, <code class="md-code-inline">:+</code>, and <code class="md-code-inline">+</code> can be used to specify a one-sided direction.</p>
 <p>The algorithm handles cancellations that numerical evaluation cannot follow:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -1616,7 +1736,10 @@ a + b - 2 \cdot x &amp; \text{if } x \leq a\\
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">limit(x^a, x =&gt; Inf; assume = @assume(a &gt; 1)), limit((a^x + b^x)^(1 / x), x =&gt; Inf; assume = @assume(a &gt; b &gt; 0))</code></pre>
+<pre><code class="language-julia">(
+limit(x^a, x =&gt; Inf; assume = @assume(a &gt; 1)),
+limit((a^x + b^x)^(1 / x), x =&gt; Inf; assume = @assume(a &gt; b &gt; 0))
+)</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( \infty, \; a \right)\]
@@ -1646,7 +1769,11 @@ a + b - 2 \cdot x &amp; \text{if } x \leq a\\
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">diff(x^3 * y^2, x, y), diff(sin(x * y), x, y), diff(x^2 * y * z, x, x, y, z)</code></pre>
+<pre><code class="language-julia">(
+diff(x^3 * y^2, x, y),
+diff(sin(x * y), x, y),
+diff(x^2 * y * z, x, x, y, z)
+)</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( 6 \cdot x^{2} \cdot y, \;  - \sin\left( x \cdot y \right) \cdot x \cdot y + \cos\left( x \cdot y \right), \; 2 \right)\]
@@ -1674,7 +1801,7 @@ solve(diff(F, x) ~ 0, diff(u(x), x))</code></pre>
 \[\left[ \frac{ - x}{u\left( x \right)} \right]\]
 </div>
 </div>
-<h3 id="Critical-points" class="md-heading">Critical points<a href="#Critical-points" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<h3 id="Example:-critical-points" class="md-heading">Example: critical points<a href="#Example:-critical-points" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <p>The critical points of a function are the zeros of its derivative, and the second derivative classifies them:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -1697,7 +1824,7 @@ cps = solve(diff(h, x) ~ 0, x)</code></pre>
  (3, 1, 6)</code></pre>
 </div>
 <p>So 1 is a local maximum and 3 a local minimum.</p>
-<h3 id="Tangent-lines" class="md-heading">Tangent lines<a href="#Tangent-lines" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<h3 id="Example:-tangent-lines" class="md-heading">Example: tangent lines<a href="#Example:-tangent-lines" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <p>The tangent line at <code class="md-code-inline">c</code> is <code class="md-code-inline">h(c) + h&#39;(c)(x - c)</code>:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -1748,7 +1875,7 @@ expand(h(c₀) + diff(h, x)(c₀) * (x - c₀))</code></pre>
 \[\left( 1 + \log\left( x \right) \cdot x + \frac{\left( \log\left( x \right) \right)^{2} \cdot x^{2}}{2} + O\left( x^{3} \right), \; x + \frac{1}{2} - \frac{1}{8 \cdot x} + \frac{1}{16 \cdot x^{2}} + O\left( \frac{1}{x^{3}} \right) \right)\]
 </div>
 </div>
-<p>At <code class="md-code-inline">±Inf</code> an expansion may need a factor that is not a power of <code class="md-code-inline">x</code>: terms <code class="md-code-inline">exp(g)*(series)</code>, <code class="md-code-inline">cos(h)*(series)</code> and <code class="md-code-inline">sin(h)*(series)</code>, from <code class="md-code-inline">exp</code>, <code class="md-code-inline">sin</code> and <code class="md-code-inline">cos</code> of growing arguments and from the asymptotic expansions of SpecialFunctions&#39; <code class="md-code-inline">erf</code>, <code class="md-code-inline">erfc</code>, <code class="md-code-inline">erfi</code>, <code class="md-code-inline">erfcx</code>, <code class="md-code-inline">expinti</code>, <code class="md-code-inline">expint</code>, <code class="md-code-inline">sinint</code>, <code class="md-code-inline">cosint</code>, the Bessel functions and <code class="md-code-inline">gamma</code> (Stirling&#39;s series). Factors that cancel do cancel:</p>
+<p>At <code class="md-code-inline">±Inf</code> an expansion may need a factor that is not a power of <code class="md-code-inline">x</code>: terms <code class="md-code-inline">exp(g)*(series)</code>, <code class="md-code-inline">cos(h)*(series)</code> and <code class="md-code-inline">sin(h)*(series)</code>, from <code class="md-code-inline">exp</code>, <code class="md-code-inline">sin</code> and <code class="md-code-inline">cos</code> of growing arguments and from the asymptotic expansions of SpecialFunctions&#39; <code class="md-code-inline">erf</code>, <code class="md-code-inline">erfc</code>, <code class="md-code-inline">erfi</code>, <code class="md-code-inline">erfcx</code>, <code class="md-code-inline">expinti</code>, <code class="md-code-inline">expint</code>, <code class="md-code-inline">sinint</code>, <code class="md-code-inline">cosint</code>, the Bessel functions and <code class="md-code-inline">gamma</code> (Stirling&#39;s series; the special functions need to be brought in from SpecialFunctions to be used directly). Factors that cancel do cancel:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -1758,13 +1885,27 @@ expand(h(c₀) + diff(h, x)(c₀) * (x - c₀))</code></pre>
 \[\sin\left( x \right) \cdot \left( \frac{1}{x} + O\left( \frac{1}{x^{4}} \right) \right) + \frac{1}{e^{x}} \cdot \left( 1 + \frac{1}{x} + O\left( \frac{1}{x^{4}} \right) \right) + O\left( \frac{1}{x^{4}} \right)\]
 </div>
 </div>
+<div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">series(erf(x), x, Inf, 4)      # 1 + exp(-x^2)*(-1/(sqrt(π)*x) + 1/(2*sqrt(π)*x^3) + O(1/x^4))
-series(exp(x^2) * erfc(x), x, Inf, 4)   # 1/(sqrt(π)*x) - 1/(2*sqrt(π)*x^3) + O(1/x^4)</code></pre>
+<pre><code class="language-julia">using SpecialFunctions: erf, erfc
+series(erf(x), x, Inf, 4)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[1 + \frac{1}{e^{x^{2}}} \cdot \left( \frac{-1}{x \cdot \sqrt{\pi}} + \frac{1}{2 \cdot x^{3} \cdot \sqrt{\pi}} + O\left( \frac{1}{x^{4}} \right) \right)\]
+</div>
 </div>
 <p>Exponentially small terms are kept: <code class="md-code-inline">erf(x)</code> at <code class="md-code-inline">Inf</code> is not just <code class="md-code-inline">1</code>.</p>
-<p>A series is an object that keeps its error term. Series about the same point can be added, multiplied and divided, with the order tracked, and <code class="md-code-inline">Sym</code> drops the <code class="md-code-inline">O</code> term:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">series(exp(x^2) * erfc(x), x, Inf, 4)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\frac{1}{x \cdot \sqrt{\pi}} - \frac{1}{2 \cdot x^{3} \cdot \sqrt{\pi}} + O\left( \frac{1}{x^{4}} \right)\]
+</div>
+</div>
+<p>A series is an object that keeps its error term. Series about the same point can be added, multiplied and divided, with the order tracked:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -1775,6 +1916,7 @@ s / c</code></pre>
 \[x + \frac{x^{3}}{3} + \frac{2 \cdot x^{5}}{15} + O\left( x^{6} \right)\]
 </div>
 </div>
+<p>Calling <code class="md-code-inline">Sym</code> on a series drops the <code class="md-code-inline">O</code> term:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -1785,7 +1927,7 @@ s / c</code></pre>
 </div>
 </div>
 <h2 id="Integrals" class="md-heading">Integrals<a href="#Integrals" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
-<p>Antiderivatives come from <code class="md-code-inline">integrate</code>, from RischIntegrate, an implementation of the Risch algorithm. It decides whether an elementary antiderivative exists, and finds it:</p>
+<p>Antiderivatives come from <code class="md-code-inline">integrate</code>, from RischIntegrate, an implementation of the Risch algorithm. It decides whether an elementary antiderivative exists, and finds it when it can.</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -1867,7 +2009,9 @@ F(3) - F(0)</code></pre>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">integrate(1 / (1 + x^2), (x, 0, Inf)), integrate(exp(-x^2), (x, -Inf, Inf)), integrate(log(x), (x, 0, 1)), integrate(1 / x^2, (x, -1, 1))</code></pre>
+<pre><code class="language-julia">(integrate(1 / (1 + x^2), (x, 0, Inf)),
+integrate(exp(-x^2), (x, -Inf, Inf)), integrate(log(x), (x, 0, 1)),
+integrate(1 / x^2, (x, -1, 1)))</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( \frac{\pi}{2}, \; \sqrt{\pi}, \; -1, \; \infty \right)\]
@@ -1879,7 +2023,10 @@ F(3) - F(0)</code></pre>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">pv(f, ab) = integrate(f, ab; principal_value = true)
-pv(1 / x, (x, -1, 2)), pv(1 / x^3, (x, -1, 2)), pv(tan(x), (x, 0, π)), pv(x / (1 + x^2), (x, -Inf, Inf))</code></pre>
+(pv(1 / x, (x, -1, 2)),
+pv(1 / x^3, (x, -1, 2)),
+pv(tan(x), (x, 0, π)),
+pv(x / (1 + x^2), (x, -Inf, Inf)))</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( \log\left( 2 \right), \; \frac{3}{8}, \; 0, \; 0 \right)\]
@@ -1935,7 +2082,7 @@ integrate(x^n * y^m, (y, 0, x), (x, 0, 1); assume = @assume(n &gt; 0, m &gt; 0))
 \[\frac{1}{\left( m + 1 \right) \cdot \left( m + n + 2 \right)}\]
 </div>
 </div>
-<p>The variable of integration is real, as are the parameters of a definite integral, so the <code class="md-code-inline">conj</code> that <code class="md-code-inline">dot</code> puts on symbols drops out. A line integral, the work of ⟨-y, x⟩ around the unit circle:</p>
+<p>The variable of integration, by default, is assumed to be real, as are the parameters of a definite integral, so the <code class="md-code-inline">conj</code> that <code class="md-code-inline">dot</code> puts on symbols drops out. A line integral, the work of ⟨-y, x⟩ around the unit circle:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -2012,7 +2159,10 @@ SymJ.dsolve(y&#39;(x) + 2y(x) ~ exp(x), y(x))</code></pre>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">SymJ.dsolve(y&#39;&#39;(x) + 2y&#39;(x) + 5y(x) ~ 0, y(x)), SymJ.dsolve(y&#39;&#39;(x) + y(x) ~ sin(x), y(x))</code></pre>
+<pre><code class="language-julia">(
+SymJ.dsolve(y&#39;&#39;(x) + 2y&#39;(x) + 5y(x) ~ 0, y(x)),
+SymJ.dsolve(y&#39;&#39;(x) + y(x) ~ sin(x), y(x))
+)</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( y\left( x \right) = \frac{C1 \cdot \cos\left( 2 \cdot x \right) + C2 \cdot \sin\left( 2 \cdot x \right)}{e^{x}}, \; y\left( x \right) = C1 \cdot \cos\left( x \right) + C2 \cdot \sin\left( x \right) - \frac{\cos\left( x \right) \cdot x}{2} \right)\]
@@ -2111,7 +2261,10 @@ SymJ.dsolve(y&#39;(x) + 2y(x) ~ exp(x), y(x))</code></pre>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">@syms s
-SymJ.laplace_transform(x * sin(x), x, s), SymJ.inverse_laplace_transform(exp(-2s) / (s^2 + 1), s, x)</code></pre>
+(
+SymJ.laplace_transform(x * sin(x), x, s),
+SymJ.inverse_laplace_transform(exp(-2s) / (s^2 + 1), s, x)
+)</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( \frac{2 \cdot s}{\left( s^{2} + 1 \right)^{2}}, \; \theta\left( x - 2 \right) \cdot \sin\left( x - 2 \right) \right)\]
@@ -2124,9 +2277,9 @@ SymJ.laplace_transform(x * sin(x), x, s), SymJ.inverse_laplace_transform(exp(-2s
 <pre><code class="language-julia">@syms t u() v()
 SymJ.dsolve([u&#39;(t) ~ u(t) - v(t), v&#39;(t) ~ 5u(t) - 3v(t)], [u(t), v(t)])</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">2-element Vector{Relation}:
- u(t) ~ (2*C1*cos(t) - C1*sin(t) - C2*cos(t) - 2*C2*sin(t))/(5*exp(t))
- v(t) ~ (C1*cos(t) - C2*sin(t))/exp(t)</code></pre>
+<div class="md-math md-math-display">
+\[\left[ \begin{array}{l} u\left( t \right) = \frac{2 \cdot C1 \cdot \cos\left( t \right) - C1 \cdot \sin\left( t \right) - C2 \cdot \cos\left( t \right) - 2 \cdot C2 \cdot \sin\left( t \right)}{5 \cdot e^{t}} \\ v\left( t \right) = \frac{C1 \cdot \cos\left( t \right) - C2 \cdot \sin\left( t \right)}{e^{t}} \end{array} \right]\]
+</div>
 </div>
 <p>Higher derivatives, right sides and initial conditions (one for each unknown and each order below its highest) are allowed:</p>
 <div class="md-multi-output">
@@ -2134,12 +2287,12 @@ SymJ.dsolve([u&#39;(t) ~ u(t) - v(t), v&#39;(t) ~ 5u(t) - 3v(t)], [u(t), v(t)])<
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">SymJ.dsolve([u&#39;&#39;(t) + v(t) ~ 0, v&#39;(t) ~ u(t) + t], [u(t), v(t)], u(0) =&gt; 1, u&#39;(0) =&gt; 0, v(0) =&gt; 0)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">2-element Vector{Relation}:
- u(t) ~ -t - (-2*cos(sqrt(3)*t/2) - 2*sqrt(3)*sin(sqrt(3)*t/2)/3)*exp(t/2)/2
- v(t) ~ 2*sqrt(3)*sin(sqrt(3)*t/2)*exp(t/2)/3</code></pre>
+<div class="md-math md-math-display">
+\[\left[ \begin{array}{l} u\left( t \right) =  - t - \frac{\left( -2 \cdot \cos\left( \frac{\sqrt{3} \cdot t}{2} \right) - \frac{2 \cdot \sqrt{3} \cdot \sin\left( \frac{\sqrt{3} \cdot t}{2} \right)}{3} \right) \cdot e^{\frac{t}{2}}}{2} \\ v\left( t \right) = \frac{2 \cdot \sqrt{3} \cdot \sin\left( \frac{\sqrt{3} \cdot t}{2} \right) \cdot e^{\frac{t}{2}}}{3} \end{array} \right]\]
+</div>
 </div>
 <h2 id="Pattern-matching" class="md-heading">Pattern matching<a href="#Pattern-matching" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
-<p><code class="md-code-inline">SymJ.pattern</code> (not exported) makes a pattern from a quoted expression, with <code class="md-code-inline">~x</code> marking a slot. <code class="md-code-inline">match</code> gives the first match as a <code class="md-code-inline">Dict</code>, <code class="md-code-inline">eachmatch</code> every match, and <code class="md-code-inline">occursin</code> whether a part of an expression matches:</p>
+<p><code class="md-code-inline">SymJ.pattern</code> (not exported) makes a pattern from a quoted expression, with <code class="md-code-inline">~x</code> marking a slot (the syntax comes from the SymbolicUtils package). <code class="md-code-inline">match</code> gives the first match as a <code class="md-code-inline">Dict</code>, <code class="md-code-inline">eachmatch</code> every match, and <code class="md-code-inline">occursin</code> whether a part of an expression matches:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -2249,17 +2402,20 @@ d(x^3), d(x^a)</code></pre>
           <a class="md-toc-link md-toc-h2" href="#Rational-functions">Rational functions</a>
             <a class="md-toc-link md-toc-h3" href="#Partial-fractions">Partial fractions</a>
           <a class="md-toc-link md-toc-h2" href="#Simplification">Simplification</a>
+            <a class="md-toc-link md-toc-h3" href="#Assumptions">Assumptions</a>
+            <a class="md-toc-link md-toc-h3" href="#More-fine-grained-simplification">More fine-grained simplification</a>
           <a class="md-toc-link md-toc-h2" href="#Solving-equations">Solving equations</a>
             <a class="md-toc-link md-toc-h3" href="#Inequalities">Inequalities</a>
             <a class="md-toc-link md-toc-h3" href="#Systems">Systems</a>
-            <a class="md-toc-link md-toc-h3" href="#Assumptions">Assumptions</a>
+            <a class="md-toc-link md-toc-h3" href="#More-on-assumptions">More on assumptions</a>
+            <a class="md-toc-link md-toc-h3" href="#External-zero-finding">External zero finding</a>
           <a class="md-toc-link md-toc-h2" href="#Sums">Sums</a>
           <a class="md-toc-link md-toc-h2" href="#Matrices">Matrices</a>
           <a class="md-toc-link md-toc-h2" href="#Piecewise-functions">Piecewise functions</a>
           <a class="md-toc-link md-toc-h2" href="#Limits">Limits</a>
           <a class="md-toc-link md-toc-h2" href="#Derivatives">Derivatives</a>
-            <a class="md-toc-link md-toc-h3" href="#Critical-points">Critical points</a>
-            <a class="md-toc-link md-toc-h3" href="#Tangent-lines">Tangent lines</a>
+            <a class="md-toc-link md-toc-h3" href="#Example:-critical-points">Example: critical points</a>
+            <a class="md-toc-link md-toc-h3" href="#Example:-tangent-lines">Example: tangent lines</a>
           <a class="md-toc-link md-toc-h2" href="#Series">Series</a>
           <a class="md-toc-link md-toc-h2" href="#Integrals">Integrals</a>
             <a class="md-toc-link md-toc-h3" href="#Definite-integrals">Definite integrals</a>
@@ -2282,6 +2438,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=1d525096"></script>
+  <script src="../assets/materialdocs.js?v=9abcf0b9"></script>
 </body>
 </html>
