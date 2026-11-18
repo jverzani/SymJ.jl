@@ -960,4 +960,18 @@ import PolyLog as PL
         # (the older RischIntegrate of Julia 1.10 cannot integrate it: a parameter in the radicand)
         VERSION >= v"1.12" && @test RischIntegrate.integrate((a / sqrt(x^2 + a^2))^3, (x, -1, 1)) == 2a / sqrt(a^2 + 1)
     end
+
+    @testset "missing cases (SymPy review, round 20)" begin
+        @syms a
+        y = SymFunction(:y)
+        # a Riccati equation through a solution of its linear form (#31017); numerically:
+        # the older RischIntegrate of Julia 1.10 gives √π as a float
+        F = SymJ.dsolve(diff(y(x), x) ~ x^2 - 5 - y(x)^2, y(x)).rhs
+        @test abs(N(subs(diff(F, x) - (x^2 - 5 - F^2), x => Sym(7) // 10, Sym(:C1) => Sym(1) // 3))) < 1e-9
+        # homogeneous with a radical, for x > 0: √(x² + x²v²) = x√(1 + v²) (Kamke 1.113;
+        # #31017)
+        G = SymJ.dsolve(a * sqrt(x^2 + y(x)^2) + x * diff(y(x), x) - y(x) ~ 0, y(x); assume = (x ≫ 0,)).rhs
+        res = a * sqrt(x^2 + G^2) + x * diff(G, x) - G
+        @test abs(N(subs(res, x => 2, a => Sym(1) // 3, Sym(:C1) => Sym(1) // 5))) < 1e-12
+    end
 end

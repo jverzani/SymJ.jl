@@ -102,6 +102,9 @@ function _letters(e::Expr)
     elseif e.head === :call && e.args[1] === :/ && length(e.args) == 3 && (n = _negated(e.args[2])) !== nothing
         # the sign of a quotient in front: -\frac{x}{2}, not \frac{ - x}{2} (SymPy #3973)
         return Expr(:call, :-, _letters(Expr(:call, :/, n, e.args[3])))
+    elseif e.head === :call && e.args[1] === :conj && length(e.args) == 2
+        # a conjugate as an overline, \overline{\Psi} (SymPy #2779's review)
+        return Latexify.LaTeXString("\\overline{" * Latexify.latexraw(_letters(e.args[2])) * "}")
     elseif e.head === :call && haskey(_FNTEX, e.args[1])
         return Expr(:call, _FNTEX[e.args[1]], map(_letters, e.args[2:end])...)
     elseif e.head === :call && e.args[1] === :^ && length(e.args) == 3 && e.args[2] isa Expr &&
