@@ -179,6 +179,7 @@ function fsolve(eqs::AbstractVector{<:Relation}, vars::AbstractVector, hints = n
         end
         return [sol]
     end
+    nstarts == 1 && throw(ArgumentError("fsolve: no solution found from the starting values given ($(join(("$(xs[i]) = $(start[i])" for i in 1:n), ", "))); give other ranges or starting values"))
     throw(ArgumentError("fsolve: no solution found in the ranges searched ($(join(("$(xs[i]) ∈ [$(ranges[i][1]), $(ranges[i][2])]" for i in 1:n if start[i] === nothing), ", "))); give other ranges or starting values"))
 end
 
@@ -233,13 +234,15 @@ end
 # |F| ≤ 1e-12 (relative to the equations' scale at z) with a step near rounding; nothing
 # when it stalls, leaves the finite numbers, or the Jacobian is singular
 function _damped_newton(f, J, z::Vector{T}, ::Type{T}) where {T}
-    val(w) = (v = try T.(f(w...)) catch err; err isa Union{DomainError,DivideError} || rethrow(); nothing end)
+    # (a complex value at a real point, x^y with x < 0, is no real point of F: as for a
+    # DomainError; Float64 of it was an InexactError; SymPy #4027)
+    val(w) = (v = try T.(f(w...)) catch err; err isa Union{DomainError,DivideError,InexactError} || rethrow(); nothing end)
     v = val(z)
     (v === nothing || !all(isfinite, v)) && return nothing
     scale = max(1.0, maximum(abs, v))
     for _ in 1:100
         r = maximum(abs, v)
-        Jz = try T.(J(z...)) catch err; err isa Union{DomainError,DivideError} || rethrow(); return nothing end
+        Jz = try T.(J(z...)) catch err; err isa Union{DomainError,DivideError,InexactError} || rethrow(); return nothing end
         all(isfinite, Jz) || return nothing
         δ = try Jz \ v catch err; err isa Union{LinearAlgebra.SingularException,LinearAlgebra.LAPACKException} || rethrow(); return nothing end
         all(isfinite, δ) || return nothing

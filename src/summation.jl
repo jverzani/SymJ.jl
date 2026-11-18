@@ -47,7 +47,7 @@ function summation(f, range::Tuple; assume = nothing)
 end
 
 # the sum of f for k = a, …, b (summation(f, (k, a, b)) unpacked)
-function _summation_kab(f, k::Sym, a, b; assume = nothing)
+function _summation_kab(f, k::Sym, a, b; assume = nothing, _regroup::Bool = true)
     _isnamed(k) || throw(ArgumentError("summation: $k is not a symbol"))
     f = Sym(f)
     # equalities among the assumptions substituted first (a ~ 1: Σ aⁿ is the number of
@@ -61,9 +61,12 @@ function _summation_kab(f, k::Sym, a, b; assume = nothing)
     end
     # ratios of factorials and gammas in k reduced first (factorial(k + 1/2)/factorial(k -
     # 1/2) is k + 1/2; the sum was left unevaluated; SymPy #11437)
-    if _has_fn(f, (:factorial, :gamma))
+    if _regroup && _has_fn(f, (:factorial, :gamma))
         g = try simplify_gamma(f) catch err; err isa ArgumentError || rethrow(); f end
-        _nodes(g) < _nodes(f) && (f = g)
+        # (not when the reduction makes a pole where the term is defined at the first
+        # integers of the range: 2k/(2k)! is 1/(2k - 1)!, undefined at k = 0, where the term
+        # is 0; summing it from 0 overflowed the stack; SymPy #4171)
+        _nodes(g) < _nodes(f) && !_new_pole_at_start(f, g, k, a, b) && (f = g)
     end
     # a Sym infinity is a bound as Inf is (it was taken as a number: digamma(∞ ± i))
     a isa Sym && _isinfpt(a) && (a = Float64(a.num))
@@ -169,8 +172,19 @@ function _summation_kab(f, k::Sym, a, b; assume = nothing)
     if r isa Sym && _hasfn(r, :Sum) && f.kind == MUL && any(b -> b.kind == ADD, f.args)
         g = expand(f)
         if g.kind == ADD
-            r2 = try _summation_kab(g, k, a, bs === nothing ? Inf : bs; assume) catch err; err isa ArgumentError || rethrow(); nothing end
+            # (its terms as they are: reducing the factorials regrouped them into f, and the
+            # retry ran again, without end; SymPy #4171)
+            r2 = try _summation_kab(g, k, a, bs === nothing ? Inf : bs; assume, _regroup = false) catch err; err isa ArgumentError || rethrow(); nothing end
             r2 isa Sym && !_hasfn(r2, :Sum) && return r2
+            # term by term through summation itself, whose first-term and factorial steps
+            # the inner sums skip (Σ 2k/(2k)! = sinh 1 from 1; Σ (2k + 1)/(2k)! = e)
+            if r2 isa Sym && _hasfn(r2, :Sum)
+                ts = [Sym(c) * t for (c, t) in zip(g.coefs, g.args)]
+                iszero(g.num) || push!(ts, Sym(g.num))
+                ps = [try _summation_kab(t, k, a, bs === nothing ? Inf : bs; assume) catch err; err isa ArgumentError || rethrow(); nothing end for t in ts]
+                all(p -> p isa Sym && !_hasfn(p, :Sum) && !(p.kind == NUMBER && !isfinite(Float64(p.num))), ps) &&
+                    return simplify(_add_many(ps); assume)
+            end
         end
     end
     # left unevaluated from an integer whose term is 0: from the next one (n 2^n/n! at n =
@@ -199,6 +213,19 @@ function _summation_kab(f, k::Sym, a, b; assume = nothing)
         end
     end
     r
+end
+
+# g undefined (a pole) at one of the first integers k = a, …, a + 10 of the range where f
+# is defined
+function _new_pole_at_start(f::Sym, g::Sym, k::Sym, a, b)
+    as = Sym(a)
+    (as.kind == NUMBER && isexact(as.num) && _isint(as.num)) || return false
+    j0 = _toint(as.num)
+    j1 = j0 + 10
+    bs = b isa Real && isinf(b) ? nothing : Sym(b)
+    bs !== nothing && bs.kind == NUMBER && isfinite(N(bs)) && (j1 = min(j1, floor(Int, N(bs))))
+    defined(h, j) = try subs(h, k => Sym(j)); true catch err; _isdivzero(err) || rethrow(); false end
+    any(j -> !defined(g, j) && defined(f, j), j0:j1)
 end
 
 const _DIRECT_TERMS = 1000
@@ -1754,4 +1781,5 @@ function _point_piece(f::Sym, k::Sym)
     rest = length(f.args) == 4 && f.args[3] == ONE ? f.args[4] : apply_function(:piecewise, f.args[3:end])
     (c, v1, rest)
 end
+
 
