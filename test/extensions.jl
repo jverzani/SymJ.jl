@@ -974,6 +974,16 @@ import PolyLog as PL
             @test N(w) ≈ 0.9059404763223628 rtol = 1e-10
         end
         @test N(RischIntegrate.integrate(exp(-x^2) * log(x + 2), (x, 0, Inf))) ≈ 0.8231099519447602 rtol = 1e-10
+        # integrate(ex): the unevaluated integrals in ex carried out, innermost first; those
+        # that cannot be kept
+        # (numerically: the older RischIntegrate of Julia 1.10 gives √π as a float)
+        @test N(RischIntegrate.integrate(SymJ.Integral(exp(-x^2), (x, 0, Inf)))) ≈ sqrt(π) / 2 rtol = 1e-14
+        @test RischIntegrate.integrate(SymJ.Integral(x * y, (x, 0, 1), (y, 0, 2))) == 1
+        @test RischIntegrate.integrate(1 + SymJ.Integral(x^2, x)) == 1 + x^3 / 3
+        H = SymJ.Integral(exp(x^3), (x, 0, 1))
+        @test isequal(RischIntegrate.integrate(H), H)
+        @test RischIntegrate.integrate(2H + SymJ.Integral(x, (x, 0, 1))) == 2H + Sym(1) // 2
+        @test_throws ArgumentError RischIntegrate.integrate(x^2)
         # not when it diverges (e^(-x) sin(x)/x² at 0), nor with a parameter
         @test_throws RischIntegrate.NotElementary RischIntegrate.integrate(exp(-x) * sin(x) / x^2, (x, 0, Inf))
         @test_throws RischIntegrate.NotElementary RischIntegrate.integrate(y * exp(x^3), (x, 0, 1))

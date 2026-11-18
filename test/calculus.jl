@@ -224,7 +224,12 @@ end
 
 @testset "unevaluated definite integrals: values by quadrature" begin
     @syms t
-    Int4(f, v, a, b) = SymJ._mkfn_node(:Integral, Sym[f, v, Sym(a), Sym(b)])
+    Int4(f, v, a, b) = SymJ.Integral(f, (v, a, b))
+    # SymJ.Integral builds the node, nothing integrated; several ranges nest, the first inside
+    @test SymJ._isdefint(SymJ.Integral(x^2, (x, 0, 1)))
+    @test SymJ.Integral(x * t, (x, 0, 1), (t, 0, 2)) == SymJ.Integral(SymJ.Integral(x * t, (x, 0, 1)), (t, 0, 2))
+    @test length(SymJ.Integral(x^2, x).args) == 2
+    @test_throws ArgumentError SymJ.Integral(x^2, (x^2, 0, 1))
     @test SymJ._quadgk(u -> exp(-u^2), -Inf, Inf)[1] ≈ sqrt(π) rtol = 1e-12
     @test SymJ._quadgk(u -> 1 / sqrt(u), 0, 1)[1] ≈ 2 rtol = 1e-8
     I1 = Int4(exp(x^3), x, 0, 1)

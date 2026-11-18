@@ -28,6 +28,43 @@ end
 
 # a Poly integrated as its expression (it reached the integrator as an opaque leaf;
 # SymPy #4196)
+# integrate(ex) with no variable: the unevaluated integrals in ex (SymJ.Integral, or those
+# integrate left) carried out, innermost first; one that cannot be is kept as it is (a
+# definite one with no elementary antiderivative is kept by integrate itself, valued by
+# quadrature). A Cases answer replaces a whole-expression integral only. No integral in ex:
+# RischIntegrate's error (no variable of integration)
+function RischIntegrate.integrate(ex::Sym; assume = nothing, kw...)
+    SymJ._has_node(ex, t -> t.kind == SymJ.FN && t.name === :Integral) ||
+        throw(ArgumentError("integrate: no variable of integration (integrate(ex, x) or integrate(ex, (x, a, b))), and no unevaluated integral in $ex"))
+    function carry(t::Sym)
+        SymJ._replace_walk(t) do u
+            (u.kind == SymJ.FN && u.name === :Integral && length(u.args) in (2, 4)) || return nothing
+            f = carry(u.args[1])
+            v = try
+                length(u.args) == 2 ? RischIntegrate.integrate(f, u.args[2]; assume, kw...) :
+                    RischIntegrate.integrate(f, (u.args[2], u.args[3], u.args[4]); assume, kw...)
+            catch err
+                err isa InterruptException && rethrow()
+                nothing
+            end
+            keep = SymJ._mkfn_node(:Integral, Sym[f; u.args[2:end]])
+            v isa Sym ? v : keep
+        end
+    end
+    # (a Cases for the whole expression when it is one integral)
+    if ex.kind == SymJ.FN && ex.name === :Integral
+        f = carry(ex.args[1])
+        v = try
+            length(ex.args) == 2 ? RischIntegrate.integrate(f, ex.args[2]; assume, kw...) :
+                RischIntegrate.integrate(f, (ex.args[2], ex.args[3], ex.args[4]); assume, kw...)
+        catch err
+            err isa InterruptException && rethrow()
+            nothing
+        end
+        return v isa Union{Sym,SymJ.Cases} ? v : SymJ._mkfn_node(:Integral, Sym[f; ex.args[2:end]])
+    end
+    carry(ex)
+end
 RischIntegrate.integrate(p::SymJ.Poly, x::Sym; kw...) = RischIntegrate.integrate(Sym(p), x; kw...)
 RischIntegrate.integrate(p::SymJ.Poly, xabs::Tuple...; kw...) = RischIntegrate.integrate(Sym(p), xabs...; kw...)
 

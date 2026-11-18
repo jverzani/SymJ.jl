@@ -1399,6 +1399,15 @@ ex = integrate(exp(-x^2 * y^2), (x, 0, 1), (y, 0, 1))
 ex, N(ex)
 ```
 
+`SymJ.Integral(f, (x, a, b))` (or `SymJ.Integral(f, x)`) writes an integral without
+integrating it; `integrate(ex)`, with no variable, carries out the integrals in `ex`,
+keeping those it cannot do:
+
+```@example tut
+I = SymJ.Integral(exp(-x^2), (x, 0, Inf))
+I, N(I), integrate(I)
+```
+
 `principal_value = true` asks for the Cauchy principal value instead:
 a singular point inside is approached from both sides at once,
 lim_{ε→0⁺} (∫ₐ^{s-ε} + ∫_{s+ε}^b) f, and an integral over (-∞, ∞) is
