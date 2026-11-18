@@ -255,17 +255,34 @@ u = x^2 - 2x + 1
 u(3), u(3.0), u(1 // 3), u(big(2.5))
 ```
 
-Called with no arguments, a constant expression gives its value as a
-Julia number, exact where it can be (`(Sym(1)/2)()` is `1//2`);
-`SymJ.unwrap_const` is the same and can be used with higher-level functions like `map`. This function leaves expressions with variables alone.
+A constant expression (one with no free variables) converts to a Julia number in several ways:
 
-`N` is a function which returns a `Float64` value for a numeric expression.
+| call | gives | note |
+|:-----|:------|:-----|
+| `ex()`, `SymJ.unwrap_const(ex)` | the exact Julia value | `Int`, `Rational`, `π`, …; a float where Julia's arithmetic gives one (`sqrt(2)`) |
+| `N(ex)` | a `Float64` (`ComplexF64` when not real) | checked in higher precision |
+| `float(ex)` | a `Float64` or a `BigFloat` (or their complex) | as Julia's `float`: `BigFloat` when `ex` holds a big integer or rational, or is past `Float64`'s range |
+| `SymJ.evalf(ex, T, prec)` | a `T` (`Complex{T}` when not real) | a `BigFloat` to `prec` bits |
+| `T(ex)` (`Int`, `Rational`, `Float64`, `BigFloat`, …) | a `T` | an `InexactError` when the value is not a `T` |
+
+`N` is a function which returns a `Float64` value for a numeric expression; `float` returns an `AbstractFloat` value, possibly a `BigFloat`. All but `T(ex)` return an expression with a free variable unchanged, so `SymJ.unwrap_const` and `float` can be mapped over a mix of constants and expressions:
 
 ```@example tut
 map(SymJ.unwrap_const, [Sym(3) / 4, sqrt(Sym(2)), u]), float(Sym(pi) / 4)
 ```
 
-Julia's number types convert a value that fits them, and throw an `InexactError` for one that does not: `Int(Sym(3))`, `Rational(Sym(7)/2)`, `BigFloat(Sym(pi))` at the current precision. Rounding works as for numbers, with a rounding mode, `digits` or `sigdigits` (exactly: a rational), or to an integer type:
+```@example tut
+N(Sym(10)^400), float(Sym(10)^400), SymJ.evalf(sqrt(Sym(2)), BigFloat, 100)
+```
+
+The value from `N`, `float` and `SymJ.evalf` is computed with more precision where `Float64` (or the requested precision) loses it, so digits lost to cancellation are recovered:
+
+```@example tut
+ex = sqrt(Sym(10)^20 + 1) - Sym(10)^10
+sqrt(1e20 + 1) - 1e10, N(ex), SymJ.evalf(ex, BigFloat, 64)
+```
+
+Julia's number types convert a value that fits them: `Int(Sym(3))`, `Rational(Sym(7)/2)`, `BigFloat(Sym(pi))` at the current precision. Rounding works as for numbers, with a rounding mode, `digits` or `sigdigits` (exactly: a rational), or to an integer type:
 
 ```@example tut
 (

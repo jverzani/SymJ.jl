@@ -622,7 +622,8 @@ The value of a constant expression as a Julia number, and anything else as it is
 as a function, for `map` and other generic code (as `unwrap_const` in SymbolicUtils,
 SymEngine and Giac). Exact values stay exact: `SymJ.unwrap_const(Sym(1)/2) === 1//2`,
 `SymJ.unwrap_const(PI) === π`, `SymJ.unwrap_const(sqrt(Sym(2))) === sqrt(2)`; an expression
-with a free symbol and a non-`Sym` argument are returned unchanged. Not exported.
+with a free symbol and a non-`Sym` argument are returned unchanged. Not exported. For
+float values, see [`N`](@ref), `float` and [`SymJ.evalf`](@ref).
 
 ```julia
 map(SymJ.unwrap_const, [Sym(2), x + 1, Sym(3)/4])   # Any[2, x + 1, 3//4]
@@ -634,12 +635,31 @@ unwrap_const(ex::Sym) = _constant_value(ex)
 """
     float(ex::Sym)
 
-The value of a constant expression as a `Float64` (a `ComplexF64` when it is not real),
-as [`N`](@ref); an expression with a free symbol is returned unchanged, so generic code
-calling `float` works on it. For an array, broadcast: `float.(A)`. `float(Sym)` is `Sym`.
+The value of a constant expression as a float, following Julia's `float`, whose type
+follows its argument's: a `BigFloat` (at the current precision, as
+[`SymJ.evalf`](@ref)`(ex, BigFloat)`) when the expression holds a big integer or rational
+(`float(Sym(10)^400)`, `float(1/Sym(3)^50)`) or its value is past `Float64`'s range
+(`float(exp(Sym(1000)))`), else a `Float64` as [`N`](@ref) (`float(Sym(pi))`). Not real,
+a complex of either. An expression with a free symbol is returned unchanged, so generic
+code calling `float` works on it. For an array, broadcast: `float.(A)`. `float(Sym)` is
+`Sym`. See the table of conversions under [`SymJ.evalf`](@ref).
 """
-Base.float(ex::Sym) = _hassymbol(ex) ? ex : N(ex)
+function Base.float(ex::Sym)
+    _hassymbol(ex) && return ex
+    _has_bignum(ex) && return evalf(ex, BigFloat)
+    v = N(ex)
+    # (past Float64's range: exp(1000) is Inf and exp(-1000) is 0 in Float64)
+    if (!isfinite(v) && !_hasnonfinite(ex)) || (iszero(v) && ex.kind != NUMBER)
+        w = try evalf(ex, BigFloat) catch err; err isa ArgumentError || rethrow(); v end
+        (isfinite(w) && !iszero(w)) && return w
+    end
+    v
+end
 Base.float(::Type{Sym}) = Sym
+
+# a big integer or rational among ex's numbers
+_has_bignum(ex::Sym) = _has_node(ex, t -> t.num isa SymNumber && t.num.tag == T_BIG ||
+    (t.kind == ADD && any(c -> c.tag == T_BIG, t.coefs)))
 
 # does ex contain a symbol? (free_symbols without the allocation)
 # does ex contain a variable or parameter (_hassymbol), or a parameter? Plain loops: these
@@ -940,7 +960,9 @@ _binom(n::Int, k::Int) = n <= 60 ? SymNumber(binomial(n, k)) : SymNumber(binomia
 Evaluate `ex` numerically as a `Float64` (or `ComplexF64` when the value is not real).
 The value is checked in higher precision: where Float64 arithmetic loses it (terms that
 cancel, `log` of a number within `1e-16` of 1), the precision is raised (to 2048 bits)
-until two evaluations agree, and the result is that value rounded to `Float64`.
+until two evaluations agree, and the result is that value rounded to `Float64`. For other
+types and precisions, see [`SymJ.evalf`](@ref) and `float`; the table there lists the
+conversions of a symbolic number to a Julia number.
 """
 function N(ex::Sym)
     z = _checked_value(ex, _evalc(ex))
@@ -970,6 +992,69 @@ function N(ex::Sym)
     iszero(imag(z)) ? real(z) : z
 end
 N(x::Number) = x
+
+"""
+    SymJ.evalf(ex, T = Float64, prec = nothing)
+
+The value of a constant expression as a `T` (a `Complex{T}` when it is not real), `T` a
+float type. For `BigFloat`, `prec` bits (by default the current `precision(BigFloat)`):
+the value is computed with more until two evaluations agree to `prec` bits, so digits
+lost to cancellation are recovered, then rounded to `prec` bits. For `Float64` this is
+[`N`](@ref); other types (`Float32`) are `N` converted. An expression with a free symbol is
+returned unchanged. Not exported.
+
+The conversions of a symbolic number to a Julia number:
+
+| call | gives | |
+|:-----|:------|:--|
+| `N(ex)` | `Float64` or `ComplexF64` | checked in higher precision |
+| `float(ex)` | `Float64` or `BigFloat` (or their complex) | `BigFloat` when `ex` holds a big integer or rational or is past `Float64`'s range, as Julia's `float` |
+| `SymJ.evalf(ex, T, prec)` | `T` or `Complex{T}` | `BigFloat` to `prec` bits |
+| `ex()`, `SymJ.unwrap_const(ex)` | the exact Julia value | `Int`, `Rational`, `π`, …, a float where Julia's arithmetic gives one (`sqrt(2)`) |
+| `T(ex)` (`Int`, `Rational`, `Float64`, `BigFloat`, …) | a `T` | an `InexactError` when the value is not a `T` |
+
+Each returns an expression with a free symbol unchanged, except `T(ex)`, which throws.
+
+```julia
+SymJ.evalf(Sym(pi))                    # 3.141592653589793
+SymJ.evalf(sqrt(Sym(2)), BigFloat, 200)   # √2 to 200 bits
+SymJ.evalf(exp(Sym(1000)) - exp(Sym(1000)) + 1, BigFloat)   # 1.0, not lost to cancellation
+SymJ.evalf(sqrt(Sym(-2)), Float32)     # 0.0f0 + 1.4142135f0im
+```
+"""
+function evalf(ex::Sym, ::Type{T} = Float64, prec::Union{Nothing,Integer} = nothing) where {T<:AbstractFloat}
+    _hassymbol(ex) && return ex
+    T === BigFloat && return _evalf_big(ex, prec === nothing ? precision(BigFloat) : Int(prec))
+    prec === nothing || throw(ArgumentError("evalf: a precision is given for BigFloat only, not $T"))
+    v = N(ex)
+    T === Float64 && return v
+    v isa Real ? T(v) : Complex{T}(v)
+end
+evalf(x::Number, ::Type{T} = Float64, prec::Union{Nothing,Integer} = nothing) where {T<:AbstractFloat} =
+    evalf(Sym(x), T, prec)
+
+# ex to p bits: evaluated with more, until two evaluations agree to p bits
+function _evalf_big(ex::Sym, p::Int)
+    p >= 2 || throw(ArgumentError("evalf: a precision of at least 2 bits, not $p"))
+    # (an exact number rounded once, as BigFloat(big(10)^400) is)
+    ex.kind == NUMBER && !isfloat(ex.num) && return setprecision(() -> BigFloat(_rat(ex.num)), BigFloat, p)
+    prev = nothing
+    w = nothing
+    for q in (p + 32, 2p + 64, 4p + 128, 8p + 256, 16p + 512)
+        w = _bigvalue(ex, q)
+        w === nothing && throw(ArgumentError("evalf: $ex has no numeric value"))
+        isfinite(w) || break
+        if prev !== nothing
+            d = abs(w - prev)
+            (iszero(d) || d <= big(2.0)^(-p - 1) * max(abs(w), abs(prev))) && break
+        end
+        prev = w
+    end
+    setprecision(BigFloat, p) do
+        r, i = BigFloat(real(w)), BigFloat(imag(w))
+        iszero(i) ? r : complex(r, i)
+    end
+end
 
 # z (the Float64 value of ex) confirmed, or replaced, by evaluations in BigFloat at
 # rising precision: two that agree to Float64 accuracy settle it. An expression that

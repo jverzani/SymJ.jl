@@ -155,11 +155,13 @@ function (::Type{T})(x::Sym) where {T<:Rational}
     typemin(Int) <= numerator(r) <= typemax(Int) && denominator(r) <= typemax(Int) ? Rational{Int}(r) : r
 end
 
-# Float64 is in manipulation.jl; BigFloat evaluates at the current precision
+# Float64 is in manipulation.jl; BigFloat at the current precision, through evalf (so
+# with digits lost to cancellation recovered); AbstractFloat as float
 function (::Type{T})(x::Sym) where {T<:AbstractFloat}
-    v = T === BigFloat ? (_hassymbol(x) ? N(x) : evaluate(x, big(0.0))) : N(x)
+    _hassymbol(x) && throw(InexactError(nameof(T), T, x))
+    v = T === AbstractFloat ? float(x) : T === BigFloat ? evalf(x, BigFloat) : N(x)
     v isa Real || throw(InexactError(nameof(T), T, x))
-    T(v)
+    T === AbstractFloat ? v : T(v)
 end
 
 ## predicates: true when known to hold, from the expression or the facts of an
