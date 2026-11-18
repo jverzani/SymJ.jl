@@ -933,4 +933,20 @@ import PolyLog as PL
         G = RischIntegrate.integrate((x - uy)^2 / (x - y)^2, x)
         @test iszero(simplify(subs(diff(G, x) - (x - uy)^2 / (x - y)^2, y => Sym(1) // 2)))
     end
+
+    @testset "wrong answers (SymPy review, round 20)" begin
+        # definite integrals along a complex segment: the cuts it crosses and its ends by
+        # limits along it (#31017; ∫ 1/z from -i to -1 was 3iπ/2)
+        @syms z
+        @test RischIntegrate.integrate(1 / z, (z, -im, -1)) == -im * PI / 2
+        @test N(RischIntegrate.integrate(log(z), (z, -im, -1))) ≈ 1 + π / 2 + im * (π - 1) rtol = 1e-12
+        @test N(RischIntegrate.integrate(log(z) / z^2, (z, -im, -1))) ≈ 1 + π / 2 - im * (π - 1) rtol = 1e-12
+        @test RischIntegrate.integrate(1 / z, (z, -1 - im, -1 + im)) == -im * PI / 2
+        @test N(RischIntegrate.integrate(sqrt(z), (z, -1 - im, -1 + im))) ≈ 0.4752076 * im rtol = 1e-6
+        @test N(RischIntegrate.integrate(log(z + 2), (z, -3 - im, -3 + im))) ≈ 0.26394350735484 * im rtol = 1e-10
+        @test N(RischIntegrate.integrate(csc(z), (z, 1 - im, 1 + im))) ≈ 1.8987949537455 * im rtol = 1e-10
+        # log(x^i) = i log(x) only for x > e^-π: no value rather than a wrong one (#31017)
+        # (the older RischIntegrate of Julia 1.10 refuses the integrand itself)
+        @test_throws Union{ArgumentError, RischIntegrate.RischNotImplemented} RischIntegrate.integrate(log(z^im)^2, (z, 0, 1))
+    end
 end

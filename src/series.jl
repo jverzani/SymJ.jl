@@ -294,6 +294,31 @@ function _psapply(name::Symbol, args::Vector{Sym}, N::Rational{Int})
         end
         r === nothing || return _ser(r, N)
     end
+    # inverse functions at a point inside their branch cut on the real line: in a form
+    # analytic along the line on the side whose values N gives (Julia's, at u + 0im), so
+    # the derivatives agree with the value (the derivative of acos at 2 through √(1 - 4)
+    # took the other side: acos(2 + x) had +i x/√3 for -i x/√3)
+    if length(args) == 1 && name in (:acos, :asin, :asec, :acsc, :asech) && !_hassymbol(a0)
+        v = try _evalc(a0) catch; nothing end
+        v isa Complex && iszero(imag(v)) && (v = real(v))
+        w = args[1]
+        r = if !(v isa Real)
+            nothing
+        elseif name === :acos && v > 1
+            -IM * acosh(w)
+        elseif name === :asin && v > 1
+            PI / 2 + IM * acosh(w)
+        elseif name === :asec && -1 < v < 0
+            PI + IM * acosh(-1 / w)
+        elseif name === :acsc && -1 < v < 0
+            -PI / 2 - IM * acosh(-1 / w)
+        elseif name === :asech && abs(v) > 1
+            -IM * acos(1 / w)
+        else
+            nothing
+        end
+        r === nothing || return _ser(r, N)
+    end
     # Γ, ψ and ψ⁽ᵏ⁾ at a pole -m (m = 0, 1, …): moved to the regular point 1 by the
     # recurrences, Γ(w) = Γ(w + m + 1)/(w (w + 1) ⋯ (w + m)) and ψ⁽ᵏ⁾(w) = ψ⁽ᵏ⁾(w + m + 1)
     # - (-1)^k k! Σ_j 1/(w + j)^(k+1), a Laurent series (SymPy #23635)
