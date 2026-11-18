@@ -946,6 +946,7 @@ import PolyLog as PL
         @test N(RischIntegrate.integrate(log(z + 2), (z, -3 - im, -3 + im))) ≈ 0.26394350735484 * im rtol = 1e-10
         @test N(RischIntegrate.integrate(csc(z), (z, 1 - im, 1 + im))) ≈ 1.8987949537455 * im rtol = 1e-10
         # log(x^i) = i log(x) only for x > e^-π: no value rather than a wrong one (#31017)
-        @test_throws ArgumentError RischIntegrate.integrate(log(z^im)^2, (z, 0, 1))
+        # (the older RischIntegrate of Julia 1.10 refuses the integrand itself)
+        @test_throws Union{ArgumentError, RischIntegrate.RischNotImplemented} RischIntegrate.integrate(log(z^im)^2, (z, 0, 1))
     end
 end
