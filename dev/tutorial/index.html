@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=1737240a">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=ca63f847">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -388,8 +388,46 @@ u(3), u(3.0), u(1 // 3), u(big(2.5))</code></pre>
 </div>
 <pre class="md-output md-output-text"><code class="nohighlight ansi">(4, 4.0, 4//9, 2.25)</code></pre>
 </div>
-<p>Called with no arguments, a constant expression gives its value as a Julia number, exact where it can be (<code class="md-code-inline">(Sym(1)/2)()</code> is <code class="md-code-inline">1//2</code>); <code class="md-code-inline">SymJ.unwrap_const</code> is the same and can be used with higher-level functions like <code class="md-code-inline">map</code>. This function leaves expressions with variables alone.</p>
-<p><code class="md-code-inline">N</code> is a function which returns a <code class="md-code-inline">Float64</code> value for a numeric expression.</p>
+<p>A constant expression (one with no free variables) converts to a Julia number in several ways:</p>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:left">call</th>
+<th style="text-align:left">gives</th>
+<th style="text-align:left">note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">ex()</code>, <code class="md-code-inline">SymJ.unwrap_const(ex)</code></td>
+<td style="text-align:left">the exact Julia value</td>
+<td style="text-align:left"><code class="md-code-inline">Int</code>, <code class="md-code-inline">Rational</code>, <code class="md-code-inline">π</code>, …; a float where Julia&#39;s arithmetic gives one (<code class="md-code-inline">sqrt(2)</code>)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">N(ex)</code></td>
+<td style="text-align:left">a <code class="md-code-inline">Float64</code> (<code class="md-code-inline">ComplexF64</code> when not real)</td>
+<td style="text-align:left">checked in higher precision</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">float(ex)</code></td>
+<td style="text-align:left">a <code class="md-code-inline">Float64</code> or a <code class="md-code-inline">BigFloat</code> (or their complex)</td>
+<td style="text-align:left">as Julia&#39;s <code class="md-code-inline">float</code>: <code class="md-code-inline">BigFloat</code> when <code class="md-code-inline">ex</code> holds a big integer or rational, or is past <code class="md-code-inline">Float64</code>&#39;s range</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">SymJ.evalf(ex, T, prec)</code></td>
+<td style="text-align:left">a <code class="md-code-inline">T</code> (<code class="md-code-inline">Complex{T}</code> when not real)</td>
+<td style="text-align:left">a <code class="md-code-inline">BigFloat</code> to <code class="md-code-inline">prec</code> bits</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">T(ex)</code> (<code class="md-code-inline">Int</code>, <code class="md-code-inline">Rational</code>, <code class="md-code-inline">Float64</code>, <code class="md-code-inline">BigFloat</code>, …)</td>
+<td style="text-align:left">a <code class="md-code-inline">T</code></td>
+<td style="text-align:left">an <code class="md-code-inline">InexactError</code> when the value is not a <code class="md-code-inline">T</code></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><code class="md-code-inline">N</code> is a function which returns a <code class="md-code-inline">Float64</code> value for a numeric expression; <code class="md-code-inline">float</code> returns an <code class="md-code-inline">AbstractFloat</code> value, possibly a <code class="md-code-inline">BigFloat</code>. All but <code class="md-code-inline">T(ex)</code> return an expression with a free variable unchanged, so <code class="md-code-inline">SymJ.unwrap_const</code> and <code class="md-code-inline">float</code> can be mapped over a mix of constants and expressions:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -397,7 +435,23 @@ u(3), u(3.0), u(1 // 3), u(big(2.5))</code></pre>
 </div>
 <pre class="md-output md-output-text"><code class="nohighlight ansi">(Any[3//4, 1.4142135623730951, x^2 - 2*x + 1], 0.7853981633974483)</code></pre>
 </div>
-<p>Julia&#39;s number types convert a value that fits them, and throw an <code class="md-code-inline">InexactError</code> for one that does not: <code class="md-code-inline">Int(Sym(3))</code>, <code class="md-code-inline">Rational(Sym(7)/2)</code>, <code class="md-code-inline">BigFloat(Sym(pi))</code> at the current precision. Rounding works as for numbers, with a rounding mode, <code class="md-code-inline">digits</code> or <code class="md-code-inline">sigdigits</code> (exactly: a rational), or to an integer type:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">N(Sym(10)^400), float(Sym(10)^400), SymJ.evalf(sqrt(Sym(2)), BigFloat, 100)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">(Inf, 1.000000000000000000000000000000000000000000000000000000000000000000000000000003e400, 1.4142135623730950488016887242092)</code></pre>
+</div>
+<p>The value from <code class="md-code-inline">N</code>, <code class="md-code-inline">float</code> and <code class="md-code-inline">SymJ.evalf</code> is computed with more precision where <code class="md-code-inline">Float64</code> (or the requested precision) loses it, so digits lost to cancellation are recovered:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">ex = sqrt(Sym(10)^20 + 1) - Sym(10)^10
+sqrt(1e20 + 1) - 1e10, N(ex), SymJ.evalf(ex, BigFloat, 64)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">(0.0, 5.0e-11, 5.00000000000000000009e-11)</code></pre>
+</div>
+<p>Julia&#39;s number types convert a value that fits them: <code class="md-code-inline">Int(Sym(3))</code>, <code class="md-code-inline">Rational(Sym(7)/2)</code>, <code class="md-code-inline">BigFloat(Sym(pi))</code> at the current precision. Rounding works as for numbers, with a rounding mode, <code class="md-code-inline">digits</code> or <code class="md-code-inline">sigdigits</code> (exactly: a rational), or to an integer type:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -2438,6 +2492,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=1737240a"></script>
+  <script src="../assets/materialdocs.js?v=ca63f847"></script>
 </body>
 </html>
