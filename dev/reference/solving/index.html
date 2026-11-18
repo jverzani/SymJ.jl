@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Solving equations — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=daece758">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=3373d882">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Solving equations — SymJ.jl">
   <meta property="og:title" content="Solving equations — SymJ.jl">
@@ -75,7 +75,7 @@
 <div class="md-docstring" id="CommonSolve.solve-Tuple{Relation, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>CommonSolve.solve</code> — <span class="md-docstring-sig">Tuple{Relation, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/f52affea6f37944f06fbf710eaa5c520e44ecb81/src/solve.jl#L22-L98" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/f4e7e29543f9a18f574bc9414f9d86a573d9e493/src/solve.jl#L22-L98" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -117,8 +117,30 @@ solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !
 </div>
 <div class="md-docstring" id="SymJ.fsolve">
 <div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.fsolve</code> — <span class="md-docstring-sig">Union{Tuple{AbstractVector{&lt;:Relation}, AbstractVector}, Tuple{AbstractVector{&lt;:Relation}, AbstractVector, Any}}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/f4e7e29543f9a18f574bc9414f9d86a573d9e493/src/fsolve.jl#L98-L124" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.fsolve(eqs, vars, hints = nothing; domain = ℝ)</code></pre>
+</div>
+<p>Solutions of the system of equations <code class="md-code-inline">eqs</code> (a vector, each written with <code class="md-code-inline">~</code>) in the unknowns <code class="md-code-inline">vars</code>, numerically, as a vector of <code class="md-code-inline">Dict</code>s as <code class="md-code-inline">solve</code> gives for a system. A polynomial system (polynomials or rational functions in the unknowns) gives all of its solutions: the real ones (in the ranges given), or with <code class="md-code-inline">domain = ℂ</code> the complex ones too, through <code class="md-code-inline">solve</code>&#39;s exact elimination. Another system gives one solution, as Maple&#39;s <code class="md-code-inline">fsolve</code> for a system. <code class="md-code-inline">eqs</code> must have no symbols but <code class="md-code-inline">vars</code>, and as many equations as unknowns. Not exported.</p>
+<p>For a system that is not polynomial, <code class="md-code-inline">hints</code> narrows the search, one pair for an unknown: <code class="md-code-inline">x =&gt; (a, b)</code> looks for x in <code class="md-code-inline">[a, b]</code>, <code class="md-code-inline">x =&gt; x0</code> starts from <code class="md-code-inline">x0</code>. An unknown without one is looked for in <code class="md-code-inline">[-10, 10]</code>. The search is Newton&#39;s method, damped, with the exact Jacobian, from the starting values given, or else from points spread over the ranges (the same each call); with <code class="md-code-inline">domain = ℂ</code> a complex starting value may lead to a complex solution. A system whose search finds no solution is an error, not an empty vector, since one may exist elsewhere.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms x y
+SymJ.fsolve([x^2 + y^2 ~ 4, exp(x) ~ y], [x, y])                       # one of its two solutions
+SymJ.fsolve([x^2 + y^2 ~ 4, exp(x) ~ y], [x, y], [x =&gt; (0, 2)])        # x ≈ 0.4...
+SymJ.fsolve([sin(x) ~ y, x + y ~ 1], [x, y], [x =&gt; 0.5, y =&gt; 0.5])
+SymJ.fsolve([x^3 + y^3 ~ 1, x^2 + y ~ 3], [x, y])                      # all its real solutions</code></pre>
+</div>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.fsolve-2">
+<div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.fsolve</code> — <span class="md-docstring-sig">Union{Tuple{Relation, Sym}, Tuple{Relation, Sym, Tuple{Any, Any}}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/f52affea6f37944f06fbf710eaa5c520e44ecb81/src/fsolve.jl#L6-L34" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/f4e7e29543f9a18f574bc9414f9d86a573d9e493/src/fsolve.jl#L6-L34" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -138,32 +160,10 @@ SymJ.fsolve(x^5 - x + 1 ~ 0, x; domain = ℂ)      # five roots</code></pre>
 </div>
 </div>
 </div>
-<div class="md-docstring" id="SymJ.fsolve-2">
-<div class="md-docstring-header">
-<h4 class="md-docstring-binding"><code>SymJ.fsolve</code> — <span class="md-docstring-sig">Union{Tuple{AbstractVector{&lt;:Relation}, AbstractVector}, Tuple{AbstractVector{&lt;:Relation}, AbstractVector, Any}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/f52affea6f37944f06fbf710eaa5c520e44ecb81/src/fsolve.jl#L98-L124" title="View source">source</a>
-</div>
-<div class="md-docstring-content">
-<div class="md-code-block">
-<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">SymJ.fsolve(eqs, vars, hints = nothing; domain = ℝ)</code></pre>
-</div>
-<p>Solutions of the system of equations <code class="md-code-inline">eqs</code> (a vector, each written with <code class="md-code-inline">~</code>) in the unknowns <code class="md-code-inline">vars</code>, numerically, as a vector of <code class="md-code-inline">Dict</code>s as <code class="md-code-inline">solve</code> gives for a system. A polynomial system (polynomials or rational functions in the unknowns) gives all of its solutions: the real ones (in the ranges given), or with <code class="md-code-inline">domain = ℂ</code> the complex ones too, through <code class="md-code-inline">solve</code>&#39;s exact elimination. Another system gives one solution, as Maple&#39;s <code class="md-code-inline">fsolve</code> for a system. <code class="md-code-inline">eqs</code> must have no symbols but <code class="md-code-inline">vars</code>, and as many equations as unknowns. Not exported.</p>
-<p>For a system that is not polynomial, <code class="md-code-inline">hints</code> narrows the search, one pair for an unknown: <code class="md-code-inline">x =&gt; (a, b)</code> looks for x in <code class="md-code-inline">[a, b]</code>, <code class="md-code-inline">x =&gt; x0</code> starts from <code class="md-code-inline">x0</code>. An unknown without one is looked for in <code class="md-code-inline">[-10, 10]</code>. The search is Newton&#39;s method, damped, with the exact Jacobian, from the starting values given, or else from points spread over the ranges (the same each call); with <code class="md-code-inline">domain = ℂ</code> a complex starting value may lead to a complex solution. A system whose search finds no solution is an error, not an empty vector, since one may exist elsewhere.</p>
-<div class="md-code-block">
-<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">@syms x y
-SymJ.fsolve([x^2 + y^2 ~ 4, exp(x) ~ y], [x, y])                       # one of its two solutions
-SymJ.fsolve([x^2 + y^2 ~ 4, exp(x) ~ y], [x, y], [x =&gt; (0, 2)])        # x ≈ 0.4...
-SymJ.fsolve([sin(x) ~ y, x + y ~ 1], [x, y], [x =&gt; 0.5, y =&gt; 0.5])
-SymJ.fsolve([x^3 + y^3 ~ 1, x^2 + y ~ 3], [x, y])                      # all its real solutions</code></pre>
-</div>
-</div>
-</div>
 <div class="md-docstring" id="SymJ.SymInterval">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymInterval</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/f52affea6f37944f06fbf710eaa5c520e44ecb81/src/intervals.jl#L10-L15" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/f4e7e29543f9a18f574bc9414f9d86a573d9e493/src/intervals.jl#L10-L15" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -176,7 +176,7 @@ SymJ.fsolve([x^3 + y^3 ~ 1, x^2 + y ~ 3], [x, y])                      # all its
 <div class="md-docstring" id="SymJ.SymSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/f52affea6f37944f06fbf710eaa5c520e44ecb81/src/intervals.jl#L23-L30" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/f4e7e29543f9a18f574bc9414f9d86a573d9e493/src/intervals.jl#L23-L30" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -189,7 +189,7 @@ SymJ.fsolve([x^3 + y^3 ~ 1, x^2 + y ~ 3], [x, y])                      # all its
 <div class="md-docstring" id="SymJ.CylindricalSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.CylindricalSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/f52affea6f37944f06fbf710eaa5c520e44ecb81/src/ineqsystems.jl#L13-L25" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/f4e7e29543f9a18f574bc9414f9d86a573d9e493/src/ineqsystems.jl#L13-L25" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -203,7 +203,7 @@ SymJ.fsolve([x^3 + y^3 ~ 1, x^2 + y ~ 3], [x, y])                      # all its
 <div class="md-docstring" id="SymJ.ChebZeros.cheb_all_zeros-Tuple{Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.ChebZeros.cheb_all_zeros</code> — <span class="md-docstring-sig">Tuple{Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/f52affea6f37944f06fbf710eaa5c520e44ecb81/src/chebzeros.jl#L500-L526" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/f4e7e29543f9a18f574bc9414f9d86a573d9e493/src/chebzeros.jl#L500-L526" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -228,7 +228,7 @@ cheb_all_zeros(f; kwargs...)        # whole real line</code></pre>
 <div class="md-docstring" id="SymJ.ChebZeros.cheb_zeros-Tuple{Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.ChebZeros.cheb_zeros</code> — <span class="md-docstring-sig">Tuple{Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/f52affea6f37944f06fbf710eaa5c520e44ecb81/src/chebzeros.jl#L299-L335" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/f4e7e29543f9a18f574bc9414f9d86a573d9e493/src/chebzeros.jl#L299-L335" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -285,6 +285,6 @@ cheb_zeros(f; kwargs...)             # whole real line, same as cheb_zeros(f, -I
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=daece758"></script>
+  <script src="../../assets/materialdocs.js?v=3373d882"></script>
 </body>
 </html>
