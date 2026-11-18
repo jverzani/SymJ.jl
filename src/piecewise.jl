@@ -724,7 +724,7 @@ end
 # value there when F is defined at b: an antiderivative is continuous where defined.
 # Nothing when neither is known.
 # a NaN anywhere in e (a number, a sum's coefficient or constant, a product's coefficient)
-_has_nan(e::Sym) = _has_node(e, t -> (t.kind != ADD && isfloat(t.num) && isnan(Float64(t.num))) ||
+_has_nan(e::Sym) = _has_node(e, t -> (isfloat(t.num) && isnan(Float64(t.num))) ||
                                      (t.kind == ADD && any(c -> isfloat(c) && isnan(Float64(c)), t.coefs)))
 
 function _side_value(F::Sym, x::Sym, b::Sym, dir::Symbol)
@@ -1051,6 +1051,8 @@ function _piecewise_fold(g::Sym, x::Sym, A::Assumptions)
     # interval, x ≤ b ending with the point b, true for the last.
     same(u, v) = iszero(simplify(u - v; assume = A))
     # two formulas' values at b (at a pole of both, the formulas compared)
+    # (by the values substituted, not limits: a formula is kept for a point only where
+    # substituting the point gives its value, so f(y => b) is never NaN)
     sameat(u, v, b) = try same(subs(u, x => b), subs(v, x => b)) catch err; _isdivzero(err) || rethrow(); same(u, v) end
     ps = Pair[]
     expr, ptval, ptb = nothing, nothing, nothing        # the piece being built
@@ -1069,12 +1071,23 @@ function _piecewise_fold(g::Sym, x::Sym, A::Assumptions)
             expr === nothing && (expr = v)
         elseif expr === nothing
             # (a point's value at the point; at a pole, the formula)
-            pv = pole[j] ? nothing : try subs(v, x => b) catch err; _isdivzero(err) || rethrow(); nothing end
+            pv = pole[j] ? nothing : try _value_at(v, x, b) catch err; _isdivzero(err) || rethrow(); nothing end
             pv === nothing ? (expr = v) : ((ptval, ptb) = (pv, b))
         end
     end
     push!(ps, true => (expr === nothing ? ptval : expr))
     piecewise(ps...)
+end
+# f at x = b, or where that is 0·∞ (NaN; 2(y - 1)log(1 - y) at y = 1) its limit there:
+# a point piece's value was NaN, though the integral at that point was finite (SymPy #4313)
+function _value_at(f::Sym, x::Sym, b::Sym)
+    v = subs(f, x => b)
+    _has_nan(v) || return v
+    for dir in (:both, :+, :-)
+        l = try Base.inferencebarrier(limit)(f, x => b; dir) catch err; err isa InterruptException && rethrow(); nothing end
+        l isa Sym && _finite_value(l) && !_has_nan(l) && return l
+    end
+    v
 end
 function piecewise_fold(e; assume = nothing)
     g = piecewise(Sym(e))

@@ -89,10 +89,22 @@ function _letters(e::Expr)
         return Expr(:call, e.args[1] === :heaviside ? :θ : :δ, map(_letters, e.args[2:end])...)
     elseif e.head === :call && haskey(_RELOPS, e.args[1])
         return Expr(:call, _RELOPS[e.args[1]], map(_letters, e.args[2:end])...)
+    elseif e.head === :call && haskey(_FNTEX, e.args[1])
+        return Expr(:call, _FNTEX[e.args[1]], map(_letters, e.args[2:end])...)
+    elseif e.head === :call && e.args[1] === :^ && length(e.args) == 3 && e.args[2] isa Expr &&
+           e.args[2].head === :call && e.args[2].args[1] in (:Sum, :Integral, :Derivative)
+        # a power of a derivative (sum, integral) in parentheses: (n'(r))², not d/dr of
+        # n(r)² (SymPy #3179)
+        b = _letters(e.args[2])
+        b isa Latexify.LaTeXString && (b = Latexify.LaTeXString("\\left(" * b * "\\right)"))
+        return Expr(:call, :^, b, _letters(e.args[3]))
     end
     Expr(e.head, map(_letters, e.args)...)
 end
 const _RELOPS = Dict(:≪ => :<, :≦ => :≤, :≫ => :>, :≧ => :≥, :~ => :(==), :≶ => :≠)
+# functions named like a Greek letter whose symbol is the capital: Γ(x) (not γ, Euler's
+# constant), the beta function B(x, y) (SymPy #3911)
+const _FNTEX = Dict(:gamma => :Γ, :beta => Latexify.LaTeXString("\\mathrm{B}"))
 
 # pieces c => v (Exprs), the last with condition true
 function _ifchain(pairs, head = :if)

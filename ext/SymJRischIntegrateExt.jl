@@ -104,6 +104,9 @@ function _indefinite(ex::Sym, x::Sym; assume = nothing, kw...)
         ex = SymJ._refine(ex, Ax)
     end
     SymJ._haspieces(ex, x) && return SymJ.with(() -> SymJ._integrate_pieces(ex, x, integ), SymJ._PIECES_ASSUME => Ax)
+    # a piecewise function of the parameters only (u(y) in (x - u(y))²): a constant for the
+    # integrator, put back after (the integrator compared its conditions as numbers)
+    SymJ._has_fn(ex, (:piecewise,)) && return SymJ._integ_xfree_pieces(integ, ex, x)
     try
         integ(ex)
     catch err

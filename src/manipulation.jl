@@ -1242,7 +1242,10 @@ function coeff(ex, x::Sym, n = 1)
     x.kind == NUMBER && throw(ArgumentError("coeff: the target $x is a number; for the constant term give the variable, coeff(ex, x, 0)"))
     # a sum (x + 1), or a power whose exponent has its base's symbol (x^(1 + x)): the
     # coefficient of a fresh u put in its place (both were 0; SymPy #4934, #4917)
-    if x.kind == ADD || (x.kind == POW && any(s -> has(x.args[2], s), free_symbols(x.args[1])))
+    # A power of something else (e^(-4ks), (x + 1)²) likewise: matched as a whole it was
+    # never found inside a product, so its coefficient was 0 (SymPy #4167)
+    if x.kind == ADD || (x.kind == POW && (any(s -> has(x.args[2], s), free_symbols(x.args[1])) ||
+                                           !(_isnamed(x.args[1]) || x.args[1].kind == FN)))
         u = _fresh_dummy(Sym(ex) + x)
         return Base.inferencebarrier(coeff)(subs(Sym(ex), x => u), u, n)
     end

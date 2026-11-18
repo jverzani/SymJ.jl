@@ -627,6 +627,8 @@ function _rref_field(A::AbstractMatrix)
         for j in 1:n
             M[r, j] *= piv
         end
+        # (in floating point x·(1/x) can be 0.9999999999999999: the pivot is 1; SymPy #4227)
+        fl && (M[r, c] = SymNumber(1.0))
         for i in 1:m
             (i == r || iszero(M[i, c])) && continue
             f = M[i, c]

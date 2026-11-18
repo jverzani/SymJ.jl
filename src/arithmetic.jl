@@ -82,7 +82,23 @@ end
 
 ## scaling by a number
 
-_scale_add(A::Sym, c::SymNumber) = _mkadd(A.num * c, A.args, SymNumber[x * c for x in A.coefs])
+function _scale_add(A::Sym, c::SymNumber)
+    if isfloat(c) && isinf(Float64(c))
+        r = Base.inferencebarrier(_inf_times_sum)(A, c)
+        r === nothing || return r::Sym
+    end
+    _mkadd(A.num * c, A.args, SymNumber[x * c for x in A.coefs])
+end
+
+# ±∞ times a sum is not distributed: ∞(π - 1) = ∞ - ∞ was NaN (SymPy #3802, #3738). A
+# real constant gives ±∞ by its sign; anything else stays the product ∞·(x + 1)
+function _inf_times_sum(A::Sym, c::SymNumber)
+    if !_hassymbol(A)
+        s = _csign(A)
+        s === nothing || s == 0 || return Sym(s * Float64(c))
+    end
+    _mkmul_node(c, Sym[A], Sym[ONE])
+end
 
 # NaN absorbs: NaN x, NaN i and x + NaN are NaN (SymPy #6635)
 _isnan_num(c::SymNumber) = isfloat(c) && isnan(Float64(c))
