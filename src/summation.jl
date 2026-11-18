@@ -1,4 +1,4 @@
-# Summation: SymJ.summation(f, k, a, b), the sum of f over the integers k = a, ..., b
+# Summation: SymJ.summation(f, (k, a, b)), the sum of f over the integers k = a, ..., b
 # (b may be Inf).
 #
 # A chain of methods, as in SymPy:
@@ -18,14 +18,14 @@
 #   - otherwise the sum is left unevaluated, as Sum(f, k, a, b).
 
 """
-    SymJ.summation(f, k, a, b; assume = nothing)
+    SymJ.summation(f, (k, a, b); assume = nothing)
 
 The sum of `f` over the integers `k = a, a+1, ..., b`, in closed form where one is found.
 `b` may be `Inf` (an infinite series, whose value is found as a limit, so it may be
 `Inf`, or by cases of a parameter); `a` and `b` may be expressions. Assumptions about the
 other symbols are given with `assume`, as for [`limit`](@ref). When `b - a` is a
 number that is not an integer, the terms are `k = a, a+1, …` up to `b`
-(`summation(k, k, 1, 3//2)` is 1).
+(`summation(k, (k, 1, 3//2))` is 1).
 
 Polynomials in `k` are summed by Faulhaber's formula, hypergeometric terms (polynomials
 times `r^k`, factorials, binomials, rational functions that telescope) by Gosper's
@@ -35,13 +35,19 @@ powers). Harmonic numbers times a term with an antidifference are summed by part
 sum with no closed form is returned unevaluated, `Sum(f, k, a, b)`. Not exported.
 
 ```julia
-SymJ.summation(k^2, k, 1, n)            # n^3/3 + n^2/2 + n/6
-SymJ.summation(r^k, k, 0, n)            # (r^(n + 1) - 1)/(r - 1)
-SymJ.summation(1/(k*(k + 1)), k, 1, Inf)  # 1
-SymJ.summation(1/k^2, k, 1, Inf)        # π^2/6
+SymJ.summation(k^2, (k, 1, n))            # n^3/3 + n^2/2 + n/6
+SymJ.summation(r^k, (k, 0, n))            # (r^(n + 1) - 1)/(r - 1)
+SymJ.summation(1/(k*(k + 1)), (k, 1, Inf))  # 1
+SymJ.summation(1/k^2, (k, 1, Inf))        # π^2/6
 ```
 """
-function summation(f, k::Sym, a, b; assume = nothing, _regroup::Bool = true)
+function summation(f, range::Tuple; assume = nothing)
+    length(range) == 3 || throw(ArgumentError("summation: the range is (k, a, b), not $range"))
+    _summation_kab(f, range...; assume)
+end
+
+# the sum of f for k = a, …, b (summation(f, (k, a, b)) unpacked)
+function _summation_kab(f, k::Sym, a, b; assume = nothing, _regroup::Bool = true)
     _isnamed(k) || throw(ArgumentError("summation: $k is not a symbol"))
     f = Sym(f)
     # equalities among the assumptions substituted first (a ~ 1: Σ aⁿ is the number of
@@ -72,8 +78,8 @@ function summation(f, k::Sym, a, b; assume = nothing, _regroup::Bool = true)
         # from -∞: k ↦ -k, Σ_{k=-∞}^{b} f(k) = Σ_{k=-b}^{∞} f(-k); over all integers, split
         # at 0 (SymPy #27824, #27893, #27256)
         g = subs(f, k => -k)
-        infb || return summation(g, k, -Sym(b), Inf; assume)
-        return _sum_parts(summation(g, k, 1, Inf; assume), summation(f, k, 0, Inf; assume))
+        infb || return _summation_kab(g, k, -Sym(b), Inf; assume)
+        return _sum_parts(_summation_kab(g, k, 1, Inf; assume), _summation_kab(f, k, 0, Inf; assume))
     end
     a, bs = Sym(a), infb ? nothing : Sym(b)
     # Σ_{k≥a} 1/k^p for a symbolic p: ζ(p) less the first terms where Re p > 1, divergent
@@ -95,7 +101,7 @@ function summation(f, k::Sym, a, b; assume = nothing, _regroup::Bool = true)
     zk(u) = u.kind == POW && u.args[1].kind == NUMBER && iszero(u.args[1].num) && has(u.args[2], k) &&
         iszero(subs(u.args[2], k => ZERO)) && (c = diff(u.args[2], k); c.kind == NUMBER && c.num > N0)
     if a.kind == NUMBER && iszero(a.num) && _has_node(f, zk)
-        return _sum_parts(summation(f, k, 1, b; assume), subs(f, k => ZERO))
+        return _sum_parts(_summation_kab(f, k, 1, b; assume), subs(f, k => ZERO))
     end
     # (and 0^k, 0 for k ≥ 1: Σ_{n≥1} 0^n is 0; SymPy #8414)
     if _has_fn(f, (:piecewise, :abs, :sign, :heaviside, :max, :min)) ||
@@ -158,7 +164,7 @@ function summation(f, k::Sym, a, b; assume = nothing, _regroup::Bool = true)
     # ends there (Σ_{k≥0} (-1)^k binomial(2n, k)² with n ∈ ℤ, n ≥ 0; SymPy #6347)
     if bs === nothing
         top = _binomial_top(f, k, _assumptions(assume))
-        top === nothing || return summation(f, k, a, top; assume)
+        top === nothing || return _summation_kab(f, k, a, top; assume)
     end
     r = _summation(f, k, a, bs, assume)
     # a product with a sum left unevaluated: its expansion's terms (x^i (y^(i+1) - 1);
@@ -168,14 +174,14 @@ function summation(f, k::Sym, a, b; assume = nothing, _regroup::Bool = true)
         if g.kind == ADD
             # (its terms as they are: reducing the factorials regrouped them into f, and the
             # retry ran again, without end; SymPy #4171)
-            r2 = try summation(g, k, a, bs === nothing ? Inf : bs; assume, _regroup = false) catch err; err isa ArgumentError || rethrow(); nothing end
+            r2 = try _summation_kab(g, k, a, bs === nothing ? Inf : bs; assume, _regroup = false) catch err; err isa ArgumentError || rethrow(); nothing end
             r2 isa Sym && !_hasfn(r2, :Sum) && return r2
             # term by term through summation itself, whose first-term and factorial steps
             # the inner sums skip (Σ 2k/(2k)! = sinh 1 from 1; Σ (2k + 1)/(2k)! = e)
             if r2 isa Sym && _hasfn(r2, :Sum)
                 ts = [Sym(c) * t for (c, t) in zip(g.coefs, g.args)]
                 iszero(g.num) || push!(ts, Sym(g.num))
-                ps = [try summation(t, k, a, bs === nothing ? Inf : bs; assume) catch err; err isa ArgumentError || rethrow(); nothing end for t in ts]
+                ps = [try _summation_kab(t, k, a, bs === nothing ? Inf : bs; assume) catch err; err isa ArgumentError || rethrow(); nothing end for t in ts]
                 all(p -> p isa Sym && !_hasfn(p, :Sum) && !(p.kind == NUMBER && !isfinite(Float64(p.num))), ps) &&
                     return simplify(_add_many(ps); assume)
             end

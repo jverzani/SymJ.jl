@@ -184,7 +184,7 @@ import PolyLog as PL
         end
         # no piece holds past the last condition: not defined there (SymPy #28469)
         @test ∫(P(x ≪ 1 => x), x) == P(x ≪ 1 => x^2 / 2)
-        let (a1, a2, a3, t) = symbols("a1 a2 a3 t")
+        let (a1, a2, a3, t) = Sym.((:a1, :a2, :a3, :t))
             @test ∫(P(x ≪ 1 => a1, x ≪ 2 => a2, x ≪ 3 => a3), (x, 0, t))(t => Sym(5) // 2) == a1 + a2 + a3 / 2
         end
         # a condition of one sign by bounds: |…| ≥ 1 (SymPy #27283)

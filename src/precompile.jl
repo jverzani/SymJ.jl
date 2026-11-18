@@ -60,9 +60,9 @@ using PrecompileTools: @setup_workload, @compile_workload
         SymJ.simplify_gamma(factorial(x + 2) / factorial(x)); SymJ.simplify_gamma(binomial(x + 1, y) / binomial(x, y))
         # sums
         k, n = Sym(:k), Sym(:n)
-        summation(k^2, k, 1, n); summation(1 / (k * (k + 1)), k, 1, Inf); summation(1 / k^2, k, 1, Inf)
-        summation(y^k, k, 0, n); summation(x^k / factorial(k), k, 0, Inf)
-        summation(binomial(n, k)^2, k, 0, n)
+        summation(k^2, (k, 1, n)); summation(1 / (k * (k + 1)), (k, 1, Inf)); summation(1 / k^2, (k, 1, Inf))
+        summation(y^k, (k, 0, n)); summation(x^k / factorial(k), (k, 0, Inf))
+        summation(binomial(n, k)^2, (k, 0, n))
         yf = SymFunction(:y)
         rsolve(yf(n + 2) ~ yf(n + 1) + yf(n), yf(n), yf(0) => 0, yf(1) => 1); rsolve(yf(n + 1) ~ 2yf(n) + 1, yf(n))
         # differential equations

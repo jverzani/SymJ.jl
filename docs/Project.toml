@@ -4,6 +4,7 @@ GruntzLimit = "549ac5eb-4437-4bd1-88f1-51d4e2fa49c9"
 Latexify = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
 MaterialDocs = "10bdffc8-969c-4dd4-83f3-742518eccd6b"
 RischIntegrate = "c180fd1b-065d-41df-ac4d-d8d9562c1957"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 SymJ = "73a6d648-42a5-483e-b8b5-fc71c1696ef5"
 
 [sources]
@@ -15,3 +16,4 @@ GruntzLimit = "1.7"
 Latexify = "0.16"
 MaterialDocs = "0.2.1"
 RischIntegrate = "1.2"
+SpecialFunctions = "2"

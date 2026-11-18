@@ -16,7 +16,7 @@
         @test length(solve([x * y ~ 0, x + z ~ 1], [x, y, z])) == 2
     end
     # unknowns that are function calls or derivatives (implicit differentiation)
-    let (a, b, c, d) = symbols("a b c d"), u = SymFunction(:u), v = SymFunction(:v)
+    let (a, b, c, d) = Sym.((:a, :b, :c, :d)), u = SymFunction(:u), v = SymFunction(:v)
         ex2 = diff(x * u(x) - (a * x^3 + b * x^2 + c * x + d), x)
         du = diff(u(x), x)
         @test solve(ex2 ~ 0, du) == [(3a * x^2 + 2b * x + c - u(x)) / x]
@@ -158,7 +158,7 @@
     @test solve(x / (x - a) ~ 0, x) == [0]
     @test solve(x / (x - a) ~ 0, x; assume = (a ~ 0,)) == Sym[]
     # a vanishing leading coefficient in tan(x/2): x = π is a root then (b + c = 0)
-    let (b, c) = symbols("b c")
+    let (b, c) = Sym.((:b, :c))
         @test length(solve(a * sin(x) + b * cos(x) ~ c, x)) == 2
         @test solve(a * sin(x) + b * cos(x) ~ c, x; assume = (a ~ 1, b ~ 2, c ~ -2))[1] == PI
         @test solve(a * sin(x) + b * cos(x) ~ c, x; assume = (a ~ 0, b ~ 2, c ~ -2)) == [PI]
@@ -190,7 +190,7 @@
     # not polynomial but triangular: one unknown at a time (SymPy #28064)
     @test solve([exp(x) ~ 2, x + y ~ 3], [x, y]) == [Dict(x => log(Sym(2)), y => 3 - log(Sym(2)))]
     @test solve([sin(x) ~ 0, x * y ~ 1], [x, y]) == [Dict(x => PI, y => 1 / PI), Dict(x => 2PI, y => 1 / (2PI))]
-    let (T, p, h, c) = symbols("T p h c")
+    let (T, p, h, c) = Sym.((:T, :p, :h, :c))
         @test solve([T * c ~ h, log(p) ~ 2T], [T, p]; assume = (c ~ 2,)) == [Dict(T => h / 2, p => exp(h))]
     end
     @test solve([(x^2 - 1) / (x - 1) ~ 2, y ~ x], [x, y]) == Dict{Sym,Sym}[]   # x = 1 is not in the domain
@@ -375,7 +375,7 @@
     @test solve((x^2 - 1) / (x - 1) ~ 2, x) == Sym[]
     @test solve((x^2 - 1) / (x - 1) ~ 3, x) == [2]
     @test solve(tan(x) * cos(x) ~ 0, x) == [0]                      # π/2: tan is not defined
-    let (a,) = symbols("a")
+    let (a,) = Sym.((:a,))
         @test solve((x^2 - a^2) / (x - a) ~ 2a, x) == Sym[]
     end
     # rational powers of x as powers of one root of x (t = x^(1/10): t³ + t² = 3); the
@@ -396,7 +396,7 @@
     @test solve(sqrt(x + 1) - sqrt(x - 1) ~ 1, x) == [5 // 4]
     @test solve(sqrt(x) - sqrt(x + 1) ~ 2, x) == Sym[]
     @test solve(sqrt(x^2 + 1) ~ sqrt(2x^2 - 3), x) == [-2, 2]
-    let (y,) = symbols("y")             # implicit differentiation: where dy/dx = 0
+    let (y,) = Sym.((:y,))             # implicit differentiation: where dy/dx = 0
         cs = solve(3sqrt(x^2 + y^2) - x * sqrt(x^2 + y^2) - x * sqrt((3 - x)^2 + (3 - y)^2) ~ 0, x)
         @test cs == [y, 3y / (2y - 3)]
         @test solve(3sqrt(x^2 + y^2) - x * sqrt(x^2 + y^2) - x * sqrt((3 - x)^2 + (3 - y)^2) ~ 0, x;
@@ -453,7 +453,7 @@ end
     cs = solve(x^2 ~ a, x; assume = (x ∈ ℝ, a ∈ ℝ), drop_empty = true)
     @test cs isa SymJ.Cases
     @test length(cs) == 2
-    let (x0, v0, α, t) = symbols("x0 v0 α t")                   # the projectile's t(x)
+    let (x0, v0, α, t) = Sym.((:x0, :v0, :α, :t))                   # the projectile's t(x)
         @test solve(x ~ x0 + v0 * cos(α) * t, t; assume = (x0 ∈ ℝ, v0 ∈ ℝ, α ∈ ℝ, t ≫ 0), drop_empty = true) ==
               [(x - x0) / (v0 * cos(α))]
     end

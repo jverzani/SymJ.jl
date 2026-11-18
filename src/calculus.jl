@@ -240,7 +240,7 @@ function _diff(ex::Sym, x::Sym)
         df = _diff(f, x)
         iszero(df) && return ZERO
         r = try
-            Base.inferencebarrier(summation)(df, k, lo, hi)
+            Base.inferencebarrier(_summation_kab)(df, k, lo, hi)
         catch err
             err isa ArgumentError || rethrow()
             nothing

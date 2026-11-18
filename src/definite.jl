@@ -34,7 +34,7 @@ function _floor_integral(f::Sym, x::Sym, lo, hi, assume, antider)
     F = try antider(g, x, something(A, Assumptions())) catch err; err isa ArgumentError || rethrow(); return nothing end
     F isa Sym || return nothing
     piece = try cancel(subs(F, x => k + 1) - subs(F, x => k)) catch err; _isdivzero(err) || rethrow(); return nothing end
-    summation(piece, k, lo, infhi ? Inf : hi - 1; assume = (k ∈ ℤ, Relation(:ge, k, lo)))
+    _summation_kab(piece, k, lo, infhi ? Inf : hi - 1; assume = (k ∈ ℤ, Relation(:ge, k, lo)))
 end
 
 # ∫ f dx over (x, lo, hi); antider(f, x, A) is an antiderivative under the assumptions A

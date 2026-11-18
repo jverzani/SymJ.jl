@@ -514,8 +514,22 @@ interface works with SymJ equations.
   about 150 and 60 times faster (1.1 ms against 164 ms, 5.8 ms against 369 ms): that
   implementation works at worst-case precision in MPFR intervals and redoes the Möbius
   transform of the original polynomial at each node. Clusters of very close roots make bisection deep
-  (where ANewDsc's Newton steps help); numeric root finding for other equations is left
-  to Roots.jl and NonlinearSolve.jl, which take SymJ expressions as they are.
+  (where ANewDsc's Newton steps help).
+- **Numeric roots of other equations** (`src/fsolve.jl`, `src/chebzeros.jl`):
+  `SymJ.fsolve`, after Maple's. `solve` stays exact (an equation with no exact method is
+  an error that points to `fsolve`), and `fsolve` is its numeric counterpart. A
+  polynomial, or a rational function's numerator, goes through `real_roots` (correctly
+  rounded) or, with `domain = ℂ`, all of its numeric roots. Another equation in one
+  unknown is approximated on the interval (the whole line by default, mapped onto
+  [-1, 1] with its values squashed) by Chebyshev interpolants, piece by piece, as
+  Chebfun does; the interpolants' roots (eigenvalues of colleague matrices) are
+  candidates, checked against the equation itself: bisected where it changes sign, kept
+  as an even-order zero only where it nearly vanishes. A feature narrower than the
+  samples' spacing can be missed, and the search stops at about 120 roots, nearest the
+  middle, with a warning. For a system, a polynomial one gets all of its solutions
+  through `solve`'s elimination; any other gets one, by damped Newton steps with the
+  exact Jacobian from starting values or ranges given as hints. Roots.jl and
+  NonlinearSolve.jl still take SymJ expressions as they are, for more control.
 - **`<` and friends.** `<`, `≤`, `>`, `≥` compare constant expressions as numbers,
   returning a `Bool`. With a symbol, they raise an error naming the symbolic operator
   to use instead (`≪`, `≦`, `≫`, `≧`).
