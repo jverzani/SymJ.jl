@@ -124,7 +124,8 @@ end
 
 Sym(x::Sym) = x
 Sym(x::Union{Integer,Rational,AbstractFloat}) = Sym(SymNumber(x))
-Sym(s::Symbol) = _mksym(s)
+# (a name is required: Sym(Symbol("")) printed as nothing and had no free symbols; SymPy #4101)
+Sym(s::Symbol) = (isempty(String(s)) && throw(ArgumentError("Sym: a symbol needs a nonempty name")); _mksym(s))
 Sym(s::AbstractString) = Sym(Symbol(s))
 
 const ZERO = Sym(N0)

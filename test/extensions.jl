@@ -911,6 +911,14 @@ import PolyLog as PL
         @test_throws ArgumentError series(exp(1 / x), x, 0, 3)
     end
 
+    @testset "missing cases (SymPy review, round 19)" begin
+        @syms y
+        # a Poly integrated as its expression (#4196)
+        @test RischIntegrate.integrate(Poly(x + x^2 * y + y^3, x, y), (y, 0, PI)) ==
+              RischIntegrate.integrate(x + x^2 * y + y^3, (y, 0, PI))
+        @test RischIntegrate.integrate(Poly(x^2 + 1, x), x) == x^3 / 3 + x
+    end
+
     @testset "wrong answers (SymPy review, round 19)" begin
         @syms y
         # a piecewise ramp's squared difference quotient: the antiderivative at y = 1 (and

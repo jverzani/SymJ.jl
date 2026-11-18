@@ -443,8 +443,9 @@ function pow(b::Sym, e::Sym)
             c = _positive_content(b)
             c === nothing || return mul(_numpow(c, en), pow(_scale(b, inv(c)), e))
             # √u for a negative real constant sum u: i √(-u) (√(-√3 - 2) = i √(√3 + 2), as
-            # √(-2) = i √2; round-11 review)
-            if en == SymNumber(1 // 2) && bk == ADD && !_hassymbol(b) && _negative_real_const(b)
+            # √(-2) = i √2; round-11 review); a product too, √(-π⁴) = i π² (found in the
+            # review of SymPy #3425: solve gave ±√(-π⁴)/8)
+            if en == SymNumber(1 // 2) && (bk == ADD || bk == MUL) && !_hassymbol(b) && _negative_real_const(b)
                 return mul(IM, pow(_scale(b, SymNumber(-1)), e))
             end
             # a product to n + r, n an integer and 0 < |r| < 1: bⁿ bʳ, as the integer power of
@@ -489,6 +490,13 @@ function pow(b::Sym, e::Sym)
         if e.kind == MUL && length(e.args) == 1 && isone(e.exps[1]) && isexact(e.num) && e.args[1].kind == FN &&
            e.args[1].name === :log && length(e.args[1].args) == 1 && e.args[1].args[1].kind == NUMBER &&
            isexact(e.args[1].args[1].num) && e.args[1].args[1].num > N0
+            return pow(e.args[1].args[1], Sym(e.num))
+        end
+        # and of a constant u ≠ 0, as u^c is exp(c log u) on the principal branch:
+        # exp(-log(√2)) = √2/2 (it stayed 1/exp(log(√2)); found in the review of SymPy #2958)
+        if e.kind == MUL && length(e.args) == 1 && isone(e.exps[1]) && isexact(e.num) && e.args[1].kind == FN &&
+           e.args[1].name === :log && length(e.args[1].args) == 1 && isdefined(@__MODULE__, :_hassymbol) &&
+           !Base.inferencebarrier(_hassymbol)(e.args[1].args[1]) && !iszero(e.args[1].args[1])
             return pow(e.args[1].args[1], Sym(e.num))
         end
         # exp(iπ r), r rational: r reduced into (-1, 1]; exp(10iπ) = 1, exp(12iπ/5) =

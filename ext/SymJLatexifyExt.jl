@@ -99,6 +99,9 @@ function _letters(e::Expr)
         return Expr(:call, e.args[1] === :heaviside ? :θ : :δ, map(_letters, e.args[2:end])...)
     elseif e.head === :call && haskey(_RELOPS, e.args[1])
         return Expr(:call, _RELOPS[e.args[1]], map(_letters, e.args[2:end])...)
+    elseif e.head === :call && e.args[1] === :/ && length(e.args) == 3 && (n = _negated(e.args[2])) !== nothing
+        # the sign of a quotient in front: -\frac{x}{2}, not \frac{ - x}{2} (SymPy #3973)
+        return Expr(:call, :-, _letters(Expr(:call, :/, n, e.args[3])))
     elseif e.head === :call && haskey(_FNTEX, e.args[1])
         return Expr(:call, _FNTEX[e.args[1]], map(_letters, e.args[2:end])...)
     elseif e.head === :call && e.args[1] === :^ && length(e.args) == 3 && e.args[2] isa Expr &&
@@ -112,6 +115,18 @@ function _letters(e::Expr)
     Expr(e.head, map(_letters, e.args)...)
 end
 const _RELOPS = Dict(:≪ => :<, :≦ => :≤, :≫ => :>, :≧ => :≥, :~ => :(==), :≶ => :≠)
+# -a for a numerator that is a negation (-x), a negative number (-1) or a product with a
+# negative leading number (-3x): a; else nothing
+function _negated(n)
+    n isa Real && n < 0 && return -n
+    n isa Expr && n.head === :call || return nothing
+    n.args[1] === :- && length(n.args) == 2 && return n.args[2]
+    if n.args[1] === :* && length(n.args) >= 3 && n.args[2] isa Real && n.args[2] < 0
+        c = -n.args[2]
+        return isone(c) ? (length(n.args) == 3 ? n.args[3] : Expr(:call, :*, n.args[3:end]...)) : Expr(:call, :*, c, n.args[3:end]...)
+    end
+    nothing
+end
 # functions named like a Greek letter whose symbol is the capital: Γ(x) (not γ, Euler's
 # constant), the beta function B(x, y) (SymPy #3911)
 const _FNTEX = Dict(:gamma => :Γ, :beta => Latexify.LaTeXString("\\mathrm{B}"))
