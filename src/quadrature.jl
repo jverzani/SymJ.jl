@@ -7,13 +7,9 @@
 
 import QuadGK
 
-"""
-    SymJ._quadgk(f, a, b; rtol = nothing, maxevals = 10^6)
-
-∫ₐᵇ f(t) dt by QuadGK, `a` and `b` real (possibly infinite) of one float type `T`:
-`(value, error estimate)`. The relative tolerance is `1e-12` in `Float64`, and about
-`2^-(precision - 16)` in `BigFloat`, where the order of the rule rises with the precision.
-"""
+# ∫ₐᵇ f(t) dt by QuadGK, a and b real (possibly infinite) of one float type T: (value,
+# error estimate). The relative tolerance is 1e-12 in Float64, and about
+# 2^-(precision - 16) in BigFloat, where the order of the rule rises with the precision.
 function _quadgk(f, a::Real, b::Real; rtol = nothing, maxevals::Integer = 10^6)
     T = promote_type(float(typeof(a)), float(typeof(b)))
     a, b = T(a), T(b)
