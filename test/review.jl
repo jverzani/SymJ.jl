@@ -2005,3 +2005,22 @@ end
     @test String(latexify(SF.beta(x, k))) == raw"$\mathrm{B}\left( x, k \right)$"
     @test String(latexify(diff(n(r), r)^2)) == raw"$\left(\frac{d}{d r} n\left( r \right)\right)^{2}$"
 end
+
+@testset "crashes (SymPy review, round 19)" begin
+    @syms x y k K L
+    LA = SymJ.LinearAlgebra
+    # a factorial reduction regrouped the retry's expanded terms, without end (#4171)
+    @test SymJ.summation((2k + 1) / factorial(2k), k, 0, Inf) == E
+    @test SymJ.summation((k + 1) / factorial(k), k, 0, Inf) == 2E
+    @test SymJ.summation(2k / factorial(2k), k, 0, Inf) == sinh(Sym(1))
+    # a float exponent with another symbol: solved through the rationals (#4260)
+    r = solve(K^0.4 * L ~ 3, K)
+    @test length(r) == 1
+    @test abs(N(subs(subs(K^0.4 * L - 3, K => r[1]), L => 2))) < 1e-12
+    # qr(A) \ b (#4006): the solution, or the least-squares one for a tall A
+    @test LA.qr(Sym[1 2; 3 4]) \ Sym[5, 6] == Sym[-4, Sym(9) / 2]
+    @test LA.qr(Sym[1 0; 1 1; 1 2]) \ Sym[1, 2, 4] == Sym[Sym(5) / 6, Sym(3) / 2]
+    # complex values at real points in Newton's method: no real point, not an InexactError (#4027)
+    @test_throws ArgumentError SymJ.fsolve([x^y ~ 0, x / y ~ 0], [x, y], [x => 1.0, y => 1.1])
+    @test_throws ArgumentError SymJ.fsolve([x^y ~ 0, x / y ~ 0], [x, y])
+end

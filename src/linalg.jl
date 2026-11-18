@@ -1285,6 +1285,10 @@ end
 Base.iterate(F::SymQR, s = 1) = s == 1 ? (F.Q, 2) : s == 2 ? (F.R, 3) : nothing
 Base.show(io::IO, ::MIME"text/plain", F::SymQR) = (println(io, "SymQR, Q:"); show(io, MIME"text/plain"(), F.Q);
     println(io, "\nR:"); show(io, MIME"text/plain"(), F.R))
+# A x = b through the factorization, R x = Qᴴ b: the solution for a square A, the
+# least-squares one for a tall A (qr(A) \ b was a MethodError, no adjoint of a SymQR;
+# SymPy #4006)
+Base.:\(F::SymQR, b::AbstractVecOrMat) = F.R \ (_adjoint(F.Q) * Sym.(b))
 
 # the inner product of columns: symbols taken as real, numbers with im conjugated
 _dot(u, v) = _add_many((_has_im(a) ? conj(a) : a) * b for (a, b) in zip(u, v))

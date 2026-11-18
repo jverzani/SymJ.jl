@@ -331,8 +331,14 @@ function _solve_eq(eq::Relation, x::Sym)
     # floating point coefficients that are not a polynomial's numbers alone (those get
     # numeric roots): solved with the rationals they stand for, the solutions' numbers
     # made floats again (y = c + 0.5b, 175 = 1.5 log(x); SymPy #27528, #27712)
-    if !_isexactex(n) && !_float_exponent(n) && (!isempty(bad) || any(a -> !_eq(a, x), atoms) || !exact)
-        q = _exactfloats(eq.lhs - eq.rhs)
+    # A float exponent too when other symbols are present: the generator x^0.4 left a float
+    # power in the equation for it, which was solved the same way again, without end
+    # (K^0.4 L = 3; SymPy #4260)
+    floatexp_params = _float_exponent(n) && any(s -> !_eq(s, x), free_symbols(n))
+    if !_isexactex(n) && (!_float_exponent(n) || floatexp_params) && (!isempty(bad) || any(a -> !_eq(a, x), atoms) || !exact)
+        # (a float exponent as the shortest rational near it: 0.4 as 2/5, not 0.4's binary
+        # value, whose reciprocal was the solution's exponent)
+        q = _exactfloats(eq.lhs - eq.rhs; short = floatexp_params)
         if !_isexactex(q)
             # (an infinite or NaN coefficient is no complex one: say so; SymPy #11015)
             _has_nonfinite(q) &&
