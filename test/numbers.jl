@@ -117,6 +117,32 @@ end
     @test float(Sym) === Sym
     @test float.([Sym(1) / 2, PI]) == [0.5, Float64(π)]
     @test isequal(float.([x, Sym(1) / 2]), Any[x, 0.5])
+    # float as Julia's: a BigFloat for big numbers and past Float64's range
+    @test float(Sym(10)^400) == BigFloat(big(10)^400)
+    @test float(1 / Sym(3)^50) isa BigFloat
+    @test float(exp(Sym(1000))) ≈ exp(big(1000))
+    @test float(exp(-Sym(1000))) ≈ exp(-big(1000))
+    @test float(sqrt(Sym(-2))) === sqrt(2) * im
+    @test AbstractFloat(Sym(10)^400) isa BigFloat
+    @test AbstractFloat(PI) === Float64(π)
+    @test_throws InexactError AbstractFloat(x)
+end
+
+@testset "evalf" begin
+    @test SymJ.evalf(PI) === Float64(π)
+    @test SymJ.evalf(PI, Float32) === Float32(π)
+    @test SymJ.evalf(sqrt(Sym(-2)), Float32) === Float32(sqrt(2)) * im
+    v = SymJ.evalf(sqrt(Sym(2)), BigFloat, 200)
+    @test precision(v) == 200
+    @test v == setprecision(() -> sqrt(big(2)), BigFloat, 200)
+    @test SymJ.evalf(1 // 3, BigFloat, 10) == setprecision(() -> BigFloat(1) / 3, BigFloat, 10)
+    # digits lost to cancellation recovered: √(10²⁰ + 1) - 10¹⁰ is 0 in Float64
+    w = SymJ.evalf(sqrt(Sym(10)^20 + 1) - Sym(10)^10, BigFloat, 64)
+    @test w ≈ setprecision(() -> sqrt(big(10)^20 + 1) - big(10)^10, BigFloat, 256) rtol = 1e-18
+    @test SymJ.evalf(sin(Sym(10)^30), BigFloat, 64) ≈ setprecision(() -> sin(big(10)^30), BigFloat, 256) rtol = 1e-18
+    @test SymJ.evalf(sqrt(Sym(-2)), BigFloat) isa Complex{BigFloat}
+    @test isequal(SymJ.evalf(x + 1, BigFloat), x + 1)
+    @test_throws ArgumentError SymJ.evalf(PI, Float64, 100)
 end
 
 @testset "iteration (like Number)" begin
