@@ -1178,8 +1178,47 @@ function _solve_radical(eq::Relation, nu::Sym, u::Sym, R::Sym, x::Sym)
         end
         throw(ArgumentError("solve: $eq holds where sqrt($t) = $(cancel(-A / B)), a region of $x rather than isolated points; not supported over ℂ (assume = ($x ∈ ℝ,) gives the real solutions)"))
     end
-    cands = _solve_eq(sq ~ 0, x)
-    filter(r -> _satisfies(eq, x, r), cands)
+    rs = _solve_eq(sq ~ 0, x)
+    # x and the parameters real (assumed): a root of A² = B² t solves A + B√t = 0 exactly
+    # where A B ≤ 0 at it, a case of the parameters when not decided (x = c√(x² + 1) has
+    # only the root with c's sign; both were kept; SymPy #2779). Decided before the
+    # general check, whose own splits would otherwise leave cases this one cannot reduce
+    Asm = _SOLVE_ASSUME[]
+    if Asm !== nothing && rs isa AbstractVector && _isreal(x, Asm) === true &&
+       all(s -> _isreal(s, Asm) === true, free_symbols(eq.lhs - eq.rhs))
+        rs = filter(rs) do r
+            _hassymbol(r) || return true
+            c = try cancel(subs(A * B, x => r)) catch err; _isdivzero(err) || rethrow(); return true end
+            c = _sign_core(c, Asm)
+            _hassymbol(c) || return true
+            h = _holds(Relation(:le, c, ZERO), Asm)
+            h === nothing ? _decide(Relation(:le, c, ZERO), Asm) : h
+        end
+    end
+    rs isa AbstractVector ? filter(r -> _satisfies(eq, x, r), rs) : rs
+end
+
+# e with its factors that are ≥ 0 for real values (square roots, even powers, positive
+# numbers) dropped, for a sign condition e ≤ 0 (2c√(c² - c⁴)/(2c² - 2) is c/(c² - 1));
+# exact but at points where such a factor vanishes
+function _sign_core(e::Sym, A = nothing)
+    e.kind == MUL || return e
+    keep = Sym[]
+    neg = e.num isa SymNumber && e.num < N0
+    for (b, p) in zip(e.args, e.exps)
+        p.kind == NUMBER && isexact(p.num) || (push!(keep, b^p); continue)
+        q = p.num
+        _isint(q) && iseven(_toint(q)) && continue                 # an even power
+        !_isint(q) && iseven(_denominator(q)) && continue          # √u, u^(3/2): ≥ 0 when real
+        # (a factor of known sign under the assumptions: 2y² + 2 > 0)
+        if A !== nothing && _isint(q)
+            _holds(Relation(:gt, b, ZERO), A) === true && continue
+            _holds(Relation(:lt, b, ZERO), A) === true && (neg = !neg; continue)
+        end
+        push!(keep, _isint(q) ? b^sign(_toint(q)) : b^p)
+    end
+    r = prod(keep; init = ONE)
+    neg ? -r : r
 end
 
 # x both directly and in an exponential g = b^(γx + δ), the equation linear in g:

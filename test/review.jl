@@ -2097,3 +2097,23 @@ end
     @test Sym(series(P, x, 0, 5)) == x^2
     @test Sym(series(P, x, 1, 3)) == (x - 1) - (x - 1)^2 / 2
 end
+
+@testset "wrong answers (SymPy review, round 20)" begin
+    @syms x
+    # inverse functions at points inside their branch cuts: the series' terms on the same
+    # side as its value, Julia's at u + 0im (acos(2 + x) had +i x/√3 for -i x/√3; found
+    # checking GruntzLimit's round-19 cut changes)
+    for (f, u) in ((acos, 2), (asin, 3), (asec, -1 // 2), (acsc, -1 // 2), (asech, 2), (asech, -3))
+        s = Sym(series(f(Sym(u) + x), x, 0, 4))
+        for h in (-1 // 1000, 1 // 1000)
+            @test N(subs(s, x => Sym(h))) ≈ f(complex(Float64(u + h), 0.0)) rtol = 1e-9
+        end
+    end
+    # a root of the squared radical equation with real parameters: only where it holds
+    # (#2779; both roots were given)
+    @syms c
+    R = solve(x ~ c * sqrt(x^2 + 1), x; assume = (x ∈ ℝ, c ∈ ℝ))
+    @test subs(R, c => Sym(1) // 2) == [sqrt(Sym(3)) / 3]
+    @test subs(R, c => -Sym(1) // 2) == [-sqrt(Sym(3)) / 3]
+    @test isempty(subs(R, c => Sym(2)))
+end

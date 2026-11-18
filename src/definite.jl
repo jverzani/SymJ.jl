@@ -37,6 +37,37 @@ function _floor_integral(f::Sym, x::Sym, lo, hi, assume, antider)
     _summation_kab(piece, k, lo, infhi ? Inf : hi - 1; assume = (k ∈ ℤ, Relation(:ge, k, lo)))
 end
 
+# an integral along a segment of the complex plane (see _definite_integral): the ends'
+# values are limits along it
+const _ON_PATH = ScopedValue(false)
+function _complex_ends(lo::Sym, hi::Sym)
+    (_hassymbol(lo) || _hassymbol(hi) || _isinfpt(lo) || _isinfpt(hi)) && return false
+    v = try (_evalc(lo), _evalc(hi)) catch; return false end
+    all(w -> w isa Number && isfinite(w), v) && any(w -> !iszero(imag(w)), v)
+end
+
+# the antiderivative along a path x = p(t): in t, or failing that f's in x at p(t) (csc
+# of a complex linear argument is not integrated in t). (A struct with an untyped field,
+# not a closure: a closure wrapping antider in a recursive call is a new type at each
+# level, and inference of the extension never ended)
+struct _PathAntider
+    antider::Any
+    f::Sym
+    x::Sym
+    p::Sym
+    t::Sym
+    g::Sym
+end
+function (a::_PathAntider)(g2, t2, A)
+    try
+        a.antider(g2, t2, A)
+    catch err
+        (err isa InterruptException || !_eq(t2, a.t) || !_eq(g2, a.g)) && rethrow()
+        F0 = try a.antider(a.f, a.x, A) catch; rethrow(err) end
+        F0 isa Sym ? subs(F0, a.x => a.p) : rethrow(err)
+    end
+end
+
 # ∫ f dx over (x, lo, hi); antider(f, x, A) is an antiderivative under the assumptions A
 function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Bool = false)
     length(xab) == 3 || throw(ArgumentError("integrate: give the limits as (x, a, b)"))
@@ -45,6 +76,18 @@ function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Boo
     # equal finite limits: 0, for any integrand (an unknown f(x) was held as an Integral;
     # SymPy #5098)
     lo isa Sym && hi isa Sym && _eq(lo, hi) && !_isinfpt(lo) && return ZERO
+    # constant ends not both real: along the segment, x = lo + t (hi - lo) for t in [0, 1],
+    # so the real-interval machinery sees the cuts the path crosses, and F at the ends by
+    # its limits along the path (∫ 1/z from -i to -1 was 3iπ/2, F at -1 above the cut
+    # where the path comes from below; SymPy #31017)
+    if lo isa Sym && hi isa Sym && _complex_ends(lo, hi)
+        t = Sym(Symbol("_tpath"))
+        g = subs(Sym(f), x => lo + t * (hi - lo)) * (hi - lo)
+        anti = _PathAntider(antider, Sym(f), x, lo + t * (hi - lo), t, g)
+        return with(_ON_PATH => true) do
+            _definite_integral(g, (t, ZERO, ONE), assume, anti; principal_value)
+        end
+    end
     # over the whole line, a product with two or more deltas in x: sifted by one, δ(m x + c)
     # at a = -c/m (weight 1/|m|), the rest (the other deltas too) taken there:
     # ∫ x₂ δ(x - x₂) δ(x₂ - x₁) dx₂ = x δ(x - x₁) (SymPy #5588)
@@ -642,7 +685,7 @@ function _definite(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A::Assumptions, pv
     # at t = π (#26283); split there too (a point where F is continuous changes nothing)
     if F isa Sym
         J, located = _jump_points(F, x, lo, hi)
-        S = _same_points(vcat(S, J))
+        S = _same_points(vcat(S, J, _ON_PATH[] ? _path_cut_points(F, x, lo, hi) : Sym[]))
         # (no value rather than F(b) - F(a) from an F that is no antiderivative on [lo, hi])
         c = _sampled_check(F, f, x, lo, hi, S, !located)
         c === :branch && throw(ArgumentError(
@@ -844,7 +887,13 @@ function _endvalue(F::Sym, x::Sym, p::Sym, dir::Symbol, A, singular::Bool = fals
         # (a piecewise F at a parametric end, as ∫|x| at a/b, its case decided if A can;
         # 0^x with x > 0 is 0)
         v !== nothing && (_hasfn(v, :piecewise) || _has_zero_power(v)) && (v = refine(v; assume = A))
-        v !== nothing && !_has_zero_power(v) && _finite_value(v) && return v
+        if v !== nothing && !_has_zero_power(v) && _finite_value(v)
+            # (on a complex path a complex value may be on the other side of a cut from
+            # the path: the limit along it, where that can be found)
+            (_ON_PATH[] && has(v, IM)) || return v
+            L = try _onesided(F, x, p, dir, A) catch err; err isa InterruptException && rethrow(); nothing end
+            return L isa Sym && _finite_value(L) ? L : v
+        end
     end
     _onesided(F, x, p, dir, A)
 end
@@ -1187,6 +1236,45 @@ _has_opaque(e::Sym, x::Sym) = has(e, x) &&
 # the singular points of an antiderivative F, where it may jump; none when they cannot be
 # located (F is then trusted to be continuous unless sampling finds a jump, _sampled_check);
 # with whether they were located
+# on a complex path x = t real (see _definite_integral), the points of (lo, hi) where
+# a log, a fractional power or an atan in F has its argument w(x) cross its branch cut:
+# Im w = 0 with Re w < 0 (log, powers), Re w = 0 with |Im w| > 1 (atan); for w polynomial
+# in x, through its real and imaginary parts (√(2ix - 1 - i) crosses at x = 1/2)
+function _path_cut_points(F::Sym, x::Sym, lo::Sym, hi::Sym)
+    ws = Tuple{Sym,Bool}[]                                   # (w, is atan)
+    _has_node(F, t -> begin
+        if t.kind == FN && length(t.args) == 1 && t.name in (:log, :atan) && has(t.args[1], x)
+            push!(ws, (t.args[1], t.name === :atan))
+        elseif t.kind == POW && has(t.args[1], x) && t.args[2].kind == NUMBER && !_isint(t.args[2].num)
+            push!(ws, (t.args[1], false))
+        elseif t.kind == MUL                               # (a product keeps its powers apart)
+            for (u, e) in zip(t.args, t.exps)
+                has(u, x) && e.kind == NUMBER && !_isint(e.num) && push!(ws, (u, false))
+            end
+        end
+        false
+    end)
+    a, b = real(_evalc(lo)), real(_evalc(hi))
+    pts = Sym[]
+    for (w, isatan) in ws
+        we = expand(w)
+        cw = expand(subs(conj(we), conj(x) => x))             # (x real)
+        re, im_ = expand((we + cw) / 2), expand((we - cw) / (2IM))
+        (has(re, IM) || has(im_, IM)) && continue
+        zero_part, other = isatan ? (re, im_) : (im_, re)
+        has(zero_part, x) || continue
+        rs = try _solve_generic(zero_part ~ 0, x) catch err; err isa ArgumentError || rethrow(); continue end
+        rs isa AbstractVector || continue
+        for r in rs
+            v = try _evalc(r) catch; continue end
+            (v isa Number && abs(imag(v)) < 1e-12 && a < real(v) < b) || continue
+            o = try real(_evalc(subs(other, x => r))) catch; continue end
+            (isatan ? abs(o) > 1 : o < 0) && push!(pts, r)
+        end
+    end
+    pts
+end
+
 function _jump_points(F::Sym, x::Sym, lo::Sym, hi::Sym)
     try
         _singular_points(F, x, lo, hi), true
@@ -1218,14 +1306,21 @@ function _sampled_check(F::Sym, f::Sym, x::Sym, lo::Sym, hi::Sym, S, unlocated::
     elseif b < 0 && a / b > 10
         append!(ts, [b * (a / b)^((i - 0.5 + 0.1234) / 7.25) for i in 1:7])
     end
+    # (an end at 0: samples toward it, where log(x^i) = i log(x) fails, x < e^-π; ∫₀¹ log(x^i)²
+    # came out -2 from that antiderivative; SymPy #31017)
+    iszero(a) && b > 0 && append!(ts, [b * 10.0^(-k - 0.1234) for k in 1:12])
+    iszero(b) && a < 0 && append!(ts, [a * 10.0^(-k - 0.1234) for k in 1:12])
     fs = [val(f, t) for t in ts]
     Fs = [val(F, t) for t in ts]
     complexF = any(nonreal, Fs) || any(nonreal, fs)
-    if any(nonreal, fs)
+    # (f real with complex constants inside, log(x^i)², also: its branches can be the
+    # antiderivative's on part of the interval only)
+    if any(nonreal, fs) || has(f, IM)
         for (t, ft) in zip(ts, fs)
             isfinite(ft) || continue
             dq(h) = (val(F, t + h) - val(F, t - h)) / 2h
-            h = 1e-5 * (1 + abs(t))
+            # (a step below |t| near 0, which may be a branch point of F)
+            h = iszero(t) ? 1e-5 : min(1e-5 * (1 + abs(t)), abs(t) / 1000)
             d1, d2 = dq(h), dq(h / 16)
             (isfinite(d1) && isfinite(d2)) || continue
             # (a mismatch that persists as h shrinks: not a jump inside [t - h, t + h])
@@ -1301,6 +1396,16 @@ function _zeros_in(z::Sym, x::Sym, lo::Sym, hi::Sym)
             throw(ArgumentError("integrate: the integrand is singular at infinitely many points (the zeros of $z)"))
         off = z.name === :cos ? PI / 2 : ZERO               # u = off + nπ
         ua, ub = N(subs(u, x => lo)), N(subs(u, x => hi))
+        # complex u = a + k x (an integral along a complex path): x = (off + nπ - a)/k is
+        # real for one n at most, where Im((nπ + off - a)/k) = 0 (csc on a vertical
+        # segment raised a MethodError comparing complex numbers; SymPy #31017)
+        if !(ua isa Real && ub isa Real)
+            kv, av = complex(N(k)), complex(N(subs(u, x => 0)) - N(off))
+            abs(imag(π / kv)) < 1e-12 && return Sym[]
+            n = round(Int, imag(av / kv) / imag(π / kv))
+            abs(imag((n * π - av) / kv)) < 1e-9 * max(1, abs((n * π - av) / kv)) || return Sym[]
+            return Sym[expand(x - (u - (off + n * PI)) / k)]
+        end
         n1, n2 = floor(Int, (min(ua, ub) - N(off)) / π) - 1, ceil(Int, (max(ua, ub) - N(off)) / π) + 1
         return Sym[expand(x - (u - (off + n * PI)) / k) for n in n1:n2]
     end
