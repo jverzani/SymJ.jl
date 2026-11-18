@@ -957,6 +957,7 @@ import PolyLog as PL
         @test RischIntegrate.integrate(1 / (x^2 + a^2), (x, -1, 1)) == 2atan(1 / a) / a
         @test RischIntegrate.integrate(a / (x^2 + a^2), (x, -1, 1)) == 2atan(1 / a)
         @test RischIntegrate.integrate(1 / (x^2 + a^2), (x, 0, 1)) == atan(1 / a) / a
-        @test RischIntegrate.integrate((a / sqrt(x^2 + a^2))^3, (x, -1, 1)) == 2a / sqrt(a^2 + 1)
+        # (the older RischIntegrate of Julia 1.10 cannot integrate it: a parameter in the radicand)
+        VERSION >= v"1.12" && @test RischIntegrate.integrate((a / sqrt(x^2 + a^2))^3, (x, -1, 1)) == 2a / sqrt(a^2 + 1)
     end
 end
