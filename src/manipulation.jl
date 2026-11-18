@@ -611,7 +611,7 @@ end
 _namedval(a::_Named, ex::Sym) = getfield(a.vals, ex.name)
 
 function _constant_value(ex::Sym)
-    _hassymbol(ex) && return ex
+    _hasfree(ex) && return ex
     evaluate(ex, 0)      # the argument is unused, and an Int keeps exact values exact
 end
 
@@ -645,7 +645,7 @@ code calling `float` works on it. For an array, broadcast: `float.(A)`. `float(S
 `Sym`. See the table of conversions under [`SymJ.evalf`](@ref).
 """
 function Base.float(ex::Sym)
-    _hassymbol(ex) && return ex
+    _hasfree(ex) && return ex
     _has_bignum(ex) && return evalf(ex, BigFloat)
     v = N(ex)
     # (past Float64's range: exp(1000) is Inf and exp(-1000) is 0 in Float64)
@@ -660,6 +660,11 @@ Base.float(::Type{Sym}) = Sym
 # a big integer or rational among ex's numbers
 _has_bignum(ex::Sym) = _has_node(ex, t -> t.num isa SymNumber && t.num.tag == T_BIG ||
     (t.kind == ADD && any(c -> c.tag == T_BIG, t.coefs)))
+
+# does ex have a free symbol? As _hassymbol, but the bound variable of an unevaluated
+# definite integral (which has a numeric value, by quadrature) is not free:
+# Integral(e^(-x²), (x, -∞, ∞)) is a constant
+_hasfree(ex::Sym) = _hassymbol(ex) && (!_has_node(ex, _isdefint) || !isempty(free_symbols(ex)))
 
 # does ex contain a symbol? (free_symbols without the allocation)
 # does ex contain a variable or parameter (_hassymbol), or a parameter? Plain loops: these
@@ -765,6 +770,11 @@ function _ev(ex::Sym, a, F, var)
         return p
     elseif k == POW
         return _evpow(ex.args[1], ex.args[2], a, F, var)
+    end
+    # an unevaluated definite integral: by quadrature (in Float64)
+    if ex.name === :Integral && length(ex.args) == 4
+        r = _ev_integral(ex, a, var)
+        return F === nothing ? r : convert(r isa Real ? F : Complex{F}, r)
     end
     rule = get(FUNCTION_RULES, ex.name, nothing)
     (rule === nothing || rule.julia === nothing) &&
@@ -1023,7 +1033,7 @@ SymJ.evalf(sqrt(Sym(-2)), Float32)     # 0.0f0 + 1.4142135f0im
 ```
 """
 function evalf(ex::Sym, ::Type{T} = Float64, prec::Union{Nothing,Integer} = nothing) where {T<:AbstractFloat}
-    _hassymbol(ex) && return ex
+    _hasfree(ex) && return ex
     T === BigFloat && return _evalf_big(ex, prec === nothing ? precision(BigFloat) : Int(prec))
     prec === nothing || throw(ArgumentError("evalf: a precision is given for BigFloat only, not $T"))
     v = N(ex)
@@ -1036,6 +1046,8 @@ evalf(x::Number, ::Type{T} = Float64, prec::Union{Nothing,Integer} = nothing) wh
 # ex to p bits: evaluated with more, until two evaluations agree to p bits
 function _evalf_big(ex::Sym, p::Int)
     p >= 2 || throw(ArgumentError("evalf: a precision of at least 2 bits, not $p"))
+    _hasfn(ex, :Integral) && throw(ArgumentError(
+        "evalf: $ex has an unevaluated integral, whose value (by quadrature) is known to Float64 accuracy only; use N"))
     # (an exact number rounded once, as BigFloat(big(10)^400) is)
     ex.kind == NUMBER && !isfloat(ex.num) && return setprecision(() -> BigFloat(_rat(ex.num)), BigFloat, p)
     prev = nothing
@@ -1061,6 +1073,8 @@ end
 # cannot be evaluated in BigFloat keeps z.
 function _checked_value(ex::Sym, z::ComplexF64)
     (ex.kind == NUMBER || ex.kind == CONSTANT) && return z
+    # (a quadrature's value is good to its tolerance, whatever the precision around it)
+    _hasfn(ex, :Integral) && return z
     ps = (256, 512, 1024, 2048)
     if !isfinite(z)
         # (an infinity in ex itself: the value is that infinity, not an overflow; im*Inf
@@ -1173,6 +1187,7 @@ function _evalc(ex::Sym)::ComplexF64
     end
     ex.name === :piecewise && return _evalc_piecewise(ex)
     ex.name === :Derivative && length(ex.args) == 3 && return _evalc_derivative(ex)
+    ex.name === :Integral && length(ex.args) == 4 && return _ev_integral(ex, _Named(NamedTuple()), Ref{Union{Nothing,Sym}}(nothing))
     rule = get(FUNCTION_RULES, ex.name, nothing)
     (rule === nothing || rule.julia === nothing) && throw(ArgumentError("no numeric method for $(ex.name)"))
     # an exact integer argument stays an Int (an order, a kind: besselh(ν, 1, x))

@@ -231,9 +231,20 @@ function RischIntegrate.integrate(ex::Union{Sym,SymJ.Cases}, xab::Tuple, more::T
         B = SymJ._with_fact(A, SymJ.FactAnd(facts))
         B === nothing ? assume : B                      # (contradicting ones: as given)
     end
-    v = SymJ._definite_integral(ex, xab, within(more), antider; principal_value)
+    # (no elementary antiderivative: the integral unevaluated, with its N by quadrature,
+    # where SymJ._held_definite finds it convergent; else the error)
+    function definite(g, t, A)
+        try
+            SymJ._definite_integral(g, t, A, antider; principal_value)
+        catch err
+            (err isa RischIntegrate.NotElementary && g isa Sym && length(t) == 3) || rethrow()
+            h = SymJ._held_definite(g, Sym(t[1]), SymJ._endpoint(t[2]), SymJ._endpoint(t[3]))
+            h === nothing ? rethrow() : h
+        end
+    end
+    v = definite(ex, xab, within(more))
     for (i, t) in enumerate(more)
-        v = SymJ._definite_integral(v, t, within(more[(i + 1):end]), antider; principal_value)
+        v = definite(v, t, within(more[(i + 1):end]))
     end
     v = drop_removable_singularities ? SymJ._drop_removable(v) : v
     # (floats in the integrand, its cases or the limits: the value's numbers floats, as for

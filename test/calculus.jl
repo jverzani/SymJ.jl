@@ -221,3 +221,29 @@ end
     @test_throws ArgumentError F(P(x ≪ 0 => 1, true => 2) + P(a ≪ 0 => 1, true => 2))   # which variable?
     @test F(x^2 + 1, x) == x^2 + 1
 end
+
+@testset "unevaluated definite integrals: values by quadrature" begin
+    @syms t
+    Int4(f, v, a, b) = SymJ._mkfn_node(:Integral, Sym[f, v, Sym(a), Sym(b)])
+    @test SymJ._quadgk(u -> exp(-u^2), -Inf, Inf)[1] ≈ sqrt(π) rtol = 1e-12
+    @test SymJ._quadgk(u -> 1 / sqrt(u), 0, 1)[1] ≈ 2 rtol = 1e-8
+    I1 = Int4(exp(x^3), x, 0, 1)
+    @test N(I1) ≈ 1.3419044179774198 rtol = 1e-12
+    @test N(Int4(exp(x^3), x, 1, 0)) ≈ -1.3419044179774198 rtol = 1e-12
+    @test N(Int4(exp(-x^2), x, -Inf, Inf)) ≈ sqrt(π) rtol = 1e-12
+    @test N(Int4(exp(x^3) / sqrt(x), x, 0, 1)) ≈ 2.3841376158 rtol = 1e-9   # Σ 1/(n!(3n + 1/2))
+    # complex limits: along the segment (∫₀ⁱ e^(x²) = i ∫₀¹ e^(-t²))
+    @test N(Int4(exp(x^2), x, 0, im)) ≈ 0.746824132812427im rtol = 1e-12
+    # a parameter: by calling, by substituting; nested, the outer variable's value inside
+    J = Int4(exp(x^3 * t), x, 0, 1)
+    @test J(2.0) ≈ N(subs(J, t => 2)) rtol = 1e-14
+    @test N(Int4(J, t, 0, 1)) ≈ 1.1537157127366073 rtol = 1e-10
+    # a constant for float, calling, conversions; BigFloat accuracy refused
+    G = Int4(exp(-x^2), x, -Inf, Inf)
+    @test float(2G) ≈ 2sqrt(π) rtol = 1e-12
+    @test G() ≈ sqrt(π) rtol = 1e-12
+    @test Float64(G) ≈ sqrt(π) rtol = 1e-12
+    @test_throws ArgumentError SymJ.evalf(G, BigFloat)
+    @test_throws ArgumentError N(Int4(1 / x, x, -1, 1))
+end
+

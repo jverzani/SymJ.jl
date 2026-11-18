@@ -1384,6 +1384,21 @@ evaluate but SymJ cannot hold. A definite integral through one, over
 numeric limits where `f` is not singular, is a float:
 `integrate(x / sqrt(1 - x^3), (x, 0, 1//2))` is `0.12832…`.
 
+An integrand proven to have no elementary antiderivative, over numeric limits where the
+integral converges, gives the integral unevaluated; `N` (or `float`, or calling it) finds its
+value by numeric quadrature:
+
+```@example tut
+ex = integrate(exp(x^3), (x, 0, 1))
+ex, N(ex)
+```
+
+```@example tut
+@syms y
+ex = integrate(exp(-x^2 * y^2), (x, 0, 1), (y, 0, 1))
+ex, N(ex)
+```
+
 `principal_value = true` asks for the Cauchy principal value instead:
 a singular point inside is approached from both sides at once,
 lim_{ε→0⁺} (∫ₐ^{s-ε} + ∫_{s+ε}^b) f, and an integral over (-∞, ∞) is

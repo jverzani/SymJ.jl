@@ -960,4 +960,22 @@ import PolyLog as PL
         # (the older RischIntegrate of Julia 1.10 cannot integrate it: a parameter in the radicand)
         VERSION >= v"1.12" && @test RischIntegrate.integrate((a / sqrt(x^2 + a^2))^3, (x, -1, 1)) == 2a / sqrt(a^2 + 1)
     end
+
+    @testset "no elementary antiderivative: the definite integral unevaluated" begin
+        @syms y
+        v = RischIntegrate.integrate(exp(x^3), (x, 0, 1))
+        @test SymJ._isdefint(v)
+        @test N(v) ≈ 1.3419044179774198 rtol = 1e-12
+        # ∫₀¹∫₀¹ e^(-x²y²): the inner one in erf, the outer unevaluated (SymPy #5326; the
+        # older RischIntegrate of Julia 1.10 cannot do the inner one)
+        if VERSION >= v"1.12"
+            w = RischIntegrate.integrate(exp(-x^2 * y^2), (x, 0, 1), (y, 0, 1))
+            @test SymJ._isdefint(w)
+            @test N(w) ≈ 0.9059404763223628 rtol = 1e-10
+        end
+        @test N(RischIntegrate.integrate(exp(-x^2) * log(x + 2), (x, 0, Inf))) ≈ 0.8231099519447602 rtol = 1e-10
+        # not when it diverges (e^(-x) sin(x)/x² at 0), nor with a parameter
+        @test_throws RischIntegrate.NotElementary RischIntegrate.integrate(exp(-x) * sin(x) / x^2, (x, 0, Inf))
+        @test_throws RischIntegrate.NotElementary RischIntegrate.integrate(y * exp(x^3), (x, 0, 1))
+    end
 end
