@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=8bac1d93">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=bb961541">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -548,7 +548,7 @@ coefficients(Q)</code></pre>
 SymJ.decompose(p, x), solve(p ~ 0, x)[1:2]</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\left( \left[ x^{3} - 2, \; x^{2} + x \right], \; \left[ \frac{ - \sqrt{4 \cdot 2^{\frac{1}{3}} + 1}}{2} - \frac{1}{2}, \; \frac{\sqrt{4 \cdot 2^{\frac{1}{3}} + 1}}{2} - \frac{1}{2} \right] \right)\]
+\[\left( \left[ x^{3} - 2, \; x^{2} + x \right], \; \left[  - \frac{\sqrt{4 \cdot 2^{\frac{1}{3}} + 1}}{2} - \frac{1}{2}, \; \frac{\sqrt{4 \cdot 2^{\frac{1}{3}} + 1}}{2} - \frac{1}{2} \right] \right)\]
 </div>
 </div>
 <p><code class="md-code-inline">SymJ.minimal_polynomial</code> gives the irreducible polynomial with integer coefficients that an algebraic number is a root of:</p>
@@ -624,7 +624,7 @@ reduced(x^2 - y^2, G, x, y), reduced(x^3, G, x, y)</code></pre>
 <pre><code class="language-julia">solve(p ~ 0, x)</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\left[ \frac{ - \sqrt{4 \cdot 2^{\frac{1}{3}} + 1}}{2} - \frac{1}{2}, \; \frac{\sqrt{4 \cdot 2^{\frac{1}{3}} + 1}}{2} - \frac{1}{2}, \; \frac{ - \sqrt{4 \cdot \left( -1 \right)^{\frac{2}{3}} \cdot 2^{\frac{1}{3}} + 1}}{2} - \frac{1}{2}, \; \frac{ - \sqrt{-4 \cdot \left( -1 \right)^{\frac{1}{3}} \cdot 2^{\frac{1}{3}} + 1}}{2} - \frac{1}{2}, \; \frac{\sqrt{-4 \cdot \left( -1 \right)^{\frac{1}{3}} \cdot 2^{\frac{1}{3}} + 1}}{2} - \frac{1}{2}, \; \frac{\sqrt{4 \cdot \left( -1 \right)^{\frac{2}{3}} \cdot 2^{\frac{1}{3}} + 1}}{2} - \frac{1}{2} \right]\]
+\[\left[  - \frac{\sqrt{4 \cdot 2^{\frac{1}{3}} + 1}}{2} - \frac{1}{2}, \; \frac{\sqrt{4 \cdot 2^{\frac{1}{3}} + 1}}{2} - \frac{1}{2}, \;  - \frac{\sqrt{4 \cdot \left( -1 \right)^{\frac{2}{3}} \cdot 2^{\frac{1}{3}} + 1}}{2} - \frac{1}{2}, \;  - \frac{\sqrt{-4 \cdot \left( -1 \right)^{\frac{1}{3}} \cdot 2^{\frac{1}{3}} + 1}}{2} - \frac{1}{2}, \; \frac{\sqrt{-4 \cdot \left( -1 \right)^{\frac{1}{3}} \cdot 2^{\frac{1}{3}} + 1}}{2} - \frac{1}{2}, \; \frac{\sqrt{4 \cdot \left( -1 \right)^{\frac{2}{3}} \cdot 2^{\frac{1}{3}} + 1}}{2} - \frac{1}{2} \right]\]
 </div>
 </div>
 <div class="md-multi-output">
@@ -705,7 +705,7 @@ cancel(r)</code></pre>
 <pre><code class="language-julia">apart(1 / (x^4 - 1), x)</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\frac{-1}{4 \cdot \left( x + 1 \right)} + \frac{1}{4 \cdot \left( x - 1 \right)} - \frac{1}{2 \cdot \left( x^{2} + 1 \right)}\]
+\[ - \frac{1}{4 \cdot \left( x + 1 \right)} + \frac{1}{4 \cdot \left( x - 1 \right)} - \frac{1}{2 \cdot \left( x^{2} + 1 \right)}\]
 </div>
 </div>
 <p>Other symbols are allowed in the coefficients:</p>
@@ -715,7 +715,7 @@ cancel(r)</code></pre>
 <pre><code class="language-julia">apart(1 / ((x - a) * (x - b)), x)</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\frac{-1}{\left(  - a + b \right) \cdot \left(  - a + x \right)} + \frac{1}{\left(  - a + b \right) \cdot \left(  - b + x \right)}\]
+\[ - \frac{1}{\left(  - a + b \right) \cdot \left(  - a + x \right)} + \frac{1}{\left(  - a + b \right) \cdot \left(  - b + x \right)}\]
 </div>
 </div>
 <h2 id="Simplification" class="md-heading">Simplification<a href="#Simplification" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
@@ -878,7 +878,7 @@ SymJ.expand_trig(tan(2x))
 )</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\left( \cos\left( x \right) \cdot \sin\left( y \right) + \cos\left( y \right) \cdot \sin\left( x \right), \; -3 \cdot \cos\left( x \right) + 4 \cdot \cos^{3}\left( x \right), \; \frac{-2 \cdot \tan\left( x \right)}{\tan^{2}\left( x \right) - 1} \right)\]
+\[\left( \cos\left( x \right) \cdot \sin\left( y \right) + \cos\left( y \right) \cdot \sin\left( x \right), \; -3 \cdot \cos\left( x \right) + 4 \cdot \cos^{3}\left( x \right), \;  - \frac{2 \cdot \tan\left( x \right)}{\tan^{2}\left( x \right) - 1} \right)\]
 </div>
 </div>
 <p><code class="md-code-inline">SymJ.rewrite(ex, target)</code> writes the functions of an expression through another one: trigonometric and hyperbolic functions through <code class="md-code-inline">exp</code>, inverse ones through <code class="md-code-inline">log</code>, <code class="md-code-inline">tan</code> and <code class="md-code-inline">sec</code> through <code class="md-code-inline">sin</code> and <code class="md-code-inline">cos</code>, exponentials with imaginary parts through <code class="md-code-inline">cos</code> and <code class="md-code-inline">sin</code>, factorials through <code class="md-code-inline">gamma</code> and back. <code class="md-code-inline">fs =&gt; target</code> rewrites only the functions <code class="md-code-inline">fs</code>:</p>
@@ -893,7 +893,7 @@ SymJ.rewrite(tan(x) + cos(x), tan =&gt; sin)
 )</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\left( \frac{ - i \cdot \left( \frac{-1}{e^{i \cdot x}} + e^{i \cdot x} \right)}{2}, \; \cos\left( x \right) + i \cdot \sin\left( x \right), \; \log\left( \sqrt{x^{2} + 1} + x \right), \; \cos\left( x \right) + \frac{\sin\left( x \right)}{\cos\left( x \right)} \right)\]
+\[\left( \frac{ - i \cdot \left(  - \frac{1}{e^{i \cdot x}} + e^{i \cdot x} \right)}{2}, \; \cos\left( x \right) + i \cdot \sin\left( x \right), \; \log\left( \sqrt{x^{2} + 1} + x \right), \; \cos\left( x \right) + \frac{\sin\left( x \right)}{\cos\left( x \right)} \right)\]
 </div>
 </div>
 <p><code class="md-code-inline">SymJ.expand_log</code> splits logarithms of products and powers where the assumptions allow it; <code class="md-code-inline">force = true</code> takes every base as positive:</p>
@@ -999,7 +999,7 @@ SymJ.expand_log(log(x / y); force = true)
 <pre><code class="language-julia">solve(a * x^2 + b * x + c ~ 0, x; assume = @assume(a == 0))</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\left[ \frac{ - c}{b} \right]\]
+\[\left[  - \frac{c}{b} \right]\]
 </div>
 </div>
 <p>A symbolic exponent gives the principal root only. <code class="md-code-inline">x^n = 1</code> has <code class="md-code-inline">n</code> roots for a positive integer <code class="md-code-inline">n</code>, but their number depends on <code class="md-code-inline">n</code>, so with <code class="md-code-inline">n</code> symbolic the answer is the principal one:</p>
@@ -1071,7 +1071,7 @@ solve(x^n ~ 1, x; assume = @assume(n in Integers, n &gt; 0))</code></pre>
 <pre><code class="language-julia">solve([x^2 + y^2 ~ 1, x ~ y], [x, y])</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\left[ \begin{array}{l} \left\{ x = \frac{ - \sqrt{2}}{2}, \; y = \frac{ - \sqrt{2}}{2} \right\} \\ \left\{ x = \frac{\sqrt{2}}{2}, \; y = \frac{\sqrt{2}}{2} \right\} \end{array} \right]\]
+\[\left[ \begin{array}{l} \left\{ x =  - \frac{\sqrt{2}}{2}, \; y =  - \frac{\sqrt{2}}{2} \right\} \\ \left\{ x = \frac{\sqrt{2}}{2}, \; y = \frac{\sqrt{2}}{2} \right\} \end{array} \right]\]
 </div>
 </div>
 <div class="md-multi-output">
@@ -1080,7 +1080,7 @@ solve(x^n ~ 1, x; assume = @assume(n in Integers, n &gt; 0))</code></pre>
 <pre><code class="language-julia">solve([x*y ~ 1, x + y ~ 3], [x, y])</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\left[ \begin{array}{l} \left\{ x = \frac{\sqrt{5}}{2} + \frac{3}{2}, \; y = \frac{ - \sqrt{5}}{2} + \frac{3}{2} \right\} \\ \left\{ x = \frac{ - \sqrt{5}}{2} + \frac{3}{2}, \; y = \frac{\sqrt{5}}{2} + \frac{3}{2} \right\} \end{array} \right]\]
+\[\left[ \begin{array}{l} \left\{ x = \frac{\sqrt{5}}{2} + \frac{3}{2}, \; y =  - \frac{\sqrt{5}}{2} + \frac{3}{2} \right\} \\ \left\{ x =  - \frac{\sqrt{5}}{2} + \frac{3}{2}, \; y = \frac{\sqrt{5}}{2} + \frac{3}{2} \right\} \end{array} \right]\]
 </div>
 </div>
 <p>With infinitely many solutions, the unknowns left free map to themselves:</p>
@@ -1276,7 +1276,7 @@ SymJ.summation(binomial(n, k) * binomial(m, n - k), (k, 0, n))
 <pre><code class="language-julia">SymJ.summation(binomial(n - k, k), (k, 0, n))</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\left( \frac{ - \sqrt{5}}{10} + \frac{1}{2} \right) \cdot \left( \frac{ - \sqrt{5}}{2} + \frac{1}{2} \right)^{n} + \left( \frac{\sqrt{5}}{10} + \frac{1}{2} \right) \cdot \left( \frac{\sqrt{5}}{2} + \frac{1}{2} \right)^{n}\]
+\[\left(  - \frac{\sqrt{5}}{10} + \frac{1}{2} \right) \cdot \left(  - \frac{\sqrt{5}}{2} + \frac{1}{2} \right)^{n} + \left( \frac{\sqrt{5}}{10} + \frac{1}{2} \right) \cdot \left( \frac{\sqrt{5}}{2} + \frac{1}{2} \right)^{n}\]
 </div>
 </div>
 <p>Bounds other than the summand&#39;s own give an inhomogeneous recurrence, solved as well:</p>
@@ -1298,7 +1298,7 @@ SymJ.summation(binomial(n, k) * binomial(m, n - k), (k, 0, n))
 SymJ.rsolve(w(n + 1) ~ 2w(n) + 1, w(n)))</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\left( \frac{\sqrt{5} \cdot \left(  - \left( \frac{ - \sqrt{5}}{2} + \frac{1}{2} \right)^{n} + \left( \frac{\sqrt{5}}{2} + \frac{1}{2} \right)^{n} \right)}{5}, \; 2^{n} \cdot \left( w\left( 0 \right) + 1 \right) - 1 \right)\]
+\[\left( \frac{\sqrt{5} \cdot \left(  - \left(  - \frac{\sqrt{5}}{2} + \frac{1}{2} \right)^{n} + \left( \frac{\sqrt{5}}{2} + \frac{1}{2} \right)^{n} \right)}{5}, \; 2^{n} \cdot \left( w\left( 0 \right) + 1 \right) - 1 \right)\]
 </div>
 </div>
 <p>When a recurrence has too few hypergeometric solutions, its order is reduced through one of them; the solutions are then iterated sums of hypergeometric terms (harmonic numbers, or a <code class="md-code-inline">Sum</code> that does not close), and the right side may be any function of <code class="md-code-inline">n</code>:</p>
@@ -1409,8 +1409,8 @@ det(A), inv(A)</code></pre>
 <div class="md-math md-math-display">
 \[\left( a \cdot d - b \cdot c, \; \left[
 \begin{array}{cc}
-\frac{d}{a \cdot d - b \cdot c} &amp; \frac{ - b}{a \cdot d - b \cdot c} \\
-\frac{ - c}{a \cdot d - b \cdot c} &amp; \frac{a}{a \cdot d - b \cdot c} \\
+\frac{d}{a \cdot d - b \cdot c} &amp;  - \frac{b}{a \cdot d - b \cdot c} \\
+ - \frac{c}{a \cdot d - b \cdot c} &amp; \frac{a}{a \cdot d - b \cdot c} \\
 \end{array}
 \right] \right)\]
 </div>
@@ -1472,7 +1472,7 @@ a &amp; b \\
 <pre><code class="language-julia">eigvals(Sym[1 2; 3 4]), eigvecs([a b; b a])</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\left( \left[ \frac{ - \sqrt{33}}{2} + \frac{5}{2}, \; \frac{\sqrt{33}}{2} + \frac{5}{2} \right], \; \left[
+\[\left( \left[  - \frac{\sqrt{33}}{2} + \frac{5}{2}, \; \frac{\sqrt{33}}{2} + \frac{5}{2} \right], \; \left[
 \begin{array}{cc}
 1 &amp; -1 \\
 1 &amp; 1 \\
@@ -1505,7 +1505,7 @@ Q, R</code></pre>
 <div class="md-math md-math-display">
 \[\left( \left[
 \begin{array}{cc}
-\frac{3}{5} &amp; \frac{-4}{5} \\
+\frac{3}{5} &amp;  - \frac{4}{5} \\
 \frac{4}{5} &amp; \frac{3}{5} \\
 \end{array}
 \right], \; \left[
@@ -1526,13 +1526,13 @@ F.S, F.U, F.Vt</code></pre>
 <div class="md-math md-math-display">
 \[\left( \left[ 3 \cdot \sqrt{5}, \; \sqrt{5} \right], \; \left[
 \begin{array}{cc}
-\frac{\sqrt{10}}{10} &amp; \frac{-3 \cdot \sqrt{10}}{10} \\
+\frac{\sqrt{10}}{10} &amp;  - \frac{3 \cdot \sqrt{10}}{10} \\
 \frac{3 \cdot \sqrt{10}}{10} &amp; \frac{\sqrt{10}}{10} \\
 \end{array}
 \right], \; \left[
 \begin{array}{cc}
 \frac{\sqrt{2}}{2} &amp; \frac{\sqrt{2}}{2} \\
-\frac{ - \sqrt{2}}{2} &amp; \frac{\sqrt{2}}{2} \\
+ - \frac{\sqrt{2}}{2} &amp; \frac{\sqrt{2}}{2} \\
 \end{array}
 \right] \right)\]
 </div>
@@ -1565,8 +1565,8 @@ e^{2 \cdot t} &amp; t \cdot e^{2 \cdot t} \\
 <div class="md-math md-math-display">
 \[\left[
 \begin{array}{cc}
-\frac{\sqrt{5} \cdot \left(  - \left( \frac{ - \sqrt{5}}{2} + \frac{1}{2} \right)^{n + 1} + \left( \frac{\sqrt{5}}{2} + \frac{1}{2} \right)^{n + 1} \right)}{5} &amp; \left( \frac{ - \sqrt{5}}{10} + \frac{1}{2} \right) \cdot \left( \frac{\sqrt{5}}{2} + \frac{1}{2} \right)^{n + 1} + \left( \frac{ - \sqrt{5}}{2} + \frac{1}{2} \right)^{n + 1} \cdot \left( \frac{\sqrt{5}}{10} + \frac{1}{2} \right) \\
-\frac{\sqrt{5} \cdot \left(  - \left( \frac{ - \sqrt{5}}{2} + \frac{1}{2} \right)^{n} + \left( \frac{\sqrt{5}}{2} + \frac{1}{2} \right)^{n} \right)}{5} &amp; \left( \frac{ - \sqrt{5}}{10} + \frac{1}{2} \right) \cdot \left( \frac{\sqrt{5}}{2} + \frac{1}{2} \right)^{n} + \left( \frac{ - \sqrt{5}}{2} + \frac{1}{2} \right)^{n} \cdot \left( \frac{\sqrt{5}}{10} + \frac{1}{2} \right) \\
+\frac{\sqrt{5} \cdot \left(  - \left(  - \frac{\sqrt{5}}{2} + \frac{1}{2} \right)^{n + 1} + \left( \frac{\sqrt{5}}{2} + \frac{1}{2} \right)^{n + 1} \right)}{5} &amp; \left(  - \frac{\sqrt{5}}{10} + \frac{1}{2} \right) \cdot \left( \frac{\sqrt{5}}{2} + \frac{1}{2} \right)^{n + 1} + \left(  - \frac{\sqrt{5}}{2} + \frac{1}{2} \right)^{n + 1} \cdot \left( \frac{\sqrt{5}}{10} + \frac{1}{2} \right) \\
+\frac{\sqrt{5} \cdot \left(  - \left(  - \frac{\sqrt{5}}{2} + \frac{1}{2} \right)^{n} + \left( \frac{\sqrt{5}}{2} + \frac{1}{2} \right)^{n} \right)}{5} &amp; \left(  - \frac{\sqrt{5}}{10} + \frac{1}{2} \right) \cdot \left( \frac{\sqrt{5}}{2} + \frac{1}{2} \right)^{n} + \left(  - \frac{\sqrt{5}}{2} + \frac{1}{2} \right)^{n} \cdot \left( \frac{\sqrt{5}}{10} + \frac{1}{2} \right) \\
 \end{array}
 \right]\]
 </div>
@@ -1678,7 +1678,7 @@ a + b - 2 \cdot x &amp; \text{if } x \leq a\\
 <pre><code class="language-julia">limit((1 + 1 / x)^x, x =&gt; Inf), limit(x * ((1 + 1 / x)^x - ℯ), x =&gt; Inf)</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\left( e, \; \frac{ - e}{2} \right)\]
+\[\left( e, \;  - \frac{e}{2} \right)\]
 </div>
 </div>
 <p>Using symbolic numbers is important in many limits.</p>
@@ -1762,7 +1762,7 @@ limit((a^x + b^x)^(1 / x), x =&gt; Inf; assume = @assume(a &gt; b &gt; 0))
 <pre><code class="language-julia">diff(x^x, x), diff(atan(x), x, 3)</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\left( \left( \log\left( x \right) + 1 \right) \cdot x^{x}, \; \frac{-2}{\left( x^{2} + 1 \right)^{2}} + \frac{8 \cdot x^{2}}{\left( x^{2} + 1 \right)^{3}} \right)\]
+\[\left( \left( \log\left( x \right) + 1 \right) \cdot x^{x}, \;  - \frac{2}{\left( x^{2} + 1 \right)^{2}} + \frac{8 \cdot x^{2}}{\left( x^{2} + 1 \right)^{3}} \right)\]
 </div>
 </div>
 <p>Mixed partial derivatives take the variables in order: <code class="md-code-inline">diff(f, x, y)</code> differentiates with respect to <code class="md-code-inline">x</code>, then <code class="md-code-inline">y</code>:</p>
@@ -1798,7 +1798,7 @@ F = x^2 + u(x)^2 - 1
 solve(diff(F, x) ~ 0, diff(u(x), x))</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\left[ \frac{ - x}{u\left( x \right)} \right]\]
+\[\left[  - \frac{x}{u\left( x \right)} \right]\]
 </div>
 </div>
 <h3 id="Example:-critical-points" class="md-heading">Example: critical points<a href="#Example:-critical-points" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
@@ -1892,7 +1892,7 @@ expand(h(c₀) + diff(h, x)(c₀) * (x - c₀))</code></pre>
 series(erf(x), x, Inf, 4)</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[1 + \frac{1}{e^{x^{2}}} \cdot \left( \frac{-1}{x \cdot \sqrt{\pi}} + \frac{1}{2 \cdot x^{3} \cdot \sqrt{\pi}} + O\left( \frac{1}{x^{4}} \right) \right)\]
+\[1 + \frac{1}{e^{x^{2}}} \cdot \left(  - \frac{1}{x \cdot \sqrt{\pi}} + \frac{1}{2 \cdot x^{3} \cdot \sqrt{\pi}} + O\left( \frac{1}{x^{4}} \right) \right)\]
 </div>
 </div>
 <p>Exponentially small terms are kept: <code class="md-code-inline">erf(x)</code> at <code class="md-code-inline">Inf</code> is not just <code class="md-code-inline">1</code>.</p>
@@ -2059,7 +2059,7 @@ pv(x / (1 + x^2), (x, -Inf, Inf)))</code></pre>
 integrate(exp(c * x), (x, 0, 1))</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\frac{-1}{c} + \frac{e^{c}}{c}\]
+\[ - \frac{1}{c} + \frac{e^{c}}{c}\]
 </div>
 </div>
 <div class="md-multi-output">
@@ -2132,7 +2132,7 @@ SymJ.dsolve(y&#39;(x) + 2y(x) ~ exp(x), y(x))</code></pre>
 <pre><code class="language-julia">SymJ.dsolve(y&#39;(x) ~ x * y(x)^2, y(x)), SymJ.dsolve(y&#39;(x) ~ (x + y(x)) / x, y(x))</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[\left( y\left( x \right) = \frac{-2}{x^{2} + C1}, \; y\left( x \right) = \left( C1 + \log\left( x \right) \right) \cdot x \right)\]
+\[\left( y\left( x \right) =  - \frac{2}{x^{2} + C1}, \; y\left( x \right) = \left( C1 + \log\left( x \right) \right) \cdot x \right)\]
 </div>
 </div>
 <p>A Riccati equation, <code class="md-code-inline">y&#39; = q₀ + q₁ y + q₂ y²</code>, is made linear (of second order), or solved from a particular solution:</p>
@@ -2204,7 +2204,7 @@ SymJ.dsolve(y&#39;&#39;(x) + y(x) ~ sin(x), y(x))
 <pre><code class="language-julia">SymJ.dsolve(y&#39;&#39;(x) ~ 2y(x)^3, y(x), y(0) =&gt; 1, y&#39;(0) =&gt; 1)</code></pre>
 </div>
 <div class="md-math md-math-display">
-\[y\left( x \right) = \frac{-1}{x - 1}\]
+\[y\left( x \right) =  - \frac{1}{x - 1}\]
 </div>
 </div>
 <p>Initial conditions, one for each order, fix the constants:</p>
@@ -2438,6 +2438,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=8bac1d93"></script>
+  <script src="../assets/materialdocs.js?v=bb961541"></script>
 </body>
 </html>
