@@ -336,9 +336,10 @@ function _solve_eq(eq::Relation, x::Sym)
     # (K^0.4 L = 3; SymPy #4260)
     floatexp_params = _float_exponent(n) && any(s -> !_eq(s, x), free_symbols(n))
     if !_isexactex(n) && (!_float_exponent(n) || floatexp_params) && (!isempty(bad) || any(a -> !_eq(a, x), atoms) || !exact)
-        # (a float exponent as the shortest rational near it: 0.4 as 2/5, not 0.4's binary
-        # value, whose reciprocal was the solution's exponent)
-        q = _exactfloats(eq.lhs - eq.rhs; short = floatexp_params)
+        # (each float as the shortest rational near it: 0.4 as 2/5, not 0.4's binary value,
+        # whose reciprocal was the solution's exponent; 0.3 as 3/10, for a quadratic's root
+        # without a radicand of size 10³¹ times 10⁻¹⁷; SymPy #2993)
+        q = _exactfloats(eq.lhs - eq.rhs; short = true)
         if !_isexactex(q)
             # (an infinite or NaN coefficient is no complex one: say so; SymPy #11015)
             _has_nonfinite(q) &&

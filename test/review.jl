@@ -2072,3 +2072,28 @@ end
     # LaTeX: a quotient's sign in front (#3973)
     @test strip(String(latexify(-x / 2; env = :raw))) == raw"- \frac{x}{2}"
 end
+
+@testset "missing cases (SymPy review, round 19, part 2)" begin
+    @syms x y a g t
+    m(p, e) = match(SymJ.pattern(p), e)
+    # patterns: an absent term ~!b*x^2 is b = 0 (#3208); a power splits for a product
+    # pattern (#3778); a scaled term collects every term with its factors (#3883)
+    @test m(:(~!a * x^3 + ~!b * x^2 + ~!c * x + ~!d), 2x^3 - 3x + 1) == Dict(:a => 2, :b => 0, :c => -3, :d => 1)
+    @test m(:(sin(~p) * sin(~q) * ~!c), sin(x)^2) == Dict(:p => x, :q => x, :c => 1)
+    @test m(:(x^(~n) * ~!c), x^5) == Dict(:n => 5, :c => 1)
+    nog = u -> !has(u, g)
+    @test m(:(~g1::$nog * log(g) + ~g2::$nog * g + ~g3::$nog), g * x + 3g + x + 2log(g) + 5) ==
+          Dict(:g1 => 2, :g2 => x + 3, :g3 => x + 5)
+    # nsimplify: a biquadratic through its square (#4143)
+    @test SymJ.nsimplify(0.6881909602355868)^2 == sqrt(Sym(5)) / 10 + Sym(1) // 4
+    # cse: a reciprocal power shares with the power (#4203)
+    @test SymJ.cse(sin(a^a) / a^a) == ([Sym(:t1) => a^a], sin(Sym(:t1)) / Sym(:t1))
+    # fsolve: a free unknown is the clear error (#4031)
+    @test_throws "infinitely many" SymJ.fsolve([x * y ~ 0, x / y ~ 0], [x, y], [x => 1.0, y => 1.0])
+    # solve with floats and other symbols: the floats' shortest rationals (#2993)
+    @test solve(0.5y^2 + 0.3x * y + 0.1 ~ 0, y) == [-0.1sqrt(9.0x^2 - 20.0) - 0.3x, 0.1sqrt(9.0x^2 - 20.0) - 0.3x]
+    # series of a piecewise function: the piece past the point (#4315)
+    P = SymJ.piecewise(x ≪ -1 => 0, x ≦ 1 => x^2, true => log(x))
+    @test Sym(series(P, x, 0, 5)) == x^2
+    @test Sym(series(P, x, 1, 3)) == (x - 1) - (x - 1)^2 / 2
+end

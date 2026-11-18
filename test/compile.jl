@@ -24,7 +24,7 @@
         @test SymJ._unity_powers(ω^2) == 1 / ω
         @test SymJ._unity_powers(ω^-2) == ω
         r, e = CSE(es)
-        @test length(r) == 2                                      # ω and 1/ω
+        @test length(r) == 1                                      # ω (1/ω is 1/t1; SymPy #4203)
         @test all(d -> abs(N(subs(d, x => 1.5, y => 2.5))) < 1e-12,
                  foldl((acc, q) -> subs.(acc, Ref(q)), reverse(r); init = e) .- es)
     end

@@ -367,8 +367,20 @@ function cse(ex; prefix = :t)
     # t1 made the derivative d t1/dx = 0; SymPy #5085)
     bound(e) = e.kind == FN && e.name in (:Derivative, :Integral, :Sum, :Product)
     factors(e) = bound(e) ? Sym[] : e.kind == MUL ? Sym[isone(p) ? b : b^p for (b, p) in zip(e.args, e.exps)] : e.args
+    # a power with a negated exponent counted as the reciprocal of the other power: a^(-a)
+    # as 1/a^a, shared with a^a (sin(a^a)/a^a kept a^a twice; SymPy #4203)
+    function recip(e)
+        (e.kind == POW && !isempty(e.args)) || return nothing
+        p = e.args[2]
+        (p.kind == NUMBER || p.kind == MUL) || return nothing
+        c = p.num
+        (isexact(c) || isfinite(Float64(c))) && (try c < N0 catch; false end) || return nothing
+        e.args[1]^(-p)
+    end
     counts = Dict{Sym,Int}()
     function count!(e)
+        r = recip(e)
+        r === nothing || return count!(r)
         n = get(counts, e, 0)
         counts[e] = n + 1
         n == 0 && foreach(count!, factors(e))
@@ -389,6 +401,8 @@ function cse(ex; prefix = :t)
     function rep(e)
         haskey(memo, e) && return memo[e]
         isempty(e.args) && return e
+        rc = recip(e)
+        rc === nothing || return (memo[e] = inv(rep(rc)))
         r = bound(e) ? e : e.kind == MUL ? Sym(e.num) * prod((rep(f) for f in factors(e)); init = ONE) :
             _rebuild_node(e, Sym[rep(a) for a in e.args])
         if get(counts, e, 0) > 1 && e.kind in (ADD, MUL, POW, FN)

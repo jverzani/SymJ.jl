@@ -167,6 +167,20 @@ function _psapply(name::Symbol, args::Vector{Sym}, N::Rational{Int})
     if name === :Derivative && !isempty(args) && args[1].kind == FN && !haskey(FUNCTION_RULES, args[1].name)
         throw(ArgumentError("series: $(args[1].name) is an unknown function; no series of its derivative is known"))
     end
+    # a piecewise function: the piece that holds just past the point (t > 0, the series'
+    # side), between it and the first breakpoint after it (SymPy #4315)
+    if name === :piecewise
+        fx = apply_function(name, args)
+        bps = _breakpoints(fx, _T)
+        (bps === nothing || any(_hassymbol, bps)) &&
+            throw(ArgumentError("series: $fx: where its pieces change could not be decided"))
+        pos = [real(_evalc(b)) for b in bps]          # (N here is the order)
+        pos = filter(>(0), pos)
+        p = isempty(pos) ? ONE : Sym(SymNumber(rationalize(BigInt, minimum(pos) / 2; tol = minimum(pos) / 8)))
+        v = _pieces_at(fx, _T, p)
+        (v === nothing || _haspieces(v, _T)) && throw(ArgumentError("series: $fx: no piece holds past the point"))
+        return _ser(v, N)
+    end
     length(i) == 1 || throw(ArgumentError("series: $name with several arguments depending on the variable"))
     i = only(i)
     a = _ser(args[i], N)

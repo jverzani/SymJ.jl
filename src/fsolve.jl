@@ -200,7 +200,10 @@ function _fsolve_poly_system(eqs, xs::Vector{Sym}, ranges, start, domain)
     sols isa AbstractVector || return nothing
     out = Dict{Sym,Sym}[]
     for s in sols
-        all(v -> haskey(s, v), xs) || throw(ArgumentError("fsolve: the system has infinitely many solutions (a free unknown); solve gives them"))
+        # (a free unknown: missing, or a value in the unknowns; x = 0 with y free for x y = 0,
+        # x/y = 0 was "cannot evaluate free symbol y"; SymPy #4031)
+        (all(v -> haskey(s, v), xs) && !any(v -> any(u -> has(s[v], u), xs), xs)) ||
+            throw(ArgumentError("fsolve: the system has infinitely many solutions (a free unknown); solve gives them"))
         vals = [N(s[v]) for v in xs]
         any(v -> v isa Number && !isfinite(v), vals) && continue
         if domain == ℝ
