@@ -78,6 +78,20 @@ function _identify(f::Float64, cs, rtol, maxcoeff, maxdegree)
             r = _algebraic_root(b, f, rtol)
             r === nothing || return r
         end
+        # a biquadratic, ±√u for u quadratic: f² by its relation of degree 2, whose three
+        # coefficients are not a chance match where the five of f's are too many to tell
+        # (0.688190960… is √(1/4 + √5/10), a root of 80z⁴ - 40z² + 1; SymPy #4143)
+        if maxdegree >= 4
+            b = _relation(BigFloat[(x^2)^k for k in 0:2], rtol, maxcoeff)
+            if b !== nothing && !iszero(b[end])
+                u = _algebraic_root(b, f^2, rtol)
+                if u !== nothing
+                    r = f > 0 ? sqrt(u) : -sqrt(u)
+                    v = try N(r) catch; nothing end
+                    v isa Real && abs(v - f) <= rtol * abs(f) * 16 && return r
+                end
+            end
+        end
         nothing
     end
 end

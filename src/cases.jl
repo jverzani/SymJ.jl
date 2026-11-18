@@ -477,7 +477,9 @@ function _solve_assumed(eq::Relation, x::Sym, A::Assumptions)
     # k0 = -k1 of (1.0k0 + 1.0k1)/(2.0(0.5k0 + 0.5k1)) left 0.0/0.0 (SymPy #26820).
     ex = eq.lhs - eq.rhs
     if !_isexactex(ex) && !_float_exponent(ex) && any(s -> !_eq(s, x), free_symbols(ex))
-        q = try _exactfloats(ex) catch err; err isa ArgumentError || rethrow(); nothing end
+        # (each float as the shortest rational near it, 0.3 as 3/10: its binary value made a
+        # quadratic's root 5.6e-17 √(2.9e31 x² - 6.5e31) - 0.3x; SymPy #2993)
+        q = try _exactfloats(ex; short = true) catch err; err isa ArgumentError || rethrow(); nothing end
         if q !== nothing && _isexactex(q)
             fl(v) = v isa AbstractVector{Sym} ? Sym[_floatify(r) for r in v] : v
             r = _solve_assumed(Relation(:eq, q, ZERO), x, A)

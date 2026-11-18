@@ -480,6 +480,37 @@ transforms). Of the rest, in rough order of value for calculus-level use:
    - N of a besseli/gamma expression cancelling in Float64: no BigFloat besseli for the
      high-precision check (#5691).
 
+24. **Gaps from the nineteenth SymPy review (#2909–#4408)** (2026-11-18):
+   - integer factorization (`factorint`, perfect powers): `factor(Sym(1030903))` stays
+     1030903 = 53²·367 (#4356, #4388, #4055).
+   - noncommutative symbols (#4395, #4360, #4059, #3757, #3741, #3153, #3130).
+   - unevaluated `Integral` and `Derivative` for users (`evaluate = false`), and a change of
+     variables on an Integral (#3534, #3359, #3335, #3575, #4083, #4086).
+   - a symbolic product ∏ (#3410, #3284); sums over the roots of a polynomial (RootSum,
+     #3674); RootOf objects (#3150).
+   - series: symbolic exponents at a branch point, `series(w^a, w, 0, 2)` (#4047, as
+     #7168); a `dir` keyword (#4162); Order objects (#4279, #4266); convergence
+     acceleration (#3543).
+   - closed forms of the alternating series Σ (-1)ᵏ log k / k = γ log 2 - log² 2/2 (#4189)
+     and Σ (-1)ᵏ (ζ(k) - 1)/(k 2ᵏ) = log(3√π/4) + (γ - 1)/2 (#4188); both open in SymPy.
+     Σ (2k + 1)²/(2k)! stays unevaluated too (found with the #4171 fix).
+   - fsolve: Newton's method from a start with a singular Jacobian gives up
+     (`fsolve([x^y ~ 1, x ~ 2], [x, y], [x => 1.0, y => 1.1])` misses y = 0; #4027).
+   - functions: `bernoulli(n)` for users (#4193), Stieltjes constants (#4186), Kronecker
+     delta (#3772), spherical harmonics (#3537), Legendre polynomials as a function
+     (#3330); exact cos(π/8), cos(π/17) and other constructible values (#3804).
+   - helpers: `jacobian`, gradient/divergence/laplacian (#3899, #3922); `has(ex, cos)` for
+     a function head (#3282); `diff(ex)` for one variable (#3649); an algebraic-number
+     predicate (#4176); `as_independent` (#3784); a formula classifier (#4157).
+   - product-to-sum for unlike arguments, sin(x)cos(y) (#3456); factoring over extensions,
+     x³ - 2 (#3298).
+   - LaTeX printer options: folding function brackets, inline fractional exponents, a LaTeX
+     name per symbol, line wrapping (#4397, #4347, #4340, #4346, #3001).
+   - out of the core: symbolic optimization (#4173), L² Gram–Schmidt of functions
+     (#4211), vector and tensor calculus (#4298, #4238, #4058, #3115), sets with
+     cardinality (#2995), Boolean algebra (#2943), ranges attached to symbols (#3588),
+     the method of brackets (#4344), a Degree constant (#4180).
+
 Done since the first audit: trigonometric and logarithmic expansion, gamma and combinatorial simplification, LaTeX output (a Latexify extension), resultants and Gröbner
 bases (polynomial systems are solved), real and imaginary parts and `conj`, and
 simplification under assumptions (`refine`, `simplify`).

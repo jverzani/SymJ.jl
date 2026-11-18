@@ -435,7 +435,10 @@ function _quickfail(p::_PNode, s::Sym)
     K == _P_POW && return !(s.kind == POW || (p.kids[2].kind == _P_SLOT && p.kids[2].flavor in (_SL_ONE, _SL_DEF)) ||
                             (_recip_pat(p) && s.kind == NUMBER))
     if K == _P_ADD || K == _P_MUL
-        need = length(p.lits) + length(p.kids) + count(sl -> !_zero_ok(sl), p.slots)
+        # (a sum's term ~!b*t may be absent: b = 0)
+        need = length(p.lits) + count(q -> !(K == _P_ADD && q.kind == _P_MUL && length(_slotnames!(Set{Symbol}(), q.sym)) == 1 &&
+                                                any(sl -> sl.flavor == _SL_DEF, q.slots)), p.kids) +
+               count(sl -> !_zero_ok(sl), p.slots)
         have = K == _P_ADD ? (s.kind == ADD ? length(s.args) + (s.num != N0) : !iszero(s)) :
             (s.kind == MUL ? length(s.args) + 1 : 2)   # a product's coefficient may be an element
         return have < need
@@ -447,6 +450,32 @@ function _pm_ac(p::_PNode, s::Sym, B::_Binds, k::_Goal)::Bool
     _quickfail(p, s) && return false
     elems = _ac_elems(p, s)
     elems === nothing && return false
+    _pm_ac_elems(p, s, elems, B, k) && return true
+    # a product pattern against integer powers: b^n split into copies of b, as many as
+    # the pattern has parts (sin(~p) sin(~q) ~!c against sin(x)²; SymPy #3778). (ONE for
+    # the subject: the slots' values are then the products of their elements.)
+    # (only for a pattern of two or more factors that are not slots: ~!d*t^~n is not 3t·t²
+    # against 3t³)
+    p.kind == _P_MUL || return false
+    nparts = length(p.lits) + length(p.kids)
+    nparts >= 2 || return false
+    nparts += length(p.slots)
+    split = Sym[]
+    for e in elems
+        if e.kind == POW && e.args[2].kind == NUMBER && isexact(e.args[2].num) && _isint(e.args[2].num) &&
+           e.args[2].num >= SymNumber(2)
+            n = _toint(e.args[2].num)
+            m = min(n, nparts)
+            append!(split, fill(e.args[1], m - 1))
+            push!(split, e.args[1]^(n - m + 1))
+        else
+            push!(split, e)
+        end
+    end
+    length(split) > length(elems) || return false
+    _pm_ac_elems(p, ONE, split, B, k)
+end
+function _pm_ac_elems(p::_PNode, s::Sym, elems::Vector{Sym}, B::_Binds, k::_Goal)::Bool
     used = falses(length(elems))
     for l in p.lits
         j = findfirst(i -> !used[i] && _eq(elems[i], l), eachindex(elems))
@@ -478,6 +507,38 @@ function _pm_others(p::_PNode, i::Int, s::Sym, elems::Vector{Sym}, used::BitVect
         r = _pm(q, elems[j], B, _gothers(p, i + 1, s, elems, used, k))
         used[j] = false
         r && return true
+    end
+    # a term ~!b*t of a sum absent from the subject: b = 0 (~!a x³ + ~!b x² + ~!c x + ~!d
+    # against 2x³ - 3x + 1 gives b = 0; SymPy #3208), t literal (with a slot, as in
+    # ~!d*t^~n, the term stays required)
+    if p.kind == _P_ADD && q.kind == _P_MUL
+        d = findfirst(sl -> sl.flavor == _SL_DEF && _getb(B, sl.name) === nothing, q.slots)
+        if d !== nothing
+            dn = q.slots[d].name
+            isempty(setdiff(_slotnames!(Set{Symbol}(), q.sym), Set([dn]))) &&
+                _bind(B, dn, ZERO, q.slots[d].pred, _gothers(p, i + 1, s, elems, used, k)) && return true
+        end
+    end
+    # a term ~c*t of a sum (one free slot, the rest literal) collecting every term with
+    # t's factors: g x + 3g as (x + 3) g (~g2*g against g x + 3g + x + 2log g + 5;
+    # SymPy #3883), the slot's predicate deciding
+    if p.kind == _P_ADD && q.kind == _P_MUL && length(q.slots) == 1 && isempty(q.kids) && !isempty(q.lits) &&
+       _getb(B, q.slots[1].name) === nothing
+        t = prod(q.lits; init = Sym(q.num))
+        tf = _mul_slot_parts(t)
+        G = Int[]
+        for j in eachindex(elems)
+            used[j] && continue
+            ef = _mul_slot_parts(elems[j])
+            all(f -> count(g -> _eq(g, f), ef) >= count(g -> _eq(g, f), tf), tf) && push!(G, j)
+        end
+        if length(G) >= 2
+            v = _add_many(elems[j] / t for j in G)
+            used[G] .= true
+            r = _bind(B, q.slots[1].name, v, q.slots[1].pred, _gothers(p, i + 1, s, elems, used, k))
+            used[G] .= false
+            r && return true
+        end
     end
     false
 end
