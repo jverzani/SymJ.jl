@@ -26,6 +26,11 @@ function RischIntegrate.integrate(ex::Sym, x::Sym; assume = nothing, kw...)
     r isa Sym && !SymJ._isexactex(ex) ? SymJ._floatify(r) : r
 end
 
+# a Poly integrated as its expression (it reached the integrator as an opaque leaf;
+# SymPy #4196)
+RischIntegrate.integrate(p::SymJ.Poly, x::Sym; kw...) = RischIntegrate.integrate(Sym(p), x; kw...)
+RischIntegrate.integrate(p::SymJ.Poly, xabs::Tuple...; kw...) = RischIntegrate.integrate(Sym(p), xabs...; kw...)
+
 # an answer by cases (an inner definite integral's) integrated case by case, each with
 # its conditions among the assumptions; an infinite value or an error stays (SymPy #23610)
 function RischIntegrate.integrate(cs::SymJ.Cases, x::Sym; assume = nothing, kw...)

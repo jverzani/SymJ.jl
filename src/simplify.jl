@@ -119,6 +119,9 @@ function _refine_node(e::Sym, A::Assumptions)
     isempty(e.args) && return e
     n = e.kind == MUL ? Sym(e.num) * prod((_refine_node(b^p, A) for (b, p) in zip(e.args, e.exps)); init = ONE) :
         _rebuild_node(e, Sym[_refine_node(a, A) for a in e.args])
+    # rebuilt as another kind of node, its parts are new (real(i√(-x)) is -imag(√(-x)) when
+    # built): refined in turn (SymPy #2920)
+    e.kind == FN && n.kind != FN && !isempty(n.args) && return _refine_node(n, A)
     r = _refine_rule(n, A)                        # a rule's result may itself refine
     r === nothing ? n : _refine_node(r, A)
 end
@@ -189,6 +192,14 @@ function _refine_rule(e::Sym, A::Assumptions)
     if k == POW && e.args[1].kind == NUMBER && iszero(e.args[1].num) && isexact(e.args[1].num) &&
        _signs(e.args[2], A) == _POS
         return ZERO
+    end
+    # a negative base to a non-integer rational power: u^r = (-1)^r (-u)^r, the argument of
+    # u being π (√u = i√(-u) for u < 0, so real(√x) is 0 for x < 0 and √(1/z) + 1/√z
+    # is 0; SymPy #2920, #4362)
+    if k == POW && e.args[2].kind == NUMBER && isexact(e.args[2].num) && !isone(_denominator(e.args[2].num)) &&
+       _hassymbol(e.args[1]) && _signs(e.args[1], A) == _NEG
+        r = e.args[2]
+        return _mkpow_node(MINUS_ONE, r) * (-e.args[1])^r
     end
     # ±∞ times factors of known sign (a ∞ with a > 0; SymPy #6106)
     if k == MUL && isfloat(e.num) && isinf(Float64(e.num))
@@ -458,6 +469,10 @@ end
 
 # real, imag, conj, angle of u, from u's real and imaginary parts under the assumptions
 function _refine_parts(f::Symbol, u::Sym, A::Assumptions)
+    # u known real: real(u) = u, imag(u) = 0 (imag(√(-x)) for x < 0; SymPy #2920)
+    if f in (:real, :imag, :conj) && _isreal(u, A) === true
+        return f === :imag ? ZERO : u
+    end
     p = _reim(u, A)
     # real and imag of a product with real factors: those taken out (real(r x) = r real(x)
     # for real r; SymPy #6428)
@@ -1027,6 +1042,21 @@ function _simplify(e::Sym, A::Assumptions)
         lp = _log_int_powers(e)
         _nodes(lp) < _nodes(e) && (e = lp)
         e.kind == NUMBER && return e
+        # logs of complex constants with exact angles as log|u| + i arg(u), kept when smaller
+        # (2log(1 + i) + 2log(1 - i) - … is 2log 2 - π - 2πi; found in the review of SymPy #3853)
+        if _has_node(e, t -> t.kind == FN && t.name === :log && length(t.args) == 1 && has(t.args[1], IM))
+            lx = try _simplify_const(_log_polar(e), A) catch err; err isa InterruptException && rethrow(); e end
+            _nodes(lx) < _nodes(e) && (e = lx)
+            e.kind == NUMBER && return e
+        end
+        # a trigonometric or hyperbolic function of a logarithm: through exp, kept when
+        # smaller (2 sin(i log φ) is i; SymPy #2958)
+        if _has_node(e, t -> t.kind == FN && t.name in (:sin, :cos, :tan, :sinh, :cosh, :tanh) && length(t.args) == 1 &&
+                             _has_fn(t.args[1], (:log,)))
+            rx = try _simplify_const(rewrite(e, exp), A) catch err; err isa InterruptException && rethrow(); e end
+            _nodes(rx) < _nodes(e) && (e = rx)
+            e.kind == NUMBER && return e
+        end
         # until it stops shrinking (a product of square roots that a step leaves, √10√2√5,
         # merges in the next; found in the review of SymPy #24948)
         for _ in 1:3
@@ -1133,6 +1163,10 @@ function _simplify(e::Sym, A::Assumptions)
         u = _im_multiple(t.args[1])
         u === nothing ? nothing : t.name === :sin ? IM * sinh(u) : t.name === :cos ? cosh(u) : IM * tanh(u)
     end)
+    # a trigonometric or hyperbolic function of a logarithm: through exp, where exp(log u)
+    # is u (2 sin(i log φ) is i, φ the golden ratio; SymPy #2958)
+    _has_node(e, t -> t.kind == FN && t.name in (:sin, :cos, :tan, :sinh, :cosh, :tanh) && length(t.args) == 1 &&
+                      _has_fn(t.args[1], (:log,))) && consider(x -> rewrite(x, exp))
     # a power of a constant with a symbolic exponent beside exponentials: all as exp
     # (iⁿ - exp(iπn/2) = 0; SymPy #16797)
     _has_epow(e) && _has_node(e, t -> t.kind == POW && !_hassymbol(t.args[1]) && t.args[1] !== E && _hassymbol(t.args[2])) &&
@@ -1624,8 +1658,24 @@ function _powers(e::Sym, A::Assumptions)
         # numbers and nonnegative quantities multiply under one power
         groups = Dict{Sym,Vector{Sym}}()
         other = Sym(e.num)
+        # negative numbers to p and to -p: their ratio, positive, to p, as both logs have
+        # imaginary part π: (-4)^b (-2)^(-b) = 2^b for every b (SymPy #3382)
+        negs = Tuple{Sym,Sym}[]
         for (b, p) in zip(e.args, e.exps)
             b2, p2 = _powers(b, A), _powers(p, A)
+            intexp = p2.kind == NUMBER && isexact(p2.num) && isone(_denominator(p2.num))
+            !intexp && b2.kind == NUMBER && isexact(b2.num) && b2.num < N0 && push!(negs, (b2, p2))
+        end
+        paired = Set{Int}()
+        for i in eachindex(negs), j in eachindex(negs)
+            (i < j && !(i in paired) && !(j in paired) && iszero(expand(negs[i][2] + negs[j][2]))) || continue
+            push!(paired, i, j)
+            push!(get!(groups, negs[i][2], Sym[]), negs[i][1] / negs[j][1])
+        end
+        pairedbases = Set(negs[i] for i in paired)
+        for (b, p) in zip(e.args, e.exps)
+            b2, p2 = _powers(b, A), _powers(p, A)
+            (b2, p2) in pairedbases && (delete!(pairedbases, (b2, p2)); continue)
             intexp = p2.kind == NUMBER && isexact(p2.num) && isone(_denominator(p2.num))
             if !intexp && (b2.kind == NUMBER ? b2.num > N0 : _nonneg(b2, A))
                 # b^(-p) joins the group of p as (1/b)^p, for b > 0 ((a + b)^(n+1) /
@@ -2459,11 +2509,24 @@ end
 
 # each square root of a + bi (a, b rational, b ≠ 0) as x + iy when x = √((r + a)/2) and
 # y = sign(b)√((r - a)/2), r = √(a² + b²), are rational: the principal root
+# log(u) for a complex constant u as log|u| + i arg(u), where the angle is exact (no
+# atan or angle left): log(1 + i) = log(2)/2 + iπ/4
+function _log_polar(e::Sym)
+    _replace_walk(e) do t
+        (t.kind == FN && t.name === :log && length(t.args) == 1 && has(t.args[1], IM) && !_hassymbol(t.args[1])) || return nothing
+        u = t.args[1]
+        θ = angle(u)
+        _has_fn(θ, (:atan, :angle)) && return nothing
+        log(abs(u)) + IM * θ
+    end
+end
+
 function _complex_sqrt_denest(e::Sym)
     _replace_walk(e) do t
-        if t.kind == POW && t.args[2].kind == NUMBER && t.args[2].num == SymNumber(1 // 2)
+        # (z^(p/2) as (√z)^p: (3 + 4i)^(3/2) = (2 + i)³ = 2 + 11i; SymPy #4401)
+        if t.kind == POW && t.args[2].kind == NUMBER && isexact(t.args[2].num) && _denominator(t.args[2].num) == 2
             r = _csqrt_parts(t.args[1])
-            return r === nothing ? nothing : r
+            return r === nothing ? nothing : expand(r^Sym(_numerator(t.args[2].num)))
         elseif t.kind == MUL
             # √c √(a + bi), c a positive rational split off first (√(8 + 6i) is √2 √(4 + 3i)):
             # rejoined, √(c(a + bi)) (= 3 + i; SymPy #12420)

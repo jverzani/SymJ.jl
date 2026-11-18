@@ -96,7 +96,7 @@ end
     @test s(0.1) ≈ sin(0.1) atol = 1e-6
     # no series
     @test_throws ArgumentError series(exp(1 / x), x)                  # essential singularity
-    @test_throws ArgumentError series(f(x), x)                         # no derivative rule
+    @test_throws ArgumentError series(SymFunction(:g2)(x, 2), x)       # undefined, of two arguments (f(x)'s series is in its derivatives; SymPy #3978)
     @test_throws ArgumentError series(sin(x), x + 1)
 end
 

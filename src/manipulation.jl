@@ -705,6 +705,13 @@ end
 _leaf(n::SymNumber, F) = F === nothing ? _jlnum(n) : convert(F, _jlnum(n))
 _constant(c, F) = F === nothing ? c : convert(F, c)
 
+# a function's argument without negative zeros (-0.0 + 0.0 is 0.0): a value on a branch cut
+# is Julia's at u + 0im, though -2i evaluates as (-2)(0 + 1i) = -0.0 - 2i (asinh(-2i) took
+# the other side; review of SymPy #4004)
+_pos0(v::Complex) = complex(real(v) + zero(real(v)), imag(v) + zero(imag(v)))
+_pos0(v::AbstractFloat) = v + zero(v)
+_pos0(v) = v
+
 function _ev(ex::Sym, a, F, var)
     k = ex.kind
     k == NUMBER && return _leaf(ex.num, F)
@@ -742,7 +749,7 @@ function _ev(ex::Sym, a, F, var)
     rule = get(FUNCTION_RULES, ex.name, nothing)
     (rule === nothing || rule.julia === nothing) &&
         throw(ArgumentError("$(ex.name) has no numeric method; register one with `register_function!`"))
-    vs = map(x -> _intarg(x) ? _toint(x.num) : _ev(x, a, F, var), ex.args)
+    vs = map(x -> _intarg(x) ? _toint(x.num) : _pos0(_ev(x, a, F, var)), ex.args)
     ex.name in _HUGE_ARG_FNS && length(vs) == 1 && _huge_bigfloat(vs[1]) &&
         throw(HugeArgumentError(ex.name, vs[1]))
     # no numeric method for these argument types (polygamma of a complex order): an
@@ -1085,7 +1092,9 @@ function _evalc(ex::Sym)::ComplexF64
     (rule === nothing || rule.julia === nothing) && throw(ArgumentError("no numeric method for $(ex.name)"))
     # an exact integer argument stays an Int (an order, a kind: besselh(ν, 1, x))
     any(_intarg, ex.args) && return _fn_with_ints(rule.julia, ex.args)
-    vals = map(_evalc, ex.args)
+    # (no negative zeros: -2i evaluated as (-2)(0 + 1i) is -0.0 - 2.0i, the other side of
+    # asinh's cut; a value on a cut is Julia's at u + 0im, -0.0 + 0.0 being 0.0)
+    vals = map(_pos0, map(_evalc, ex.args))
     # real arguments: call the real method (special functions often have no complex
     # one); fall back to complex for a value outside the real domain (log(-1.0))
     if all(v -> iszero(imag(v)), vals)

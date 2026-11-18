@@ -237,6 +237,20 @@ function _psapply(name::Symbol, args::Vector{Sym}, N::Rational{Int})
             return _psadd(head, tail)
         end
     end
+    # floor and ceil: constant near the point, floor(a₀) where a₀ is not an integer; at an
+    # integer n, by the way the argument moves for x - x0 > 0: floor is n when it
+    # increases, n - 1 when it decreases (and ceil n + 1, n; SymPy #4156)
+    if name in (:floor, :ceil) && length(args) == 1
+        if !(a0.kind == NUMBER && isexact(a0.num) && _isint(a0.num))
+            v = apply_function(name, Sym[a0])
+            _hasfn(v, name) && throw(ArgumentError("series: $(apply_function(name, args)): whether $a0 is an integer is not known"))
+            return _psconst(v)
+        end
+        _, c1, _ = _pslead(h)
+        sg = has(c1, _LOGT) ? nothing : _csign(c1)
+        sg === nothing && throw(ArgumentError("series: $(apply_function(name, args)) at an integer: the sign of $c1 is not known"))
+        return _psconst(name === :floor ? (sg > 0 ? a0 : a0 - 1) : (sg > 0 ? a0 + 1 : a0))
+    end
     # inverse functions at their branch points ±1: through square roots, whose series
     # have half-integer powers (acosh(1 + z) = √(2z)(1 - z/12 + …); SymPy #25175)
     if length(args) == 1 && (_eq(a0, ONE) || _eq(a0, MINUS_ONE))
@@ -297,7 +311,10 @@ function _psapply(name::Symbol, args::Vector{Sym}, N::Rational{Int})
             throw(ArgumentError("series: $(apply_function(name, args)) is singular at the point"))
         end
         _finite_coef(ck) || throw(ArgumentError("series: $(apply_function(name, args)) is singular at the point"))
-        _hasfn(ck, :Derivative) && throw(ArgumentError("series: no derivative rule for $name"))
+        # (a built-in function without a derivative rule; an undefined function's Taylor
+        # series is in its derivatives at the point, f(0) + f'(0) x + …; SymPy #3978)
+        _hasfn(ck, :Derivative) && (haskey(FUNCTION_RULES, name) || length(args) > 1) &&
+            throw(ArgumentError("series: no derivative rule for $name"))
         push!(coef, ck)
         k < K && (d = diff(d, y) / (k + 1))
     end
@@ -859,7 +876,11 @@ function _termstring(s::SymSeries, e::Rational{Int}, c::Sym)
     isone(k) && return ps
     _eq(k, -ONE) && return "-" * ps
     ks = string(k)
-    (k.kind == ADD) ? "(" * ks * ")*" * ps : ks * "*" * ps
+    kp = k.kind == ADD ? "(" * ks * ")" : ks
+    # a negative power as a quotient: -2/(x - 1), not -2*1/(x - 1) (found in the review of
+    # SymPy #3730)
+    startswith(ps, "1/") && return kp * ps[2:end]
+    kp * "*" * ps
 end
 
 function _psstring(s::SymSeries, p::_PS)

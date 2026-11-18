@@ -2024,3 +2024,51 @@ end
     @test_throws ArgumentError SymJ.fsolve([x^y ~ 0, x / y ~ 0], [x, y], [x => 1.0, y => 1.1])
     @test_throws ArgumentError SymJ.fsolve([x^y ~ 0, x / y ~ 0], [x, y])
 end
+
+@testset "missing cases (SymPy review, round 19, part 1)" begin
+    @syms x y z b
+    f = SymFunction(:f)
+    # inverse hyperbolic functions: exact values, as Julia's at u + 0im (#3906, #3663)
+    @test asinh(Sym(im)) == IM * PI / 2
+    @test atanh(Sym(im)) == IM * PI / 4
+    @test acosh(Sym(0)) == IM * PI / 2
+    @test acosh(-Sym(1) // 2) == 2IM * PI / 3
+    @test acoth(Sym(0)) == -IM * PI / 2
+    @test Sym(series(acoth(x), x, 0, 4)) == -IM * PI / 2 + x + x^3 / 3
+    # on a branch cut the odd symmetry is not taken out: N agrees with Julia (asin(-2) was
+    # -asin(2), the other side of the cut; found in the review of #4004)
+    for (g, a) in ((asin, -2), (atanh, -2), (acoth, -1 // 2), (asinh, -2im), (acsc, -1 // 2),
+                   (atan, -2im), (acsch, -1im // 2), (acot, -1im // 2), (asech, -2), (asech, 2))
+        @test N(g(Sym(a))) ≈ g(complex(float(a)))
+    end
+    # cosh(asinh x) and the like (#4136)
+    @test cosh(asinh(x)) == sqrt(x^2 + 1)
+    @test sinh(acosh(x)) == sqrt(x - 1) * sqrt(x + 1)
+    @test tanh(atanh(x)) == x
+    @test cosh(asinh(Sym(3) // 2)) == sqrt(Sym(13)) / 2
+    # √ of a negative constant product, exp(c log u) for a constant (round-19 extras)
+    @test sqrt(-Sym(π)^4) == IM * PI^2
+    @test exp(-log(sqrt(Sym(2)))) == sqrt(Sym(2)) / 2
+    @test simplify(2sin(IM * log((1 + sqrt(Sym(5))) / 2))) == IM                     # (#2958)
+    # complex half-integer powers; negative bases with opposite exponents (#4401, #3382)
+    @test simplify((Sym(3) + 4IM)^(Sym(3) // 2)) == 2 + 11IM
+    @test simplify(Sym(-4)^b * Sym(-2)^(-b) * Sym(2)^(-b)) == 1
+    @test simplify(Sym(-4)^b / Sym(-2)^b) == Sym(2)^b
+    # negative bases under refine (#4362, #2920)
+    @test simplify(sqrt(1 / z) + 1 / sqrt(z); assume = (z ≪ 0,)) == 0
+    @test refine(real(sqrt(x)); assume = (x ≪ 0,)) == 0
+    @test refine(sqrt(-x); assume = (x ≫ 0,)) == IM * sqrt(x)
+    # logs of complex constants (round-19 extra under #3853)
+    @test simplify(2log(1 + IM) + 2log(1 - IM) - 2PI * IM - 2IM * log(1 - IM) + 2IM * log(1 + IM)) == log(Sym(4)) - PI - 2PI * IM
+    # a symbol needs a name (#4101)
+    @test_throws ArgumentError Sym(Symbol(""))
+    # series: an undefined function, floor and ceil (#3978, #4156); a negative power printed
+    # as a quotient (round-19 extra)
+    @test string(series(f(x), x, 0, 3)) == "f(0) + f'(0)*x + f''(0)*x^2/2 + O(x^3)"
+    @test Sym(series(floor(x + Sym(3) // 2), x, 0, 5)) == 1
+    @test Sym(series(ceil(x), x, 1, 3)) == 2
+    @test Sym(series(floor(-x), x, 1, 3)) == -2
+    @test string(series(2 / (1 - x), x, 1, 3)) == "-2/(x - 1) + O((x - 1)^3)"
+    # LaTeX: a quotient's sign in front (#3973)
+    @test strip(String(latexify(-x / 2; env = :raw))) == raw"- \frac{x}{2}"
+end

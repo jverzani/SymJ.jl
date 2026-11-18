@@ -272,7 +272,46 @@ end
 
 _isfn(x::Sym, name::Symbol) = x.kind == FN && x.name === name && length(x.args) == 1
 
-_odd(name, a) = _could_extract_minus(a) ? -apply_function(name, Sym[-a]) : nothing
+_odd(name, a) = _could_extract_minus(a) && !_on_cut(name, a) ? -apply_function(name, Sym[-a]) : nothing
+
+# a constant on the branch cut of an odd inverse function, where f(-a) = -f(a) fails for
+# the values N gives (Julia's, above the cut: asin(-2) is -π/2 + i acosh(2), not -asin(2);
+# found in the review of SymPy #4004): the cut is on the real or imaginary axis, |a| > 1
+# (:out) or 0 < |a| < 1 (:in)
+const _ODD_CUTS = Dict(:asin => (:real, :out), :atanh => (:real, :out), :acsc => (:real, :in), :acoth => (:real, :in),
+                       :asinh => (:imag, :out), :atan => (:imag, :out), :acsch => (:imag, :in), :acot => (:imag, :in))
+function _on_cut(name, a::Sym)
+    c = get(_ODD_CUTS, name, nothing)
+    (c === nothing || a.kind == FN) && return false
+    isdefined(@__MODULE__, :_evalc) || return false
+    Base.inferencebarrier(_hassymbol)(a) && return false
+    v = try Base.inferencebarrier(_evalc)(a)::ComplexF64 catch; return false end
+    isfinite(v) || return false
+    axis, side = c
+    tiny = 1e-14 * max(1.0, abs(v))
+    t = axis === :real ? (abs(imag(v)) <= tiny ? abs(real(v)) : return false) :
+                         (abs(real(v)) <= tiny ? abs(imag(v)) : return false)
+    side === :out ? t > 1 + 1e-12 : 1e-14 < t < 1 - 1e-12
+end
+
+# u for a = i u with u a real number (exact), or nothing
+function _imag_number(a::Sym)
+    _eq(a, IM) && return ONE
+    a.kind == MUL && length(a.args) == 1 && _eq(a.args[1]^a.exps[1], IM) && isexact(a.num) || return nothing
+    Sym(a.num)
+end
+
+# sinh, cosh, tanh of asinh, acosh, atanh: algebraic (principal branches; SymPy #4136)
+function _hyp_of_inverse(f::Symbol, a::Sym)
+    a.kind == FN && length(a.args) == 1 && a.name in (:asinh, :acosh, :atanh) || return nothing
+    u, g = a.args[1], a.name
+    if g === :asinh
+        return f === :cosh ? sqrt(1 + u^2) : f === :tanh ? u / sqrt(1 + u^2) : nothing
+    elseif g === :acosh
+        return f === :sinh ? sqrt(u - 1) * sqrt(u + 1) : f === :tanh ? sqrt(u - 1) * sqrt(u + 1) / u : nothing
+    end
+    f === :sinh ? u / sqrt(1 - u^2) : f === :cosh ? inv(sqrt(1 - u^2)) : nothing
+end
 _even(name, a) = _could_extract_minus(a) ? apply_function(name, Sym[-a]) : nothing
 
 function _unary(f)
@@ -433,31 +472,48 @@ register_function!(:atan; julia = atan,
     diff = (args, i) -> inv(1 + args[1]^2))
 
 register_function!(:sinh; julia = sinh,
-    eval = _unary(a -> something(_of_own_inverse(:sinh, a), Some(iszero(a) ? ZERO : _odd(:sinh, a)))),
+    eval = _unary(a -> something(_of_own_inverse(:sinh, a), _hyp_of_inverse(:sinh, a), Some(iszero(a) ? ZERO : _odd(:sinh, a)))),
     diff = (args, i) -> cosh(args[1]))
 
 register_function!(:cosh; julia = cosh,
-    eval = _unary(a -> something(_of_own_inverse(:cosh, a), Some(iszero(a) ? ONE : _even(:cosh, a)))),
+    eval = _unary(a -> something(_of_own_inverse(:cosh, a), _hyp_of_inverse(:cosh, a), Some(iszero(a) ? ONE : _even(:cosh, a)))),
     diff = (args, i) -> sinh(args[1]))
 
 register_function!(:tanh; julia = tanh,
-    eval = _unary(a -> something(_of_own_inverse(:tanh, a), Some(iszero(a) ? ZERO : _odd(:tanh, a)))),
+    eval = _unary(a -> something(_of_own_inverse(:tanh, a), _hyp_of_inverse(:tanh, a), Some(iszero(a) ? ZERO : _odd(:tanh, a)))),
     diff = (args, i) -> 1 - tanh(args[1])^2)
 
 register_function!(:asinh; julia = asinh,
-    eval = _unary(a -> iszero(a) ? ZERO : _odd(:asinh, a)),
+    # asinh(i u) = i asin(u) at asin's exact values, |u| ≤ 1 (asinh(i) = iπ/2; SymPy #3906)
+    eval = _unary(a -> iszero(a) ? ZERO : something(_imag_inverse(:asin, a), _odd(:asinh, a), Some(nothing))),
     diff = (args, i) -> inv(sqrt(args[1]^2 + 1)))
 
 register_function!(:acosh; julia = acosh,
-    eval = _unary(a -> isone(a) ? ZERO : nothing),
+    # acosh(u) = i acos(u) for a real u in [-1, 1], as Julia's acosh(0 + 0im) = iπ/2 (SymPy #3663)
+    eval = _unary(a -> isone(a) ? ZERO : _acosh_unit(a)),
     diff = (args, i) -> inv(sqrt(args[1] - 1) * sqrt(args[1] + 1)))
 
 register_function!(:atanh; julia = atanh,
     eval = _unary(a -> begin
         a.kind == NUMBER && isexact(a.num) && abs(a.num) == N1 && throw(DivisionByZero("atanh($a): a pole"))
-        iszero(a) ? ZERO : _odd(:atanh, a)
+        # atanh(i u) = i atan(u) at atan's exact values (atanh(i) = iπ/4; SymPy #3906)
+        iszero(a) ? ZERO : something(_imag_inverse(:atan, a), _odd(:atanh, a), Some(nothing))
     end),
     diff = (args, i) -> inv(1 - args[1]^2))
+
+# i g(u) for a = i u, u a real number with |u| ≤ 1, when g(u) has an exact value
+function _imag_inverse(g::Symbol, a::Sym)
+    u = _imag_number(a)
+    u === nothing && return nothing
+    g === :asin && abs(u.num) > N1 && return nothing
+    r = apply_function(g, Sym[u])
+    _hasfn(r, g) ? nothing : IM * r
+end
+function _acosh_unit(a::Sym)
+    (a.kind == NUMBER && isexact(a.num) && abs(a.num) <= N1) || return nothing
+    r = apply_function(:acos, Sym[a])
+    _hasfn(r, :acos) ? nothing : IM * r
+end
 
 register_function!(:abs; julia = abs,
     eval = _unary(a -> begin
@@ -595,7 +651,9 @@ function _invrecip_rule(name::Symbol, g::Symbol, parity::Symbol, atzero)
         # gave NaN; SymPy #17143)
         iszero(a) && (atzero === nothing ? throw(DivisionByZero("$name(0): a pole")) : return atzero)
         r = apply_function(g, Sym[inv(a)])
-        _hasfn(r, g) || return r
+        # (not a complex value for a real a: 1/(a + 0im) has a -0.0 imaginary part, the other
+        # side of g's cut, so asech(-2) is -2iπ/3, not acosh(-1/2) = 2iπ/3)
+        _hasfn(r, g) || (has(r, IM) && !has(a, IM)) || return r
         # :odd_nonzero: odd for a nonzero number only (a symbol may be 0)
         parity === :odd || (parity === :odd_nonzero && a.kind == NUMBER) ? _odd(name, a) : nothing
     end)
@@ -627,7 +685,9 @@ register_function!(:asech; julia = asech, eval = _invrecip_rule(:asech, :acosh, 
     diff = (args, i) -> -inv(args[1]^2 * sqrt(inv(args[1]) - 1) * sqrt(inv(args[1]) + 1)))
 register_function!(:acsch; julia = acsch, eval = _invrecip_rule(:acsch, :asinh, :odd, nothing),
     diff = (args, i) -> -inv(args[1]^2 * sqrt(1 + inv(args[1]^2))))
-register_function!(:acoth; julia = acoth, eval = _invrecip_rule(:acoth, :atanh, :odd_nonzero, nothing),
+# (acoth(0) = -iπ/2: Julia's acoth(u + 0im) is atanh(u) - iπ/2 for |u| < 1, on both sides of
+# 0; it was a pole; SymPy #3663)
+register_function!(:acoth; julia = acoth, eval = _invrecip_rule(:acoth, :atanh, :odd_nonzero, -IM * PI / 2),
     diff = (args, i) -> inv(1 - args[1]^2))
 
 ## real cube root: differs from x^(1/3) (the principal root) for negative x
