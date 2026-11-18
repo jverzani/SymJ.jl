@@ -706,6 +706,10 @@ function _definite(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A::Assumptions, pv
     sing = Set{Sym}()                        # the singular points among the ends too
     for s in S
         (_eq(s, lo) || _eq(s, hi)) && (push!(sing, s); continue)
+        # c√u with u ≤ 0 in real parameters, nonzero generically: not on the line (±√(-a²)
+        # of 1/(x² + a²) was compared with the ends, an impossible case √(-a²) = 1 whose
+        # limits divided by zero; SymPy #2537)
+        _hassymbol(s) && _nonreal_point(s, A) && continue
         # a parametric point equal to an end by the facts (d/k = 1 in a case of ∫₀¹ 1/(d - kx)):
         # that end singular, its value a one-sided limit (it was F(1) - F(0) with log 0
         # in it, iπ/2 + ∞ where the integral is +∞; SymPy #9753)
@@ -801,6 +805,19 @@ function _isreal_point(s::Sym, A)
     end
     r = _isreal(s, A)
     r === nothing ? _decide(Membership(s, NumberSet(_RR), false), A) : r
+end
+
+# s = c√u (c a number) with u ≤ 0 and u ≠ 0 for generic parameters: not real
+function _nonreal_point(s::Sym, A)
+    e = s
+    if e.kind == MUL && length(e.args) == 1 && e.exps[1] == HALF
+        e = e.args[1]
+    elseif e.kind == POW && e.args[2] == HALF
+        e = e.args[1]
+    else
+        return false
+    end
+    _hassymbol(e) && _holds(Relation(:le, e, ZERO), A) === true && _pnz(e, A)
 end
 
 # p < q, the points finite or ±∞
