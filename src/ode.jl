@@ -1002,6 +1002,11 @@ function _ode_homogeneous(P::_ODE, f::Sym, a::Sym, C::Sym)
     Y0, x = P.ys[1], P.x
     v = Sym(:_ode_v)
     Fv = _ode_tidy(subs(f, Y0 => v * x))
+    # (radicals of x² w(v) taken apart under the assumptions: √(x² + x²v²) = x√(1 + v²)
+    # for x > 0; Kamke 1.113, a√(x² + y²) + xy' - y = 0; SymPy #31017)
+    if has(Fv, x) && _ASSUMING[] !== nothing
+        Fv = try _ode_tidy(simplify(Fv; assume = _ASSUMING[])) catch err; err isa ArgumentError || rethrow(); Fv end
+    end
     has(Fv, x) && return nothing
     d = _ode_tidy(Fv - v)
     iszero(d) && return nothing
@@ -1041,6 +1046,21 @@ end
 
 function _ode_riccati_particular(P::_ODE, q0, q1, q2, C)
     x, c = P.x, Sym(:_ode_c)
+    # y₁ = -u'/(q₂ u) from a solution u = p(x) e^(∫ω) of the linear form u'' = r u, r a
+    # polynomial (q₂ constant, q₁ = 0): y' = x² - 5 - y² has y₁ = -x + 4x/(2x² - 1)
+    # (Kovacic's first case; SymPy #31017)
+    if iszero(q1) && !has(q2, x)
+        u = _ode_kovacic_poly(_ode_tidy(-q0 * q2), x)
+        if u !== nothing
+            y1v = _ode_tidy(-diff(u, x) / (q2 * u))
+            if iszero(_ode_tidy(diff(y1v, x) - q0 - q2 * y1v^2))
+                p = _ode_tidy(2q2 * y1v)
+                μ = _ode_tidy(exp(_integrate(p, x)))
+                v = _ode_tidy((_integrate(_ode_tidy(-μ * q2), x) + C) / μ)
+                return (:explicit, _ode_tidy(y1v + 1 / v))
+            end
+        end
+    end
     for y1 in (c, c * x, c / x, c * x^2, c / x^2, c * exp(x), c * exp(-x), c * exp(2x), c * exp(-2x))
         res = _ode_tidy(diff(y1, x) - q0 - q1 * y1 - q2 * y1^2)
         n, _ = numer_denom(res)
@@ -1057,6 +1077,51 @@ function _ode_riccati_particular(P::_ODE, q0, q1, q2, C)
             v = _ode_tidy((_integrate(_ode_tidy(-μ * q2), x) + C) / μ)
             return (:explicit, _ode_tidy(y1v + 1 / v))
         end
+    end
+    nothing
+end
+
+# a solution u = p(x) e^(∫ω) of u'' = r u, r a polynomial of even degree 2n ≥ 2, p and ω
+# polynomials: ω the polynomial part of ±√r, then p'' + 2ω p' + (ω' + ω² - r) p = 0, whose
+# leading terms fix p's degree (u'' = (x² - 5)u: ω = -x, p = x² - 1/2). nothing if none
+function _ode_kovacic_poly(r::Sym, x::Sym)
+    has(r, x) || return nothing
+    rp = try Poly{Sym}(expand(r), [x]) catch err; err isa ArgumentError || rethrow(); return nothing end
+    m = degree(rp, x)
+    (m >= 2 && iseven(m)) || return nothing
+    n = m ÷ 2
+    re = expand(r)
+    s = sqrt(coeff(re, x, m))
+    cs = [Sym(Symbol("_ode_w", k)) for k in 0:(n - 1)]
+    ω = s * x^n + _add_many(cs[k + 1] * x^k for k in 0:(n - 1))
+    d2 = expand(ω^2 - re)
+    eqs = Relation[Relation(:eq, coeff(d2, x, k), ZERO) for k in n:(2n - 1)]
+    sol = try _solve_generic(eqs, cs) catch err; err isa ArgumentError || rethrow(); return nothing end
+    (sol isa AbstractVector && !isempty(sol)) || return nothing
+    ω = expand(subs(ω, (k => get(sol[1], k, ZERO) for k in cs)...))
+    for sg in (1, -1)
+        w = sg * ω
+        R = expand(diff(w, x) + w^2 - re)
+        d = if iszero(R)
+            0
+        else
+            ρ = coeff(R, x, n - 1)
+            dd = -ρ / (2sg * s)
+            (dd.kind == NUMBER && isexact(dd.num) && _isint(dd.num) && dd.num >= N0 && dd.num <= 20) || continue
+            _toint(dd.num)
+        end
+        bs = [Sym(Symbol("_ode_b", i)) for i in 0:(d - 1)]
+        p = x^d + _add_many(b * x^(i - 1) for (i, b) in enumerate(bs))
+        L = expand(diff(p, x, 2) + 2w * diff(p, x) + R * p)
+        if !isempty(bs)
+            Lp = try Poly{Sym}(L, [x]) catch err; err isa ArgumentError || rethrow(); continue end
+            es = Relation[Relation(:eq, Sym(c), ZERO) for c in coefficients(Lp)]
+            ps = try _solve_generic(es, bs) catch err; err isa ArgumentError || rethrow(); continue end
+            (ps isa AbstractVector && !isempty(ps)) || continue
+            p = expand(subs(p, (b => get(ps[1], b, ZERO) for b in bs)...))
+        end
+        u = p * exp(_integrate(w, x))
+        iszero(_ode_tidy(diff(u, x, 2) - re * u)) && return u
     end
     nothing
 end

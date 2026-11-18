@@ -2117,3 +2117,19 @@ end
     @test subs(R, c => -Sym(1) // 2) == [-sqrt(Sym(3)) / 3]
     @test isempty(subs(R, c => Sym(2)))
 end
+
+@testset "missing cases (SymPy review, round 20)" begin
+    @syms x a
+    y = SymFunction(:y)
+    # a Riccati equation through a solution p(x) e^(∫ω) of its linear form, u'' = (x² - 5)u
+    # (#31017: y' = x² - 5 - y² has y = -x + 4x/(2x² - 1))
+    @test SymJ._ode_kovacic_poly(x^2 - 5, x) == (x^2 - Sym(1) // 2) * exp(-x^2 / 2)
+    # powers of a sum, √u and u^(3/2), related in simplify (the check of #4231's antiderivative)
+    L = log(x)
+    f = (1 + 2x + sqrt(x + L) * (1 + 3x) + x^2) / (x * (x + sqrt(x + L)) * sqrt(x + L))
+    r = 2sqrt(x + L) + log((x + sqrt(x + L)) / (x - sqrt(x + L))) + log(-x^2 + x + L)
+    @test iszero(simplify(diff(r, x) - f))
+    # LaTeX: a conjugate as an overline
+    @test latexify(conj(Sym(:Ψ))) == raw"$\overline{\Psi}$"
+end
+
