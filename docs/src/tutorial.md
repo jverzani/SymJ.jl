@@ -1386,11 +1386,11 @@ numeric limits where `f` is not singular, is a float:
 
 An integrand proven to have no elementary antiderivative, over numeric limits where the
 integral converges, gives the integral unevaluated; `N` (or `float`, or calling it) finds its
-value by numeric quadrature:
+value by numeric quadrature (QuadGK's), and `SymJ.evalf` to a `BigFloat` precision:
 
 ```@example tut
 ex = integrate(exp(x^3), (x, 0, 1))
-ex, N(ex)
+ex, N(ex), SymJ.evalf(ex, BigFloat, 100)
 ```
 
 ```@example tut

@@ -773,8 +773,8 @@ function _ev(ex::Sym, a, F, var)
     end
     # an unevaluated definite integral: by quadrature (in Float64)
     if ex.name === :Integral && length(ex.args) == 4
-        r = _ev_integral(ex, a, var)
-        return F === nothing ? r : convert(r isa Real ? F : Complex{F}, r)
+        r = _ev_integral(ex, a, var, F)
+        return F === nothing ? r : convert(r isa Real ? real(F) : Complex{real(F)}, r)
     end
     rule = get(FUNCTION_RULES, ex.name, nothing)
     (rule === nothing || rule.julia === nothing) &&
@@ -1046,8 +1046,16 @@ evalf(x::Number, ::Type{T} = Float64, prec::Union{Nothing,Integer} = nothing) wh
 # ex to p bits: evaluated with more, until two evaluations agree to p bits
 function _evalf_big(ex::Sym, p::Int)
     p >= 2 || throw(ArgumentError("evalf: a precision of at least 2 bits, not $p"))
-    _hasfn(ex, :Integral) && throw(ArgumentError(
-        "evalf: $ex has an unevaluated integral, whose value (by quadrature) is known to Float64 accuracy only; use N"))
+    # an unevaluated integral: once, by quadrature at p bits and a little more (a second
+    # evaluation at twice the precision would cost more than it checks)
+    if _hasfn(ex, :Integral)
+        w = _bigvalue(ex, p + 16)
+        w === nothing && throw(ArgumentError("evalf: $ex has no numeric value"))
+        return setprecision(BigFloat, p) do
+            r, i = BigFloat(real(w)), BigFloat(imag(w))
+            iszero(i) ? r : complex(r, i)
+        end
+    end
     # (an exact number rounded once, as BigFloat(big(10)^400) is)
     ex.kind == NUMBER && !isfloat(ex.num) && return setprecision(() -> BigFloat(_rat(ex.num)), BigFloat, p)
     prev = nothing

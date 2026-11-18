@@ -238,12 +238,15 @@ end
     J = Int4(exp(x^3 * t), x, 0, 1)
     @test J(2.0) ≈ N(subs(J, t => 2)) rtol = 1e-14
     @test N(Int4(J, t, 0, 1)) ≈ 1.1537157127366073 rtol = 1e-10
-    # a constant for float, calling, conversions; BigFloat accuracy refused
+    # a constant for float, calling, conversions; BigFloat to the precision asked
     G = Int4(exp(-x^2), x, -Inf, Inf)
     @test float(2G) ≈ 2sqrt(π) rtol = 1e-12
     @test G() ≈ sqrt(π) rtol = 1e-12
     @test Float64(G) ≈ sqrt(π) rtol = 1e-12
-    @test_throws ArgumentError SymJ.evalf(G, BigFloat)
+    g = SymJ.evalf(G, BigFloat, 128)
+    @test precision(g) == 128
+    @test abs(g - setprecision(() -> sqrt(BigFloat(π)), BigFloat, 128)) < BigFloat(2)^-120
+    @test abs(SymJ.evalf(I1, BigFloat, 200) - setprecision(() -> sum(k -> 1 / (factorial(big(k)) * (3k + 1)), 0:80), BigFloat, 200)) < BigFloat(2)^-190
     @test_throws ArgumentError N(Int4(1 / x, x, -1, 1))
 end
 
