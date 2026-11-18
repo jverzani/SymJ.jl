@@ -453,7 +453,7 @@ N(cs::Cases) = _map_cases(v -> v isa AbstractVector ? map(N, v) : N(v), cs)
 
 # Σ over k of each case's value, its conditions assumed; a case with its own cases
 # within gives one case for each (Σₙ Σₖ aⁿbᵏ; SymPy #14235). Conditions on k: an error.
-function summation(cs::Cases, k::Sym, a, b; assume = nothing)
+function _summation_kab(cs::Cases, k::Sym, a, b; assume = nothing)
     any(((conds, _),) -> any(c -> any(s -> _eq(s, k), _factsyms(c)), conds), cs) &&
         throw(ArgumentError("summation: the cases depend on the index $k"))
     out = Pair{Vector{Any},Any}[]
@@ -463,7 +463,7 @@ function summation(cs::Cases, k::Sym, a, b; assume = nothing)
             continue
         end
         A = assume === nothing ? Tuple(conds) : (Tuple(assume)..., conds...)
-        r = try summation(Sym(v), k, a, b; assume = A) catch err
+        r = try _summation_kab(Sym(v), k, a, b; assume = A) catch err
             (err isa ArgumentError || _isdivzero(err)) || rethrow()
             err
         end

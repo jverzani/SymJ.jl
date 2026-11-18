@@ -36,8 +36,8 @@ end
     @test solve(SymJ.piecewise(x ≪ 1 => x, true => 2x) ~ 4, x) == [2]
     @test solve(SymJ.piecewise(x ≪ 0 => -x, true => SymJ.piecewise(x ≪ 2 => x, true => x^2)) ~ 9, x) == [-9, 3]
     # sums from -∞ (#27824, #27893, #27256)
-    @test SymJ.summation(1 / (k^2 + 1), k, -Inf, 0) == SymJ.summation(1 / (k^2 + 1), k, 0, Inf)
-    @test N(SymJ.summation(1 / (k^2 + 1), k, -Inf, Inf)) ≈ π * coth(π)
+    @test SymJ.summation(1 / (k^2 + 1), (k, -Inf, 0)) == SymJ.summation(1 / (k^2 + 1), (k, 0, Inf))
+    @test N(SymJ.summation(1 / (k^2 + 1), (k, -Inf, Inf))) ≈ π * coth(π)
     # relations: one side, real and imaginary parts, terms of one sign (#27754, #27623, #27759, #27755)
     @test simplify(y - x ~ y + x) == (x ~ 0)
     @test simplify(x + y ≧ x - y) == (y ≧ 0)
@@ -68,7 +68,7 @@ end
     @test length(SymJ.piecewise(Eq(x, 2) => 5, true => 1000 - x).args) == 4
     @test length(SymJ.piecewise(Eq(x, 0) => 1, true => sin(x) / x).args) == 4     # needed at 0
     # a k-free denominator in rsolve's right side (#27901)
-    let (n, k) = symbols("n k"), yf = SymFunction(:yf)
+    let (n, k) = Sym.((:n, :k)), yf = SymFunction(:yf)
         rhs = binomial(n + 1, k) * 2^(-n - 1) - binomial(n, k) * 2^(-n)
         r = SymJ.rsolve(yf(k + 1) - yf(k) ~ rhs, yf(k))
         res = subs(r, k => k + 1) - r - rhs
@@ -236,7 +236,7 @@ end
     @syms a b k n s t w L1 L2 L3 C1 C2 C3 M23 RL U I1 I2 I3 I4
     LA = SymJ.LinearAlgebra
     # 0^(n - k) summed the other way (#23952)
-    @test SymJ.summation(Sym(0)^(n - k), k, 0, n) == 1 - Sym(0)^(n + 1)
+    @test SymJ.summation(Sym(0)^(n - k), (k, 0, n)) == 1 - Sym(0)^(n + 1)
     # factorial at a float through Γ; an integer to a negative power (#24246)
     @test lambdify(factorial(x))(2.5) ≈ 3.3233509704478426
     @test lambdify(Sym(2)^x)(-3) == 0.125
@@ -403,8 +403,8 @@ end
     cs = solve([a * diff(f(t), t) + b * diff(g(t), t) ~ 1, diff(f(t), t) - diff(g(t), t) ~ 2], [diff(f(t), t), diff(g(t), t)])
     @test haskey(only(cs), diff(f(t), t))
     # telescoping infinite sums (#23119)
-    @test SymJ.summation(1 / (i + 1) - 1 / (i + 2), i, 0, Inf) == 1
-    @test SymJ.summation(1 / (5 * (5i + 2)) - 1 / (5 * (5i + 7)), i, 0, Inf) == Sym(1) / 10
+    @test SymJ.summation(1 / (i + 1) - 1 / (i + 2), (i, 0, Inf)) == 1
+    @test SymJ.summation(1 / (5 * (5i + 2)) - 1 / (5 * (5i + 7)), (i, 0, Inf)) == Sym(1) / 10
     # log(0) = -∞, and 0*log(0) is NaN, not 0 (#22612)
     @test log(Sym(0)) == Sym(-Inf)
     @test isnan(N(subs(x * log(x), x => 0)))
@@ -516,7 +516,7 @@ end
     @test Set(t[x] for t in s) == Set([2sqrt(Sym(2)) + sqrt(Sym(3)), 2sqrt(Sym(2)) - sqrt(Sym(3)),
                                         -2sqrt(Sym(2)) + sqrt(Sym(3)), -2sqrt(Sym(2)) - sqrt(Sym(3))])
     # cosines summed over a full period, through exponentials (#23576)
-    @test SymJ.summation(cos(2PI * i / v), i, 1, v; assume = (v ∈ ℤ, v ≫ 1)) == 0
+    @test SymJ.summation(cos(2PI * i / v), (i, 1, v); assume = (v ∈ ℤ, v ≫ 1)) == 0
     # minimal polynomial of Cardano's roots in the casus irreducibilis (#23677)
     rs = solve(4000000x^3 - 239960000x^2 + 4782399900x - 31663998001 ~ 0, x)
     m = SymJ.minimal_polynomial(rs[1] + rs[2], y)
@@ -533,10 +533,10 @@ end
     @syms x y z k a n
     f = SymFunction(:f)
     # sums with an infinite part beside others: decided as a whole (#21434, #21315, #21151)
-    @test SymJ.summation(1 - cos(1 / k), k, 1, Inf) == SymJ._summation_unevaluated(1 - cos(1 / k), k, Sym(1), Sym(Inf))
-    @test SymJ.summation(1 - 1 / k, k, 1, Inf) == Inf
-    @test SymJ.summation(1 / k - log(1 + 1 / k), k, 1, Inf) == -SymJ.SpecialFunctionsSupport.SF.digamma(Sym(1))
-    @test N(SymJ.summation(3 / (4k) - log(1 + 3 / (4k)), k, 1, Inf)) ≈ 3 * Base.MathConstants.eulergamma / 4 + log(SymJ.SpecialFunctionsSupport.SF.gamma(1.75)) rtol = 1e-12
+    @test SymJ.summation(1 - cos(1 / k), (k, 1, Inf)) == SymJ._summation_unevaluated(1 - cos(1 / k), k, Sym(1), Sym(Inf))
+    @test SymJ.summation(1 - 1 / k, (k, 1, Inf)) == Inf
+    @test SymJ.summation(1 / k - log(1 + 1 / k), (k, 1, Inf)) == -SymJ.SpecialFunctionsSupport.SF.digamma(Sym(1))
+    @test N(SymJ.summation(3 / (4k) - log(1 + 3 / (4k)), (k, 1, Inf))) ≈ 3 * Base.MathConstants.eulergamma / 4 + log(SymJ.SpecialFunctionsSupport.SF.gamma(1.75)) rtol = 1e-12
     # a quotient whose denominator is 0 by the identities is defined nowhere (#21340)
     e = (tan(x)^2 - sec(x)^2 + 1) / (sin(x)^2 + cos(x)^2 - 1)
     @test simplify(e) == e
@@ -695,8 +695,8 @@ end
     @test any(cv -> cv.first == Any[k ~ 5] && cv.second == [Dict(x => -Sym(1) // 3)], r)
     @test any(cv -> cv.first == Any[k ~ -3] && cv.second == [Dict(x => Sym(1))], r)
     # k = a, a + 1, … up to a non-integer bound (#19745)
-    @test SymJ.summation(x, x, 1, Sym(3) // 2) == 1
-    @test SymJ.summation(x, x, Sym(1) // 2, Sym(7) // 2) == 8
+    @test SymJ.summation(x, (x, 1, Sym(3) // 2)) == 1
+    @test SymJ.summation(x, (x, Sym(1) // 2, Sym(7) // 2)) == 8
     # a root at a parametric pole: generic a by default (decided 2026-11-14), the case
     # a = 0, where 0 is the pole, when assumed
     @test solve(x^2 / (a + x) - 2 ~ 0, x) == [1 - sqrt(2a + 1), 1 + sqrt(2a + 1)]
@@ -731,10 +731,10 @@ end
     @test string(solve(abs(x) - 1 ≪ 0, x)) == "(-1, 1)"
     # sums: a shifted start, the summand refined on the range, shifted limits (#20464,
     # #19687, #19685)
-    @test SymJ.summation(2^k / factorial(k), k, 1, Inf) == exp(Sym(2)) - 1
-    @test SymJ.summation(SymJ.piecewise((k ≦ n) => k * SymJ.binomial(n, k) / 2^n, true => 0), k, 0, n) == n / 2
-    @test SymJ.summation(1 / abs(x + 9), x, 7, Inf) == Inf
-    @test simplify(SymJ.summation(u(k), k, 0, n) - SymJ.summation(u(k), k, 0, n - 1)) == u(n)
+    @test SymJ.summation(2^k / factorial(k), (k, 1, Inf)) == exp(Sym(2)) - 1
+    @test SymJ.summation(SymJ.piecewise((k ≦ n) => k * SymJ.binomial(n, k) / 2^n, true => 0), (k, 0, n)) == n / 2
+    @test SymJ.summation(1 / abs(x + 9), (x, 7, Inf)) == Inf
+    @test simplify(SymJ.summation(u(k), (k, 0, n)) - SymJ.summation(u(k), (k, 0, n - 1))) == u(n)
     # subs of a key with a numeric coefficient (#19422)
     @test subs(2 * x * y, 2x => z) == y * z
     @test subs(2x + 4, 2x => z) == z + 4
@@ -775,9 +775,9 @@ end
     @syms n x y
     IM = SymJ.IM
     # an alternating series whose terms do not tend to 0 diverges (#17942)
-    @test_throws ArgumentError SymJ.summation((-1)^n * (1 / n + 1), n, 1, Inf)
-    @test_throws ArgumentError SymJ.summation((-1)^n * n / (n + 1), n, 1, Inf)
-    @test SymJ.summation((-1)^n / n, n, 1, Inf) == log(Sym(1) // 2)
+    @test_throws ArgumentError SymJ.summation((-1)^n * (1 / n + 1), (n, 1, Inf))
+    @test_throws ArgumentError SymJ.summation((-1)^n * n / (n + 1), (n, 1, Inf))
+    @test SymJ.summation((-1)^n / n, (n, 1, Inf)) == log(Sym(1) // 2)
     # infinite sides compared as they are, not through ∞ - ∞ (#19245)
     @test simplify(Sym(Inf) ~ Sym(Inf)) == true
     @test simplify(Sym(Inf) ≦ Sym(Inf)) == true
@@ -806,7 +806,7 @@ end
     @syms x y t z n i b
     IM, PI = SymJ.IM, SymJ.PI
     # limits through factorial, binomial, lambertw by name (#19379, #18992, #18969)
-    @test SymJ.summation(factorial(n) / factorial(n + 2), n, 1, Inf) == Sym(1) // 2
+    @test SymJ.summation(factorial(n) / factorial(n + 2), (n, 1, Inf)) == Sym(1) // 2
     @test limit(x / factorial(x)^(1 / x), x => Inf) == SymJ.E
     @test limit(lambertw(x) / log(x), x => Inf) == 1
     # cot inverted; heaviside's set refused clearly (#19115, #18939)
@@ -832,8 +832,8 @@ end
     @test simplify(sin(IM * t) / sinh(t)) == IM
     @test simplify(cos(IM * t) - cosh(t)) == 0
     # a sum with a point condition (#18388)
-    @test SymJ.summation(SymJ.piecewise(i ⩵ 0 => 1, true => 0), i, 0, n) == 1
-    @test SymJ.summation(SymJ.piecewise(i ⩵ 0 => 2, true => 1), i, 0, n) == n + 2
+    @test SymJ.summation(SymJ.piecewise(i ⩵ 0 => 1, true => 0), (i, 0, n)) == 1
+    @test SymJ.summation(SymJ.piecewise(i ⩵ 0 => 2, true => 1), (i, 0, n)) == n + 2
     # a rational radical constant; a second simplify pass (#18475, #18231)
     @test simplify(-48 * sqrt(4 + 2sqrt(Sym(5))) / (1 + sqrt(Sym(5)))^(Sym(3) // 2)) == -24
     @test simplify((cos(x - PI * cos(x)) - cos(x + PI * cos(x))) * cos(x)) == sin(2x) * sin(PI * cos(x))
@@ -943,7 +943,7 @@ end
     @test refine(max(n, log(n) / log(Sym(2))); assume = (n ∈ ℤ, n ≫ 0)) == n
     # a symbolic point condition in a sum (#16532)
     f = SymFunction(:f)
-    @test SymJ.summation(SymJ.piecewise(Ne(m, n) => 0, true => L) * f(n), n, 0, Inf; assume = (m ∈ ℤ, m ≧ 0)) == L * f(m)
+    @test SymJ.summation(SymJ.piecewise(Ne(m, n) => 0, true => L) * f(n), (n, 0, Inf); assume = (m ∈ ℤ, m ≧ 0)) == L * f(m)
     # f(x) f(conj x) is real (#16500)
     @test simplify(imag(cot(x) * cot(conj(x)))) == 0
     # sin/cos as tan (#16499)
@@ -1002,8 +1002,8 @@ end
     @syms x n a
     LA = SymJ.LinearAlgebra
     # Σ xⁿ/n: no DivisionByZero from the retry at 0; -log(1 - x) for |x| < 1 (#14909)
-    @test any(cv -> cv.second == -log(1 - x), SymJ.summation(x^n / n, n, 1, Inf))
-    @test SymJ.summation(1 / (n * 2^n), n, 1, Inf) == log(Sym(2))
+    @test any(cv -> cv.second == -log(1 - x), SymJ.summation(x^n / n, (n, 1, Inf)))
+    @test SymJ.summation(1 / (n * 2^n), (n, 1, Inf)) == log(Sym(2))
     # ℤ ⊆ ℝ (#16268)
     @test ℤ ⊆ ℝ
     @test !(ℂ ⊆ ℝ)
@@ -1068,19 +1068,19 @@ end
     @syms x y w n s t
     f = SymFunction(:f)
     # power series of radius 1 by cases: past |z| = 1 they diverge (#14213)
-    @test SymJ.summation(Sym(3)^n / n, n, 1, Inf) == Inf
-    @test_throws ArgumentError SymJ.summation((-1)^(n - 1) * Sym(3)^n / n, n, 1, Inf)
-    @test_throws ArgumentError SymJ.summation(x^n / n, n, 1, Inf; assume = (x ≫ 2,))
-    @test SymJ.summation(x^n / n, n, 1, Inf) isa SymJ.Cases
-    @test SymJ.summation(1 / (n * Sym(2)^n), n, 1, Inf) == log(Sym(2))
-    @test SymJ.summation((-1)^(n - 1) / n, n, 1, Inf) == log(Sym(2))
-    @test SymJ.summation(binomial(2n, n), n, 0, Inf) == Inf
-    @test SymJ.summation(binomial(2n, n) / Sym(8)^n, n, 0, Inf) == sqrt(Sym(2))
-    @test SymJ.summation((-1)^n * binomial(2n, n) / Sym(4)^n, n, 0, Inf) == sqrt(Sym(2)) / 2
-    @test SymJ.summation(x^n * binomial(2n, n), n, 0, Inf) isa SymJ.Cases
+    @test SymJ.summation(Sym(3)^n / n, (n, 1, Inf)) == Inf
+    @test_throws ArgumentError SymJ.summation((-1)^(n - 1) * Sym(3)^n / n, (n, 1, Inf))
+    @test_throws ArgumentError SymJ.summation(x^n / n, (n, 1, Inf); assume = (x ≫ 2,))
+    @test SymJ.summation(x^n / n, (n, 1, Inf)) isa SymJ.Cases
+    @test SymJ.summation(1 / (n * Sym(2)^n), (n, 1, Inf)) == log(Sym(2))
+    @test SymJ.summation((-1)^(n - 1) / n, (n, 1, Inf)) == log(Sym(2))
+    @test SymJ.summation(binomial(2n, n), (n, 0, Inf)) == Inf
+    @test SymJ.summation(binomial(2n, n) / Sym(8)^n, (n, 0, Inf)) == sqrt(Sym(2))
+    @test SymJ.summation((-1)^n * binomial(2n, n) / Sym(4)^n, (n, 0, Inf)) == sqrt(Sym(2)) / 2
+    @test SymJ.summation(x^n * binomial(2n, n), (n, 0, Inf)) isa SymJ.Cases
     # a term undefined at the start of the range: no sum (#14410)
-    @test_throws SymJ.DivisionByZero SymJ.summation(3 - 1 / sqrt(x), x, 0, Inf)
-    @test SymJ.summation(3 - 1 / sqrt(x), x, 1, Inf) == Inf
+    @test_throws SymJ.DivisionByZero SymJ.summation(3 - 1 / sqrt(x), (x, 0, Inf))
+    @test SymJ.summation(3 - 1 / sqrt(x), (x, 1, Inf)) == Inf
     # cos(∞) is no pole: left as it is (#13499)
     @test SymJ._hasfn(subs(cos(x), x => Inf), :cos)
     # a negative order of differentiation (#13873)
@@ -1111,9 +1111,9 @@ end
     @syms x y z a b k n th
     LA = SymJ.LinearAlgebra
     # sums and derivatives of Cases (#14235, #14211)
-    r = SymJ.summation(SymJ.summation(a^n * b^k, k, 0, Inf), n, 0, Inf)
+    r = SymJ.summation(SymJ.summation(a^n * b^k, (k, 0, Inf)), (n, 0, Inf))
     @test any(cv -> cv.second isa Sym && iszero(simplify(cv.second - 1 / ((1 - a) * (1 - b)))), r)
-    d = diff(SymJ.summation(x^k, k, 0, Inf), x)
+    d = diff(SymJ.summation(x^k, (k, 0, Inf)), x)
     @test any(cv -> cv.second isa Sym && iszero(simplify(cv.second - 1 / (1 - x)^2)), d)
     # cse of a matrix and of a tuple of matrices, in their shapes (#14118)
     reps, red = SymJ.cse(Sym[x+y (x+y)^2; z x+y])
@@ -1145,10 +1145,10 @@ end
     @test refine(sqrt(x) ≪ 0; assume = (x ∈ ℝ,)) === false
     @test refine(sqrt(x) ≪ 0) === false
     # divergence of series with no closed form (#14579, #14112, #14111)
-    @test SymJ.summation(sqrt(x), x, 1, Inf) == Inf
-    @test SymJ.summation(1 / sqrt(n), n, 1, Inf) == Inf
-    @test SymJ.summation(1 / log(log(n)), n, 22, Inf) == Inf
-    @test SymJ._hasfn(SymJ.summation((-1)^n / sqrt(n), n, 1, Inf), :Sum)
+    @test SymJ.summation(sqrt(x), (x, 1, Inf)) == Inf
+    @test SymJ.summation(1 / sqrt(n), (n, 1, Inf)) == Inf
+    @test SymJ.summation(1 / log(log(n)), (n, 22, Inf)) == Inf
+    @test SymJ._hasfn(SymJ.summation((-1)^n / sqrt(n), (n, 1, Inf)), :Sum)
     # \ for a non-square matrix: least squares, least norm (#14548)
     @test Sym[2 1; 1 0; 1 0] \ Sym[3, 1, 1] == Sym[1, 1]
     @test Sym[1 1 0; 0 1 1] \ Sym[1, 1] == Sym[1 // 3, 2 // 3, 1 // 3]
@@ -1163,17 +1163,17 @@ end
     @test IM^IM == exp(-PI / 2)
     @test simplify(log(IM^IM)) == -PI / 2
     # harmonic numbers in limits, as digamma (#14204, #14125); an unevaluated sum refused (#14196)
-    @test limit(SymJ.summation(1 / k, k, n, 2n), n => Inf) == log(Sym(2))
+    @test limit(SymJ.summation(1 / k, (k, n, 2n)), n => Inf) == log(Sym(2))
     @test limit(n^2 * (SymJ.harmonic(n) - log(n + 1 // 2) - Sym(MathConstants.eulergamma)), n => Inf) == Sym(1) // 24
-    @test_throws ArgumentError limit(SymJ.summation(m^k, m, 1, n) / n^(k + 1), n => Inf; assume = (k ∈ ℤ, k ≫ 0))
+    @test_throws ArgumentError limit(SymJ.summation(m^k, (m, 1, n)) / n^(k + 1), n => Inf; assume = (k ∈ ℤ, k ≫ 0))
     # telescoping sums; harmonic numbers of shifted arguments combined (#14195)
-    @test SymJ.summation(log(m + 1) - log(m), m, 1, n) == log(n + 1)
-    @test SymJ.summation(sqrt(m) - sqrt(m - 1), m, 1, n) == sqrt(n)
-    @test SymJ.summation(1 / m - 1 / (m + 1), m, 1, n) == 1 - 1 / (n + 1)
+    @test SymJ.summation(log(m + 1) - log(m), (m, 1, n)) == log(n + 1)
+    @test SymJ.summation(sqrt(m) - sqrt(m - 1), (m, 1, n)) == sqrt(n)
+    @test SymJ.summation(1 / m - 1 / (m + 1), (m, 1, n)) == 1 - 1 / (n + 1)
     # an empty harmonic sum (#14185)
     @test SymJ.harmonic(0, n) == 0
     # the binomial theorem in two variables (#14142)
-    @test SymJ.summation(binomial(n, m) * x^m * y^(n - m), m, 0, n) == (x + y)^n
+    @test SymJ.summation(binomial(n, m) * x^m * y^(n - m), (m, 0, n)) == (x + y)^n
     # u(x) δ(x - a) = u(a) δ(x - a) (#13996)
     @test simplify(x * SymJ.dirac(x)) == 0
     @test simplify(x^2 * SymJ.dirac(x - 2)) == 4SymJ.dirac(x - 2)
@@ -1260,10 +1260,10 @@ end
     @test simplify(angle(x + y * im) - atan(y, x); assume = (x ∈ ℝ, y ∈ ℝ)) == 0
     # ψ and ζ(s, a) at negative half-integers (#12753)
     @test SymJ.SpecialFunctionsSupport.SF.digamma(Sym(-1) // 2) == SymJ.SpecialFunctionsSupport.SF.digamma(Sym(1) // 2) + 2
-    @test simplify(SymJ.summation(1 / ((2v + 1)^2 - 4)^2, v, 0, Inf)) == PI^2 / 64
+    @test simplify(SymJ.summation(1 / ((2v + 1)^2 - 4)^2, (v, 0, Inf))) == PI^2 / 64
     # Σ 1/k^p for symbolic p: ζ(p) (#12994)
-    @test SymJ.summation(1 / k^a, k, 1, Inf; assume = (a ≫ 1,)) == SymJ.SpecialFunctionsSupport.SF.zeta(a)
-    @test SymJ.summation(1 / k^a, k, 1, Inf; assume = (a ≦ 1,)) == Inf
+    @test SymJ.summation(1 / k^a, (k, 1, Inf); assume = (a ≫ 1,)) == SymJ.SpecialFunctionsSupport.SF.zeta(a)
+    @test SymJ.summation(1 / k^a, (k, 1, Inf); assume = (a ≦ 1,)) == Inf
     # √(c(a + bi)) denested with the rational content split off (#12420)
     @test simplify(sqrt(Sym(8) + 6IM)) == 3 + IM
     # solve inverts lambertw (#12783)
@@ -1273,8 +1273,8 @@ end
     @test cancel((exp(2x) - 1) / (exp(x) - 1)) == exp(x) + 1
     @test cancel((x^(2a) - 1) / (x^a - 1)) == x^a + 1
     # finite sums of sin and cos of arithmetic arguments (#12107)
-    @test SymJ.summation(sin(k * x), k, 1, n) isa SymJ.Cases
-    @test N(subs(SymJ.summation(cos(2k + 1), k, 0, n), n => 6)) ≈ sum(cos(2j + 1) for j in 0:6)
+    @test SymJ.summation(sin(k * x), (k, 1, n)) isa SymJ.Cases
+    @test N(subs(SymJ.summation(cos(2k + 1), (k, 0, n)), n => 6)) ≈ sum(cos(2j + 1) for j in 0:6)
 end
 
 @testset "wrong answers (SymPy review, round 14)" begin
@@ -1350,7 +1350,7 @@ end
     @test simplify(acos(x) + asin(x)) == PI / 2
     @test simplify(1 / x ~ 0) === false
     # an equality among the assumptions used in a sum (#11823)
-    @test SymJ.summation(a^k, k, 0, L - 1; assume = (a ~ 1,)) == L
+    @test SymJ.summation(a^k, (k, 0, L - 1); assume = (a ~ 1,)) == L
     # sin, tan of π times a huge integer (#10607)
     @test sin(PI * Sym(big(10)^40)) == 0
     # powers with logs in the exponent (#10410); rational bases split (#11544)
@@ -1381,11 +1381,11 @@ end
     f = SymFunction(:f)
     @test diff(f(x, y), x, y) - diff(f(x, y), y, x) == 0
     # Σ sin(kθ)/k, cos(kθ)/k (#11700)
-    @test SymJ.summation(sin(m) / m, m, 1, Inf) == PI / 2 - Sym(1) // 2
-    @test SymJ.summation(cos(2m) / m, m, 1, Inf) == -log(2sin(Sym(1)))
-    @test SymJ.summation(sin(m * θ) / m, m, 1, Inf; assume = (0 ≪ θ, θ ≪ 2PI)) == (PI - θ) / 2
+    @test SymJ.summation(sin(m) / m, (m, 1, Inf)) == PI / 2 - Sym(1) // 2
+    @test SymJ.summation(cos(2m) / m, (m, 1, Inf)) == -log(2sin(Sym(1)))
+    @test SymJ.summation(sin(m * θ) / m, (m, 1, Inf); assume = (0 ≪ θ, θ ≪ 2PI)) == (PI - θ) / 2
     # factorial ratios reduced inside a sum (#11437)
-    @test subs(SymJ.summation(factorial(m + Sym(1) // 2) / (factorial(m - Sym(1) // 2) * m * (m + 1)), m, 2, r), r => 5) ==
+    @test subs(SymJ.summation(factorial(m + Sym(1) // 2) / (factorial(m - Sym(1) // 2) * m * (m + 1)), (m, 2, r)), r => 5) ==
           Sym(67) // 60
     # numeric derivatives at a point (#11802)
     @test N(subs(diff(SF.zeta(x), x), x => 4)) ≈ -0.06891126589612537
@@ -1552,10 +1552,10 @@ end
     @test string(solve((x^3 - 3x - 1) / (x - 5) ≫ 0, x)) == "(-∞, 2*cos(11*π/9)) ∪ (2*cos(5*π/9), 2*cos(π/9)) ∪ (5, ∞)"
     @test string(solve((x^3 - 3x - 1) / (x - 5) ≧ 0, x)) == "(-∞, 2*cos(11*π/9)] ∪ [2*cos(5*π/9), 2*cos(π/9)] ∪ (5, ∞)"
     # divergent series: ±∞, not NaN (#8251)
-    @test SymJ.summation(n^2 / (n + 1)^2, n, 0, Inf) == Sym(Inf)
-    @test SymJ.summation(-n / (n + 1), n, 0, Inf) == Sym(-Inf)
+    @test SymJ.summation(n^2 / (n + 1)^2, (n, 0, Inf)) == Sym(Inf)
+    @test SymJ.summation(-n / (n + 1), (n, 0, Inf)) == Sym(-Inf)
     # Σ binomial(n, k) (n - k)^p (-1)^k: its values at small n kept (#8077)
-    r = SymJ.summation(binomial(n, k) * (n - k)^4 * (-1)^k, k, 0, n; assume = (n ∈ ℤ, n ≫ 0))
+    r = SymJ.summation(binomial(n, k) * (n - k)^4 * (-1)^k, (k, 0, n); assume = (n ∈ ℤ, n ≫ 0))
     @test r(n => 3) == 36
     @test r(n => 6) == 0
     # a set of real numbers equal to ℝ (#8553)
@@ -1599,9 +1599,9 @@ end
     @test refine(mod(factorial(n), n); assume = (n ∈ ℤ, n ≫ 0)) == 0
     @test refine(mod(factorial(n), n + 1); assume = (n ∈ ℤ, n ≫ 0)) == mod(factorial(n), n + 1)
     # sums: 0^n terms (#8414), a zero first term (#8254)
-    @test SymJ.summation(Sym(0)^n, n, 1, Inf) == 0
-    @test SymJ.summation(Sym(0)^n, n, 0, Inf) == 1
-    @test SymJ.summation(n * 2^n / factorial(n), n, 0, Inf) == 2exp(Sym(2))
+    @test SymJ.summation(Sym(0)^n, (n, 1, Inf)) == 0
+    @test SymJ.summation(Sym(0)^n, (n, 0, Inf)) == 1
+    @test SymJ.summation(n * 2^n / factorial(n), (n, 0, Inf)) == 2exp(Sym(2))
     # complex floating point matrices (#8639)
     LA = SymJ.LinearAlgebra
     M = Sym[Sym(1.0 + 1.0im) Sym(2.0 + 2.0im); Sym(1.0) Sym(2.0)]
@@ -1760,9 +1760,9 @@ end
     end
     @test solve(x^y ~ 0, x; assume = (y ≫ 0,)) == [0]
     # summation: a binomial's range ends at its top (#6347); a product summand expanded (#5953)
-    @test SymJ.summation((-1)^k * binomial(2n, k)^2, k, 0, Inf; assume = (n ∈ ℤ, n ≫ 0)) == (-1)^n * binomial(2n, n)
-    @test iszero(simplify(SymJ.summation(x^k * (y^(k + 1) - 1), k, 0, n) -
-                          (SymJ.summation(x^k * y^(k + 1), k, 0, n) - SymJ.summation(x^k, k, 0, n))))
+    @test SymJ.summation((-1)^k * binomial(2n, k)^2, (k, 0, Inf); assume = (n ∈ ℤ, n ≫ 0)) == (-1)^n * binomial(2n, n)
+    @test iszero(simplify(SymJ.summation(x^k * (y^(k + 1) - 1), (k, 0, n)) -
+                          (SymJ.summation(x^k * y^(k + 1), (k, 0, n)) - SymJ.summation(x^k, (k, 0, n)))))
     # Bessel functions of a negative integer order (#6154)
     @test SF.besselj(-2, x) == SF.besselj(2, x)
     @test SF.besselj(-1, x) == -SF.besselj(1, x)
@@ -1793,14 +1793,14 @@ end
     @test N(subs(Sym(series(SF.expint(2, x), x, 0, 4)), x => 1 // 100)) ≈ SF.expint(2, 0.01) atol = 1e-8
     # summation: a nested geometric sum with exp(-a - b) < 1 for a, b > 0 (#6173); Σ kˢ rᵏ as
     # a polylogarithm (#6396)
-    let r = SymJ.summation(SymJ.summation(exp(-l1 * i - l2 * j), j, 0, i), i, 0, Inf; assume = (l1 ≫ 0, l2 ≫ 0))
+    let r = SymJ.summation(SymJ.summation(exp(-l1 * i - l2 * j), (j, 0, i)), (i, 0, Inf); assume = (l1 ≫ 0, l2 ≫ 0))
         @test N(subs(r, l1 => 1, l2 => 2)) ≈ sum(exp(-i - 2j) for i in 0:60 for j in 0:i)
     end
-    @test SymJ.summation(t^Sym(:z) * exp(-t), t, 1, Inf) == SymJ.PolyLogSupport.PL.li(-Sym(:z), exp(-Sym(1)))
-    @test SymJ.summation(t^3 * (Sym(1) // 2)^t, t, 2, Inf) == Sym(51) // 2
-    @test N(SymJ.summation(t^2 * exp(-t), t, 1, Inf)) ≈ sum(k^2 * exp(-k) for k in 1:200)
+    @test SymJ.summation(t^Sym(:z) * exp(-t), (t, 1, Inf)) == SymJ.PolyLogSupport.PL.li(-Sym(:z), exp(-Sym(1)))
+    @test SymJ.summation(t^3 * (Sym(1) // 2)^t, (t, 2, Inf)) == Sym(51) // 2
+    @test N(SymJ.summation(t^2 * exp(-t), (t, 1, Inf))) ≈ sum(k^2 * exp(-k) for k in 1:200)
     # a Laplace transform of a sum of steps, termwise (#7177)
-    let r = SymJ.laplace_transform(1 + 2 * SymJ.summation((-1)^n * SymJ.heaviside(t - n * a), n, 1, Inf), t, s)
+    let r = SymJ.laplace_transform(1 + 2 * SymJ.summation((-1)^n * SymJ.heaviside(t - n * a), (n, 1, Inf)), t, s)
         @test N(subs(r, s => 2, a => 1)) ≈ tanh(1.0) / 2
     end
     # dsolve of a polynomial in y' (#7093)
@@ -1859,7 +1859,7 @@ end
     @syms x y a k j
     # Σ binomial(k, j) (-1)^j p(j)/k: k = 0, where the summand is undefined, is no case
     # (DivisionByZero; #5790)
-    @test SymJ.summation((-1)^j * binomial(k, j) * j / k, j, 0, k) == SymJ.piecewise((k ~ 1) => -1, true => 0)
+    @test SymJ.summation((-1)^j * binomial(k, j) * j / k, (j, 0, k)) == SymJ.piecewise((k ~ 1) => -1, true => 0)
     # factor of a sum that cancels to 0 (#5153)
     @test iszero(factor(exp(x) / (1 + exp(x)) - 1 / (1 + exp(-x))))
     # gcd and lcm of three or more, and of a vector (#5135)
@@ -1911,9 +1911,9 @@ end
     # trig: 1/cos² - 1 is tan² (#4621)
     @test simplify(1 / cos(x)^2 - 1) == tan(x)^2
     # floats that are binary fractions in exponents (#5822)
-    @test simplify(SymJ.summation(exp(a * x), x, -0.5, 0.5)) == 2.0 * cosh(0.5a)
+    @test simplify(SymJ.summation(exp(a * x), (x, -0.5, 0.5))) == 2.0 * cosh(0.5a)
     # derivative of a Sum, term by term (#5312)
-    @test diff(SymJ.summation(x^k / k, k, 1, n), x) == (x^n - 1) / (x - 1)
+    @test diff(SymJ.summation(x^k / k, (k, 1, n)), x) == (x^n - 1) / (x - 1)
     # Leibniz with the bound variable named as the outer one (#5086)
     @test diff(SymJ._mkfn_node(:Integral, Sym[f(x), x, g(x), h(x)]), x) ==
           diff(h(x), x) * f(h(x)) - diff(g(x), x) * f(g(x))
@@ -1932,8 +1932,8 @@ end
     # rsolve past a zero of the leading coefficient (#5507)
     @test SymJ.rsolve(2f(n - 1) + (1 - n) * f(n) / n ~ 0, f(n), f(1) => 2) == 2^n * n
     # Gosper with e^m (#4598, #4599)
-    @test N(subs(SymJ.summation(m * exp(m), m, 0, a), a => 4)) ≈ sum(j * exp(j) for j in 0:4)
-    @test N(SymJ.summation(m^2 + m * exp(m), m, -Sym(3) / 2, Sym(3) / 2)) ≈
+    @test N(subs(SymJ.summation(m * exp(m), (m, 0, a)), a => 4)) ≈ sum(j * exp(j) for j in 0:4)
+    @test N(SymJ.summation(m^2 + m * exp(m), (m, -Sym(3) / 2, Sym(3) / 2))) ≈
           sum(j^2 + j * exp(j) for j in -1.5:1.5)
     # a system with a never-zero common factor (#4509)
     @test length(solve([-y * (3 - x - y) * exp(x * y) + exp(x * y) ~ 0,

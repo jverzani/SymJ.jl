@@ -18,7 +18,7 @@ RuntimeGeneratedFunctions.init(@__MODULE__)
 import TermInterface: isexpr, iscall, head, children, operation, arguments, maketerm
 
 export AbstractSymbolic, Sym, SymNumber, SymFunction
-export @syms, symbols, subs, evaluate, lambdify, lambdify_expr, expand, free_symbols, has, N
+export @syms, subs, evaluate, lambdify, lambdify_expr, expand, free_symbols, has, N
 export register_function!
 export numer_denom, cancel, factor_squarefree, squarefree_part, factor, apart, resultant, discriminant, groebner, reduced
 export solve, lambertw, series, limit, GruntzError, simplify, refine

@@ -1457,10 +1457,3 @@ macro parameters(xs...)
     push!(ex.args, Expr(:tuple, map(esc, xs)...))
     ex
 end
-
-"""
-    symbols("x y z")
-
-A tuple of symbols named by a space- or comma-separated string.
-"""
-symbols(s::AbstractString) = Tuple(Sym(Symbol(n)) for n in split(s, r"[\s,]+"; keepempty = false))

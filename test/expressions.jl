@@ -354,9 +354,17 @@ end
           raw"$\begin{cases} \left[ \sqrt{a} \right] & a > 0 \\ \left[ \; \right] & \lnot \left( a > 0 \right) \end{cases}$"
     @test occursin(raw"-3 < a < 3", L(solve(x^2 ~ 9, x; assume = @assume(x > a))))
     @test latexify(x / 2) == latexify(:(x / 2))
+    # a vector of equations (dsolve's answer for a system): one per line
+    @test L([x ~ 1, y ≪ 2]) == raw"$\left[ \begin{array}{l} x = 1 \\ y < 2 \end{array} \right]$"
+    # array symbols from @syms: their subscripts as indices (A₁_₂ was A_1__{2}, not LaTeX)
+    let (xs, A) = @syms xs[0:1], A[1:2, 1:2]
+        @test L(xs) == raw"$\left[ xs_{0}, \; xs_{1} \right]$"
+        @test occursin(raw"A_{1,2}", L(A))
+        @test L(A[1, 2]^2) == raw"$A_{1,2}^{2}$"
+    end
     # Σ, ∫, d/dt notation; Greek names; floats in standard form (SymPy #4767, #4438, #4576, #4429)
     let i = Sym(:i), N = Sym(:N), t = Sym(:t), u = SymFunction(:u), φ = SymFunction(:phi)
-        @test String(latexify(SymJ.summation(u(i), i, 1, N))) == raw"$\sum_{i=1}^{N} u\left( i \right)$"
+        @test String(latexify(SymJ.summation(u(i), (i, 1, N)))) == raw"$\sum_{i=1}^{N} u\left( i \right)$"
         @test String(latexify(diff(u(t), t))) == raw"$\frac{d}{d t} u\left( t \right)$"
         @test String(latexify(diff(φ(t, x), t))) == raw"$\frac{\partial}{\partial t} \phi\left( t, x \right)$"
         @test String(latexify(Sym(:beta_13_2))) == raw"$\beta_{13,2}$"

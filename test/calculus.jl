@@ -193,7 +193,7 @@ end
     @test P(abs(x)) == P(x ≪ 0 => -x, true => x)
     @test all(v -> P(max(x, 1))(x => v) == max(v, 1) && P(min(x, 1))(x => v) == min(v, 1), (-2, 1, 3 // 2))
     @test P(H(x)) == P(x ≪ 0 => 0, (x ~ 0) => 1 // 2, true => 1)
-    @test P(SymJ.summation(a^Sym(:k), Sym(:k), 0, Inf)) == P((a ≫ -1, a ≪ 1) => 1 / (1 - a))
+    @test P(SymJ.summation(a^Sym(:k), (Sym(:k), 0, Inf))) == P((a ≫ -1, a ≪ 1) => 1 / (1 - a))
     # refine and limits
     @test refine(P(x ≪ 0 => -x, true => x); assume = @assume(x > 1)) == x
     @test refine(H(x - 1); assume = @assume(x > 2)) == 1
