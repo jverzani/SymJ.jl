@@ -949,4 +949,15 @@ import PolyLog as PL
         # (the older RischIntegrate of Julia 1.10 refuses the integrand itself)
         @test_throws Union{ArgumentError, RischIntegrate.RischNotImplemented} RischIntegrate.integrate(log(z^im)^2, (z, 0, 1))
     end
+
+    @testset "crashes (SymPy review, round 20)" begin
+        @syms a
+        # ±√(-a²), a real, are no points of the line: no case √(-a²) = 1, whose limits
+        # divided by zero (#2537)
+        @test RischIntegrate.integrate(1 / (x^2 + a^2), (x, -1, 1)) == 2atan(1 / a) / a
+        @test RischIntegrate.integrate(a / (x^2 + a^2), (x, -1, 1)) == 2atan(1 / a)
+        @test RischIntegrate.integrate(1 / (x^2 + a^2), (x, 0, 1)) == atan(1 / a) / a
+        # (the older RischIntegrate of Julia 1.10 cannot integrate it: a parameter in the radicand)
+        VERSION >= v"1.12" && @test RischIntegrate.integrate((a / sqrt(x^2 + a^2))^3, (x, -1, 1)) == 2a / sqrt(a^2 + 1)
+    end
 end
