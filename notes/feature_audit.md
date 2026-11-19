@@ -126,7 +126,7 @@ separately. Names checked against SymPy 1.14 and Giac.jl's command table as befo
 | Linear equations to matrix form | `linear_eq_to_matrix` | — | ❌ (SymPy #25423) |
 | Eigenvalues, eigenvectors, Jordan form | `Matrix` methods `eigenvals`, `eigenvects`, `jordan_form` | `eigenvals`, `eigenvects`, `jordan` | ✅ `eigvals` (with multiplicity), `eigvecs`, `eigen` (diagonalizable), `SymJ.charpoly`, `SymJ.jordan_form` |
 | LU, QR, SVD | `Matrix` methods `LUdecomposition`, `QRdecomposition` | `lu`, `qr`, `svd` | ✅ `lu` (a `LinearAlgebra.LU`), `qr` (exact Gram–Schmidt), `svd` and `svdvals` (a `LinearAlgebra.SVD`; squared singular values of degree at most 2 over the rationals) |
-| Smith normal form | `smith_normal_form`, `smith_normal_decomp` (`sympy.matrices.normalforms`) | `smith`, `ismith` | ❌ (SymPy #29139); Hermite normal form (`hermite_normal_form`) too (SymPy #28601); unimodular transforms (#25759) |
+| Smith normal form | `smith_normal_form`, `smith_normal_decomp` (`sympy.matrices.normalforms`) | `smith`, `ismith` | ✅ `SymJ.smith_normal_form`, `SymJ.smith_normal_decomp` over ℤ and ℚ[x]; Hermite normal form `SymJ.hermite_normal_form`, `SymJ.hermite_normal_decomp` (row form) (SymPy #29139, #2860) |
 | Pseudoinverse | `Matrix.pinv` | — | ✅ `pinv` from the rank factorization (generic rank, as for `rref`) (SymPy #30759) |
 | Schur, Cholesky decompositions (symbolic) | `Matrix.cholesky`, `LDLdecomposition` | `cholesky` | ❌ `schur` of a `Sym` matrix is a MethodError (SymPy #28255); no symbolic Cholesky (#28477) |
 | Permanent | `Matrix.per` | `permanent` | ❌ (SymPy #28539) |
