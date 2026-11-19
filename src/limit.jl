@@ -319,7 +319,7 @@ function _integer_trig_shift(f::Sym, n::Sym, x0::Real, A)
         v = expand(e.args[1] / PI)
         has(v, n) || return nothing
         s = try series(v, n, x0, 2) catch err; err isa ArgumentError || rethrow(); return nothing end
-        isempty(s.pcs) || return nothing             # exponential or oscillating terms
+        (isempty(s.pcs) && isone(s.pre)) || return nothing   # exponential, oscillating or power factors
         p = ZERO
         for (ex, c) in zip(s.ps.e, s.ps.c)
             ex > 0 && continue                       # the vanishing terms (t = 1/n)
