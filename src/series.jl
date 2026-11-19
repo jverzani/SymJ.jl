@@ -2,23 +2,113 @@
 # logarithmic terms.
 #
 # `series(ex, x, x0, n)` substitutes x = x0 + t (x = 1/t at ∞, x = -1/t at -∞) and
-# expands in t by truncated power series arithmetic (_PS): exponents are rationals,
-# coefficients are expressions free of t, except that log(t) is carried in them as the
-# symbol _LOGT, so x^x = 1 + log(x) x + … is a series in x with coefficients in log(x).
+# expands in t by truncated power series arithmetic (_PS): exponents are rationals or
+# rationals plus an irrational real constant (_Ex: x + x^√2), coefficients are expressions
+# free of t, except that log(t) is carried in them as the symbol _LOGT, so
+# x^x = 1 + log(x) x + … is a series in x with coefficients in log(x).
 # Every operation tracks the order to which its result is correct, so cancellation or
 # division only lowers that order; `series` reruns with more terms until the result is
 # correct to the order asked for.
 
 const _T = Sym(Symbol("_t"))         # the expansion variable
 const _LOGT = Sym(Symbol("_logt"))   # log(_T), kept in coefficients
-const _INF = 1 // 0                  # the order of an exact series
 const _TPOS = ScopedValue(false)     # is _T positive (a series at ±∞)
+
+# An exponent: a rational q plus an exact real constant that is not rational (√2, π,
+# log 3/log 5) or 0, so x + x^√2 and 1/(1 + x^π) expand. The constants are interned (k
+# indexes _IRR, 0 for none), so an exponent is plain bits and the rational exponents, the
+# common case, cost no more than Rational{Int}. Exponents with the same constant compare by
+# q; others numerically (Float64, then BigFloat when that does not decide).
+struct _Ex <: Real
+    q::Rational{Int}
+    k::Int
+end
+const _IRR = Sym[]                      # the interned constants, their Float64 values
+const _IRRV = Float64[]
+const _IRRI = Dict{Sym,Int}()
+const _IRR_LOCK = ReentrantLock()
+function _intern(s::Sym)::Int
+    k = lock(() -> get(_IRRI, s, 0), _IRR_LOCK)
+    k == 0 || return k
+    v = Float64(Base.inferencebarrier(N)(s))::Float64
+    lock(_IRR_LOCK) do
+        get!(_IRRI, s) do
+            push!(_IRR, s)
+            push!(_IRRV, v)
+            length(_IRR)
+        end
+    end
+end
+_irr(k::Int) = lock(() -> _IRR[k], _IRR_LOCK)
+_irrv(k::Int) = lock(() -> _IRRV[k], _IRR_LOCK)
+# q + s for a constant s (its rational part moved to q)
+function _Ex(q::Rational{Int}, s::Sym)
+    (iszero(s) || isinf(q)) && return _Ex(q, 0)
+    s.kind == NUMBER && return _Ex(q + Rational{Int}(_numerator(s.num), _denominator(s.num)), 0)
+    if s.kind == ADD && !iszero(s.num)
+        q += Rational{Int}(_numerator(s.num), _denominator(s.num))
+        s = s - Sym(s.num)
+    end
+    _Ex(q, _intern(s))
+end
+_Ex(q::Rational{Int}) = _Ex(q, 0)
+_Ex(q::Integer) = _Ex(Rational{Int}(q), 0)
+_Ex(q::Rational) = _Ex(Rational{Int}(q), 0)
+_Ex(e::_Ex) = e
+Base.convert(::Type{_Ex}, x::Union{Integer,Rational}) = _Ex(x)
+Base.promote_rule(::Type{_Ex}, ::Type{<:Union{Integer,Rational}}) = _Ex
+const _INF = _Ex(1 // 0)             # the order of an exact series
+
+_isrational(e::_Ex) = e.k == 0
+_irrpart(e::_Ex) = e.k == 0 ? ZERO : _irr(e.k)
+# the exponent a constant Sym is (an exact rational or an exact real constant), or nothing
+function _ex_of(r::Sym)
+    r.kind == NUMBER && return isexact(r.num) ? _Ex(Rational{Int}(_numerator(r.num), _denominator(r.num))) : nothing
+    (_hassymbol(r) || has(r, IM) || _hasfn(r, :Integral)) && return nothing
+    v = try N(r) catch; return nothing end
+    (v isa Real && isfinite(v)) || return nothing
+    _Ex(0 // 1, r)
+end
+_sym(e::_Ex) = e.k == 0 ? Sym(SymNumber(e.q)) : Sym(SymNumber(e.q)) + _irr(e.k)
+Base.Float64(e::_Ex) = e.k == 0 ? Float64(e.q) : Float64(e.q) + _irrv(e.k)
+Base.:+(a::_Ex, b::_Ex) = a.k == 0 && b.k == 0 ? _Ex(a.q + b.q, 0) : _Ex(a.q + b.q, _irrpart(a) + _irrpart(b))
+Base.:-(a::_Ex) = a.k == 0 ? _Ex(-a.q, 0) : _Ex(-a.q, -_irr(a.k))
+Base.:-(a::_Ex, b::_Ex) = a + (-b)
+Base.:*(a::_Ex, b::_Ex) = a.k == 0 && b.k == 0 ? _Ex(a.q * b.q, 0) : _Ex(0 // 1, _sym(a) * _sym(b))
+Base.:(==)(a::_Ex, b::_Ex) = a.q == b.q && a.k == b.k
+Base.isequal(a::_Ex, b::_Ex) = a == b
+Base.hash(e::_Ex, h::UInt) = e.k == 0 ? hash(e.q, h) : hash(e.k, hash(e.q, h))
+@inline Base.isless(a::_Ex, b::_Ex) = a.k == b.k ? a.q < b.q : _isless_irr(a, b)   # (∞ has k = 0)
+# (the slow path behind inference barriers: inferring through _evalf_big and N made isless
+# infer as Any, and every sort of exponents dynamic)
+@noinline function _isless_irr(a::_Ex, b::_Ex)::Bool
+    (isinf(a.q) || isinf(b.q)) && return a.q < b.q
+    d = Float64(a) - Float64(b)
+    abs(d) > 1e-9 * (1 + abs(Float64(a)) + abs(Float64(b))) && return d < 0
+    w = Base.inferencebarrier(_evalf_big)(_sym(a) - _sym(b), 256)
+    w isa Real || throw(ArgumentError("series: the exponents $(_sym(a)) and $(_sym(b)) cannot be ordered"))
+    abs(w) > big(2.0)^-200 && return w < 0
+    throw(ArgumentError("series: whether the exponents $(_sym(a)) and $(_sym(b)) are equal is not known"))
+end
+@inline Base.:<(a::_Ex, b::_Ex) = isless(a, b)
+Base.:<=(a::_Ex, b::_Ex) = a == b || isless(a, b)
+Base.isinteger(e::_Ex) = e.k == 0 && isinteger(e.q)
+Base.iszero(e::_Ex) = e.k == 0 && iszero(e.q)
+Base.isinf(e::_Ex) = isinf(e.q)
+Base.zero(::Type{_Ex}) = _Ex(0 // 1, 0)
+Base.one(::Type{_Ex}) = _Ex(1 // 1, 0)
+# a rational exponent as a Rational{Int} (code that reads a series' rational exponents)
+Base.Rational{Int}(e::_Ex) = e.k == 0 ? e.q : throw(InexactError(:Rational, Rational{Int}, _sym(e)))
+Base.Int(e::_Ex) = Int(Rational{Int}(e))
+Base.show(io::IO, e::_Ex) = print(io, e.k == 0 ? e.q : _sym(e))
+# not a whole number of t: t^e takes the side t > 0 (a fractional or irrational power)
+_isfrac(e::_Ex) = e.k != 0 || denominator(e.q) > 1
 
 # a truncated series Σ c_i t^(e_i) + O(t^o): exponents increasing, coefficients nonzero
 struct _PS
-    e::Vector{Rational{Int}}
+    e::Vector{_Ex}
     c::Vector{Sym}
-    o::Rational{Int}
+    o::_Ex
 end
 
 # raised when an operation needs more terms than it was given (a division by a series
@@ -30,25 +120,34 @@ _val(a::_PS) = isempty(a.e) ? a.o : a.e[1]
 _coefnorm(c::Sym) = c.kind == NUMBER ? c : cancel(expand(c))
 
 # build from terms, combining equal exponents, dropping zeros and terms past the order
-function _ps(es, cs, o::Rational{Int})
-    d = Dict{Rational{Int},Sym}()
-    for (e, c) in zip(es, cs)
-        e < o || continue
-        d[e] = get(d, e, ZERO) + c
+function _ps(es::AbstractVector, cs::AbstractVector, o::_Ex)
+    idx = sort!([i for i in eachindex(es) if es[i] < o]; by = i -> es[i])   # (stable)
+    ks, vs = _Ex[], Sym[]
+    for i in idx
+        if !isempty(ks) && ks[end] == es[i]
+            vs[end] += cs[i]
+        else
+            push!(ks, es[i]); push!(vs, cs[i])
+        end
     end
-    ks = sort!([k for (k, v) in d if !iszero(_coefnorm(v))])
-    _PS(ks, Sym[_coefnorm(d[k]) for k in ks], o)
+    # each coefficient normalized once (it was twice: to drop the zeros, then to keep)
+    keep = Bool[]
+    for j in eachindex(vs)
+        vs[j] = _coefnorm(vs[j])
+        push!(keep, !iszero(vs[j]))
+    end
+    _PS(ks[keep], vs[keep], o)
 end
-_psconst(c::Sym) = iszero(c) ? _PS(Rational{Int}[], Sym[], _INF) : _PS([0 // 1], [c], _INF)
+_psconst(c::Sym) = iszero(c) ? _PS(_Ex[], Sym[], _INF) : _PS([0 // 1], [c], _INF)
 const _PST = _PS([1 // 1], [ONE], _INF)
 
 _psadd(a::_PS, b::_PS) = _ps(vcat(a.e, b.e), vcat(a.c, b.c), min(a.o, b.o))
 _psscale(a::_PS, k::Sym) = iszero(k) ? _psconst(ZERO) : _ps(a.e, [c * k for c in a.c], a.o)
-_psshift(a::_PS, s::Rational{Int}) = _PS(a.e .+ s, a.c, a.o + s)          # times t^s
+_psshift(a::_PS, s::Real) = _PS(a.e .+ s, a.c, a.o + s)           # times t^s
 
 function _psmul(a::_PS, b::_PS)
     o = min(a.o + _val(b), b.o + _val(a))
-    es, cs = Rational{Int}[], Sym[]
+    es, cs = _Ex[], Sym[]
     for (ea, ca) in zip(a.e, a.c), (eb, cb) in zip(b.e, b.c)
         e = ea + eb
         e < o || continue
@@ -68,7 +167,7 @@ end
 
 # Σ_k coef(k) u^k for u of positive valuation, to the order u allows (at most N: an
 # exact u gives an infinite sum)
-function _psgeom(u::_PS, coef, N::Rational{Int})
+function _psgeom(u::_PS, coef, N::_Ex)
     o = min(u.o, N)
     vu = _val(u)
     acc = _psconst(coef(0))
@@ -84,19 +183,19 @@ function _psgeom(u::_PS, coef, N::Rational{Int})
     _PS(acc.e, acc.c, min(acc.o, o))
 end
 
-_psinv(a::_PS, N::Rational{Int}) = ((v0, c0, u) = _pslead(a);
+_psinv(a::_PS, N::_Ex) = ((v0, c0, u) = _pslead(a);
     _psshift(_psscale(_psgeom(u, k -> isodd(k) ? -ONE : ONE, N + v0), inv(c0)), -v0))
 
 # a with the terms of exponent o or more dropped (then known to order o); a itself when
 # there are none, so an exact series stays exact
-function _pstrunc(a::_PS, o::Rational{Int})
+function _pstrunc(a::_PS, o::_Ex)
     all(<(o), a.e) && return a
     keep = findall(<(o), a.e)
     _PS(a.e[keep], a.c[keep], min(a.o, o))
 end
 
 # a^r, r a rational number or a constant expression (then a's valuation must be 0)
-function _pspow(a::_PS, r::Sym, N::Rational{Int})
+function _pspow(a::_PS, r::Sym, N::_Ex)
     if r.kind == NUMBER && _isint(r.num) && isexact(r.num)
         k = _toint(r.num)
         k == 0 && return _psconst(ONE)
@@ -112,9 +211,10 @@ function _pspow(a::_PS, r::Sym, N::Rational{Int})
     end
     v0, c0, u = _pslead(a)
     s = if iszero(v0)
-        0 // 1
-    elseif r.kind == NUMBER && isexact(r.num)
-        v0 * Rational{Int}(_numerator(r.num), _denominator(r.num))
+        _Ex(0 // 1)
+    elseif (er = _ex_of(r)) !== nothing
+        # (an irrational constant exponent, x^√2: SymPy #21358)
+        v0 * er
     elseif r.kind == NUMBER && isfloat(r.num) && isfinite(Float64(r.num)) &&
            denominator(rationalize(Int, Float64(r.num))) <= 1000
         # a float exponent: the powers of x by the rational it is (1.2 as 6/5), the
@@ -135,7 +235,7 @@ function _pssplit(a::_PS)
     !isempty(neg), i0 === nothing ? ZERO : a.c[i0], _PS(a.e[pos], a.c[pos], a.o)
 end
 
-function _psexp(a::_PS, N::Rational{Int})
+function _psexp(a::_PS, N::_Ex)
     hasneg, a0, h = _pssplit(a)
     hasneg && throw(ArgumentError("series: exp of an expression that is infinite at the point (an essential singularity)"))
     a.o > 0 || throw(_SeriesPrecision())
@@ -143,24 +243,23 @@ function _psexp(a::_PS, N::Rational{Int})
     q = cancel(diff(a0, _LOGT))
     has(q, _LOGT) && throw(ArgumentError("series: exp of a power of log at the point"))
     p = cancel(a0 - q * _LOGT)
-    (q.kind == NUMBER && isexact(q.num)) || iszero(q) ||
-        throw(ArgumentError("series: x^$q with a symbolic exponent at the point"))
-    s = iszero(q) ? 0 // 1 : Rational{Int}(_numerator(q.num), _denominator(q.num))
+    s = iszero(q) ? _Ex(0 // 1) : _ex_of(q)
+    s === nothing && throw(ArgumentError("series: x^$q with a symbolic exponent at the point"))
     fact(k) = (f = ONE; for i in 1:k; f = f / i; end; f)
     _psshift(_psscale(_psgeom(h, fact, N - s), exp(p)), s)
 end
 
-function _pslog(a::_PS, N::Rational{Int})
+function _pslog(a::_PS, N::_Ex)
     v0, c0, u = _pslead(a)
     has(c0, _LOGT) && throw(ArgumentError("series: log of an expression with a logarithmic leading term"))
-    head = _psadd(_psconst(log(c0)), _psscale(_psconst(_LOGT), Sym(SymNumber(v0))))
+    head = _psadd(_psconst(log(c0)), _psscale(_psconst(_LOGT), _sym(v0)))
     tail = _psgeom(u, k -> k == 0 ? ZERO : (isodd(k) ? ONE : -ONE) / k, N)
     _psadd(head, tail)
 end
 
 # f(a) for a function f with a derivative rule, analytic at a's constant term a0:
 # Σ f^(k)(a0)/k! (a - a0)^k
-function _psapply(name::Symbol, args::Vector{Sym}, N::Rational{Int})
+function _psapply(name::Symbol, args::Vector{Sym}, N::_Ex)
     i = findall(a -> has(a, _T), args)
     # (a derivative of an unknown function: no series is known; "several arguments" pointed
     # away from that; SymPy #11313)
@@ -194,7 +293,7 @@ function _psapply(name::Symbol, args::Vector{Sym}, N::Rational{Int})
         name === :acot && return at
         # the sign of c0 t^v0: t > 0 at ±∞ (x = ±1/t); at a point, only for an even or
         # fractional power (atan(1/x) at 0 is ±π/2 - x by side)
-        (_TPOS[] || iseven(numerator(v0)) || denominator(v0) > 1) ||
+        (_TPOS[] || _isfrac(v0) || iseven(numerator(v0.q))) ||
             throw(ArgumentError("series: $(apply_function(name, args)) has different series on the two sides of the point"))
         sg = has(c0, _LOGT) ? nothing : _csign(c0)
         sg === nothing && throw(ArgumentError("series: atan at the point: the sign of $c0 is not known"))
@@ -339,7 +438,9 @@ function _psapply(name::Symbol, args::Vector{Sym}, N::Rational{Int})
     y = Sym(Symbol("_y"))
     fy = apply_function(name, Sym[j == i ? y : args[j] for j in eachindex(args)])
     vh = _val(h)
-    K = vh == _INF ? 0 : max(0, floor(Int, (min(a.o, N) - 1 // 10^9) / vh))
+    mo = min(a.o, N)
+    K = vh == _INF ? 0 : _isrational(mo) && _isrational(vh) ? max(0, floor(Int, (mo.q - 1 // 10^9) / vh.q)) :
+                         max(0, floor(Int, (Float64(mo) - 1e-9) / Float64(vh)))
     coef = Sym[]
     d = fy
     for k in 0:K
@@ -363,7 +464,7 @@ end
 # Li_s(a) for a → 1, with μ = -log a → 0: Γ(1 - s) μ^(s-1) + Σ ζ(s - k) (-μ)^k/k! for s
 # not a positive integer; for s = n ≥ 1 the terms k = n - 1 are instead
 # (-μ)^(n-1)/(n-1)! (H_(n-1) - log μ)
-function _pspolylog(s::Sym, a::_PS, N::Rational{Int})
+function _pspolylog(s::Sym, a::_PS, N::_Ex)
     μ = _psscale(_pslog(a, N), MINUS_ONE)
     _val(μ) > 0 || throw(_SeriesPrecision())
     m = _psscale(μ, MINUS_ONE)
@@ -382,9 +483,9 @@ end
 # J_ν(u) = Σ (-1)^k (u/2)^(2k+ν)/(k! Γ(k+ν+1)), I_ν alike without the signs, for u of
 # positive valuation and ν a non-integer rational; Y_ν = (J_ν cos νπ - J_{-ν})/sin νπ,
 # K_ν = π/2 (I_{-ν} - I_ν)/sin νπ
-function _psbessel(name::Symbol, ν::Sym, u::_PS, N::Rational{Int})
+function _psbessel(name::Symbol, ν::Sym, u::_PS, N::_Ex)
     function JI(ν, alt)
-        s = _val(u) * Rational{Int}(_numerator(ν.num), _denominator(ν.num))   # of u^ν
+        s = _val(u) * _ex_of(ν)                                                   # of u^ν
         g = apply_function(:gamma, Sym[ν + 1])
         c(k) = (alt && isodd(k) ? -ONE : ONE) /
                (Sym(factorial(big(k))) * g * prod((ν + j for j in 1:k); init = ONE))
@@ -407,7 +508,7 @@ function _finite_coef(c::Sym)
 end
 
 # the series of ex (in _T) correct to order N where possible
-function _ser(ex::Sym, N::Rational{Int})
+function _ser(ex::Sym, N::_Ex)
     has(ex, _T) || return _psconst(ex)
     _eq(ex, _T) && return _PST
     k = ex.kind
@@ -452,7 +553,7 @@ const _SER_REWRITE = Dict{Symbol,Function}(
     :sech => u -> 1 / cosh(u), :csch => u -> 1 / sinh(u),
     :cbrt => u -> u^(1 // 3))                       # near the point: the principal root
 
-function _serpow(b::Sym, e::Sym, N::Rational{Int})
+function _serpow(b::Sym, e::Sym, N::_Ex)
     if has(e, _T)                                   # b^e = exp(e log b)
         lb = _eq(b, E) ? _psconst(ONE) : _pslog(_ser(b, N), N)
         return _psexp(_psmul(_ser(e, N), lb), N)
@@ -484,7 +585,7 @@ struct _AS
     pcs::Vector{_Piece}
 end
 
-const _PS0 = _PS(Rational{Int}[], Sym[], _INF)
+const _PS0 = _PS(_Ex[], Sym[], _INF)
 _asplain(p::_PS) = _AS(p, _Piece[])
 _asconst(c) = _asplain(_psconst(Sym(c)))
 _isexact0(p::_PS) = isempty(p.e) && p.o == _INF
@@ -552,7 +653,7 @@ function _asmul(a::_AS, b::_AS)
     end
 end
 
-function _asinv(a::_AS, N::Rational{Int})
+function _asinv(a::_AS, N::_Ex)
     isempty(a.pcs) && return _asplain(_psinv(a.plain, N))
     (length(a.pcs) == 1 && _isexact0(a.plain) && a.pcs[1].k === :one) ||
         throw(ArgumentError("series: the reciprocal of a sum with exponential or oscillating factors is not supported"))
@@ -560,7 +661,7 @@ function _asinv(a::_AS, N::Rational{Int})
     _AS(_PS0, [_Piece(_psscale(q.G, MINUS_ONE), :one, _PS0, _psinv(q.p, N))])
 end
 
-function _aspowk(a::_AS, k::Integer, N::Rational{Int})
+function _aspowk(a::_AS, k::Integer, N::_Ex)
     k == 0 && return _asconst(ONE)
     b = k > 0 ? a : _asinv(a, N)
     out = b
@@ -571,7 +672,7 @@ function _aspowk(a::_AS, k::Integer, N::Rational{Int})
 end
 
 # e^L: the negative powers of L stay in the factor e^G, the rest is a series
-function _asexp(L::_PS, N::Rational{Int})
+function _asexp(L::_PS, N::_Ex)
     neg = findall(<(0), L.e)
     isempty(neg) && return _asplain(_psexp(L, N))
     L.o > 0 || throw(_SeriesPrecision())
@@ -581,7 +682,7 @@ function _asexp(L::_PS, N::Rational{Int})
 end
 
 # cos(u), sin(u) for u = H + r0 + h: cos(H + R) = cos H cos R - sin H sin R and so on
-function _astrig(name::Symbol, u::_PS, N::Rational{Int})
+function _astrig(name::Symbol, u::_PS, N::_Ex)
     u.o > 0 || throw(_SeriesPrecision())
     neg = findall(<(0), u.e)
     H = _PS(u.e[neg], u.c[neg], _INF)
@@ -602,7 +703,7 @@ function _astrig(name::Symbol, u::_PS, N::Rational{Int})
 end
 
 # Stirling's series: log Γ(u) = (u - 1/2) log u - u + log(2π)/2 + Σ B_2k/(2k(2k-1)) u^(1-2k)
-function _psloggamma(u::_PS, N::Rational{Int})
+function _psloggamma(u::_PS, N::_Ex)
     w = _psinv(u, N)
     L = _psadd(_psmul(_psadd(u, _psconst(Sym(-1 // 2))), _pslog(u, N)), _psscale(u, MINUS_ONE))
     tail = _psgeom(w, k -> isodd(k) ? (m = (k + 1) ÷ 2; Sym(SymNumber(_bernoulli(2m))) / (2m * (2m - 1))) : ZERO, N)
@@ -610,7 +711,7 @@ function _psloggamma(u::_PS, N::Rational{Int})
 end
 
 # the series in e^G … pieces of ex at ±∞ (t > 0), to order N where possible
-function _aser(ex::Sym, N::Rational{Int})
+function _aser(ex::Sym, N::_Ex)
     has(ex, _T) || return _asconst(ex)
     err0 = try
         return _asplain(_ser(ex, N))
@@ -641,7 +742,7 @@ function _aser(ex::Sym, N::Rational{Int})
     throw(err0)
 end
 
-function _aspow(b::Sym, e::Sym, N::Rational{Int})
+function _aspow(b::Sym, e::Sym, N::_Ex)
     try
         return _asplain(_serpow(b, e, N))
     catch err
@@ -658,7 +759,7 @@ function _aspow(b::Sym, e::Sym, N::Rational{Int})
 end
 
 # special functions of an argument u → ±∞ (nothing: not handled here)
-function _asfn(name::Symbol, args::Vector{Sym}, N::Rational{Int})
+function _asfn(name::Symbol, args::Vector{Sym}, N::_Ex)
     name in (:erf, :erfc, :erfi, :erfcx, :expinti, :expint, :sinint, :cosint,
              :besselj, :bessely, :besseli, :besselk, :gamma, :airyai, :airybi) || return nothing
     any(a -> has(a, _T), args[1:end-1]) && return nothing
@@ -755,7 +856,7 @@ struct SymSeries
     x::Sym
     x0::Any                  # a Sym, or ±Inf
     ps::_PS                  # in t (x = x0 + t, x = 1/t or x = -1/t), log(t) as _LOGT
-    n::Rational{Int}         # the order asked for (bounds the terms of an exact series)
+    n::_Ex         # the order asked for (bounds the terms of an exact series)
     pcs::Vector{_Piece}      # at ±∞: terms with a factor e^g, e^g cos h or e^g sin h
     pre::Sym                 # a factor t^α of the whole (α not a rational number: x^π, x^a), or 1
 end
@@ -782,12 +883,17 @@ expansions of `erf`, `erfc`, `erfi`, `erfcx`, `expinti`, `expint`, `sinint`, `co
 `erf(x)` at `Inf` is `1 - exp(-x^2)*(1/(√π x) - …)`, not `1`. For `besseli` the term of
 relative size `exp(-2x)` is left out, as is usual for real arguments.
 
+Exponents may be irrational constants: `x + x^√2`, `1/(1 + x^π)` and `exp(x^(1/π))` expand
+with terms such as `x^(2π)` and `x^(√2 + 1)`, ordered by their numeric values.
+
 A power with an exponent that is not a rational number (`x^π`, `x^a`, `sin(x)^√2`) of a
-base vanishing or infinite at the point is a factor of the whole: `x^a*(series)`, its terms
-and error counted in the series (`x^a*exp(x)` is `x^a*(1 + x + x^2/2 + O(x^3))`), the base
-written `b = c t^k (b/(c t^k))` with `t = x - x0`; at `±Inf` the factor is a power of `x`
-(of `-x` at `-Inf`). Series with the same factor add; products, powers and `diff` combine
-the factors.
+base vanishing or infinite at the point, when it is a factor of the whole expression, is a
+factor of the series: `x^a*(series)`, its terms and error counted in the series (`x^a*exp(x)`
+is `x^a*(1 + x + x^2/2 + O(x^3))`), the base written `b = c t^k (b/(c t^k))` with
+`t = x - x0`; at `±Inf` the factor is a power of `x` (of `-x` at `-Inf`). Series with the
+same factor add, and a constant factor such as `x^π` is moved into the exponents when added
+to a series without it; products, powers and `diff` combine the factors. A symbolic
+exponent elsewhere (`x^a + x^2`, which term leads depending on `a`) is an error.
 
 The result is a [`SymSeries`](@ref); `Sym(s)` gives the truncated expression.
 
@@ -800,6 +906,7 @@ series(sqrt(x^2 + x), x, Inf, 3)   # x + 1/2 - 1/(8x) + 1/(16x^2) + O(1/x^3)
 series(x^x, x, 0, 2)           # 1 + log(x)*x + O(x^2)
 series(erf(x), x, Inf, 4)      # 1 + exp(-x^2)*(-1/(sqrt(π)*x) + 1/(2*sqrt(π)*x^3) + O(1/x^4))
 series(x^a * exp(x), x, 0, 3)  # x^a*(1 + x + x^2/2 + O(x^3))
+series(1 / (1 + x^π), x, 0, 7) # 1 - x^π + x^(2π) + O(x^7)
 ```
 
 An expression with no series at the point (an essential singularity such as `exp(1/x)`
@@ -824,12 +931,12 @@ function series(ex, x::Sym, x0 = 0, n::Real = 6)
     if pf !== nothing
         pre, rest = pf
         r = series(rest, x, x0, n)
-        r isa SymSeries || (r = SymSeries(x, x0 isa Real && isinf(x0) ? x0 : Sym(x0), _psconst(Sym(r)), Rational{Int}(rationalize(n))))
+        r isa SymSeries || (r = SymSeries(x, x0 isa Real && isinf(x0) ? x0 : Sym(x0), _psconst(Sym(r)), _Ex(rationalize(n))))
         return SymSeries(r.x, r.x0, r.ps, r.n, r.pcs, r.pre * pre)
     end
     sub = x0 isa Real && isinf(x0) ? (x0 > 0 ? inv(_T) : -inv(_T)) : Sym(x0) + _T
     ext = subs(ex, x => sub)
-    order = Rational{Int}(rationalize(n))
+    order = _Ex(rationalize(n))
     atinf = x0 isa Real && isinf(x0)
     N = order
     # the terms below the order; exact (a polynomial, say) if nothing was cut off
@@ -875,8 +982,8 @@ function _power_prefactor(ex::Sym, x::Sym, x0)
             lead = _series_lead(b, x, x0)
             if lead !== nothing && !iszero(lead[1])
                 k, c = lead
-                α += Sym(SymNumber(k)) * e
-                rest *= c^e * (b / (c * t^Sym(SymNumber(k))))^e
+                α += _sym(k) * e
+                rest *= c^e * (b / (c * t^_sym(k)))^e
                 found = true
                 continue
             end
@@ -911,7 +1018,11 @@ end
 # log(t) in terms of x: log(x - x0), or -log(x) at ∞ and -log(-x) at -∞
 _logt(s::SymSeries) = s.x0 isa Real && isinf(s.x0) ? -log(s.x0 > 0 ? s.x : -s.x) : log(_tvar(s))
 _coef(s::SymSeries, c::Sym) = subs(c, _LOGT => _logt(s))
-_term(s::SymSeries, e::Rational{Int}, c::Sym) = _coef(s, c) * _tvar(s)^Sym(SymNumber(e))
+# t^e in x: at ±∞ an irrational power as x^(-e) ((-x)^(-e)), x positive there ((1/x)^(-√2)
+# stays as it is)
+_tpow(s::SymSeries, e::_Ex) = s.x0 isa Real && isinf(s.x0) && !_isrational(e) ?
+    (s.x0 > 0 ? s.x : -s.x)^(-_sym(e)) : _tvar(s)^_sym(e)
+_term(s::SymSeries, e::_Ex, c::Sym) = _coef(s, c) * _tpow(s, e)
 
 _psexpr(s::SymSeries, p::_PS) = _add_many(_term(s, e, c) for (e, c) in zip(p.e, p.c))
 # the factor exp(g), exp(g) cos(h) or exp(g) sin(h) of a piece, in x
@@ -960,18 +1071,18 @@ function _series_scale(s::SymSeries, v::Sym)
     (m.kind == NUMBER && isexact(m.num) && m.num > N0) || bad()
     c = cancel(v / s.x^m)
     has(c, s.x) && bad()
-    mr = Rational{Int}(_numerator(m.num), _denominator(m.num))
-    ps = _PS(s.ps.e .* mr, Sym[ci * c^Sym(SymNumber(e)) for (e, ci) in zip(s.ps.e, s.ps.c)],
+    mr = _ex_of(m)
+    ps = _PS(s.ps.e .* mr, Sym[ci * c^_sym(e) for (e, ci) in zip(s.ps.e, s.ps.c)],
              s.ps.o == _INF ? _INF : s.ps.o * mr)
     SymSeries(s.x, s.x0, ps, s.n * mr)
 end
 
 # a term as printed: the coefficient, then the power of (x - x0), not multiplied out
 # (multiplying would distribute the coefficient over x - x0)
-function _termstring(s::SymSeries, e::Rational{Int}, c::Sym)
+function _termstring(s::SymSeries, e::_Ex, c::Sym)
     atinf = s.x0 isa Real && isinf(s.x0)
     (iszero(e) || atinf || s.x0 isa Sym && iszero(s.x0)) && return string(_term(s, e, c))
-    p = _tvar(s)^Sym(SymNumber(e))
+    p = _tvar(s)^_sym(e)
     ps = e == 1 ? "(" * string(_tvar(s)) * ")" : string(p)
     k = _coef(s, c)
     isone(k) && return ps
@@ -1002,7 +1113,8 @@ function _psstring(s::SymSeries, p::_PS)
 end
 function _ostring(s::SymSeries, o)                   # at ±∞, in powers of 1/x either way
     ot = s.x0 isa Real && isinf(s.x0) ? inv(s.x) : _tvar(s)
-    "O(" * (o == 1 && ot.kind == ADD ? "(" * string(ot) * ")" : string(ot^Sym(SymNumber(o)))) * ")"
+    p = s.x0 isa Real && isinf(s.x0) && !_isrational(o) ? s.x^(-_sym(o)) : ot^_sym(o)
+    "O(" * (o == 1 && ot.kind == ADD ? "(" * string(ot) * ")" : string(p)) * ")"
 end
 
 function Base.show(io::IO, s::SymSeries)
@@ -1033,22 +1145,32 @@ _same(a::SymSeries, b::SymSeries) = (_eq(a.x, b.x) && (a.x0 isa Sym && b.x0 isa 
 _lift(s::SymSeries, c) = (c = Sym(c); has(c, s.x) && throw(ArgumentError("add a series, not an expression in $(s.x)")); _psconst(c))
 _with(a::SymSeries, ps::_PS, n = a.n, pre = a.pre) = _foldpre(SymSeries(a.x, a.x0, ps, n, _Piece[], pre))
 _with(a::SymSeries, r::_AS, n = a.n, pre = a.pre) = _foldpre(SymSeries(a.x, a.x0, r.plain, n, r.pcs, pre))
-# a power factor t^q with q a rational number (x^a with a => 1/2) moved into the exponents
-function _foldpre(s::SymSeries)
+# a power factor t^q with q a rational number (x^a with a => 1/2) moved into the exponents;
+# with irr, q an irrational constant too (x^π, kept as a factor until added to a series
+# without it)
+function _foldpre(s::SymSeries, irr::Bool = false)
     isone(s.pre) && return s
     s.pre.kind == POW || return s
     β = s.pre.args[2]
-    (β.kind == NUMBER && isexact(β.num)) || return s
+    (β.kind == NUMBER && isexact(β.num)) || irr || return s
+    q = _ex_of(β)
+    q === nothing && return s
     atinf = s.x0 isa Real && isinf(s.x0)
-    q = Rational{Int}(_numerator(β.num), _denominator(β.num)) * (atinf ? -1 : 1)
+    q = q * (atinf ? -1 : 1)
     sh(p::_PS) = _PS(p.e .+ q, p.c, p.o == _INF ? _INF : p.o + q)
     SymSeries(s.x, s.x0, sh(s.ps), s.n + q, _Piece[_Piece(r.G, r.k, r.H, sh(r.p)) for r in s.pcs], ONE)
 end
-# series with power prefactors (x^a (…)): added when equal, multiplied together
+# series with power prefactors (x^a (…)): added when equal (or both folded into the
+# exponents, x^π (…) + x), multiplied together
 _samepre(a::SymSeries, b::SymSeries) = _eq(a.pre, b.pre) ||
     throw(ArgumentError("series: adding series with different power factors ($(a.pre), $(b.pre)) is not supported"))
 _as(s::SymSeries) = _AS(s.ps, s.pcs)
-Base.:+(a::SymSeries, b::SymSeries) = (_same(a, b); _samepre(a, b); _with(a, _asadd(_as(a), _as(b)), min(a.n, b.n)))
+function Base.:+(a::SymSeries, b::SymSeries)
+    _same(a, b)
+    _eq(a.pre, b.pre) || ((a, b) = (_foldpre(a, true), _foldpre(b, true)))
+    _samepre(a, b)
+    _with(a, _asadd(_as(a), _as(b)), min(a.n, b.n))
+end
 Base.:*(a::SymSeries, b::SymSeries) = (_same(a, b); _with(a, _asmul(_as(a), _as(b)), min(a.n, b.n), a.pre * b.pre))
 Base.:-(a::SymSeries) = _with(a, _asscale(_as(a), -ONE))
 Base.:-(a::SymSeries, b::SymSeries) = a + (-b)
@@ -1073,7 +1195,7 @@ Base.:(==)(a::SymSeries, b::SymSeries) = _eq(a.x, b.x) && isequal(a.x0, b.x0) &&
 The series of the derivative, term by term; its order is one less (at a finite point).
 """
 # d/dt (c t^e) = (e c + dc/dlog t) t^(e-1)
-_psderiv(p::_PS) = _ps(p.e .- 1, [Sym(SymNumber(e)) * c + diff(c, _LOGT) for (e, c) in zip(p.e, p.c)], p.o - 1)
+_psderiv(p::_PS) = _ps(p.e .- 1, [_sym(e) * c + diff(c, _LOGT) for (e, c) in zip(p.e, p.c)], p.o - 1)
 
 # the derivative of Σ e^G trig(H) p, D the derivative of a series: e^G (trig(H) (DG p + Dp) + trig'(H) DH p)
 function _asdiff(r::_AS, D)
@@ -1099,7 +1221,7 @@ function _integrate_series(s::SymSeries, x::Sym)
     p = s.ps
     (any(e -> e == -1, p.e) || any(c -> has(c, _LOGT), p.c)) &&
         throw(ArgumentError("integrate: a series with a 1/(x - x0) or log term is not integrated term by term"))
-    SymSeries(s.x, s.x0, _ps(p.e .+ 1, [c / Sym(SymNumber(e + 1)) for (e, c) in zip(p.e, p.c)], p.o == _INF ? _INF : p.o + 1), s.n + 1)
+    SymSeries(s.x, s.x0, _ps(p.e .+ 1, [c / _sym(e + 1) for (e, c) in zip(p.e, p.c)], p.o == _INF ? _INF : p.o + 1), s.n + 1)
 end
 
 function Base.diff(s::SymSeries, x::Sym)

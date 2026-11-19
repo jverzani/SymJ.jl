@@ -1681,7 +1681,7 @@ function _ode_series(P::_ODE, Cs, N::Integer, x0, conds)
         S = sum(cs[j + 1] * t^j for j in 0:(m - 1))
         e = subs(ft, (P.ys[k + 1] => diff(S, t, k) for k in 0:(n - 1))...)
         ps = try _plain_ps(Base.invokelatest(SymJ.series, e, t, 0, m - n + 1)) catch; nothing end
-        if ps === nothing || any(<(0), ps.e) || any(r -> denominator(r) != 1, ps.e)
+        if ps === nothing || any(<(0), ps.e) || any(r -> !isinteger(r), ps.e)
             isempty(conds) || throw(ArgumentError("dsolve: $a is a singular point; no series solution with initial conditions"))
             return _ode_frobenius(P, Cs, N, a)
         end
@@ -1729,7 +1729,7 @@ function _ode_frobenius(P::_ODE, Cs, N::Integer, a::Sym)
     t, x = Sym(:_ode_t), P.x
     coefs(e) = begin
         ps = try _plain_ps(Base.invokelatest(SymJ.series, _ode_tidy(subs(e, x => a + t)), t, 0, N)) catch; nope() end
-        all(r -> r >= 0 && denominator(r) == 1, ps.e) || nope()        # an irregular singular point
+        all(r -> r >= 0 && isinteger(r), ps.e) || nope()        # an irregular singular point
         v = zeros(Sym, N)
         for (e_, c_) in zip(ps.e, ps.c)
             e_ < N && (v[Int(e_) + 1] = c_)
@@ -1775,7 +1775,7 @@ function _ode_frobenius(P::_ODE, Cs, N::Integer, a::Sym)
         for y in (y1, y2)
             R = _ode_residual(P, :explicit, y) * (x - a)^2 / A[3]
             ps = try _plain_ps(Base.invokelatest(SymJ.series, subs(R, x => a + t), t, 0, _jlnum(r2.num) + N)) catch; continue end
-            all(i -> ps.e[i] >= r2.num + N || iszero(simplify(ps.c[i])), eachindex(ps.e)) ||
+            all(i -> ps.e[i] >= _jlnum(r2.num) + N || iszero(simplify(ps.c[i])), eachindex(ps.e)) ||
                 throw(ArgumentError("dsolve: the series found does not satisfy the equation"))
         end
     end

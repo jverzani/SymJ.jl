@@ -240,7 +240,9 @@ transforms). Of the rest, in rough order of value for calculus-level use:
    their limits at ∞, #26040), and Stirling's series for `gamma` (#26096).
 10. **Gaps from the seventh SymPy review (#20909–#22408)**, none a wrong answer:
    - series: `log(log(x))` at 0, a logarithmic leading term inside log (#21227);
-     irrational exponents, `exp(w^(1/π))` (#21358); a small exponential inside an
+     irrational exponents, `exp(w^(1/π))` (#21358; done since: an exponent is a rational
+     plus an irrational constant, ordered numerically, so `x + x^√2` and `1/(1 + x^π)`
+     expand; symbolic exponents, `x^a + x^2`, still error); a small exponential inside an
      oscillating argument at ∞, `sin(1/x + e^(-x)) - sin(1/x)` (#21938).
    - `dsolve`: Riccati equations not in the recognized forms, `u' = (x + u)²` by the
      substitution w = x + u (#21503).
