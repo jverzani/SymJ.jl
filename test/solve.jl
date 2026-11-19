@@ -566,3 +566,20 @@ end
     @test_throws ArgumentError F([x ~ 1], [x, y])
     @test_throws ArgumentError F([x + Sym(:z) ~ 1, x - y ~ 0], [x, y])
 end
+
+@testset "linear_eq_to_matrix" begin
+    @syms a
+    A, b = SymJ.linear_eq_to_matrix([x + 2y ~ 3, a * x - y ~ 1], [x, y])
+    @test A == Sym[1 2; a -1]
+    @test b == Sym[3, 1]
+    @test A \ b == [Sym(5) / (2a + 1), (3a - 1) / (2a + 1)]
+    # terms on both sides, a missing unknown, fractions
+    A2, b2 = SymJ.linear_eq_to_matrix([x / 2 + 1 ~ y, z ~ 4 - x], (x, y, z))
+    @test A2 == Sym[Sym(1)//2 -1 0; 1 0 1]
+    @test b2 == Sym[-1, 4]
+    @test SymJ.linear_eq_to_matrix(x + y ~ 1, [x, y]) == (Sym[1 1], Sym[1])
+    @test_throws ArgumentError SymJ.linear_eq_to_matrix([x * y ~ 1], [x, y])
+    @test_throws ArgumentError SymJ.linear_eq_to_matrix([sin(x) ~ 1], [x])
+    @test_throws ArgumentError SymJ.linear_eq_to_matrix([x + y], [x, y])
+end
+

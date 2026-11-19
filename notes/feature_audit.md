@@ -123,7 +123,7 @@ separately (the review is recorded in [sympy_review/](sympy_review/README.md)). 
 | Matrix functions | `Matrix.exp`, `analytic_func` | `exp` (matrix), `matpow` | ✅ `exp`, `sin`, `cos`, `sqrt`, `log`, `A^n` (symbolic `n`) and `A^p` (non-integer `p`) through the Jordan form |
 | Determinant, inverse, solving | `Matrix` methods `det`, `inv`, `LUsolve` | `det`, `inverse`, `linsolve` | ✅ `det` (Bareiss for polynomials), `inv` (adjugate or Gauss–Jordan over rational functions), `A \ b`, exactly with first-nonzero pivoting |
 | Row reduction, null space, rank | `Matrix` methods `rref`, `nullspace`, `rank` | `rref`, `ker`, `rank` | ✅ `SymJ.rref`, `nullspace`, `rank` (generic: symbolic pivots nonzero); no right-hand-side option reducing only the coefficient columns (SymPy #25661) |
-| Linear equations to matrix form | `linear_eq_to_matrix` | — | ❌ (SymPy #25423) |
+| Linear equations to matrix form | `linear_eq_to_matrix` | — | ✅ `SymJ.linear_eq_to_matrix(eqs, vars)` gives `(A, b)` (SymPy #25423) |
 | Eigenvalues, eigenvectors, Jordan form | `Matrix` methods `eigenvals`, `eigenvects`, `jordan_form` | `eigenvals`, `eigenvects`, `jordan` | ✅ `eigvals` (with multiplicity), `eigvecs`, `eigen` (diagonalizable), `SymJ.charpoly`, `SymJ.jordan_form` |
 | LU, QR, SVD | `Matrix` methods `LUdecomposition`, `QRdecomposition` | `lu`, `qr`, `svd` | ✅ `lu` (a `LinearAlgebra.LU`), `qr` (exact Gram–Schmidt), `svd` and `svdvals` (a `LinearAlgebra.SVD`; squared singular values of degree at most 2 over the rationals) |
 | Smith normal form | `smith_normal_form`, `smith_normal_decomp` (`sympy.matrices.normalforms`) | `smith`, `ismith` | ❌ (SymPy #29139); Hermite normal form (`hermite_normal_form`) too (SymPy #28601); unimodular transforms (#25759) |
