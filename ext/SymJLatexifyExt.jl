@@ -132,7 +132,8 @@ function _negated(n)
 end
 # functions named like a Greek letter whose symbol is the capital: Γ(x) (not γ, Euler's
 # constant), the beta function B(x, y) (SymPy #3911)
-const _FNTEX = Dict(:gamma => :Γ, :beta => Latexify.LaTeXString("\\mathrm{B}"))
+const _FNTEX = Dict(:gamma => :Γ, :beta => Latexify.LaTeXString("\\mathrm{B}"),
+                    :fresnels => Latexify.LaTeXString("\\mathrm{S}"), :fresnelc => Latexify.LaTeXString("\\mathrm{C}"))
 
 # pieces c => v (Exprs), the last with condition true
 function _ifchain(pairs, head = :if)

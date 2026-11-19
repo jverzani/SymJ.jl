@@ -186,6 +186,12 @@ function _limit(f, xx0::Pair, dir, assume)
             _spherical_bessel_elementary(t.name === :sphericalbesselj, _toint(n.num), t.args[2])
         end
     end
+    # Fresnel integrals: of an argument tending to ±∞, their asymptotic expansions, the
+    # answer checked with a term more; else in erf, which Gruntz takes
+    if _has_node(f, t -> t.kind == FN && t.name in (:fresnels, :fresnelc) && has(t, x))
+        L = Base.inferencebarrier(_fresnel_limit)(f, x, x0, dir, assume)
+        L === nothing || return L
+    end
     # Airy functions are entire: at a finite point, with x only in polynomials and Airy
     # functions, the limit is the value there (airyai(2), not a Bessel form; arguments ≤ 0
     # too, which Gruntz refuses)

@@ -134,14 +134,15 @@ function _complex_float(a::Sym)
     ComplexF64(Float64(a.num), Float64(b))
 end
 
-# a Float64 value that is an integer or pπ/q (q ≤ 12) to the last bits, as that exact
-# number; else nothing
+# a Float64 value that is an integer, a half-integer, or pπ/q (q ≤ 12) to the last bits, as
+# that exact number; else nothing (fresnels(∞) = 1/2)
 function _exact_limit_value(v::Sym)
     v.kind == NUMBER && isfloat(v.num) || return nothing
     c = _evalc(v)
     (iszero(imag(c)) && isfinite(real(c))) || return nothing
     f = real(c)
     isinteger(f) && abs(f) < 2^52 && return Sym(Int(f))
+    isinteger(2f) && abs(f) < 2^51 && return Sym(Int(2f) // 2)
     for q in 1:12
         p = round(f * q / π)
         (p != 0 && abs(p) <= 48 && abs(f - p * π / q) <= 4eps(abs(f))) && return Sym(Rational{Int}(Int(p), q)) * PI
