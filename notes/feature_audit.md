@@ -430,7 +430,8 @@ transforms). Of the rest, in rough order of value for calculus-level use:
 20. **Gaps from the seventeenth SymPy review (#5909–#7408)**:
    - dsolve: Bessel-type equations, x y'' = 2y as √x (C₁ I₁(√(8x)) + C₂ K₁(√(8x))) (#7224).
    - series: a symbolic exponent of a vanishing base, log(x)^a at x = 1 as
-     (x - 1)^a (1 + …), needs series with symbolic exponents (#7168); Bessel functions of
+     (x - 1)^a (1 + …), needs series with symbolic exponents (#7168; done since: such
+     powers are a factor x^a of the series); Bessel functions of
      half-integer order as elementary functions (#6154).
    - simplify: fractions in a tower of radicals, 1/(s + 1) + 1/(s - 1) + s with
      s = √(2 + √5), reduced over ℚ(√5)(s) (#6651); the zero of a quartic's root in a
@@ -489,7 +490,7 @@ transforms). Of the rest, in rough order of value for calculus-level use:
    - a symbolic product ∏ (#3410, #3284); sums over the roots of a polynomial (RootSum,
      #3674); RootOf objects (#3150).
    - series: symbolic exponents at a branch point, `series(w^a, w, 0, 2)` (#4047, as
-     #7168); a `dir` keyword (#4162); Order objects (#4279, #4266); convergence
+     #7168; done since: a factor `w^a` of the series); a `dir` keyword (#4162); Order objects (#4279, #4266); convergence
      acceleration (#3543).
    - closed forms of the alternating series Σ (-1)ᵏ log k / k = γ log 2 - log² 2/2 (#4189)
      and Σ (-1)ᵏ (ζ(k) - 1)/(k 2ᵏ) = log(3√π/4) + (γ - 1)/2 (#4188); both open in SymPy.

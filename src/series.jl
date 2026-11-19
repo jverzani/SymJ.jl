@@ -757,8 +757,10 @@ struct SymSeries
     ps::_PS                  # in t (x = x0 + t, x = 1/t or x = -1/t), log(t) as _LOGT
     n::Rational{Int}         # the order asked for (bounds the terms of an exact series)
     pcs::Vector{_Piece}      # at ±∞: terms with a factor e^g, e^g cos h or e^g sin h
+    pre::Sym                 # a factor t^α of the whole (α not a rational number: x^π, x^a), or 1
 end
-SymSeries(x, x0, ps::_PS, n) = SymSeries(x, x0, ps, n, _Piece[])
+SymSeries(x, x0, ps::_PS, n) = SymSeries(x, x0, ps, n, _Piece[], ONE)
+SymSeries(x, x0, ps::_PS, n, pcs::Vector{_Piece}) = SymSeries(x, x0, ps, n, pcs, ONE)
 
 """
     series(ex, x, x0 = 0, n = 6)
@@ -780,6 +782,13 @@ expansions of `erf`, `erfc`, `erfi`, `erfcx`, `expinti`, `expint`, `sinint`, `co
 `erf(x)` at `Inf` is `1 - exp(-x^2)*(1/(√π x) - …)`, not `1`. For `besseli` the term of
 relative size `exp(-2x)` is left out, as is usual for real arguments.
 
+A power with an exponent that is not a rational number (`x^π`, `x^a`, `sin(x)^√2`) of a
+base vanishing or infinite at the point is a factor of the whole: `x^a*(series)`, its terms
+and error counted in the series (`x^a*exp(x)` is `x^a*(1 + x + x^2/2 + O(x^3))`), the base
+written `b = c t^k (b/(c t^k))` with `t = x - x0`; at `±Inf` the factor is a power of `x`
+(of `-x` at `-Inf`). Series with the same factor add; products, powers and `diff` combine
+the factors.
+
 The result is a [`SymSeries`](@ref); `Sym(s)` gives the truncated expression.
 
 ```julia
@@ -790,6 +799,7 @@ series(exp(x), x, 1, 3)        # ℯ + ℯ*(x - 1) + ℯ*(x - 1)^2/2 + O((x - 1)
 series(sqrt(x^2 + x), x, Inf, 3)   # x + 1/2 - 1/(8x) + 1/(16x^2) + O(1/x^3)
 series(x^x, x, 0, 2)           # 1 + log(x)*x + O(x^2)
 series(erf(x), x, Inf, 4)      # 1 + exp(-x^2)*(-1/(sqrt(π)*x) + 1/(2*sqrt(π)*x^3) + O(1/x^4))
+series(x^a * exp(x), x, 0, 3)  # x^a*(1 + x + x^2/2 + O(x^3))
 ```
 
 An expression with no series at the point (an essential singularity such as `exp(1/x)`
@@ -807,6 +817,16 @@ function series(ex, x::Sym, x0 = 0, n::Real = 6)
     end
     x0 isa Sym && x0.kind != NUMBER && !_hassymbol(x0) && (try isinf(N(x0)) catch; false end) &&
         throw(ArgumentError("series: the point $x0 is infinite; use Inf or -Inf"))
+    # powers b^e with e not a rational number (x^π, x^a) of a base vanishing or infinite at
+    # the point: their t^(k e) (b ~ c t^k) in front of the series of the rest, whose base
+    # tends to 1 (x^a (1 + x) is x^a (1 + x); SymPy #4047, #7168)
+    pf = _power_prefactor(ex, x, x0)
+    if pf !== nothing
+        pre, rest = pf
+        r = series(rest, x, x0, n)
+        r isa SymSeries || (r = SymSeries(x, x0 isa Real && isinf(x0) ? x0 : Sym(x0), _psconst(Sym(r)), Rational{Int}(rationalize(n))))
+        return SymSeries(r.x, r.x0, r.ps, r.n, r.pcs, r.pre * pre)
+    end
     sub = x0 isa Real && isinf(x0) ? (x0 > 0 ? inv(_T) : -inv(_T)) : Sym(x0) + _T
     ext = subs(ex, x => sub)
     order = Rational{Int}(rationalize(n))
@@ -841,6 +861,48 @@ function series(ex, x::Sym, x0 = 0, n::Real = 6)
     throw(ArgumentError("series: could not determine the series of $ex to order $n (too much cancellation)"))
 end
 
+# (t^α, the rest) for the factors b^e of ex with e not a rational number, b → 0 or ∞ at x0:
+# b ~ c t^k (its series' leading term, k ≠ 0), b^e = t^(k e) c^e (b/(c t^k))^e (t = x - x0 > 0,
+# or 1/x, -1/x at ±∞); nothing when ex has none
+function _power_prefactor(ex::Sym, x::Sym, x0)
+    pairs = ex.kind == MUL ? collect(zip(ex.args, ex.exps)) : ex.kind == POW ? [(ex.args[1], ex.args[2])] : Tuple{Sym,Sym}[]
+    isempty(pairs) && return nothing
+    atinf = x0 isa Real && isinf(x0)
+    t = atinf ? (x0 > 0 ? inv(x) : -inv(x)) : x - Sym(x0)
+    α, rest, found = ZERO, ex.kind == MUL ? Sym(ex.num) : ONE, false
+    for (b, e) in pairs
+        if has(b, x) && !has(e, x) && !(e.kind == NUMBER && isexact(e.num)) && !(b === E)
+            lead = _series_lead(b, x, x0)
+            if lead !== nothing && !iszero(lead[1])
+                k, c = lead
+                α += Sym(SymNumber(k)) * e
+                rest *= c^e * (b / (c * t^Sym(SymNumber(k))))^e
+                found = true
+                continue
+            end
+        end
+        rest *= b^e
+    end
+    found || return nothing
+    # (t^α as x^(-α) at +∞, (-x)^(-α) at -∞, where x and -x are positive)
+    atinf ? (x0 > 0 ? x : -x)^(-α) : t^α, rest
+end
+
+# the leading term c t^k (k rational) of b's series at x0, or nothing (no plain leading term)
+function _series_lead(b::Sym, x::Sym, x0)
+    for n in (1, 2, 4, 8)
+        sb = try series(b, x, x0, n) catch err; err isa ArgumentError || rethrow(); return nothing end
+        (isempty(sb.pcs) && isone(sb.pre)) || return nothing
+        isempty(sb.ps.e) && continue
+        has(sb.ps.c[1], _LOGT) && return nothing
+        return sb.ps.e[1], sb.ps.c[1]
+    end
+    nothing
+end
+
+# a series' plain terms, for code that reads them: an error with a power factor (x^a)
+_plain_ps(s::SymSeries) = isone(s.pre) ? s.ps : throw(ArgumentError("series: a power factor $(s.pre)"))
+
 # t and log(t) in terms of x
 function _tvar(s::SymSeries)
     s.x0 isa Real && isinf(s.x0) && return s.x0 > 0 ? inv(s.x) : -inv(s.x)
@@ -859,7 +921,7 @@ function _pfactor(s::SymSeries, q::_Piece)
     h = _psexpr(s, q.H)
     f * (q.k === :cos ? cos(h) : sin(h))
 end
-Sym(s::SymSeries) = _add_many(vcat([_psexpr(s, s.ps)], [_pfactor(s, q) * _psexpr(s, q.p) for q in s.pcs]))
+Sym(s::SymSeries) = s.pre * _add_many(vcat([_psexpr(s, s.ps)], [_pfactor(s, q) * _psexpr(s, q.p) for q in s.pcs]))
 (s::SymSeries)(args...; kws...) = Sym(s)(args...; kws...)
 
 # subs into a series: a parameter's value into the coefficients; x => c x^m (m > 0) about
@@ -873,7 +935,7 @@ function subs(s::SymSeries, ps::Pair...)
             s = _series_scale(s, v)
         elseif !has(v, s.x)
             sc(q::_PS) = _PS(q.e, Sym[subs(c, k => v) for c in q.c], q.o)
-            s = SymSeries(s.x, s.x0, sc(s.ps), s.n, _Piece[_Piece(sc(q.G), q.k, sc(q.H), sc(q.p)) for q in s.pcs])
+            s = _foldpre(SymSeries(s.x, s.x0, sc(s.ps), s.n, _Piece[_Piece(sc(q.G), q.k, sc(q.H), sc(q.p)) for q in s.pcs], subs(s.pre, k => v)))
         else
             throw(ArgumentError("subs: $k => $v does not keep the series a series in $(s.x); use subs(Sym(s), …) for the truncated expression"))
         end
@@ -884,14 +946,14 @@ end
 # expression, dropping O(xⁿ) unannounced; SymPy #14622)
 function simplify(s::SymSeries; assume = nothing)
     sc(q::_PS) = _PS(q.e, Sym[simplify(c; assume) for c in q.c], q.o)
-    SymSeries(s.x, s.x0, sc(s.ps), s.n, _Piece[_Piece(q.G, q.k, q.H, sc(q.p)) for q in s.pcs])
+    SymSeries(s.x, s.x0, sc(s.ps), s.n, _Piece[_Piece(q.G, q.k, q.H, sc(q.p)) for q in s.pcs], s.pre)
 end
 numer_denom(s::SymSeries) = throw(ArgumentError(
     "numer_denom: a series has no numerator and denominator; use numer_denom(Sym(s)) for the truncated expression"))
 
 function _series_scale(s::SymSeries, v::Sym)
     bad() = throw(ArgumentError("subs: a series about 0 takes $(s.x) => c*$(s.x)^m (m > 0); use subs(Sym(s), …) for the truncated expression"))
-    (s.x0 isa Sym && iszero(s.x0) && isempty(s.pcs)) || bad()
+    (s.x0 isa Sym && iszero(s.x0) && isempty(s.pcs) && isone(s.pre)) || bad()
     any(c -> has(c, _LOGT), s.ps.c) && bad()
     m = v.kind == MUL ? sum((q for (b, q) in zip(v.args, v.exps) if _eq(b, s.x)); init = ZERO) :
         v.kind == POW ? (_eq(v.args[1], s.x) ? v.args[2] : ZERO) : (_eq(v, s.x) ? ONE : ZERO)
@@ -944,6 +1006,13 @@ function _ostring(s::SymSeries, o)                   # at ±∞, in powers of 1/
 end
 
 function Base.show(io::IO, s::SymSeries)
+    if !isone(s.pre)                                   # x^a*(1 + x + O(x^3))
+        (s.ps.o == _INF && isempty(s.pcs)) && return print(io, Sym(s))   # (exact: x^a, x^a*(x + 1))
+        print(io, s.pre, "*(")
+        show(io, SymSeries(s.x, s.x0, s.ps, s.n, s.pcs, ONE))
+        print(io, ")")
+        return
+    end
     # with pieces, a plain part that is only O(…) goes last
     onlyo = !isempty(s.pcs) && isempty(s.ps.e)
     str = isempty(s.pcs) || !onlyo ? _psstring(s, s.ps) : ""
@@ -962,25 +1031,39 @@ Base.show(io::IO, ::MIME"text/plain", s::SymSeries) = show(io, s)
 _same(a::SymSeries, b::SymSeries) = (_eq(a.x, b.x) && (a.x0 isa Sym && b.x0 isa Sym ? _eq(a.x0, b.x0) : isequal(a.x0, b.x0))) ||
     throw(ArgumentError("series about different points or in different variables"))
 _lift(s::SymSeries, c) = (c = Sym(c); has(c, s.x) && throw(ArgumentError("add a series, not an expression in $(s.x)")); _psconst(c))
-_with(a::SymSeries, ps::_PS, n = a.n) = SymSeries(a.x, a.x0, ps, n)
-_with(a::SymSeries, r::_AS, n = a.n) = SymSeries(a.x, a.x0, r.plain, n, r.pcs)
+_with(a::SymSeries, ps::_PS, n = a.n, pre = a.pre) = _foldpre(SymSeries(a.x, a.x0, ps, n, _Piece[], pre))
+_with(a::SymSeries, r::_AS, n = a.n, pre = a.pre) = _foldpre(SymSeries(a.x, a.x0, r.plain, n, r.pcs, pre))
+# a power factor t^q with q a rational number (x^a with a => 1/2) moved into the exponents
+function _foldpre(s::SymSeries)
+    isone(s.pre) && return s
+    s.pre.kind == POW || return s
+    β = s.pre.args[2]
+    (β.kind == NUMBER && isexact(β.num)) || return s
+    atinf = s.x0 isa Real && isinf(s.x0)
+    q = Rational{Int}(_numerator(β.num), _denominator(β.num)) * (atinf ? -1 : 1)
+    sh(p::_PS) = _PS(p.e .+ q, p.c, p.o == _INF ? _INF : p.o + q)
+    SymSeries(s.x, s.x0, sh(s.ps), s.n + q, _Piece[_Piece(r.G, r.k, r.H, sh(r.p)) for r in s.pcs], ONE)
+end
+# series with power prefactors (x^a (…)): added when equal, multiplied together
+_samepre(a::SymSeries, b::SymSeries) = _eq(a.pre, b.pre) ||
+    throw(ArgumentError("series: adding series with different power factors ($(a.pre), $(b.pre)) is not supported"))
 _as(s::SymSeries) = _AS(s.ps, s.pcs)
-Base.:+(a::SymSeries, b::SymSeries) = (_same(a, b); _with(a, _asadd(_as(a), _as(b)), min(a.n, b.n)))
-Base.:*(a::SymSeries, b::SymSeries) = (_same(a, b); _with(a, _asmul(_as(a), _as(b)), min(a.n, b.n)))
+Base.:+(a::SymSeries, b::SymSeries) = (_same(a, b); _samepre(a, b); _with(a, _asadd(_as(a), _as(b)), min(a.n, b.n)))
+Base.:*(a::SymSeries, b::SymSeries) = (_same(a, b); _with(a, _asmul(_as(a), _as(b)), min(a.n, b.n), a.pre * b.pre))
 Base.:-(a::SymSeries) = _with(a, _asscale(_as(a), -ONE))
 Base.:-(a::SymSeries, b::SymSeries) = a + (-b)
-Base.inv(a::SymSeries) = _with(a, _asinv(_as(a), a.n))
+Base.inv(a::SymSeries) = _with(a, _asinv(_as(a), a.n), a.n, inv(a.pre))
 Base.:/(a::SymSeries, b::SymSeries) = a * inv(b)
-Base.:^(a::SymSeries, k::Integer) = _with(a, _aspowk(_as(a), k, a.n))
+Base.:^(a::SymSeries, k::Integer) = _with(a, _aspowk(_as(a), k, a.n), a.n, a.pre^k)
 function Base.:^(a::SymSeries, r::Rational)
     isempty(a.pcs) || throw(ArgumentError("series: a fractional power of a series with exponential or oscillating factors is not supported"))
-    _with(a, _pspow(a.ps, Sym(r), a.n))
+    _with(a, _pspow(a.ps, Sym(r), a.n), a.n, a.pre^Sym(r))
 end
 for op in (:+, :*, :-, :/)
-    @eval Base.$op(a::SymSeries, c::Union{Number,Sym}) = $op(a, _with(a, _lift(a, c)))
-    @eval Base.$op(c::Union{Number,Sym}, a::SymSeries) = $op(_with(a, _lift(a, c)), a)
+    @eval Base.$op(a::SymSeries, c::Union{Number,Sym}) = $op(a, _with(a, _lift(a, c), a.n, ONE))
+    @eval Base.$op(c::Union{Number,Sym}, a::SymSeries) = $op(_with(a, _lift(a, c), a.n, ONE), a)
 end
-Base.:(==)(a::SymSeries, b::SymSeries) = _eq(a.x, b.x) && isequal(a.x0, b.x0) && _pseq(a.ps, b.ps) &&
+Base.:(==)(a::SymSeries, b::SymSeries) = _eq(a.x, b.x) && isequal(a.x0, b.x0) && _pseq(a.ps, b.ps) && _eq(a.pre, b.pre) &&
     length(a.pcs) == length(b.pcs) &&
     all(any(q.k === r.k && _pseq(q.G, r.G) && _pseq(q.H, r.H) && _pseq(q.p, r.p) for r in b.pcs) for q in a.pcs)
 
@@ -1012,6 +1095,7 @@ function _integrate_series(s::SymSeries, x::Sym)
     _eq(x, s.x) || throw(ArgumentError("integrate: the series is in $(s.x), not $x"))
     (s.x0 isa Real && isinf(s.x0)) && throw(ArgumentError("integrate: a series at ±∞ is not integrated term by term"))
     isempty(s.pcs) || throw(ArgumentError("integrate: a series with exponential terms is not integrated term by term"))
+    isone(s.pre) || throw(ArgumentError("integrate: a series with a power factor $(s.pre) is not integrated term by term"))
     p = s.ps
     (any(e -> e == -1, p.e) || any(c -> has(c, _LOGT), p.c)) &&
         throw(ArgumentError("integrate: a series with a 1/(x - x0) or log term is not integrated term by term"))
@@ -1019,6 +1103,20 @@ function _integrate_series(s::SymSeries, x::Sym)
 end
 
 function Base.diff(s::SymSeries, x::Sym)
+    if !isone(s.pre)
+        # t^α g: (t^α g)' = t^α (g' + α g/t) in x - x0; in a parameter, t^α (∂g + ∂α log(t) g)
+        (s.x0 isa Real && isinf(s.x0)) && throw(ArgumentError("diff: a series at ±∞ with a power factor $(s.pre)"))
+        isempty(s.pcs) || throw(ArgumentError("diff: a series with a power factor and exponential terms"))
+        α = s.pre.kind == POW ? s.pre.args[2] : s.pre.kind == MUL ? s.pre.exps[1] : ONE
+        g = s.ps
+        if _eq(x, s.x)
+            d = _psadd(_psderiv(g), _psscale(_ps(g.e .- 1, g.c, g.o - 1), α))
+            return _with(s, d, s.n - 1)
+        end
+        dα = diff(α, x)
+        d = _ps(g.e, [diff(c, x) + dα * _LOGT * c for c in g.c], g.o)
+        return _with(s, d)
+    end
     _eq(x, s.x) || return _with(s, _asdiff(_as(s), p -> _ps(p.e, [diff(c, x) for c in p.c], p.o)))
     d = _asdiff(_as(s), _psderiv)
     s.x0 isa Real && isinf(s.x0) || return _with(s, d, s.n - 1)

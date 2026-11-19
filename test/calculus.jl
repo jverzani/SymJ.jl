@@ -273,3 +273,20 @@ end
     @test_throws ArgumentError N(Int4(1 / x, x, -1, 1))
 end
 
+@testset "series with a power factor (exponent not rational)" begin
+    @syms a
+    s = series(x^a * exp(x), x, 0, 3)
+    @test isequal(s.pre, x^a)
+    @test Sym(s) == x^a * (1 + x + x^2 / 2)
+    @test Sym(series(x^PI * sin(x), x, 0, 6)) == x^PI * (x - x^3 / 6 + x^5 / 120)
+    @test Sym(series(sin(x)^PI, x, 0, 4)) == x^PI * (1 - PI * x^2 / 6)
+    @test isequal(series(log(x)^a, x, 1, 3).pre, (x - 1)^a)          # SymPy #7168
+    @test Sym(series(x^a / (1 + x), x, Inf, 3)) == x^a * (1 / x - 1 / x^2)
+    @test isequal(Sym(series(x^sqrt(Sym(2)), x, 0, 3)), x^sqrt(Sym(2)))
+    # diff, products, a rational exponent substituted into the ordinary series
+    @test iszero(simplify(Sym(diff(s, x)) - expand(diff(x^a * (1 + x + x^2 / 2), x))))
+    @test isequal((s * series(x^a, x, 0, 3)).pre, x^(2a))
+    @test Sym(subs(s, a => Sym(1) // 2)) == sqrt(x) + x^(Sym(3) // 2) + x^(Sym(5) // 2) / 2
+    @test_throws ArgumentError s + series(exp(x), x, 0, 3)
+end
+

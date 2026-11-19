@@ -1680,7 +1680,7 @@ function _ode_series(P::_ODE, Cs, N::Integer, x0, conds)
     for m in n:(N - 1)
         S = sum(cs[j + 1] * t^j for j in 0:(m - 1))
         e = subs(ft, (P.ys[k + 1] => diff(S, t, k) for k in 0:(n - 1))...)
-        ps = try Base.invokelatest(SymJ.series, e, t, 0, m - n + 1).ps catch; nothing end
+        ps = try _plain_ps(Base.invokelatest(SymJ.series, e, t, 0, m - n + 1)) catch; nothing end
         if ps === nothing || any(<(0), ps.e) || any(r -> denominator(r) != 1, ps.e)
             isempty(conds) || throw(ArgumentError("dsolve: $a is a singular point; no series solution with initial conditions"))
             return _ode_frobenius(P, Cs, N, a)
@@ -1707,7 +1707,7 @@ end
 function _ode_series_check(P::_ODE, St::Sym, t::Sym, a::Sym, m::Integer, shift = 0)
     m <= 0 && return true
     R = subs(P.F, P.x => a + t, (P.ys[k + 1] => diff(St, t, k) for k in 0:P.n)...)
-    ps = try Base.invokelatest(SymJ.series, R, t, 0, shift + m).ps catch; return true end
+    ps = try _plain_ps(Base.invokelatest(SymJ.series, R, t, 0, shift + m)) catch; return true end
     # (with floats, a coefficient that is a rounding residue is 0: 4.0 for 4; SymPy #22525)
     all(i -> ps.e[i] >= shift + m || iszero(simplify(ps.c[i])) ||
              (!_isexactex(ps.c[i]) && _ode_numzero(ps.c[i], free_symbols(ps.c[i])) === true), eachindex(ps.e))
@@ -1728,7 +1728,7 @@ function _ode_frobenius(P::_ODE, Cs, N::Integer, a::Sym)
     iszero(g) || nope()
     t, x = Sym(:_ode_t), P.x
     coefs(e) = begin
-        ps = try Base.invokelatest(SymJ.series, _ode_tidy(subs(e, x => a + t)), t, 0, N).ps catch; nope() end
+        ps = try _plain_ps(Base.invokelatest(SymJ.series, _ode_tidy(subs(e, x => a + t)), t, 0, N)) catch; nope() end
         all(r -> r >= 0 && denominator(r) == 1, ps.e) || nope()        # an irregular singular point
         v = zeros(Sym, N)
         for (e_, c_) in zip(ps.e, ps.c)
@@ -1774,7 +1774,7 @@ function _ode_frobenius(P::_ODE, Cs, N::Integer, a::Sym)
     if r2.kind == NUMBER
         for y in (y1, y2)
             R = _ode_residual(P, :explicit, y) * (x - a)^2 / A[3]
-            ps = try Base.invokelatest(SymJ.series, subs(R, x => a + t), t, 0, _jlnum(r2.num) + N).ps catch; continue end
+            ps = try _plain_ps(Base.invokelatest(SymJ.series, subs(R, x => a + t), t, 0, _jlnum(r2.num) + N)) catch; continue end
             all(i -> ps.e[i] >= r2.num + N || iszero(simplify(ps.c[i])), eachindex(ps.e)) ||
                 throw(ArgumentError("dsolve: the series found does not satisfy the equation"))
         end
