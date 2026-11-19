@@ -84,8 +84,11 @@ function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Boo
         t = Sym(Symbol("_tpath"))
         g = subs(Sym(f), x => lo + t * (hi - lo)) * (hi - lo)
         anti = _PathAntider(antider, Sym(f), x, lo + t * (hi - lo), t, g)
+        # (through an inference barrier: inferring this call inside _definite_integral's own
+        # inference, a recursion with another antider type, did not end once SymEngine's methods
+        # were loaded too; the docs' half circle with SymEngine and SymJ in one module)
         return with(_ON_PATH => true) do
-            _definite_integral(g, (t, ZERO, ONE), assume, anti; principal_value)
+            Base.inferencebarrier(_definite_integral)(g, (t, ZERO, ONE), assume, anti; principal_value)
         end
     end
     # over the whole line, a product with two or more deltas in x: sifted by one, δ(m x + c)
