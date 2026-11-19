@@ -290,3 +290,27 @@ end
     @test_throws ArgumentError s + series(exp(x), x, 0, 3)
 end
 
+@testset "series with irrational exponents (SymPy #21358)" begin
+    r2 = sqrt(Sym(2))
+    @syms w a
+    @test isequal(Sym(series(exp(w^(1 / PI)), w, 0, 1)), 1 + w^(1 / PI) + w^(2 / PI) / 2 + w^(3 / PI) / 6)
+    @test string(series(x + x^r2, x)) == "x + x^sqrt(2) + O(x^6)"
+    @test string(series(1 / (1 + x^PI), x, 0, 7)) == "1 - x^π + x^(2*π) + O(x^7)"
+    @test string(series(x^2 + x^PI, x, 0, 3)) == "x^2 + O(x^3)"                   # π > 3
+    @test isequal(Sym(series((1 + x^r2)^2, x, 0, 3)), 1 + 2x^r2 + x^(2r2))
+    @test isequal(Sym(series(sin(x)^r2, x, 0, 4)), x^r2 * (1 - r2 * x^2 / 6))     # (a factor)
+    # ordered by value: log 3/log 5 < 1
+    @test isequal(series(x + x^(log(Sym(3)) / log(Sym(5))), x, 0, 2).ps.c[1], Sym(1))
+    @test series(x + x^(log(Sym(3)) / log(Sym(5))), x, 0, 2).ps.e[2] == 1
+    @test string(series(x^r2 + x, x, Inf, 3)) == "x^sqrt(2) + x + O(1/x^3)"
+    @test string(series(x^r2 - x^(2 / r2) + x, x)) == "x"                          # 2/√2 = √2
+    # a factor x^π folded into the exponents when added to a series without it
+    @test isequal(Sym(series(x^PI * exp(x), x, 0, 2) + series(x, x, 0, 2)), x + x^PI + x^(PI + 1))
+    @test isequal(Sym(diff(series(x + x^r2, x, 0, 3), x)), 1 + r2 * x^(r2 - 1))
+    # numerically: 1/(1 + x^√2) at x = 1/100
+    v = Sym(series(1 / (1 + x^r2), x, 0, 5))
+    @test abs(N(subs(v, x => Sym(1 // 100))) - 1 / (1 + 0.01^sqrt(2))) < 1e-9
+    # a symbolic exponent: which term leads depends on a
+    @test_throws ArgumentError series(x^a + x^2, x)
+end
+
