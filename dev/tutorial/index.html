@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=b08f80dd">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=e3d0358f">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -2090,6 +2090,17 @@ ex, N(ex)</code></pre>
 </div>
 <pre class="md-output md-output-text"><code class="nohighlight ansi">(Integral(erf(y)*sqrt(π)/(2*y), (y, 0, 1)), 0.9059404763223627)</code></pre>
 </div>
+<p>Before keeping such an integral, SymJ tries differentiation under the integral sign (Feynman&#39;s trick). A constant <code class="md-code-inline">c</code> of the integrand becomes a parameter <code class="md-code-inline">a</code>, and the integral is found as <code class="md-code-inline">I(c) = I(a₀) + ∫ I&#39;(a) da</code> from a base point <code class="md-code-inline">a₀</code> (0 or 1) where it is known, with <code class="md-code-inline">I&#39;(a) = ∫ ∂f/∂a dx</code>. Here <code class="md-code-inline">I&#39;(a) = 2π/√(1 - a²)</code>:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">integrate(log((1 + cos(x)/2) / (1 - cos(x)/2)) / cos(x), (x, 0, π))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\frac{\pi^{2}}{3}\]
+</div>
+</div>
+<p>A value found this way is kept only when it agrees with the integral&#39;s numeric value, so a constant for which the exchange of derivative and integral is not valid gives no answer, never a wrong one.</p>
 <p><code class="md-code-inline">SymJ.Integral(f, (x, a, b))</code> (or <code class="md-code-inline">SymJ.Integral(f, x)</code>) writes an integral without integrating it; <code class="md-code-inline">integrate(ex)</code>, with no variable, carries out the integrals in <code class="md-code-inline">ex</code>, keeping those it cannot do:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -2519,6 +2530,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=b08f80dd"></script>
+  <script src="../assets/materialdocs.js?v=e3d0358f"></script>
 </body>
 </html>
