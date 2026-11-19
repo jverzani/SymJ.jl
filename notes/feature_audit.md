@@ -8,7 +8,7 @@ against its source and by running it. Updated 2026-10-25: series, assumptions, `
 with assumptions, `refine` and `simplify`, complex parts and LaTeX output are done.
 Updated 2026-11-01: the feature gaps found in a review of SymPy issues #28909–#30902 are
 added (and on 2026-11-02 those of #27909–#28908), each with its SymPy issue numbers. Updated 2026-11-04: those of #26909–#27908 and #25409–#26908 are added; on 2026-11-05 those of #23909–#25408; the review's correctness fixes are tracked
-separately. Names checked against SymPy 1.14 and Giac.jl's command table as before.
+separately (the review is recorded in [sympy_review/](sympy_review/README.md)). Names checked against SymPy 1.14 and Giac.jl's command table as before.
 
 **Legend:** ✅ has · ◐ partial · ❌ missing · ★ planned (all done: series, assumptions, a basic
 `simplify`, summation, differential equations)

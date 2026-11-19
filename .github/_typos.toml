@@ -18,3 +18,7 @@ iy = "iy"              # x + iy
 defint = "defint"      # definite integral
 anf = "anf"            # algebraic normal form
 desolve = "desolve"    # Sage's name
+
+# SymPy issue titles and notes quoted as written (their misspellings included)
+[files]
+extend-exclude = ["notes/sympy_review/issues.md", "notes/sympy_review/README.md"]
