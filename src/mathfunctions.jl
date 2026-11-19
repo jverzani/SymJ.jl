@@ -158,7 +158,7 @@ end
 # Float64 is in manipulation.jl; BigFloat at the current precision, through evalf (so
 # with digits lost to cancellation recovered); AbstractFloat as float
 function (::Type{T})(x::Sym) where {T<:AbstractFloat}
-    _hassymbol(x) && throw(InexactError(nameof(T), T, x))
+    _hasfree(x) && throw(InexactError(nameof(T), T, x))
     v = T === AbstractFloat ? float(x) : T === BigFloat ? evalf(x, BigFloat) : N(x)
     v isa Real || throw(InexactError(nameof(T), T, x))
     T === AbstractFloat ? v : T(v)

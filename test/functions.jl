@@ -285,3 +285,29 @@ end
     @test R(abs(exp(I * x)), x ∈ ℝ) == 1 && R(abs(x + I * y), x ∈ ℝ, y ∈ ℝ) == sqrt(x^2 + y^2)
     @test R(x ≫ real(x) - 1, x ∈ ℝ) === true
 end
+
+@testset "Fresnel integrals" begin
+    S, C = SymJ.fresnels, SymJ.fresnelc
+    # values (QuadGK's ∫₀¹ sin(πt²/2), cos(πt²/2)); the series near 0, erf beyond
+    @test S(1.0) ≈ 0.43825914739035476 rtol = 1e-14
+    @test C(1.0) ≈ 0.7798934003768228 rtol = 1e-14
+    @test S(0.001) ≈ π * 0.001^3 / 6 rtol = 1e-12
+    @test S(3.0) ≈ 0.49631299896737496 rtol = 1e-14
+    @test C(-2.0) ≈ -0.4882534060753408 rtol = 1e-14
+    @test S(1.2 + 0.9im) ≈ ComplexF64(S(big(1.2) + big(0.9) * im)) rtol = 1e-14   # erf form and series
+    @test setprecision(() -> S(big(3) / 2), BigFloat, 200) ≈ S(1.5) rtol = 1e-15
+    # exact values, oddness, derivative
+    @test S(Sym(0)) == 0
+    @test C(Sym(Inf)) == Sym(1) / 2
+    @test S(-x) == -S(x)
+    @test diff(S(x^2), x) == 2x * sin(PI * x^4 / 2)
+    @test N(C(Sym(1))) ≈ 0.7798934003768228 rtol = 1e-15
+    # limits: at ±∞ by the asymptotic expansion, at finite points by Taylor polynomials
+    @test limit(S(x), x => Inf) == Sym(1) / 2
+    @test limit(C(x), x => -Inf) == -Sym(1) / 2
+    @test limit(S(x) / x^3, x => 0) == PI / 6
+    @test limit(C(x) / x, x => 0) == 1
+    @test limit(S(1 / x), x => Inf) == 0
+    @test Sym(series(S(x), x, 0, 8)) == PI * x^3 / 6 - PI^3 * x^7 / 336
+end
+

@@ -1980,3 +1980,50 @@ function _abs_convergent_at_inf(f::Sym, x::Sym, A)
     end
     true
 end
+
+# A definite integral of f proven to have no elementary antiderivative, kept as the
+# unevaluated Integral(f, x, lo, hi) (decided 2026-11-16), whose N is by quadrature: when f
+# has no symbol but x, the ends are numbers, and the integral converges by these tests, so
+# a divergent one is not kept as a value: at each singular point s in [lo, hi] (x - s) f → 0
+# from inside, and at an infinite end x² f stays bounded, the sin and cos factors bounded by
+# 1. nothing otherwise (∫₀¹ e^(x³), ∫₀¹∫₀¹ e^(-x²y²); SymPy #5326)
+function _held_definite(f::Sym, x::Sym, lo::Sym, hi::Sym)
+    all(s -> _eq(s, x), free_symbols(f)) || return nothing
+    (_hassymbol(lo) || _hassymbol(hi)) && return nothing
+    _hasfn(f, :Integral) && return nothing
+    ok = try
+        _held_convergent(f, x, lo, hi)
+    catch err
+        err isa InterruptException && rethrow()
+        false
+    end
+    ok ? _mkfn_node(:Integral, Sym[f, x, lo, hi]) : nothing
+end
+
+function _held_convergent(f::Sym, x::Sym, lo::Sym, hi::Sym)
+    a, b = _less(hi, lo, Assumptions()) ? (hi, lo) : (lo, hi)
+    A = Assumptions()
+    for s in _singular_points(f, x, a, b)
+        _hassymbol(s) && return false
+        v = try _evalc(s) catch; return false end
+        abs(imag(v)) > 1e-12 && continue                     # off the line
+        r = real(v)
+        rl, rh = _isinfpt(a) ? -Inf : real(_evalc(a)), _isinfpt(b) ? Inf : real(_evalc(b))
+        (rl - 1e-12 <= r <= rh + 1e-12) || continue
+        for dir in (:+, :-)
+            (dir === :- && r <= rl + 1e-12) && continue          # (only from inside)
+            (dir === :+ && r >= rh - 1e-12) && continue
+            L = limit((x - s) * f, x => s; dir, assume = A)
+            (L isa Sym && iszero(L)) || return false
+        end
+    end
+    trig(u, p) = u.kind == FN && u.name in (:sin, :cos) && length(u.args) == 1 && p.kind == NUMBER && p.num > N0
+    g = f.kind == MUL ? Sym(f.num) * prod((u^p for (u, p) in zip(f.args, f.exps) if !trig(u, p)); init = ONE) : f
+    for e in (a, b)
+        _isinfpt(e) || continue
+        (_hasfn(g, :sin) || _hasfn(g, :cos)) && return false
+        L = limit(x^2 * g, x => e; assume = A)
+        (L isa Sym && L.kind == NUMBER && !_isinfpt(L)) || return false
+    end
+    true
+end

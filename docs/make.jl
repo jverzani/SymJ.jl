@@ -18,7 +18,7 @@ DocMeta.setdocmeta!(SymJ, :DocTestSetup, :(using SymJ); recursive=true)
 # (not committed).
 const REFERENCE = [
     (title = "Expressions and evaluation", file = "expressions",
-     files = ["SymJ.jl", "types.jl", "numbers.jl", "functions.jl", "arithmetic.jl", "relations.jl",
+     files = ["SymJ.jl", "types.jl", "numbers.jl", "functions.jl", "fresnel.jl", "arithmetic.jl", "relations.jl",
               "manipulation.jl", "identify.jl", "lambdify.jl"],
      first = ["SymJ", "@syms", "Sym", "SymFunction", "subs", "N"]),
     (title = "Polynomials", file = "polynomials",
@@ -38,7 +38,7 @@ const REFERENCE = [
     (title = "Sums and recurrences", file = "sums",
      files = ["summation.jl", "recurrence.jl"]),
     (title = "Matrices", file = "matrices",
-     files = ["linalg.jl"]),
+     files = ["linalg.jl", "normalforms.jl"]),
     (title = "Piecewise functions", file = "piecewise",
      files = ["piecewise.jl"]),
     (title = "Calculus", file = "calculus",

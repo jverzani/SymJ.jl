@@ -961,6 +961,34 @@ import PolyLog as PL
         VERSION >= v"1.12" && @test RischIntegrate.integrate((a / sqrt(x^2 + a^2))^3, (x, -1, 1)) == 2a / sqrt(a^2 + 1)
     end
 
+    @testset "no elementary antiderivative: the definite integral unevaluated" begin
+        @syms y
+        v = RischIntegrate.integrate(exp(x^3), (x, 0, 1))
+        @test SymJ._isdefint(v)
+        @test N(v) ≈ 1.3419044179774198 rtol = 1e-12
+        # ∫₀¹∫₀¹ e^(-x²y²): the inner one in erf, the outer unevaluated (SymPy #5326; the
+        # older RischIntegrate of Julia 1.10 cannot do the inner one)
+        if VERSION >= v"1.12"
+            w = RischIntegrate.integrate(exp(-x^2 * y^2), (x, 0, 1), (y, 0, 1))
+            @test SymJ._isdefint(w)
+            @test N(w) ≈ 0.9059404763223628 rtol = 1e-10
+        end
+        @test N(RischIntegrate.integrate(exp(-x^2) * log(x + 2), (x, 0, Inf))) ≈ 0.8231099519447602 rtol = 1e-10
+        # integrate(ex): the unevaluated integrals in ex carried out, innermost first; those
+        # that cannot be kept
+        # (numerically: the older RischIntegrate of Julia 1.10 gives √π as a float)
+        @test N(RischIntegrate.integrate(SymJ.Integral(exp(-x^2), (x, 0, Inf)))) ≈ sqrt(π) / 2 rtol = 1e-14
+        @test RischIntegrate.integrate(SymJ.Integral(x * y, (x, 0, 1), (y, 0, 2))) == 1
+        @test RischIntegrate.integrate(1 + SymJ.Integral(x^2, x)) == 1 + x^3 / 3
+        H = SymJ.Integral(exp(x^3), (x, 0, 1))
+        @test isequal(RischIntegrate.integrate(H), H)
+        @test RischIntegrate.integrate(2H + SymJ.Integral(x, (x, 0, 1))) == 2H + Sym(1) // 2
+        @test_throws ArgumentError RischIntegrate.integrate(x^2)
+        # not when it diverges (e^(-x) sin(x)/x² at 0), nor with a parameter
+        @test_throws RischIntegrate.NotElementary RischIntegrate.integrate(exp(-x) * sin(x) / x^2, (x, 0, Inf))
+        @test_throws RischIntegrate.NotElementary RischIntegrate.integrate(y * exp(x^3), (x, 0, 1))
+    end
+
     @testset "missing cases (SymPy review, round 20)" begin
         @syms a
         y = SymFunction(:y)
@@ -973,5 +1001,23 @@ import PolyLog as PL
         G = SymJ.dsolve(a * sqrt(x^2 + y(x)^2) + x * diff(y(x), x) - y(x) ~ 0, y(x); assume = (x ≫ 0,)).rhs
         res = a * sqrt(x^2 + G^2) + x * diff(G, x) - G
         @test abs(N(subs(res, x => 2, a => Sym(1) // 3, Sym(:C1) => Sym(1) // 5))) < 1e-12
+    end
+
+    @testset "Fresnel integrals" begin
+        S, C = SymJ.fresnels, SymJ.fresnelc
+        @syms a
+        # ∫ sin(ax² + bx + c), ∫ cos(…) in S and C (RischIntegrate's were erf of (-1)^(1/4) multiples)
+        F = RischIntegrate.integrate(sin(x^2), x)
+        @test N(subs(F, x => 2)) ≈ sqrt(π / 2) * S(sqrt(2 / π) * 2) rtol = 1e-14
+        for f in (sin(x^2), cos(x^2), sin(3x^2), cos(x^2 + x + 1), sin(1 - 2x^2), 2x + 5cos(x^2))
+            F = RischIntegrate.integrate(f, x)
+            @test SymJ._hasfn(F, :fresnels) || SymJ._hasfn(F, :fresnelc)
+            @test abs(N(subs(diff(F, x) - f, x => Sym(7) // 10))) < 1e-14
+        end
+        @test SymJ._hasfn(RischIntegrate.integrate(sin(a * x^2), x; assume = (a ≫ 0,)), :fresnels)
+        @test RischIntegrate.integrate(cos(PI * x^2 / 2), (x, 0, 1)) == C(Sym(1))
+        @test N(RischIntegrate.integrate(sin(x^2), (x, 0, Inf))) ≈ sqrt(2π) / 4 rtol = 1e-14
+        @test N(RischIntegrate.integrate(sin(x^2), (x, -Inf, Inf))) ≈ sqrt(2π) / 2 rtol = 1e-14
+        @test latexify(S(x)) == raw"$\mathrm{S}\left( x \right)$"
     end
 end

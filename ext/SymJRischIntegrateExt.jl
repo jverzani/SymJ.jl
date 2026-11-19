@@ -28,6 +28,43 @@ end
 
 # a Poly integrated as its expression (it reached the integrator as an opaque leaf;
 # SymPy #4196)
+# integrate(ex) with no variable: the unevaluated integrals in ex (SymJ.Integral, or those
+# integrate left) carried out, innermost first; one that cannot be is kept as it is (a
+# definite one with no elementary antiderivative is kept by integrate itself, valued by
+# quadrature). A Cases answer replaces a whole-expression integral only. No integral in ex:
+# RischIntegrate's error (no variable of integration)
+function RischIntegrate.integrate(ex::Sym; assume = nothing, kw...)
+    SymJ._has_node(ex, t -> t.kind == SymJ.FN && t.name === :Integral) ||
+        throw(ArgumentError("integrate: no variable of integration (integrate(ex, x) or integrate(ex, (x, a, b))), and no unevaluated integral in $ex"))
+    function carry(t::Sym)
+        SymJ._replace_walk(t) do u
+            (u.kind == SymJ.FN && u.name === :Integral && length(u.args) in (2, 4)) || return nothing
+            f = carry(u.args[1])
+            v = try
+                length(u.args) == 2 ? RischIntegrate.integrate(f, u.args[2]; assume, kw...) :
+                    RischIntegrate.integrate(f, (u.args[2], u.args[3], u.args[4]); assume, kw...)
+            catch err
+                err isa InterruptException && rethrow()
+                nothing
+            end
+            keep = SymJ._mkfn_node(:Integral, Sym[f; u.args[2:end]])
+            v isa Sym ? v : keep
+        end
+    end
+    # (a Cases for the whole expression when it is one integral)
+    if ex.kind == SymJ.FN && ex.name === :Integral
+        f = carry(ex.args[1])
+        v = try
+            length(ex.args) == 2 ? RischIntegrate.integrate(f, ex.args[2]; assume, kw...) :
+                RischIntegrate.integrate(f, (ex.args[2], ex.args[3], ex.args[4]); assume, kw...)
+        catch err
+            err isa InterruptException && rethrow()
+            nothing
+        end
+        return v isa Union{Sym,SymJ.Cases} ? v : SymJ._mkfn_node(:Integral, Sym[f; ex.args[2:end]])
+    end
+    carry(ex)
+end
 RischIntegrate.integrate(p::SymJ.Poly, x::Sym; kw...) = RischIntegrate.integrate(Sym(p), x; kw...)
 RischIntegrate.integrate(p::SymJ.Poly, xabs::Tuple...; kw...) = RischIntegrate.integrate(Sym(p), xabs...; kw...)
 
@@ -73,6 +110,17 @@ function _indefinite(ex::Sym, x::Sym; assume = nothing, kw...)
         sub = collect(A.subst)
         ex2 = subs(ex, sub...)
         isequal(ex2, ex) || return _indefinite(ex2, x; assume, kw...)
+    end
+    # sin and cos of quadratics in Fresnel integrals (RischIntegrate gives erf of (-1)^(1/4)
+    # multiples), the rest integrated
+    fr = SymJ._fresnel_split(ex, x, A)
+    if fr !== nothing
+        F, rest = fr
+        iszero(rest) && return F
+        R = _indefinite(rest, x; assume, kw...)
+        R isa Sym && return F + R
+        R isa SymJ.Cases && return SymJ._map_cases(v -> v isa Sym ? F + v : v, R)
+        return R
     end
     if A !== nothing && _has_oracle() && !haskey(kw, :sign)
         kw = (; sign = SymJ._sign_oracle(A), kw...)
@@ -231,9 +279,20 @@ function RischIntegrate.integrate(ex::Union{Sym,SymJ.Cases}, xab::Tuple, more::T
         B = SymJ._with_fact(A, SymJ.FactAnd(facts))
         B === nothing ? assume : B                      # (contradicting ones: as given)
     end
-    v = SymJ._definite_integral(ex, xab, within(more), antider; principal_value)
+    # (no elementary antiderivative: the integral unevaluated, with its N by quadrature,
+    # where SymJ._held_definite finds it convergent; else the error)
+    function definite(g, t, A)
+        try
+            SymJ._definite_integral(g, t, A, antider; principal_value)
+        catch err
+            (err isa RischIntegrate.NotElementary && g isa Sym && length(t) == 3) || rethrow()
+            h = SymJ._held_definite(g, Sym(t[1]), SymJ._endpoint(t[2]), SymJ._endpoint(t[3]))
+            h === nothing ? rethrow() : h
+        end
+    end
+    v = definite(ex, xab, within(more))
     for (i, t) in enumerate(more)
-        v = SymJ._definite_integral(v, t, within(more[(i + 1):end]), antider; principal_value)
+        v = definite(v, t, within(more[(i + 1):end]))
     end
     v = drop_removable_singularities ? SymJ._drop_removable(v) : v
     # (floats in the integrand, its cases or the limits: the value's numbers floats, as for

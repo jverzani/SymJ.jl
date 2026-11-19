@@ -8,7 +8,7 @@ against its source and by running it. Updated 2026-10-25: series, assumptions, `
 with assumptions, `refine` and `simplify`, complex parts and LaTeX output are done.
 Updated 2026-11-01: the feature gaps found in a review of SymPy issues #28909–#30902 are
 added (and on 2026-11-02 those of #27909–#28908), each with its SymPy issue numbers. Updated 2026-11-04: those of #26909–#27908 and #25409–#26908 are added; on 2026-11-05 those of #23909–#25408; the review's correctness fixes are tracked
-separately. Names checked against SymPy 1.14 and Giac.jl's command table as before.
+separately (the review is recorded in [sympy_review/](sympy_review/README.md)). Names checked against SymPy 1.14 and Giac.jl's command table as before.
 
 **Legend:** ✅ has · ◐ partial · ❌ missing · ★ planned (all done: series, assumptions, a basic
 `simplify`, summation, differential equations)
@@ -123,10 +123,10 @@ separately. Names checked against SymPy 1.14 and Giac.jl's command table as befo
 | Matrix functions | `Matrix.exp`, `analytic_func` | `exp` (matrix), `matpow` | ✅ `exp`, `sin`, `cos`, `sqrt`, `log`, `A^n` (symbolic `n`) and `A^p` (non-integer `p`) through the Jordan form |
 | Determinant, inverse, solving | `Matrix` methods `det`, `inv`, `LUsolve` | `det`, `inverse`, `linsolve` | ✅ `det` (Bareiss for polynomials), `inv` (adjugate or Gauss–Jordan over rational functions), `A \ b`, exactly with first-nonzero pivoting |
 | Row reduction, null space, rank | `Matrix` methods `rref`, `nullspace`, `rank` | `rref`, `ker`, `rank` | ✅ `SymJ.rref`, `nullspace`, `rank` (generic: symbolic pivots nonzero); no right-hand-side option reducing only the coefficient columns (SymPy #25661) |
-| Linear equations to matrix form | `linear_eq_to_matrix` | — | ❌ (SymPy #25423) |
+| Linear equations to matrix form | `linear_eq_to_matrix` | — | ✅ `SymJ.linear_eq_to_matrix(eqs, vars)` gives `(A, b)` (SymPy #25423) |
 | Eigenvalues, eigenvectors, Jordan form | `Matrix` methods `eigenvals`, `eigenvects`, `jordan_form` | `eigenvals`, `eigenvects`, `jordan` | ✅ `eigvals` (with multiplicity), `eigvecs`, `eigen` (diagonalizable), `SymJ.charpoly`, `SymJ.jordan_form` |
 | LU, QR, SVD | `Matrix` methods `LUdecomposition`, `QRdecomposition` | `lu`, `qr`, `svd` | ✅ `lu` (a `LinearAlgebra.LU`), `qr` (exact Gram–Schmidt), `svd` and `svdvals` (a `LinearAlgebra.SVD`; squared singular values of degree at most 2 over the rationals) |
-| Smith normal form | `smith_normal_form`, `smith_normal_decomp` (`sympy.matrices.normalforms`) | `smith`, `ismith` | ❌ (SymPy #29139); Hermite normal form (`hermite_normal_form`) too (SymPy #28601); unimodular transforms (#25759) |
+| Smith normal form | `smith_normal_form`, `smith_normal_decomp` (`sympy.matrices.normalforms`) | `smith`, `ismith` | ✅ `SymJ.smith_normal_form`, `SymJ.smith_normal_decomp` over ℤ and ℚ[x]; Hermite normal form `SymJ.hermite_normal_form`, `SymJ.hermite_normal_decomp` (row form) (SymPy #29139, #2860) |
 | Pseudoinverse | `Matrix.pinv` | — | ✅ `pinv` from the rank factorization (generic rank, as for `rref`) (SymPy #30759) |
 | Schur, Cholesky decompositions (symbolic) | `Matrix.cholesky`, `LDLdecomposition` | `cholesky` | ❌ `schur` of a `Sym` matrix is a MethodError (SymPy #28255); no symbolic Cholesky (#28477) |
 | Permanent | `Matrix.per` | `permanent` | ❌ (SymPy #28539) |

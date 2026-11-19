@@ -498,6 +498,34 @@ function _trig_den(v::Sym)
     dt === d ? v : cancel(n / dt)
 end
 
+"""
+    SymJ.linear_eq_to_matrix(eqs, vars)
+
+The matrix form `A x = b` of linear equations: `(A, b)`, `A` the `Matrix{Sym}` of the
+coefficients of `vars` (a row per equation, a column per unknown) and `b` the `Vector{Sym}`
+of the right sides, as SymPy's `linear_eq_to_matrix`. The equations are written with `~`
+(as for [`solve`](@ref)); an equation that is not linear in `vars` (an unknown in a
+denominator or inside a function, or a product of unknowns) is an error. Other symbols are
+parameters. Not exported.
+
+```julia
+@syms x y a
+A, b = SymJ.linear_eq_to_matrix([x + 2y ~ 3, a*x - y ~ 1], [x, y])
+# A = [1 2; a -1], b = [3, 1]; A \\ b solves it
+```
+"""
+function linear_eq_to_matrix(eqs, vars)
+    es = eqs isa Relation ? Relation[eqs] : collect(eqs)
+    all(e -> e isa Relation && e.op === :eq, es) || throw(ArgumentError(
+        "linear_eq_to_matrix: give equations, written with ~ (x + y ~ 1), not expressions"))
+    vs = Sym[Sym(v) for v in (vars isa Sym ? (vars,) : vars)]
+    all(_isnamed, vs) || throw(ArgumentError("linear_eq_to_matrix: the unknowns are symbols, not $(join(vs, ", "))"))
+    for e in es
+        _islinear([e], vs) || throw(ArgumentError("linear_eq_to_matrix: $e is not linear in $(join(vs, ", "))"))
+    end
+    _linear_system(es, vs)
+end
+
 # A x = b from the equations: each lhs - rhs in lowest terms, no unknown in the
 # denominator, of degree at most 1 in the unknowns
 function _linear_system(eqs, vars::Vector{Sym})
