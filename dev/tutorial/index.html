@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=ca63f847">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=b5d1b6a3">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -2072,6 +2072,33 @@ integrate(1 / x^2, (x, -1, 1)))</code></pre>
 </div>
 </div>
 <p>Some antiderivatives are known only numerically: RischIntegrate&#39;s <code class="md-code-inline">₂F₁</code> terms and sums over the roots of a polynomial, which it can evaluate but SymJ cannot hold. A definite integral through one, over numeric limits where <code class="md-code-inline">f</code> is not singular, is a float: <code class="md-code-inline">integrate(x / sqrt(1 - x^3), (x, 0, 1//2))</code> is <code class="md-code-inline">0.12832…</code>.</p>
+<p>An integrand proven to have no elementary antiderivative, over numeric limits where the integral converges, gives the integral unevaluated; <code class="md-code-inline">N</code> (or <code class="md-code-inline">float</code>, or calling it) finds its value by numeric quadrature (QuadGK&#39;s), and <code class="md-code-inline">SymJ.evalf</code> to a <code class="md-code-inline">BigFloat</code> precision:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">ex = integrate(exp(x^3), (x, 0, 1))
+ex, N(ex), SymJ.evalf(ex, BigFloat, 100)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">(Integral(exp(x^3), (x, 0, 1)), 1.3419044179774198, 1.3419044179774197412491049783146)</code></pre>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms y
+ex = integrate(exp(-x^2 * y^2), (x, 0, 1), (y, 0, 1))
+ex, N(ex)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">(Integral(erf(y)*sqrt(π)/(2*y), (y, 0, 1)), 0.9059404763223627)</code></pre>
+</div>
+<p><code class="md-code-inline">SymJ.Integral(f, (x, a, b))</code> (or <code class="md-code-inline">SymJ.Integral(f, x)</code>) writes an integral without integrating it; <code class="md-code-inline">integrate(ex)</code>, with no variable, carries out the integrals in <code class="md-code-inline">ex</code>, keeping those it cannot do:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">I = SymJ.Integral(exp(-x^2), (x, 0, Inf))
+I, N(I), integrate(I)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">(Integral(1/exp(x^2), (x, 0, Inf)), 0.8862269254527582, sqrt(π)/2)</code></pre>
+</div>
 <p><code class="md-code-inline">principal_value = true</code> asks for the Cauchy principal value instead: a singular point inside is approached from both sides at once, lim<em>{ε→0⁺} (∫ₐ^{s-ε} + ∫</em>{s+ε}^b) f, and an integral over (-∞, ∞) is the limit of ∫ from -R to R. An integral that converges keeps its value; a singular end point is not crossed, so ∫₀¹ 1/x is still <code class="md-code-inline">∞</code>:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -2492,6 +2519,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=ca63f847"></script>
+  <script src="../assets/materialdocs.js?v=b5d1b6a3"></script>
 </body>
 </html>
