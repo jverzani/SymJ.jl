@@ -1399,6 +1399,19 @@ ex = integrate(exp(-x^2 * y^2), (x, 0, 1), (y, 0, 1))
 ex, N(ex)
 ```
 
+Before keeping such an integral, SymJ tries differentiation under the integral sign
+(Feynman's trick). A constant `c` of the integrand becomes a parameter `a`, and the
+integral is found as `I(c) = I(a₀) + ∫ I'(a) da` from a base point `a₀` (0 or 1) where it
+is known, with `I'(a) = ∫ ∂f/∂a dx`. Here `I'(a) = 2π/√(1 - a²)`:
+
+```@example tut
+integrate(log((1 + cos(x)/2) / (1 - cos(x)/2)) / cos(x), (x, 0, π))
+```
+
+A value found this way is kept only when it agrees with the integral's numeric value, so
+a constant for which the exchange of derivative and integral is not valid gives no answer,
+never a wrong one.
+
 `SymJ.Integral(f, (x, a, b))` (or `SymJ.Integral(f, x)`) writes an integral without
 integrating it; `integrate(ex)`, with no variable, carries out the integrals in `ex`,
 keeping those it cannot do:

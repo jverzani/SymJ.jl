@@ -878,6 +878,13 @@ end
 # root sums and ₂F₁ terms) is returned as it is.
 function _antiderivative(antider, f::Sym, x::Sym, A; numeric::Bool = false)
     F = antider(f, x, A)
+    # with parameters, an antiderivative known only numerically (a root sum the assumptions
+    # left unexpanded, Σ_{α² = 1/(1 - a²)} for 0 < a < 1/2) cannot be evaluated: the generic
+    # form instead, valid as an antiderivative whatever the parameters (atan's, here)
+    if !(F isa Sym) && any(s -> !_eq(s, x), free_symbols(f)) && A !== nothing
+        G = try antider(f, x, nothing) catch err; err isa InterruptException && rethrow(); nothing end
+        G isa Sym && (F = G)
+    end
     numeric && !(F isa Sym) && applicable(F, 0.0) && return F
     (F isa Sym && !_hasfn(F, :Integral)) || throw(ArgumentError("integrate: no antiderivative found for $f"))
     _hassymbol(F - x) || return F
@@ -2029,4 +2036,99 @@ function _held_convergent(f::Sym, x::Sym, lo::Sym, hi::Sym)
         (L isa Sym && L.kind == NUMBER && !_isinfpt(L)) || return false
     end
     true
+end
+
+# Differentiation under the integral sign (Feynman's trick), for a definite integral kept as
+# an unevaluated Integral (no elementary antiderivative; convergent, numeric ends, x alone):
+# a constant c of f (a coefficient or an exponent, its occurrences ±c) becomes a parameter
+# a, f(x, a), and with a base a₀ ∈ {0, 1} where ∫ f(x, a₀) is known (usually f(x, a₀) = 0),
+#     I(c) = I(a₀) + ∫_{a₀}^{c} I'(a) da,   I'(a) = ∫ ∂f/∂a dx (a between a₀ and c).
+# ∫₀^π log((1 + cos(x)/2)/(1 - cos(x)/2))/cos(x) dx: I'(a) = 2π/√(1 - a²), I = π²/3
+# (SymPy #30869, #30677). integ is RischIntegrate's integrate. A value is kept only when it
+# agrees with q, the integral's value by quadrature, so a constant for which exchanging the
+# derivative and the integral is not valid gives no answer, not a wrong one; nothing when no
+# constant works.
+const _IN_FEYNMAN = ScopedValue(false)
+
+function _feynman(f::Sym, x::Sym, lo::Sym, hi::Sym, q::Number, integ)
+    _IN_FEYNMAN[] && return nothing
+    isfinite(q) || return nothing
+    with(_IN_FEYNMAN => true) do
+        a = _fresh_dummy(f + x)
+        for c in _feynman_constants(f)
+            g = _feynman_param(f, c, a)
+            has(g, a) || continue
+            for a0 in (ZERO, ONE)
+                _eq(a0, Sym(c)) && continue
+                v = try
+                    _feynman_try(f, g, x, a, Sym(c), a0, lo, hi, integ)
+                catch err
+                    err isa InterruptException && rethrow()
+                    nothing
+                end
+                v === nothing && continue
+                w = try N(v) catch; continue end
+                abs(w - q) <= 1e-8 * (1 + abs(q)) && return v
+            end
+        end
+        nothing
+    end
+end
+
+# the distinct |c| of f's exact constants other than 0 and 1, as they appear (at most 4)
+function _feynman_constants(f::Sym)
+    cs = Rational{BigInt}[]
+    add(r::SymNumber) = (isexact(r) && (c = abs(_rat(r)); !iszero(c) && !isone(c) && !(c in cs)) && push!(cs, c))
+    function walk(e::Sym)
+        k = e.kind
+        if k == NUMBER
+            add(e.num)
+        elseif k == ADD
+            add(e.num); foreach(add, e.coefs)
+        elseif k == MUL
+            add(e.num)
+        end
+        foreach(walk, e.args)
+        k == MUL && foreach(walk, e.exps)
+    end
+    walk(f)
+    cs[1:min(end, 4)]
+end
+
+# f with each exact constant ±c replaced by ±a
+function _feynman_param(f::Sym, c::Rational{BigInt}, a::Sym)
+    num(r::SymNumber) = isexact(r) && abs(_rat(r)) == c ? (_rat(r) > 0 ? a : -a) : Sym(r)
+    function rep(e::Sym)
+        k = e.kind
+        k == NUMBER && return num(e.num)
+        k == ADD && return _add_many(vcat([num(e.num)], [num(w) * rep(t) for (w, t) in zip(e.coefs, e.args)]))
+        k == MUL && return num(e.num) * prod((rep(b)^rep(p) for (b, p) in zip(e.args, e.exps)); init = ONE)
+        k == POW && return rep(e.args[1])^rep(e.args[2])
+        k == FN && return apply_function(e.name, Sym[rep(t) for t in e.args])
+        e
+    end
+    rep(f)
+end
+
+function _feynman_try(f, g, x, a, c, a0, lo, hi, integ)
+    l, h = _less(c, a0, Assumptions()) ? (c, a0) : (a0, c)
+    assume = (Relation(:gt, a, l), Relation(:lt, a, h))
+    good(v) = v isa Sym && !_hasfn(v, :Integral) && !has(v, x)
+    # (first, cheaply: ∂f/∂a has an elementary antiderivative in x, with no assumptions;
+    # else the definite integral with a parameter, the costly part, is not tried)
+    dg = diff(g, a)
+    F = integ(dg, x)
+    (F isa Sym && !_hasfn(F, :Integral)) || return nothing
+    # I(a₀): 0 where the integrand vanishes, else its integral (by the other methods)
+    g0 = simplify(subs(g, a => a0))
+    I0 = iszero(g0) ? ZERO : integ(g0, (x, lo, hi))
+    good(I0) || return nothing
+    D = integ(dg, (x, lo, hi); assume)
+    (good(D) && has(D, a)) || return nothing
+    G = integ(D, a; assume)
+    (G isa Sym && !_hasfn(G, :Integral)) || return nothing
+    Gc = limit(G, a => c; dir = _less(a0, c, Assumptions()) ? :- : :+, assume = Assumptions())
+    G0 = limit(G, a => a0; dir = _less(a0, c, Assumptions()) ? :+ : :-, assume = Assumptions())
+    (Gc isa Sym && G0 isa Sym && !_isinfpt(Gc) && !_isinfpt(G0)) || return nothing
+    simplify(Gc - G0 + I0)
 end

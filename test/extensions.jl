@@ -989,6 +989,28 @@ import PolyLog as PL
         @test_throws RischIntegrate.NotElementary RischIntegrate.integrate(y * exp(x^3), (x, 0, 1))
     end
 
+    @testset "differentiation under the integral sign" begin
+        # (exact on the RischIntegrate of Julia ≥ 1.12; the older one of Julia 1.10 may keep
+        # the integral unevaluated, whose value is then the same by quadrature)
+        exact = VERSION >= v"1.12"
+        # a constant made a parameter: I'(a) = 2π/√(1 - a²), I(0) = 0 (SymPy #30869, #30677)
+        v = RischIntegrate.integrate(log((1 + cos(x) / 2) / (1 - cos(x) / 2)) / cos(x), (x, 0, PI))
+        @test N(v) ≈ π^2 / 3 rtol = 1e-12
+        exact && @test isequal(v, PI^2 / 3)
+        w = RischIntegrate.integrate(log(1 + cos(x) / 3), (x, 0, PI))       # π log((3 + 2√2)/6)
+        @test N(w) ≈ π * log((3 + 2sqrt(2)) / 6) rtol = 1e-12
+        exact && @test !SymJ._isdefint(w)
+        u = RischIntegrate.integrate(exp(-x) * sin(2x) / x, (x, 0, Inf))       # atan(2)
+        @test N(u) ≈ atan(2) rtol = 1e-12
+        exact && @test isequal(u, atan(Sym(2)))
+        # none of the constants works: the integral unevaluated, as before
+        @test SymJ._isdefint(RischIntegrate.integrate(exp(x^3), (x, 0, 1)))
+        # with the assumptions' antiderivative a root sum, the generic one (atan's) instead
+        @syms a
+        exact && @test isequal(RischIntegrate.integrate(2 / (1 - a^2 * cos(x)^2), (x, 0, PI); assume = (a ≫ 0, a ≪ 1)),
+                               2PI / sqrt(1 - a^2))
+    end
+
     @testset "missing cases (SymPy review, round 20)" begin
         @syms a
         y = SymFunction(:y)

@@ -279,15 +279,21 @@ function RischIntegrate.integrate(ex::Union{Sym,SymJ.Cases}, xab::Tuple, more::T
         B = SymJ._with_fact(A, SymJ.FactAnd(facts))
         B === nothing ? assume : B                      # (contradicting ones: as given)
     end
-    # (no elementary antiderivative: the integral unevaluated, with its N by quadrature,
-    # where SymJ._held_definite finds it convergent; else the error)
+    # (no elementary antiderivative: where SymJ._held_definite finds the integral
+    # convergent, its value by differentiation under the integral sign (SymJ._feynman,
+    # checked against quadrature), else the integral unevaluated, with its N by quadrature;
+    # else the error)
     function definite(g, t, A)
         try
             SymJ._definite_integral(g, t, A, antider; principal_value)
         catch err
             (err isa RischIntegrate.NotElementary && g isa Sym && length(t) == 3) || rethrow()
-            h = SymJ._held_definite(g, Sym(t[1]), SymJ._endpoint(t[2]), SymJ._endpoint(t[3]))
-            h === nothing ? rethrow() : h
+            x, lo, hi = Sym(t[1]), SymJ._endpoint(t[2]), SymJ._endpoint(t[3])
+            h = SymJ._held_definite(g, x, lo, hi)
+            h === nothing && rethrow()
+            q = try N(h) catch; NaN end
+            v = q isa Real ? SymJ._feynman(g, x, lo, hi, q, RischIntegrate.integrate) : nothing
+            v === nothing ? h : v
         end
     end
     v = definite(ex, xab, within(more))
