@@ -1002,4 +1002,22 @@ import PolyLog as PL
         res = a * sqrt(x^2 + G^2) + x * diff(G, x) - G
         @test abs(N(subs(res, x => 2, a => Sym(1) // 3, Sym(:C1) => Sym(1) // 5))) < 1e-12
     end
+
+    @testset "Fresnel integrals" begin
+        S, C = SymJ.fresnels, SymJ.fresnelc
+        @syms a
+        # ∫ sin(ax² + bx + c), ∫ cos(…) in S and C (RischIntegrate's were erf of (-1)^(1/4) multiples)
+        F = RischIntegrate.integrate(sin(x^2), x)
+        @test N(subs(F, x => 2)) ≈ sqrt(π / 2) * S(sqrt(2 / π) * 2) rtol = 1e-14
+        for f in (sin(x^2), cos(x^2), sin(3x^2), cos(x^2 + x + 1), sin(1 - 2x^2), 2x + 5cos(x^2))
+            F = RischIntegrate.integrate(f, x)
+            @test SymJ._hasfn(F, :fresnels) || SymJ._hasfn(F, :fresnelc)
+            @test abs(N(subs(diff(F, x) - f, x => Sym(7) // 10))) < 1e-14
+        end
+        @test SymJ._hasfn(RischIntegrate.integrate(sin(a * x^2), x; assume = (a ≫ 0,)), :fresnels)
+        @test RischIntegrate.integrate(cos(PI * x^2 / 2), (x, 0, 1)) == C(Sym(1))
+        @test N(RischIntegrate.integrate(sin(x^2), (x, 0, Inf))) ≈ sqrt(2π) / 4 rtol = 1e-14
+        @test N(RischIntegrate.integrate(sin(x^2), (x, -Inf, Inf))) ≈ sqrt(2π) / 2 rtol = 1e-14
+        @test latexify(S(x)) == raw"$\mathrm{S}\left( x \right)$"
+    end
 end

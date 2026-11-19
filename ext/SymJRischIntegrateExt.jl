@@ -111,6 +111,17 @@ function _indefinite(ex::Sym, x::Sym; assume = nothing, kw...)
         ex2 = subs(ex, sub...)
         isequal(ex2, ex) || return _indefinite(ex2, x; assume, kw...)
     end
+    # sin and cos of quadratics in Fresnel integrals (RischIntegrate gives erf of (-1)^(1/4)
+    # multiples), the rest integrated
+    fr = SymJ._fresnel_split(ex, x, A)
+    if fr !== nothing
+        F, rest = fr
+        iszero(rest) && return F
+        R = _indefinite(rest, x; assume, kw...)
+        R isa Sym && return F + R
+        R isa SymJ.Cases && return SymJ._map_cases(v -> v isa Sym ? F + v : v, R)
+        return R
+    end
     if A !== nothing && _has_oracle() && !haskey(kw, :sign)
         kw = (; sign = SymJ._sign_oracle(A), kw...)
     end
