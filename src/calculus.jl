@@ -38,6 +38,34 @@ Base.diff(ex::Number, x::Sym, y::Sym, zs::Sym...) = ZERO
 # Derivative(f, v) evaluates when f has a derivative rule (after a substitution:
 # Derivative(y(x), x) with y(x) => sin(x) is cos(x)); Derivative(f, v, a), the derivative
 # at a, when the derivative has no Derivative left
+"""
+    SymJ.Integral(f, x)
+    SymJ.Integral(f, (x, a, b), more...)
+
+An unevaluated integral: `∫ f dx`, or `∫ₐᵇ f dx` (with more ranges, the integral of the
+integral, the first range innermost). Nothing is integrated; the integral is an expression
+like any other. Its numeric value is found by quadrature when the limits are numbers
+(`N`, `float`, `SymJ.evalf`, calling it), and `integrate(ex)` (RischIntegrate loaded)
+carries out the integrals in `ex`. Not exported.
+
+```julia
+I = SymJ.Integral(exp(-x^2), (x, 0, Inf))
+N(I)            # 0.886226925452758
+integrate(I)    # sqrt(π)/2
+```
+"""
+function Integral(f, x::Sym)
+    _isnamed(x) || throw(ArgumentError("Integral: $x is not a symbol"))
+    _mkfn_node(:Integral, Sym[Sym(f), x])
+end
+function Integral(f, xab::Tuple, more::Tuple...)
+    length(xab) == 3 || throw(ArgumentError("Integral: give the limits as (x, a, b)"))
+    x = Sym(xab[1])
+    _isnamed(x) || throw(ArgumentError("Integral: $x is not a symbol"))
+    I = _mkfn_node(:Integral, Sym[Sym(f), x, _endpoint(xab[2]), _endpoint(xab[3])])
+    isempty(more) ? I : Integral(I, more...)
+end
+
 function _derivative_rule(args::Vector{Sym})
     length(args) in (2, 3) || return nothing
     f, v = args[1], args[2]
