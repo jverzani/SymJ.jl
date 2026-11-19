@@ -1009,6 +1009,13 @@ import PolyLog as PL
         @syms a
         exact && @test isequal(RischIntegrate.integrate(2 / (1 - a^2 * cos(x)^2), (x, 0, PI); assume = (a ≫ 0, a ≪ 1)),
                                2PI / sqrt(1 - a^2))
+        # with no assumptions, by cases: 2π/√(1 - a²) for |a| < 1 (the limit at acos(1/a)
+        # for |a| > 1 raised GMP's DivideError in GruntzLimit < 1.8.1)
+        if exact
+            r = RischIntegrate.integrate(2 / (1 - a^2 * cos(x)^2), (x, 0, PI))
+            @test r isa SymJ.Cases
+            @test any(c -> c.second isa Sym && isequal(c.second, 2PI / sqrt(1 - a^2)), r.cases)
+        end
     end
 
     @testset "missing cases (SymPy review, round 20)" begin
