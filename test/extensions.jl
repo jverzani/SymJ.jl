@@ -1015,6 +1015,12 @@ import PolyLog as PL
             r = RischIntegrate.integrate(2 / (1 - a^2 * cos(x)^2), (x, 0, PI))
             @test r isa SymJ.Cases
             @test any(c -> c.second isa Sym && isequal(c.second, 2PI / sqrt(1 - a^2)), r.cases)
+            # the conditions on the singular points acos(±1/a) as conditions on a: five
+            # cases (a = ±1: ∞; a > 1, a < -1: a pole inside; |a| < 1), no contradictory
+            # one (acos(1/a) > π/2 with acos(1/a) < acos(-1/a)) whose limit failed
+            @test length(r.cases) == 5
+            @test all(c -> c.second isa Sym || occursin("does not converge", sprint(showerror, c.second)), r.cases)
+            @test !any(c -> any(f -> occursin("acos", string(f)), c.first), r.cases)
         end
     end
 

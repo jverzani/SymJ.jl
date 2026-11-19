@@ -717,7 +717,7 @@ function _definite(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A::Assumptions, pv
         # that end singular, its value a one-sided limit (it was F(1) - F(0) with log 0
         # in it, iπ/2 + ∞ where the integral is +∞; SymPy #9753)
         if _hassymbol(s)
-            e = findfirst(t -> !_isinfpt(t) && _decide(Relation(:eq, s, t), A) === true, (lo, hi))
+            e = findfirst(t -> !_isinfpt(t) && _decide_pt(:eq, s, t, A) === true, (lo, hi))
             if e !== nothing                         # (the end written as the point itself)
                 e == 1 ? (lo = s) : (hi = s)
                 push!(sing, s)
@@ -850,26 +850,49 @@ end
 # condition on u, acos taking its values in [0, π] (acos(u) > 0 is u < 1), rather than one
 # on acos(u); else as it is
 function _decide_pt(op::Symbol, p::Sym, q::Sym, A)
+    r = _acos_relation(op, p, q)
+    r isa Bool ? r : _decide(r, A)
+end
+
+# p op q (op :lt, :gt or :eq) for points k acos(u) + m as a condition on u, or true/false
+# when acos's range [0, π] decides it; else the relation as it is. The cases of a
+# parametric integral then read as conditions on the parameters, and contradictions among
+# them are seen: acos(1/a) > π/2 (a < 0) with acos(1/a) < acos(-1/a) (a > 0) was a case,
+# whose limit at π/2 failed, of ∫₀^π 2/(1 - a²cos²x). For < and >, u is real in [-1, 1]
+# (the points are checked to be real first); acos(u) = c ⇔ u = cos(c) holds for any u.
+function _acos_relation(op::Symbol, p::Sym, q::Sym)
     rel = Relation(op, p, q)
-    d = expand(p - q)
-    ac = _acos_affine(d)
-    ac === nothing && return _decide(rel, A)
+    ac = _acos_affine(expand(p - q))
+    if ac === nothing
+        # k acos(u) + m against k acos(v) + m: acos decreasing, acos(u) < acos(v) ⇔ u > v
+        ap = _hassymbol(p) ? _acos_affine(p) : nothing
+        aq = _hassymbol(q) ? _acos_affine(q) : nothing
+        (ap === nothing || aq === nothing) && return rel
+        (_eq(ap[2], aq[2]) && _eq(ap[3], aq[3])) || return rel
+        op === :eq && return Relation(:eq, ap[1], aq[1])
+        less = (op === :lt) == (ap[2].num > N0)                         # acos(u) < acos(v)
+        return Relation(less ? :gt : :lt, ap[1], aq[1])
+    end
     u, k, m = ac
-    t = try Float64(N(-m / k)) catch; return _decide(rel, A) end       # d op 0 ⇔ acos(u) op′ t
+    t = try Float64(N(-m / k)) catch; return rel end                   # d op 0 ⇔ acos(u) op′ t
+    if op === :eq
+        (t < 0 || t > π) && return false
+        return Relation(:eq, u, cos(-m / k))
+    end
     gt = (op === :gt) == (k.num > N0)
     if gt                                                              # acos(u) > t
         t < 0 && return true
         t >= π && return false
-        return _decide(Relation(:lt, u, cos(-m / k)), A)
+        return Relation(:lt, u, cos(-m / k))
     else                                                               # acos(u) < t
         t <= 0 && return false
         t > π && return true
-        return _decide(Relation(:gt, u, cos(-m / k)), A)
+        return Relation(:gt, u, cos(-m / k))
     end
 end
 
 function _insert_sorted!(v::Vector{Sym}, s::Sym, A)
-    i = findfirst(t -> _decide(Relation(:lt, s, t), A), v)
+    i = findfirst(t -> _decide_pt(:lt, s, t, A), v)
     i === nothing ? push!(v, s) : insert!(v, i, s)
 end
 
