@@ -221,3 +221,22 @@ end
     @test_throws ArgumentError F(P(x ≪ 0 => 1, true => 2) + P(a ≪ 0 => 1, true => 2))   # which variable?
     @test F(x^2 + 1, x) == x^2 + 1
 end
+
+@testset "residue" begin
+    @syms a
+    R = SymJ.residue
+    @test R((x^3 + 5) / ((x^4 - 1) * (x + 1)), x, -1) == -Sym(9) // 4      # SymPy #2519
+    @test R(1 / sin(x), x, 0) == 1
+    @test R(cot(x), x, PI) == 1
+    @test R(exp(x) / x^3, x, 0) == Sym(1) // 2
+    @test R(1 / (x^2 + 1), x, IM) == -IM / 2
+    @test R(exp(x) / (x - a)^2, x, a) == exp(a)
+    @test R(sin(x), x, 0) == 0                                               # analytic there
+    # at infinity: -Res_{t=0} f(1/t)/t²
+    @test R(1 / x, x, Inf) == -1
+    @test R(x^2 / (x^3 + 1), x, Inf) == -1
+    # no residue at a branch point
+    @test_throws ArgumentError R(1 / sqrt(x), x, 0)
+    @test_throws ArgumentError R(log(x) / x, x, 0)
+end
+

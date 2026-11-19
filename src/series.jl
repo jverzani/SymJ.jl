@@ -1025,3 +1025,36 @@ function Base.diff(s::SymSeries, x::Sym)
     # dt/dx: t = 1/x gives -t^2, t = -1/x gives t^2
     _with(s, _asmul(_asplain(_PS([2 // 1], [s.x0 > 0 ? -ONE : ONE], _INF)), d), s.n + 1)
 end
+
+"""
+    SymJ.residue(f, x, x0 = 0)
+
+The residue of `f` at `x = x0`: the coefficient of `(x - x0)^-1` in its Laurent series
+there (0 where `f` is analytic), as SymPy's `residue`. At `x0 = ±∞`, the residue at
+infinity, `-Res_{t=0} f(1/t)/t²`. An error where `f` has a branch point (fractional powers
+or logarithms in its expansion: no Laurent series) or an essential singularity that
+[`series`](@ref) does not expand. Not exported.
+
+```julia
+SymJ.residue(1 / sin(x), x, 0)                        # 1
+SymJ.residue(exp(x) / x^3, x, 0)                      # 1/2
+SymJ.residue((x^3 + 5) / ((x^4 - 1) * (x + 1)), x, -1)   # -9/4
+SymJ.residue(1 / (x^2 + 1), x, im)                    # -im/2
+```
+"""
+function residue(f, x::Sym, x0 = 0)
+    _isnamed(x) || throw(ArgumentError("residue: $x is not a symbol"))
+    p = x0 isa Sym ? x0 : Sym(x0)
+    if _isinfpt(p)
+        t = _fresh_dummy(Sym(f) + x)
+        return -residue(subs(Sym(f), x => 1 / t) / t^2, t, 0)
+    end
+    s = series(f, x, p, 2)
+    s isa SymSeries || return ZERO                    # (a constant)
+    for (e, c) in zip(s.ps.e, s.ps.c)
+        (isinteger(e) && !has(c, _LOGT)) || throw(ArgumentError(
+            "residue: $f has a branch point at $x = $p (its expansion has fractional powers or logarithms), so no residue"))
+    end
+    i = findfirst(==(-1), s.ps.e)
+    i === nothing ? ZERO : s.ps.c[i]
+end

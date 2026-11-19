@@ -109,7 +109,7 @@ separately. Names checked against SymPy 1.14 and Giac.jl's command table as befo
 | Products | `product`, `Product` | `product` | ❌ |
 | Laplace, Fourier, Mellin, Z transforms | `laplace_transform`, `inverse_laplace_transform`, `fourier_transform`, `mellin_transform` | `laplace`, `ilaplace`, `fourier`, `ifourier`, `ztrans`, `invztrans` | ◐ `SymJ.laplace_transform`, `SymJ.inverse_laplace_transform`: polynomials, exponentials, sines and cosines, `heaviside`/`dirac` shifts; inverse of rational functions times `e^(-cs)`. Not yet: Fourier (SymPy #26053), Mellin, Z (Z transforms: SymPy #29695, not in 1.14); `floor` (staircase) and held transforms (#26999), a convolution-theorem helper (#26023); round 5 (SymPy #23909–#25408): Fourier transforms (#24101, #25137) |
 | Fourier series | `fourier_series` | `fourier_an`, `fourier_bn`, `fourier_cn` | ❌ (SymPy #30183, #29336); also #28755, #28724 |
-| Residues | `residue` | `residue` | ❌ (SymPy #27156) |
+| Residues | `residue` | `residue` | ✅ `SymJ.residue(f, x, x0)`, from the Laurent series; also at ∞ (SymPy #27156) |
 | Vector calculus | `sympy.vector`, `Matrix.jacobian`, `hessian` | `grad`, `divergence`, `curl`, `laplacian`, `hessian` | ◐ `diff` with broadcasting; no named operators, no `jacobian`/`hessian` helpers (SymPy #30186), no coordinate systems (#29107, #27427), no functions of vector arguments (#25644); round 5 (SymPy #23909–#25408): `vector_integrate` over regions, line and flux integrals (#24190, #24123), dyadics and `Del` (#24129) |
 | Range and monotonicity of a function | `function_range` (`sympy.calculus.util`), `is_increasing`, `is_strictly_increasing` | `maximize`, `minimize`, `fMax`, `fMin` | ❌ (SymPy #30505, #30499, #30386, #30293, #30582); also #28578, #28577, #28571, #28486, #26871, #26742, #26518, #26076; stationary points (`stationary_points`, #26077), convexity (`is_convex`, #26427); round 5 (SymPy #23909–#25408): `maximum`/`minimum` of an expression over a domain (#25187, #24134) |
 | Calculus of variations | `euler_equations` | `euler_lagrange` | ❌ (SymPy #29123) |
@@ -518,8 +518,7 @@ transforms). Of the rest, in rough order of value for calculus-level use:
      modular equations over ℤ in solve (#31048).
    - sets: Range sets and iteration over unions (#31145); symbolic intervals with a
      measure (#31030).
-   - transforms: the Fourier transform (#2803); residues (`residue`; a series shows the
-     1/(z - a) coefficient) (#2519).
+   - transforms: the Fourier transform (#2803); residues (#2519; done since: `SymJ.residue`).
    - `eliminate` (Mathematica's Eliminate; groebner by hand) (#2720); boolean constraints
      in solve's systems (#2715); symbolic Boolean algebra, Xor/Implies/Equivalent/ITE
      (#2697, #1441).
