@@ -157,6 +157,28 @@ function _cancel(ex::Sym; gcd_method::Symbol = :auto)
 end
 cancel(x::Number; gcd_method::Symbol = :auto) = Sym(x)
 
+"""
+    SymJ.together(ex)
+
+`ex` as one fraction over a common denominator, as SymPy's `together`: the denominator the
+least common multiple of the terms' denominators, kept factored, and nothing cancelled, so
+it differs from [`cancel`](@ref), which also cancels common factors and multiplies the
+denominator out (`together((x + 1)/x + 1/(x + 1))` is `(x^2 + 3x + 1)/(x*(x + 1))`, `cancel`
+gives `(x^2 + 3x + 1)/(x^2 + x)`). The numerator is expanded. Identical factors still merge
+as in any product, so `1/x + 1/(x*(x - 1))` is `1/(x - 1)` either way. Function arguments
+are left as they are. Not exported.
+"""
+function together(ex::Sym)
+    r = _together_lcm(ex)
+    if r === nothing                                # (a denominator not factored)
+        n, d = numer_denom(ex)
+        return n / d
+    end
+    n, d = r
+    n / d
+end
+together(x::Number) = Sym(x)
+
 # atoms b^e₁, b^e₂, … (symbolic exponents, eᵢ/e₁ rational) as wᵏⁱ for one fresh w = b^g:
 # (substitutions there, and back), or nothing when no base has two such powers
 function _common_generator_subs(atoms)

@@ -681,3 +681,14 @@ end
     @test_throws ArgumentError RR(Sym(0), x)
     @test_throws ArgumentError RR(sin(x), x)
 end
+
+@testset "together" begin
+    T = SymJ.together
+    @test T((x + 1) / x + 1 / (x + 1)) == (x^2 + 3x + 1) / (x * (x + 1))
+    @test T(1 / x + 1 / y) == (x + y) / (x * y)
+    @test T(1 / (x + 1) + 1 / (x^2 - 1)) == x / ((x + 1) * (x - 1))       # cancel: x/(x² - 1)
+    @test T((x^2 - 1) / (x - 1) + 1 / x) == (x^3 - 1) / (x * (x - 1))     # nothing cancelled
+    @test T(x + 1) == x + 1
+    @test T(2) == 2
+end
+
