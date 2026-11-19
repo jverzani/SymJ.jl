@@ -2114,11 +2114,16 @@ function _feynman_try(f, g, x, a, c, a0, lo, hi, integ)
     l, h = _less(c, a0, Assumptions()) ? (c, a0) : (a0, c)
     assume = (Relation(:gt, a, l), Relation(:lt, a, h))
     good(v) = v isa Sym && !_hasfn(v, :Integral) && !has(v, x)
+    # (first, cheaply: ∂f/∂a has an elementary antiderivative in x, with no assumptions;
+    # else the definite integral with a parameter, the costly part, is not tried)
+    dg = diff(g, a)
+    F = integ(dg, x)
+    (F isa Sym && !_hasfn(F, :Integral)) || return nothing
     # I(a₀): 0 where the integrand vanishes, else its integral (by the other methods)
     g0 = simplify(subs(g, a => a0))
     I0 = iszero(g0) ? ZERO : integ(g0, (x, lo, hi))
     good(I0) || return nothing
-    D = integ(diff(g, a), (x, lo, hi); assume)
+    D = integ(dg, (x, lo, hi); assume)
     (good(D) && has(D, a)) || return nothing
     G = integ(D, a; assume)
     (G isa Sym && !_hasfn(G, :Integral)) || return nothing
