@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Rational functions — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=e58017ed">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=a32431e3">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Rational functions — SymJ.jl">
   <meta property="og:title" content="Rational functions — SymJ.jl">
@@ -74,7 +74,7 @@
 <div class="md-docstring" id="SymJ.cancel-Tuple{Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.cancel</code> — <span class="md-docstring-sig">Tuple{Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/0dca9d9bd28f1b4875d1fed85764530e9eb034aa/src/rational.jl#L92-L113" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2ad97f7eeeed9f7bfb5e0f60d57c6f620b6de8d1/src/rational.jl#L92-L113" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -94,7 +94,7 @@ cancel((sin(x)^2 - 1)/(sin(x) + 1))        # sin(x) - 1</code></pre>
 <div class="md-docstring" id="SymJ.numer_denom-Tuple{Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.numer_denom</code> — <span class="md-docstring-sig">Tuple{Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/0dca9d9bd28f1b4875d1fed85764530e9eb034aa/src/rational.jl#L3-L14" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2ad97f7eeeed9f7bfb5e0f60d57c6f620b6de8d1/src/rational.jl#L3-L14" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -109,10 +109,23 @@ numer_denom(3x/4)          # (3*x, 4)</code></pre>
 </div>
 </div>
 </div>
+<div class="md-docstring" id="SymJ.together-Tuple{Sym}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.together</code> — <span class="md-docstring-sig">Tuple{Sym}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2ad97f7eeeed9f7bfb5e0f60d57c6f620b6de8d1/src/rational.jl#L160-L170" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.together(ex)</code></pre>
+</div>
+<p><code class="md-code-inline">ex</code> as one fraction over a common denominator, as SymPy&#39;s <code class="md-code-inline">together</code>: the denominator the least common multiple of the terms&#39; denominators, kept factored, and nothing cancelled, so it differs from <a href="../../reference/rational/#SymJ.cancel-Tuple{Sym}"><code class="md-code-inline">cancel</code></a>, which also cancels common factors and multiplies the denominator out (<code class="md-code-inline">together((x + 1)/x + 1/(x + 1))</code> is <code class="md-code-inline">(x^2 + 3x + 1)/(x*(x + 1))</code>, <code class="md-code-inline">cancel</code> gives <code class="md-code-inline">(x^2 + 3x + 1)/(x^2 + x)</code>). The numerator is expanded. Identical factors still merge as in any product, so <code class="md-code-inline">1/x + 1/(x*(x - 1))</code> is <code class="md-code-inline">1/(x - 1)</code> either way. Function arguments are left as they are. Not exported.</p>
+</div>
+</div>
 <div class="md-docstring" id="SymJ.apart-Tuple{Sym, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.apart</code> — <span class="md-docstring-sig">Tuple{Sym, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/0dca9d9bd28f1b4875d1fed85764530e9eb034aa/src/apart.jl#L9-L26" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/2ad97f7eeeed9f7bfb5e0f60d57c6f620b6de8d1/src/apart.jl#L9-L26" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -146,6 +159,6 @@ apart(1/((x - a)*(x - b)), x)   # 1/((a - b)*(x - a)) - 1/((a - b)*(x - b))</cod
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=e58017ed"></script>
+  <script src="../../assets/materialdocs.js?v=a32431e3"></script>
 </body>
 </html>
