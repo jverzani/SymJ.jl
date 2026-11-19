@@ -38,7 +38,7 @@ const REFERENCE = [
     (title = "Sums and recurrences", file = "sums",
      files = ["summation.jl", "recurrence.jl"]),
     (title = "Matrices", file = "matrices",
-     files = ["linalg.jl"]),
+     files = ["linalg.jl", "normalforms.jl"]),
     (title = "Piecewise functions", file = "piecewise",
      files = ["piecewise.jl"]),
     (title = "Calculus", file = "calculus",

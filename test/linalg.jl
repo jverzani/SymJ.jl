@@ -161,3 +161,33 @@
         @test N.(subs.(LA.pinv(Sym[1 x; 2 2x; 0 1]), x => 2)) ≈ LA.pinv([1 2.0; 2 4; 0 1])
     end
 end
+
+@testset "Smith and Hermite normal forms" begin
+    diagonal(D) = [D[i, i] for i in 1:minimum(size(D))]
+    # integers: the invariant factors, U A V = D with U, V unimodular
+    A = Sym[2 4 4; -6 6 12; 10 -4 -16]
+    D, U, V = SymJ.smith_normal_decomp(A)
+    @test diagonal(D) == Sym[2, 6, 12]
+    @test U * A * V == D
+    @test abs(SymJ.LinearAlgebra.det(U)) == 1
+    @test abs(SymJ.LinearAlgebra.det(V)) == 1
+    @test diagonal(SymJ.smith_normal_form(Sym[12 6 4; 3 9 6; 2 16 14])) == Sym[1, 10, 30]
+    @test diagonal(SymJ.smith_normal_form(Sym[1 2 3; 4 5 6; 7 8 9])) == Sym[1, 3, 0]
+    @test SymJ.smith_normal_form(Sym[6 4; 0 0; 2 8]) == Sym[2 0; 0 20; 0 0]
+    # polynomials in one variable: monic invariant factors
+    P = Sym[x^2 - 1 x + 1; x - 1 x^2]
+    D2, U2, V2 = SymJ.smith_normal_decomp(P)
+    @test diagonal(D2) == [Sym(1), expand((x^2 - 1)^2)]
+    @test iszero(expand.(U2 * P * V2 - D2))
+    @test diagonal(SymJ.smith_normal_form(Sym[x 1; 0 x])) == [Sym(1), x^2]
+    # Hermite, row form: U A = H, pivots positive, entries above them reduced
+    B = Sym[2 3 6 2; 5 6 1 6; 8 3 1 1]
+    H, W = SymJ.hermite_normal_decomp(B)
+    @test H == Sym[1 0 50 -11; 0 3 28 -2; 0 0 61 -13]
+    @test W * B == H
+    @test abs(SymJ.LinearAlgebra.det(W)) == 1
+    @test SymJ.hermite_normal_form(Sym[4 6; 2 3; 6 9]) == Sym[2 3; 0 0; 0 0]
+    @test_throws ArgumentError SymJ.smith_normal_form(Sym[x 1; 1 y])
+    @test_throws ArgumentError SymJ.smith_normal_form(Sym[sin(x) 1; 0 1])
+end
+
