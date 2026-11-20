@@ -23,7 +23,8 @@ function RischIntegrate.integrate(ex::Sym, x::Sym; assume = nothing, kw...)
     r = _unwrap(_indefinite_by_signs(ex, x; assume, kw...))
     # over ℝ, log|u| (each case under its conditions)
     A0 = something(SymJ._assumptions(assume), SymJ.Assumptions())
-    if r isa Sym
+    if !SymJ._LOG_ABS[]
+    elseif r isa Sym
         r = _log_abs(r, x, A0)
     elseif r isa SymJ.Cases
         cs = [c => (v isa Sym ? _log_abs(v, x, something(SymJ._with_fact(A0, SymJ.FactAnd(Any[c...])), A0)) : v) for (c, v) in r.cases]
@@ -458,7 +459,7 @@ function __init__()
     reg(:sinhint; diff = (args, i) -> sinh(args[1]) / args[1])
     reg(:coshint; diff = (args, i) -> cosh(args[1]) / args[1])
     # the integrator SymJ uses inside (dsolve)
-    SymJ._INTEGRATOR[] = (f, x) -> integrate(f, x)
+    SymJ._INTEGRATOR[] = (f, x) -> SymJ.with(() -> integrate(f, x), SymJ._LOG_ABS => false)
 end
 
 @setup_workload begin

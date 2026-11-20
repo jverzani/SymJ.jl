@@ -79,6 +79,9 @@ register_function!(:Derivative; eval = _derivative_rule)
 # An integral SymJ could not do (no integrator, or the integrator failed), unevaluated;
 # its derivative is the integrand. The RischIntegrate extension sets the integrator.
 const _INTEGRATOR = Ref{Any}(nothing)
+# (false for dsolve's integrals: log u, not log|u|, as its constant absorbs the sign and
+# log|y| would keep y from being solved for)
+const _LOG_ABS = ScopedValue(true)
 function _integrate(f::Sym, x::Sym)
     iszero(f) && return ZERO
     has(f, x) || return f * x

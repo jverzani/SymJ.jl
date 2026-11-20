@@ -272,7 +272,7 @@ import PolyLog as PL
         # facts that fix a parameter's value in indefinite integrals (SymPy #6985)
         let k = Sym(:k), n = Sym(:n)
             @test ∫(exp(k * x), x; assume = (k ~ 0,)) == x
-            @test ∫(x^n, x; assume = (n ~ -1,)) == log(x)
+            @test ∫(x^n, x; assume = (n ~ -1,)) == log(abs(x))
         end
         # a complex antiderivative on part of a long interval is caught (SymPy #7155)
         VERSION >= v"1.12" && @test_throws ArgumentError ∫(x * acos(1 / x), (x, Sym(1) // 10, 100))  # (the older RischIntegrate refuses acos(1/x))
