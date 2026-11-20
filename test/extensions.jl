@@ -989,6 +989,28 @@ import PolyLog as PL
         @test_throws RischIntegrate.NotElementary RischIntegrate.integrate(y * exp(x^3), (x, 0, 1))
     end
 
+    @testset "indefinite integrals over ℝ: cases on parameter signs" begin
+        # (RischIntegrate's sign oracle: the installed one of Julia ≥ 1.12)
+        if VERSION >= v"1.12"
+            r = RischIntegrate.integrate(1 / (x^2 + a), x)
+            @test r isa SymJ.Cases
+            @test Set(join(string.(c.first), ", ") for c in r.cases) == Set(["a ≪ 0", "a ≫ 0"])
+            @test isequal(only(c.second for c in r.cases if string(only(c.first)) == "a ≫ 0"), atan(x / sqrt(a)) / sqrt(a))
+            # each case's form differentiates back, under its condition
+            ln = only(c.second for c in r.cases if string(only(c.first)) == "a ≪ 0")
+            @test iszero(simplify(diff(ln, x) - 1 / (x^2 + a); assume = @assume(a < 0)))
+            # a sign given: that case only
+            @test isequal(RischIntegrate.integrate(1 / (x^2 + a), x; assume = @assume(a > 0)), atan(x / sqrt(a)) / sqrt(a))
+            # a sign the integrator asks as -1/(4ab): the condition as a*b
+            s = RischIntegrate.integrate(1 / (a * x^2 + b), x)
+            @test Set(join(string.(c.first), ", ") for c in s.cases) == Set(["a*b ≪ 0", "a*b ≫ 0"])
+        end
+        # no sign asked: one answer, as before
+        @test isequal(RischIntegrate.integrate(x^n, x), x^(n + 1) / (n + 1))
+        # the parameters real: √(a²) is |a|
+        @test isequal(RischIntegrate.integrate(sqrt(a^2), x), abs(a) * x)
+    end
+
     @testset "differentiation under the integral sign" begin
         # (exact on the RischIntegrate of Julia ≥ 1.12; the older one of Julia 1.10 may keep
         # the integral unevaluated, whose value is then the same by quadrature)
