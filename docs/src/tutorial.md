@@ -1357,6 +1357,14 @@ integrate(1 / (x^2 + a), x)
 integrate(1 / (x^2 + a), x; assume = @assume(a > 0))
 ```
 
+For the same reason a logarithm of an expression that may be negative has its absolute
+value: `∫ 1/x dx` is `log|x|`, an antiderivative on both sides of 0 (the others give
+`log(x)`, complex for `x < 0`). An argument known to be positive keeps the plain log:
+
+```@example tut
+integrate(1 / x, x), integrate(1 / x, x; assume = @assume(x > 0)), integrate(2x / (x^2 + 1), x)
+```
+
 ```@example tut
 integrate(sin(x)^3, x), integrate(sqrt(1 - x^2), x)
 ```

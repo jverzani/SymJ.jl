@@ -1019,6 +1019,16 @@ import PolyLog as PL
         @test SymJ._sign_oracle(B)(-1 / (t^2 - 1)) == -1
     end
 
+    @testset "indefinite integrals over ℝ: log|u|" begin
+        @test isequal(RischIntegrate.integrate(1 / x, x), log(abs(x)))
+        @test isequal(diff(log(abs(x)), x), 1 / x)                       # back to the integrand
+        @test isequal(RischIntegrate.integrate(1 / x, x; assume = @assume(x > 0)), log(x))
+        @test isequal(RischIntegrate.integrate(1 / (x + 1), x), log(abs(x + 1)))
+        @test isequal(RischIntegrate.integrate(2x / (x^2 + 1), x), log(x^2 + 1))   # positive
+        @test isequal(RischIntegrate.integrate(log(x), x), x * log(x) - x)        # a log times x
+        @test !occursin("abs", string(RischIntegrate.integrate(1 / (x + IM), x)))  # complex
+    end
+
     @testset "differentiation under the integral sign" begin
         # (exact on the RischIntegrate of Julia ≥ 1.12; the older one of Julia 1.10 may keep
         # the integral unevaluated, whose value is then the same by quadrature)

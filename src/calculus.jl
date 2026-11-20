@@ -353,6 +353,14 @@ function _diff(ex::Sym, x::Sym)
             end
             return isempty(terms) ? ZERO : _add_many(terms)
         end
+        # log|u| of a real u (no i in it), x real: u'/u, as for log u (u u'/|u|², from |u|'s
+        # rule, left integrate's log|x| answers to differentiate to x/|x|², not 1/x)
+        if ex.name === :log && length(ex.args) == 1 && ex.args[1].kind == FN && ex.args[1].name === :abs &&
+           length(ex.args[1].args) == 1 && !_has_imag_unit(ex.args[1].args[1])
+            u = ex.args[1].args[1]
+            du = _diff(u, x)
+            return iszero(du) ? ZERO : du / u
+        end
         # |u| of a complex-valued u (an i in it), x real: d|u|/dx = Re(conj(u) u')/|u|, not
         # u u'/|u|, which holds for real u only (SymPy #4757)
         if ex.name === :abs && length(ex.args) == 1 && _has_imag_unit(ex.args[1])
