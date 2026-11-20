@@ -1029,6 +1029,14 @@ import PolyLog as PL
             # each case's condition on a itself: -1/a - 1 ~ 0 as a ~ -1, 1/a + 1 > 0 with
             # a < 0 as a < -1, 1/a² - 1 > 0 as a² < 1
             @test Set(join(string.(c.first), ", ") for c in r.cases) == Set(["a ~ -1", "a ~ 1", "a ≪ -1", "a ≫ 1", "a^2 ≪ 1"])
+            # singular points √(-a): their comparisons with the ends as conditions on a
+            # (√(-a) ~ 0 is a ~ 0, √(-a) - 1 > 0 is a < -1), and the iπ of log(-u) + iπ
+            # cancelling between the ends collected
+            s = RischIntegrate.integrate(1 / (x^2 + a), (x, 0, 1))
+            @test Set(join(string.(c.first), ", ") for c in s.cases) == Set(["a ~ 0", "a ~ -1", "a ≪ -1", "a ≪ 0, a ≫ -1", "a ≫ 0"])
+            v = only(c.second for c in s.cases if join(string.(c.first), ", ") == "a ≪ -1")
+            @test !has(v, IM)
+            @test N(subs(v, a => -4)) ≈ log(1 / 3) / 4 rtol = 1e-12
         end
     end
 

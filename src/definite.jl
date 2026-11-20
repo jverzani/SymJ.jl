@@ -851,7 +851,56 @@ end
 # on acos(u); else as it is
 function _decide_pt(op::Symbol, p::Sym, q::Sym, A)
     r = _acos_relation(op, p, q)
+    r isa Relation && _eq(r.lhs, p) && _eq(r.rhs, q) && (r = _sqrt_relation(op, p, q))
     r isa Bool ? r : _decide(r, A)
+end
+
+# s = k √u + m, k and m numbers, u with parameters: (u, k, m), or nothing
+function _sqrt_affine(s::Sym)
+    rs = Sym[]
+    _replace_walk(s) do t
+        t.kind == POW && _eq(t.args[2], HALF) && _hassymbol(t.args[1]) && !any(b -> _eq(b, t), rs) && push!(rs, t)
+        nothing
+    end
+    length(rs) == 1 || return nothing
+    r = only(rs)
+    k = expand(subs(s, r => ONE) - subs(s, r => ZERO))
+    m = expand(subs(s, r => ZERO))
+    (k.kind == NUMBER && !iszero(k.num) && !_hassymbol(m) && iszero(expand(s - k * r - m))) || return nothing
+    r.args[1], k, m
+end
+
+# p op q (op :lt, :gt or :eq) for points k √u + m as a condition on u, or true/false when
+# √u ≥ 0 decides it; else the relation as it is (the √(-a) of ∫₀¹ 1/(x² + a): √(-a) ~ 0 is
+# a ~ 0, √(-a) - 1 > 0 is a < -1). √u = c ⇔ u = c² for c ≥ 0 holds for any u; for < and
+# >, √u is real (the points are checked to be real first), and √u < √v ⇔ u < v.
+function _sqrt_relation(op::Symbol, p::Sym, q::Sym)
+    rel = Relation(op, p, q)
+    sa = _sqrt_affine(expand(p - q))
+    if sa === nothing
+        sp = _hassymbol(p) ? _sqrt_affine(p) : nothing
+        sq = _hassymbol(q) ? _sqrt_affine(q) : nothing
+        (sp === nothing || sq === nothing) && return rel
+        (_eq(sp[2], sq[2]) && _eq(sp[3], sq[3])) || return rel
+        op === :eq && return Relation(:eq, sp[1], sq[1])
+        less = (op === :lt) == (sp[2].num > N0)                         # √u < √v
+        return Relation(less ? :lt : :gt, sp[1], sq[1])
+    end
+    u, k, m = sa
+    c = -m / k                                                         # d op 0 ⇔ √u op′ c
+    t = try Float64(N(c)) catch; return rel end
+    if op === :eq
+        t < 0 && return false
+        return _solved_for(Relation(:eq, expand(u - c^2), ZERO))
+    end
+    gt = (op === :gt) == (k.num > N0)
+    if gt                                                              # √u > c
+        t < 0 && return true
+        return _solved_for(Relation(:gt, expand(u - c^2), ZERO))
+    else                                                               # √u < c
+        t <= 0 && return false
+        return _solved_for(Relation(:lt, expand(u - c^2), ZERO))
+    end
 end
 
 # p op q (op :lt, :gt or :eq) for points k acos(u) + m as a condition on u, or true/false
@@ -1175,7 +1224,15 @@ function _sum_values(terms, A::Assumptions)
         return Sym(infs[1] * Inf)
     end
     fin = _neglog_consts(fin, A)
-    _hassymbol(fin) && return fin
+    if _hassymbol(fin)
+        # the iπ terms log(-u) + iπ brought in, cancelling between the ends, collected
+        # ((iπ + log(w))/(2√(-a)) - iπ/(2√(-a)) was left so for ∫₀¹ 1/(x² + a), a < -1)
+        if has(fin, IM)
+            e = expand(fin)
+            !has(e, IM) && _nodes(e) <= _nodes(fin) && return e
+        end
+        return fin
+    end
     s = simplify(fin)
     _nodes(s) <= _nodes(fin) ? s : fin
 end
