@@ -1021,6 +1021,9 @@ import PolyLog as PL
             @test length(r.cases) == 5
             @test all(c -> c.second isa Sym || occursin("does not converge", sprint(showerror, c.second)), r.cases)
             @test !any(c -> any(f -> occursin("acos", string(f)), c.first), r.cases)
+            # each case's condition on a itself: -1/a - 1 ~ 0 as a ~ -1, 1/a + 1 > 0 with
+            # a < 0 as a < -1, 1/a² - 1 > 0 as a² < 1
+            @test Set(join(string.(c.first), ", ") for c in r.cases) == Set(["a ~ -1", "a ~ 1", "a ≪ -1", "a ≫ 1", "a^2 ≪ 1"])
         end
     end
 
