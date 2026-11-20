@@ -58,9 +58,12 @@ solve(diff(x^2 + u(x)^2 - 1, x) ~ 0, diff(u(x), x))   # [-x/u(x)]
 
 With parameters, the solutions are those for generic values of them: an expression in
 the parameters alone is taken to be nonzero unless the assumptions make it zero, so
-`a*x ~ b` gives `b/a` (the same rule as [`limit`](@ref) and `integrate`). A symbolic
-exponent gives the principal root (`x^a = b` gives `b^(1/a)`, not the other roots
-`b^(1/a) e^(2πik/a)`). Facts that make a coefficient vanish give that case's answer.
+`a*x ~ b` gives `b/a` (the same rule as [`limit`](@ref) and `integrate`). Inverses are
+principal values: a symbolic exponent gives the principal root (`x^a = b` gives
+`b^(1/a)`, not the other roots `b^(1/a) e^(2πik/a)`, so `x^n ~ 1` gives `[1]` even for a
+positive integer `n`), `exp(x) ~ b` gives `log(b)` (not `log(b) + 2πik`), and a
+trigonometric equation gives its roots in one period, `[0, 2π]` (`sin(x) ~ 0` gives
+`[0, π, 2π]`). Facts that make a coefficient vanish give that case's answer.
 A root that holds for only some parameter values (`a^2` for `sqrt(x) ~ a`) is kept as
 it is for complex parameters, and comes with its condition when they are assumed real.
 
