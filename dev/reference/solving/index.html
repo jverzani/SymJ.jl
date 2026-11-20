@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Solving equations — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=3460d336">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=bf81779d">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Solving equations — SymJ.jl">
   <meta property="og:title" content="Solving equations — SymJ.jl">
@@ -75,7 +75,7 @@
 <div class="md-docstring" id="CommonSolve.solve-Tuple{Relation, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>CommonSolve.solve</code> — <span class="md-docstring-sig">Tuple{Relation, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/fcaf8c2a4aac330177a62c3cac1189fbeee5bb8f/src/solve.jl#L22-L98" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/5e0eb959d811d7606dd18a8264598c19297ab4df/src/solve.jl#L22-L101" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -90,7 +90,7 @@
 solve(x^2 ~ -1, x)             # [-im, im]
 solve(diff(x^2 + u(x)^2 - 1, x) ~ 0, diff(u(x), x))   # [-x/u(x)]</code></pre>
 </div>
-<p>With parameters, the solutions are those for generic values of them: an expression in the parameters alone is taken to be nonzero unless the assumptions make it zero, so <code class="md-code-inline">a*x ~ b</code> gives <code class="md-code-inline">b/a</code> (the same rule as <a href="../../reference/calculus/#SymJ.limit-Tuple{Any, Pair}"><code class="md-code-inline">limit</code></a> and <code class="md-code-inline">integrate</code>). A symbolic exponent gives the principal root (<code class="md-code-inline">x^a = b</code> gives <code class="md-code-inline">b^(1/a)</code>, not the other roots <code class="md-code-inline">b^(1/a) e^(2πik/a)</code>). Facts that make a coefficient vanish give that case&#39;s answer. A root that holds for only some parameter values (<code class="md-code-inline">a^2</code> for <code class="md-code-inline">sqrt(x) ~ a</code>) is kept as it is for complex parameters, and comes with its condition when they are assumed real.</p>
+<p>With parameters, the solutions are those for generic values of them: an expression in the parameters alone is taken to be nonzero unless the assumptions make it zero, so <code class="md-code-inline">a*x ~ b</code> gives <code class="md-code-inline">b/a</code> (the same rule as <a href="../../reference/calculus/#SymJ.limit-Tuple{Any, Pair}"><code class="md-code-inline">limit</code></a> and <code class="md-code-inline">integrate</code>). Inverses are principal values: a symbolic exponent gives the principal root (<code class="md-code-inline">x^a = b</code> gives <code class="md-code-inline">b^(1/a)</code>, not the other roots <code class="md-code-inline">b^(1/a) e^(2πik/a)</code>, so <code class="md-code-inline">x^n ~ 1</code> gives <code class="md-code-inline">[1]</code> even for a positive integer <code class="md-code-inline">n</code>), <code class="md-code-inline">exp(x) ~ b</code> gives <code class="md-code-inline">log(b)</code> (not <code class="md-code-inline">log(b) + 2πik</code>), and a trigonometric equation gives its roots in one period, <code class="md-code-inline">[0, 2π]</code> (<code class="md-code-inline">sin(x) ~ 0</code> gives <code class="md-code-inline">[0, π, 2π]</code>). Facts that make a coefficient vanish give that case&#39;s answer. A root that holds for only some parameter values (<code class="md-code-inline">a^2</code> for <code class="md-code-inline">sqrt(x) ~ a</code>) is kept as it is for complex parameters, and comes with its condition when they are assumed real.</p>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">solve(a*x + b ~ 0, x)                          # [-b/a]
@@ -118,7 +118,7 @@ solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !
 <div class="md-docstring" id="SymJ.fsolve">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.fsolve</code> — <span class="md-docstring-sig">Union{Tuple{Relation, Sym}, Tuple{Relation, Sym, Tuple{Any, Any}}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/fcaf8c2a4aac330177a62c3cac1189fbeee5bb8f/src/fsolve.jl#L6-L34" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/5e0eb959d811d7606dd18a8264598c19297ab4df/src/fsolve.jl#L6-L34" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -141,7 +141,7 @@ SymJ.fsolve(x^5 - x + 1 ~ 0, x; domain = ℂ)      # five roots</code></pre>
 <div class="md-docstring" id="SymJ.fsolve-2">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.fsolve</code> — <span class="md-docstring-sig">Union{Tuple{AbstractVector{&lt;:Relation}, AbstractVector}, Tuple{AbstractVector{&lt;:Relation}, AbstractVector, Any}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/fcaf8c2a4aac330177a62c3cac1189fbeee5bb8f/src/fsolve.jl#L98-L124" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/5e0eb959d811d7606dd18a8264598c19297ab4df/src/fsolve.jl#L98-L124" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -163,7 +163,7 @@ SymJ.fsolve([x^3 + y^3 ~ 1, x^2 + y ~ 3], [x, y])                      # all its
 <div class="md-docstring" id="SymJ.linear_eq_to_matrix-Tuple{Any, Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.linear_eq_to_matrix</code> — <span class="md-docstring-sig">Tuple{Any, Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/fcaf8c2a4aac330177a62c3cac1189fbeee5bb8f/src/linsolve.jl#L501-L516" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/5e0eb959d811d7606dd18a8264598c19297ab4df/src/linsolve.jl#L501-L516" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -182,7 +182,7 @@ A, b = SymJ.linear_eq_to_matrix([x + 2y ~ 3, a*x - y ~ 1], [x, y])
 <div class="md-docstring" id="SymJ.SymInterval">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymInterval</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/fcaf8c2a4aac330177a62c3cac1189fbeee5bb8f/src/intervals.jl#L10-L15" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/5e0eb959d811d7606dd18a8264598c19297ab4df/src/intervals.jl#L10-L15" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -195,7 +195,7 @@ A, b = SymJ.linear_eq_to_matrix([x + 2y ~ 3, a*x - y ~ 1], [x, y])
 <div class="md-docstring" id="SymJ.SymSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/fcaf8c2a4aac330177a62c3cac1189fbeee5bb8f/src/intervals.jl#L23-L30" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/5e0eb959d811d7606dd18a8264598c19297ab4df/src/intervals.jl#L23-L30" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -208,7 +208,7 @@ A, b = SymJ.linear_eq_to_matrix([x + 2y ~ 3, a*x - y ~ 1], [x, y])
 <div class="md-docstring" id="SymJ.CylindricalSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.CylindricalSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/fcaf8c2a4aac330177a62c3cac1189fbeee5bb8f/src/ineqsystems.jl#L13-L25" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/5e0eb959d811d7606dd18a8264598c19297ab4df/src/ineqsystems.jl#L13-L25" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -222,7 +222,7 @@ A, b = SymJ.linear_eq_to_matrix([x + 2y ~ 3, a*x - y ~ 1], [x, y])
 <div class="md-docstring" id="SymJ.ChebZeros.cheb_all_zeros-Tuple{Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.ChebZeros.cheb_all_zeros</code> — <span class="md-docstring-sig">Tuple{Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/fcaf8c2a4aac330177a62c3cac1189fbeee5bb8f/src/chebzeros.jl#L500-L526" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/5e0eb959d811d7606dd18a8264598c19297ab4df/src/chebzeros.jl#L500-L526" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -247,7 +247,7 @@ cheb_all_zeros(f; kwargs...)        # whole real line</code></pre>
 <div class="md-docstring" id="SymJ.ChebZeros.cheb_zeros-Tuple{Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.ChebZeros.cheb_zeros</code> — <span class="md-docstring-sig">Tuple{Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/fcaf8c2a4aac330177a62c3cac1189fbeee5bb8f/src/chebzeros.jl#L299-L335" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/5e0eb959d811d7606dd18a8264598c19297ab4df/src/chebzeros.jl#L299-L335" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -304,6 +304,6 @@ cheb_zeros(f; kwargs...)             # whole real line, same as cheb_zeros(f, -I
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=3460d336"></script>
+  <script src="../../assets/materialdocs.js?v=bf81779d"></script>
 </body>
 </html>
