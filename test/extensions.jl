@@ -1003,6 +1003,11 @@ import PolyLog as PL
         u = RischIntegrate.integrate(exp(-x) * sin(2x) / x, (x, 0, Inf))       # atan(2)
         @test N(u) ≈ atan(2) rtol = 1e-12
         exact && @test isequal(u, atan(Sym(2)))
+        # I'(a) = 2atan(√(1 - a)/√(1 + a))/√(1 - a²), refined to acos(a)/√(1 - a²) for
+        # 0 < a < 1/2, integrates in a: π²/8 - acos(1/2)²/2 = 5π²/72
+        h = RischIntegrate.integrate(log(1 + cos(x) / 2) / cos(x), (x, 0, PI / 2))
+        @test N(h) ≈ 5π^2 / 72 rtol = 1e-12
+        exact && @test isequal(h, 5PI^2 / 72)
         # none of the constants works: the integral unevaluated, as before
         @test SymJ._isdefint(RischIntegrate.integrate(exp(x^3), (x, 0, 1)))
         # with the assumptions' antiderivative a root sum, the generic one (atan's) instead
