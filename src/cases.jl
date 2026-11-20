@@ -243,7 +243,7 @@ function _solved_for(r::Relation)
     isempty(vs) && return r
     a, k = _linform(r.lhs)
     i = findfirst(v -> haskey(a, v), vs)
-    i === nothing && return r
+    i === nothing && return r.op in (:eq, :ne) ? _solved_for_reciprocal(r, vs) : r
     p = vs[i]
     c = a[p]
     rest = expand(r.lhs - Sym(c) * p)
@@ -252,6 +252,22 @@ function _solved_for(r::Relation)
     op = c < N0 && r.op in (:lt, :le, :gt, :ge) ?
         Dict(:lt => :gt, :le => :ge, :gt => :lt, :ge => :le)[r.op] : r.op
     Relation(op, p, -k / Sym(c))
+end
+
+# c/p + k ⋈ 0 (⋈ = or ≠), c and k numbers, c ≠ 0 ≠ k: p ⋈ -c/k, the equation times p,
+# which is nonzero where c/p is defined (-1/a - 1 ~ 0 to a ~ -1, the case a = -1 of a
+# parametric integral); else r as it is. (Not < or >: the sign of p would decide.)
+function _solved_for_reciprocal(r::Relation, vs)
+    for p in vs
+        t = expand(r.lhs * p)
+        a, _ = _linform(t)
+        haskey(a, p) || continue
+        k = a[p]
+        c = expand(t - Sym(k) * p)
+        (c.kind == NUMBER && !iszero(c) && !iszero(k)) || continue
+        return Relation(r.op, p, -c / Sym(k))
+    end
+    r
 end
 
 ## running an operation by cases
@@ -342,9 +358,20 @@ function _by_cases(run, A::Assumptions)
     Cases{T}([_simplify_conds(l.first, A) => l.second for l in leaves])
 end
 
-# a case's conditions without those the others imply (a ≥ 0 & a > 0 is a > 0)
+# a case's conditions without those the others imply (a ≥ 0 & a > 0 is a > 0), and an
+# order relation in 1/p or 1/p² cleared of it where the others decide p's sign
+# (1/a + 1 > 0 with a < 0 is a < -1, then a < 0 is implied; 1/a² - 1 > 0 is a² < 1)
 function _simplify_conds(conds, A::Assumptions)
     out = Vector{Any}(conds)
+    for i in eachindex(out)
+        c = out[i]
+        (c isa Relation && c.op in (:lt, :le, :gt, :ge)) || continue
+        rest = [out[j] for j in eachindex(out) if j != i && !(out[j] isa _NotFact)]
+        B = try _build(_flatten!(Any[], (A.facts, rest))) catch; nothing end
+        B === nothing && continue
+        r = _clear_reciprocal(c, B)
+        r === nothing || (out[i] = r)
+    end
     i = 1
     while i <= length(out)
         c = out[i]
@@ -359,6 +386,34 @@ function _simplify_conds(conds, A::Assumptions)
         i += 1
     end
     out
+end
+
+# c/pⁿ + k ⋈ 0 (n = 1, 2; c, k numbers, nonzero) times pⁿ: for n = 1 with p's sign
+# decided by B, p ⋈′ -c/k; for n = 2 with p real by B (p² > 0), p² ⋈′ -c/k; nothing
+# otherwise
+function _clear_reciprocal(r::Relation, B::Assumptions)
+    flip = Dict(:lt => :gt, :le => :ge, :gt => :lt, :ge => :le)
+    for p in _named(r.lhs)
+        for n in (1, 2)
+            t = expand(r.lhs * p^n)
+            k = expand(diff(t, p, n) / factorial(n))
+            c = expand(t - k * p^n)
+            (k.kind == NUMBER && c.kind == NUMBER && !iszero(k) && !iszero(c)) || continue
+            if n == 1
+                s = _holds(Relation(:gt, p, ZERO), B) === true ? 1 :
+                    _holds(Relation(:lt, p, ZERO), B) === true ? -1 : 0
+                s == 0 && return nothing
+            else
+                # (p ≠ 0 where c/p² is defined; p real makes p² > 0)
+                _ismarkedreal(B, p) || return nothing
+                s = 1
+            end
+            op = s > 0 ? r.op : flip[r.op]                  # (c + k pⁿ) op 0
+            op = k.num > N0 ? op : flip[op]                 # pⁿ op -c/k
+            return Relation(op, p^n, -c / k)
+        end
+    end
+    nothing
 end
 
 # do the assumptions B allow the decided facts d? An order relation decided false (or
