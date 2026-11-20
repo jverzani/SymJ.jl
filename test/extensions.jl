@@ -482,7 +482,7 @@ import PolyLog as PL
         E = Base.get_extension(SymJ, :SymJRischIntegrateExt)
         if E._has_oracle()                                               # RischIntegrate with a sign oracle
             ∫ = RischIntegrate.integrate
-            @test ∫(1 / (x^2 + a), x) == atan(x / sqrt(a)) / sqrt(a)         # generic
+            @test ∫(1 / (x^2 + a), x) isa SymJ.Cases                         # on the sign of a
             F = ∫(1 / (x^2 + a), x; assume = @assume(a < 0))
             @test !SymJ._hasfn(F, :atan)
             @test SymJ._hasfn(F, :log)
@@ -1009,6 +1009,13 @@ import PolyLog as PL
         @test isequal(RischIntegrate.integrate(x^n, x), x^(n + 1) / (n + 1))
         # the parameters real: √(a²) is |a|
         @test isequal(RischIntegrate.integrate(sqrt(a^2), x), abs(a) * x)
+        # a fact on two intervals (t² > 1) decides its own sign, so each case gets its form
+        @syms t
+        B = SymJ._with_fact(SymJ.Assumptions(), SymJ.Relation(:gt, t^2 - 1, SymJ.ZERO))
+        @test SymJ._sign_oracle(B)(-1 / (t^2 - 1)) == -1
+        s = RischIntegrate.integrate(1 / (x^2 + t^2 - 1), x)
+        k = findfirst(c -> join(string.(c.first), ", ") == "t^2 - 1 ≫ 0", s.cases)
+        @test SymJ._hasfn(s.cases[k].second, :atan)
     end
 
     @testset "differentiation under the integral sign" begin

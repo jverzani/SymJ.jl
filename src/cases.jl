@@ -260,6 +260,12 @@ end
 # r as it is
 function _solved_for_quotient(r::Relation)
     flip = Dict(:lt => :gt, :le => :ge, :gt => :lt, :ge => :le)
+    # (a sum without its numeric content: 4t^2 - 4 > 0 as t^2 - 1 > 0, 1 - t^2 > 0 as
+    # t^2 - 1 < 0)
+    if iszero(r.rhs) && r.op in keys(flip) && (c = _content_free(r.lhs); c !== r.lhs)
+        q = cancel(r.lhs / c)
+        q.kind == NUMBER && return Relation(q.num > N0 ? r.op : flip[r.op], c, ZERO)
+    end
     n, d = numer_denom(r.lhs)
     (n.kind == NUMBER && !iszero(n) && _hassymbol(d)) || return r
     op = n.num > N0 ? r.op : flip[r.op]
