@@ -990,6 +990,7 @@ import PolyLog as PL
     end
 
     @testset "indefinite integrals over ℝ: cases on parameter signs" begin
+        @syms t
         # (RischIntegrate's sign oracle: the installed one of Julia ≥ 1.12)
         if VERSION >= v"1.12"
             r = RischIntegrate.integrate(1 / (x^2 + a), x)
@@ -1004,18 +1005,18 @@ import PolyLog as PL
             # a sign the integrator asks as -1/(4ab): the condition as a*b
             s = RischIntegrate.integrate(1 / (a * x^2 + b), x)
             @test Set(join(string.(c.first), ", ") for c in s.cases) == Set(["a*b ≪ 0", "a*b ≫ 0"])
+            # the parameters real: √(a²) is |a| (the older integrator refuses abs)
+            @test isequal(RischIntegrate.integrate(sqrt(a^2), x), abs(a) * x)
+            # a fact on two intervals (t² > 1) decides its own sign, so each case gets its form
+            s = RischIntegrate.integrate(1 / (x^2 + t^2 - 1), x)
+            k = findfirst(c -> join(string.(c.first), ", ") == "t^2 - 1 ≫ 0", s.cases)
+            @test SymJ._hasfn(s.cases[k].second, :atan)
         end
         # no sign asked: one answer, as before
         @test isequal(RischIntegrate.integrate(x^n, x), x^(n + 1) / (n + 1))
-        # the parameters real: √(a²) is |a|
-        @test isequal(RischIntegrate.integrate(sqrt(a^2), x), abs(a) * x)
-        # a fact on two intervals (t² > 1) decides its own sign, so each case gets its form
-        @syms t
+        # t² - 1 > 0 decides the sign of -1/(t² - 1)
         B = SymJ._with_fact(SymJ.Assumptions(), SymJ.Relation(:gt, t^2 - 1, SymJ.ZERO))
         @test SymJ._sign_oracle(B)(-1 / (t^2 - 1)) == -1
-        s = RischIntegrate.integrate(1 / (x^2 + t^2 - 1), x)
-        k = findfirst(c -> join(string.(c.first), ", ") == "t^2 - 1 ≫ 0", s.cases)
-        @test SymJ._hasfn(s.cases[k].second, :atan)
     end
 
     @testset "differentiation under the integral sign" begin
