@@ -393,6 +393,8 @@ function _refine_rule(e::Sym, A::Assumptions)
         elseif f === :atan && (v = _sin_over_cos(u)) !== nothing
             # atan(sin v/cos v) as atan(tan v) (atan(sin x, cos x) for 0 < x < 1; SymPy #6495)
             return _refine_inverse(:atan, v, A)
+        elseif f === :atan && (r = _refine_atan_half(u, A)) !== nothing
+            return r
         elseif f in (:real, :imag, :conj, :angle)
             return _refine_parts(f, u, A)
         elseif f in (:floor, :ceil)
@@ -606,6 +608,18 @@ function _refine_inverse(f::Symbol, v::Sym, A::Assumptions)
     _holds(Relation(closed ? :ge : :gt, v, lo), A) === true || return nothing
     hi === nothing || _holds(Relation(closed ? :le : :lt, v, hi), A) === true || return nothing
     v
+end
+
+# atan(u) = acos(w)/2 with w = (1 - u²)/(1 + u²), for u real and u ≥ 0 (u = tan(θ/2),
+# θ = acos(w) in [0, π)), when that is smaller: atan(√(1 - a)/√(1 + a)) is acos(a)/2 for
+# -1 < a ≤ 1 (the derivative integral of ∫₀^(π/2) log(1 + a cos x)/cos x, whose
+# integral in a was then found: π²/8 - acos(a)²/2); nothing otherwise
+function _refine_atan_half(u::Sym, A::Assumptions)
+    _hassymbol(u) || return nothing
+    (_isreal(u, A) === true && _nonneg(u, A)) || return nothing
+    w = cancel((1 - u^2) / (1 + u^2))
+    r = acos(w) / 2
+    _nodes(r) < _nodes(apply_function(:atan, Sym[u])) ? r : nothing
 end
 
 # sin, cos, tan of u + mπ, m an integer: (-1)^m sin, (-1)^m cos, tan of the rest

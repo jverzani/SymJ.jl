@@ -2146,7 +2146,10 @@ function _feynman_try(f, g, x, a, c, a0, lo, hi, integ)
     g0 = simplify(subs(g, a => a0))
     I0 = iszero(g0) ? ZERO : integ(g0, (x, lo, hi))
     good(I0) || return nothing
+    # (refined under the assumptions on a: atan(√(1 - a)/√(1 + a)) as acos(a)/2, which
+    # RischIntegrate then integrates in a)
     D = integ(dg, (x, lo, hi); assume)
+    D isa Sym && (D = simplify(D; assume))
     (good(D) && has(D, a)) || return nothing
     G = integ(D, a; assume)
     (G isa Sym && !_hasfn(G, :Integral)) || return nothing

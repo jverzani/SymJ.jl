@@ -169,6 +169,10 @@ end
     @test refine(atan(y, x); assume = @assume(x < 0, y < 0)) == atan(y / x) - PI
     @test refine(atan(y, x); assume = @assume(x ~ 0, y > 0)) == PI / 2
     @test refine(atan(y, x); assume = @assume(x < 0)) == atan(y, x)        # y may be complex
+    # the half-angle form: atan(u) = acos((1 - u²)/(1 + u²))/2 for real u ≥ 0, when smaller
+    @test isequal(refine(atan(sqrt(1 - x) / sqrt(1 + x)); assume = @assume(x > 0, x < 1)), acos(x) / 2)
+    @test isequal(refine(atan(sqrt(1 - x) / sqrt(1 + x))), atan(sqrt(1 - x) / sqrt(1 + x)))   # x > 1: not real
+    @test isequal(refine(atan(x); assume = @assume(x > 0)), atan(x))
 
     # predicates: true when known
     @test !isreal(x)
