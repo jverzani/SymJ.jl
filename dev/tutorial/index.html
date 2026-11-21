@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial — SymJ.jl</title>
-  <link rel="stylesheet" href="../assets/materialdocs.css?v=3ad0fd0c">
+  <link rel="stylesheet" href="../assets/materialdocs.css?v=f08aac59">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Tutorial — SymJ.jl">
   <meta property="og:title" content="Tutorial — SymJ.jl">
@@ -2009,6 +2009,25 @@ s / c</code></pre>
 \[\left(  - \log\left( x \right) + \frac{\log\left( x^{2} - 1 \right)}{2}, \; 3 \cdot \arctan\left( x \right) + \log\left( x^{2} + 1 \right) \right)\]
 </div>
 </div>
+<p>SymJ integrates over the real numbers: the variable of integration and the parameters are taken to be real. This differs from Rubi, Mathematica and SymPy, which take them to be complex and give antiderivatives valid over ℂ (on principal branches). Over ℝ, an antiderivative whose real form depends on the sign of a parameter comes by cases, each case real (<code class="md-code-inline">assume</code> picks one):</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">integrate(1 / (x^2 + a), x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\begin{cases} \frac{\log\left( \frac{x + \frac{a}{\sqrt{ - a}}}{x - \frac{a}{\sqrt{ - a}}} \right)}{2 \cdot \sqrt{ - a}} &amp; a &lt; 0 \\ \frac{\arctan\left( \frac{x}{\sqrt{a}} \right)}{\sqrt{a}} &amp; a &gt; 0 \end{cases}\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">integrate(1 / (x^2 + a), x; assume = @assume(a &gt; 0))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\frac{\arctan\left( \frac{x}{\sqrt{a}} \right)}{\sqrt{a}}\]
+</div>
+</div>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -2530,6 +2549,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../siteinfo.js"></script>
   <script src="../../versions.js"></script>
-  <script src="../assets/materialdocs.js?v=3ad0fd0c"></script>
+  <script src="../assets/materialdocs.js?v=f08aac59"></script>
 </body>
 </html>
