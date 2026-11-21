@@ -9,7 +9,7 @@
 @enum Kind::UInt8 NUMBER SYMBOL PARAMETER CONSTANT ADD MUL POW FN
 
 """
-    AbstractSymbolic <: Function
+    SymJ.AbstractSymbolic <: Function
 
 Supertype of SymJ's symbolic objects. Symbolic objects are callable, and calling a
 [`SymFunction`](@ref) builds an unevaluated function application. An expression `ex` can

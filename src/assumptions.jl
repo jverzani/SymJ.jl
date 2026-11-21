@@ -212,7 +212,7 @@ end
 struct _Fields end      # (see the inner constructor of Assumptions)
 
 """
-    Assumptions(facts...)
+    SymJ.Assumptions(facts...)
 
 Facts about symbols, normalized once so that operations taking them (`assume = A`, or
 [`assuming`](@ref)) can reuse the work. A fact is:
