@@ -1679,9 +1679,27 @@ end
 # -1, or nothing when A does not decide it
 function _sign_oracle(A::Assumptions)
     function (p)
-        m = _signs(Sym(p), A)
-        m == _POS ? 1 : m == _NEG ? -1 : nothing
+        q = Sym(p)
+        m = _signs(q, A)
+        m == _POS ? 1 : m == _NEG ? -1 : _fact_sign(q, A)
     end
+end
+
+# the sign of q from a strict fact d > 0 or d < 0 when q/d or q·d is a nonzero number
+# (t² - 1 > 0, which _signs leaves open, as |t| > 1 is two intervals, decides t² - 1 and
+# -1/(t² - 1))
+function _fact_sign(q::Sym, A::Assumptions)
+    _hassymbol(q) || return nothing
+    for f in A.facts
+        (f isa Relation && f.op in (:gt, :lt)) || continue
+        d = f.lhs - f.rhs
+        _hassymbol(d) || continue
+        s = f.op === :gt ? 1 : -1
+        for r in (cancel(q / d), cancel(q * d))
+            r.kind == NUMBER && r.num isa Real && !iszero(r.num) && return s * Int(sign(r.num))
+        end
+    end
+    nothing
 end
 
 # drop_removable_singularities = true: a case p = q whose value is the limit of the
@@ -2197,8 +2215,9 @@ function _feynman_try(f, g, x, a, c, a0, lo, hi, integ)
     # (first, cheaply: ∂f/∂a has an elementary antiderivative in x, with no assumptions;
     # else the definite integral with a parameter, the costly part, is not tried)
     dg = diff(g, a)
-    F = integ(dg, x)
-    (F isa Sym && !_hasfn(F, :Integral)) || return nothing
+    F = integ(dg, x)                     # (Cases when its form depends on signs of a)
+    elem(v) = v isa Sym ? !_hasfn(v, :Integral) : v !== nothing   # (a RootSum: elementary)
+    (elem(F) || F isa Cases && all(p -> elem(p.second), F.cases)) || return nothing
     # I(a₀): 0 where the integrand vanishes, else its integral (by the other methods)
     g0 = simplify(subs(g, a => a0))
     I0 = iszero(g0) ? ZERO : integ(g0, (x, lo, hi))

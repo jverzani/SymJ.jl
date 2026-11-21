@@ -20,10 +20,153 @@ function RischIntegrate.integrate(ex::Sym, x::Sym; assume = nothing, kw...)
     # (a variable that is not a symbol was taken as a constant: ∫ sin(x) d(sin(x)) gave
     # sin(x)^2; SymPy #4459)
     SymJ._isnamed(x) || throw(ArgumentError("integrate: $x is not a symbol; integrate with respect to a symbol (substitute u = $x first)"))
-    r = _unwrap(_indefinite(ex, x; assume, kw...))
+    r = _unwrap(_indefinite_by_signs(ex, x; assume, kw...))
+    # over ℝ, log|u| (each case under its conditions)
+    A0 = something(SymJ._assumptions(assume), SymJ.Assumptions())
+    if !SymJ._LOG_ABS[]
+    elseif r isa Sym
+        r = _log_abs(r, x, A0)
+    elseif r isa SymJ.Cases
+        cs = [c => (v isa Sym ? _log_abs(v, x, something(SymJ._with_fact(A0, SymJ.FactAnd(Any[c...])), A0)) : v) for (c, v) in r.cases]
+        r = SymJ.Cases{typejoin(map(c -> typeof(c.second), cs)...)}(cs)
+    end
     # exp(c log u) as u^c, the integrand's own form (xⁿ log x had exp(n log x) back)
     r isa Sym && (r = SymJ._exp_log_powers(r))
     r isa Sym && !SymJ._isexactex(ex) ? SymJ._floatify(r) : r
+end
+
+# An antiderivative over ℝ: its terms c log(u), c free of x, with u real and not known
+# positive (under A, x and the parameters real), as c log|u|: ∫ 1/x dx = log|x|, valid on
+# both sides of 0 where log(x) is complex for x < 0 (Rubi, Mathematica and SymPy, over ℂ,
+# give log(x)). A log times a factor in x keeps its form (x log x - x for ∫ log x: the
+# integrand itself needs x > 0).
+function _log_abs(F::Sym, x::Sym, A::SymJ.Assumptions)
+    reals = Any[v ∈ SymJ.ℝ for v in SymJ._sort_by_name!(collect(SymJ.free_symbols(F))) if SymJ._isnamed(v)]
+    B = something(SymJ._with_fact(A, SymJ.FactAnd(reals)), A)
+    function fix(t::Sym)
+        # t = (factors free of x) * log(u)
+        lg, rest = nothing, SymJ.ONE
+        if t.kind == SymJ.FN && t.name === :log && length(t.args) == 1
+            lg = t
+        elseif t.kind == SymJ.MUL
+            for (b, p) in zip(t.args, t.exps)
+                if b.kind == SymJ.FN && b.name === :log && length(b.args) == 1 && SymJ.has(b, x) && isone(p) && lg === nothing
+                    lg = b
+                elseif SymJ.has(b, x) || SymJ.has(p, x)
+                    return t
+                end
+            end
+            lg === nothing && return t
+            rest = t / lg
+        else
+            return t
+        end
+        u = lg.args[1]
+        (SymJ.has(u, x) && !(u.kind == SymJ.FN && u.name === :abs)) || return t
+        SymJ._has_imag_unit(u) && return t
+        SymJ._isreal(u, _radicand_signs(u, x, B)) === true || return t
+        SymJ._signs(u, B) == SymJ._POS && return t
+        rest * log(abs(u))
+    end
+    F.kind == SymJ.ADD || return fix(F)
+    Sym(F.num) + SymJ._add_many(fix(Sym(c) * t) for (c, t) in zip(F.coefs, F.args))
+end
+
+# A with the sign of each parameter radicand of an even root in u (free of x) that the sign
+# oracle decides from a fact as a fact itself: √(-1/(a b)) is real under a b < 0, which the
+# realness test alone does not see (∫ 1/(a x² + b) dx, case a b < 0, as a log|u|)
+function _radicand_signs(u::Sym, x::Sym, A::SymJ.Assumptions)
+    rads = Sym[]
+    evenroot(e) = e isa Sym && e.kind == SymJ.NUMBER && (q = SymJ.unwrap_const(e); q isa Rational && iseven(denominator(q)))
+    keep(b) = !SymJ.has(b, x) && SymJ._hassymbol(b) && !any(r -> isequal(r, b), rads) && push!(rads, b)
+    SymJ._has_node(u, t -> begin
+        t.kind == SymJ.MUL && for (b, e) in zip(t.args, t.exps); evenroot(e) && keep(b); end
+        t.kind == SymJ.POW && evenroot(t.args[2]) && keep(t.args[1])
+        false
+    end)
+    isempty(rads) && return A
+    oracle = SymJ._sign_oracle(A)
+    for r in rads
+        s = oracle(r)
+        s in (1, -1) || continue
+        A = something(SymJ._with_fact(A, SymJ.Relation(s == 1 ? :gt : :lt, r, SymJ.ZERO)), A)
+    end
+    A
+end
+
+# The antiderivative by cases on the signs of parameter expressions that its form depends
+# on, as definite integrate gives them (decision 7 of the default-assumptions doc): the
+# integrator's sign oracle records each sign the assumptions leave open, and the integral
+# is taken again with that expression > 0 and < 0 (its zero excluded: generic parameter
+# values), splitting again on signs still open, at most 3 deep. ∫ 1/(x² + a) dx is
+# atan(x/√a)/√a for a > 0 and a log for a < 0 (it was the atan form, complex for a < 0).
+# Cases that are one answer are merged: the two signs of an expression giving answers equal
+# up to expansion (√(a² - x²): a√(a²)(…) either way) are one case, and the same answer in
+# every case is the answer. A case where the integrand is nowhere real (√(a x² + b) with
+# a, b < 0) is dropped, integration being over ℝ. Without an oracle in the installed
+# RischIntegrate, the generic form, as before.
+function _indefinite_by_signs(ex::Sym, x::Sym; assume = nothing, kw...)
+    (_has_oracle() && !haskey(kw, :sign)) || return _indefinite(ex, x; assume, kw...)
+    A0 = SymJ._assumptions(assume)
+    A0 === nothing && (A0 = SymJ.Assumptions())
+    # leaves (conditions, assumptions, answer)
+    function split(B, conds, depth)
+        asked = Sym[]
+        base = SymJ._sign_oracle(B)
+        oracle = function (p)
+            s = base(p)
+            q = Sym(p)
+            s === nothing && SymJ._hassymbol(q) && !SymJ.has(q, x) && !any(t -> isequal(t, q), asked) && push!(asked, q)
+            s
+        end
+        r = _indefinite(ex, x; assume = B, kw..., sign = oracle)
+        leaf = Any[(conds, B, r)]
+        (isempty(asked) || depth >= 3 || !(r isa Sym || r isa RischIntegrate.IntegralWithRootSums)) && return leaf
+        p = first(asked)
+        sub = Vector{Any}[]
+        for op in (:gt, :lt)
+            # (the fact as the integrator asks it, so its oracle decides it; the condition
+            # shown solved: a < 0 for -1/(4a) > 0)
+            raw = SymJ.Relation(op, p, SymJ.ZERO)
+            B2 = SymJ._with_fact(B, raw)
+            (B2 === nothing || B2 === B) && continue
+            push!(sub, filter(l -> !_nowhere_real(ex, x, l[2]), split(B2, vcat(conds, Any[SymJ._solved_for(raw)]), depth + 1)))
+        end
+        out = reduce(vcat, sub; init = Any[])
+        isempty(out) && return leaf
+        length(sub) == 2 && all(l -> length(l) == 1, sub) && _same_answer(sub[1][1][3], sub[2][1][3]) && return Any[(conds, B, sub[1][1][3])]
+        out
+    end
+    leaves = split(A0, Any[], 0)
+    vals = [l[3] for l in leaves]
+    (length(leaves) == 1 || all(v -> _same_answer(v, vals[1]), vals)) && return vals[1]
+    T = typejoin(map(typeof, vals)...)
+    SymJ.Cases{T}([SymJ._simplify_conds(Vector{Any}(l[1]), A0) => l[3] for l in leaves])
+end
+
+# answers equal as written or up to expansion
+_same_answer(u, v) = isequal(u, v) || u isa Sym && v isa Sym && (try iszero(SymJ.expand(u - v)) catch; false end)
+
+# Is ex nowhere real for real x, under the facts of A (the parameters real): an even root of an expression in x
+# negative for every real x (√(a x² + b) with a < 0, b < 0)?
+function _nowhere_real(ex::Sym, x::Sym, A)
+    ps = Sym[p for p in SymJ.free_symbols(ex) if SymJ._isnamed(p)]
+    B = something(SymJ._with_fact(A, SymJ.FactAnd(Any[p ∈ SymJ.ℝ for p in ps])), A)
+    # a parameter's sign the facts imply but don't state (a < 0 from -b/a < 0 and b < 0:
+    # a > 0 contradicts them)
+    for p in ps
+        SymJ.has(p, x) && continue
+        for (op, other) in ((:gt, :lt), (:lt, :gt))
+            if SymJ._with_fact(B, SymJ.Relation(op, p, SymJ.ZERO)) === nothing
+                B = something(SymJ._with_fact(B, SymJ.Relation(other, p, SymJ.ZERO)), B)
+                break
+            end
+        end
+    end
+    evenroot(e) = e isa Sym && e.kind == SymJ.NUMBER && (q = SymJ.unwrap_const(e); q isa Rational && iseven(denominator(q)))
+    neg(r) = SymJ.has(r, x) && SymJ._signs(r, B) == SymJ._NEG
+    SymJ._has_node(ex, t -> t.kind == SymJ.MUL && any(((b, e),) -> evenroot(e) && neg(b), zip(t.args, t.exps)) ||
+        t.kind == SymJ.POW && evenroot(t.args[2]) && neg(t.args[1]))
 end
 
 # a Poly integrated as its expression (it reached the integrator as an opaque leaf;
@@ -148,8 +291,15 @@ function _indefinite(ex::Sym, x::Sym; assume = nothing, kw...)
         return iszero(rest) ? H : RischIntegrate.integrate(rest, x; assume, kw...) + H
     end
     integ = f -> RischIntegrate.risch_integrate(f, x; kw...)
-    ex = SymJ._realsyms(ex, (x,))
-    Ax = SymJ._with_fact(something(A, SymJ.Assumptions()), x ∈ SymJ.ℝ)
+    # x and the parameters real (decision 1 of the default-assumptions doc: integrate works
+    # over ℝ, where Rubi, Mathematica and SymPy work over ℂ); facts given that say otherwise
+    # are kept as they are, with x alone real
+    ps = Sym[p for p in SymJ._sort_by_name!(collect(SymJ.free_symbols(ex))) if SymJ._isnamed(p) && !SymJ._eq(p, x)]
+    A1 = something(A, SymJ.Assumptions())
+    Ax = SymJ._with_fact(A1, SymJ.FactAnd(Any[v ∈ SymJ.ℝ for v in vcat([x], ps)]))
+    rs = Ax === nothing ? (x,) : (x, ps...)
+    Ax === nothing && (Ax = SymJ._with_fact(A1, x ∈ SymJ.ℝ))
+    ex = SymJ._realsyms(ex, rs)
     Ax === nothing || (ex = SymJ._split_radicals(ex, Ax))
     # real and imaginary parts the assumptions resolve (|exp(w)|² = exp(2 re w) with
     # re w a rational function; SymPy #26102)
@@ -364,7 +514,7 @@ function __init__()
     reg(:sinhint; diff = (args, i) -> sinh(args[1]) / args[1])
     reg(:coshint; diff = (args, i) -> cosh(args[1]) / args[1])
     # the integrator SymJ uses inside (dsolve)
-    SymJ._INTEGRATOR[] = (f, x) -> integrate(f, x)
+    SymJ._INTEGRATOR[] = (f, x) -> SymJ.with(() -> integrate(f, x), SymJ._LOG_ABS => false)
 end
 
 @setup_workload begin
