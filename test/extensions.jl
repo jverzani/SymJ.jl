@@ -1011,7 +1011,16 @@ import PolyLog as PL
             s = RischIntegrate.integrate(1 / (x^2 + t^2 - 1), x)
             k = findfirst(c -> join(string.(c.first), ", ") == "t^2 - 1 ≫ 0", s.cases)
             @test SymJ._hasfn(s.cases[k].second, :atan)
+            # the two signs giving one answer, up to expansion, are one case
+            @test RischIntegrate.integrate(sqrt(a^2 - x^2), x) isa Sym
         end
+        # a case where the integrand is nowhere real is dropped: √(a x² + b) with a, b < 0
+        # (a < 0 implied by -b/a < 0 and b < 0)
+        E = Base.get_extension(SymJ, :SymJRischIntegrateExt)
+        R = SymJ.FactAnd(Any[a ∈ SymJ.ℝ, b ∈ SymJ.ℝ])
+        @test E._nowhere_real(sqrt(a * x^2 + b), x, SymJ._with_fact(SymJ.Assumptions(), SymJ.FactAnd(Any[R, -b / a ≪ 0, b ≪ 0])))
+        @test !E._nowhere_real(sqrt(a * x^2 + b), x, SymJ._with_fact(SymJ.Assumptions(), SymJ.FactAnd(Any[R, -b / a ≪ 0, b ≫ 0])))
+        @test E._same_answer(-(-sin(x) - x) * a, a * (x + sin(x)))
         # no sign asked: one answer, as before
         @test isequal(RischIntegrate.integrate(x^n, x), x^(n + 1) / (n + 1))
         # t² - 1 > 0 decides the sign of -1/(t² - 1)
