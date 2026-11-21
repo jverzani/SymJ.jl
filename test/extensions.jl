@@ -1036,6 +1036,11 @@ import PolyLog as PL
         @test isequal(RischIntegrate.integrate(2x / (x^2 + 1), x), log(x^2 + 1))   # positive
         @test isequal(RischIntegrate.integrate(log(x), x), x * log(x) - x)        # a log times x
         @test !occursin("abs", string(RischIntegrate.integrate(1 / (x + IM), x)))  # complex
+        # √(-1/(a b)) is real under a b < 0 (the case a b < 0 of ∫ 1/(a x² + b) dx)
+        E = Base.get_extension(SymJ, :SymJRischIntegrateExt)
+        Aab = SymJ._with_fact(SymJ.Assumptions(), SymJ.Relation(:lt, a * b, SymJ.ZERO))
+        u = x + sqrt(-1 / (a * b)) * b
+        @test isequal(E._log_abs(log(u), x, Aab), log(abs(u)))
     end
 
     @testset "differentiation under the integral sign" begin

@@ -64,12 +64,34 @@ function _log_abs(F::Sym, x::Sym, A::SymJ.Assumptions)
         u = lg.args[1]
         (SymJ.has(u, x) && !(u.kind == SymJ.FN && u.name === :abs)) || return t
         SymJ._has_imag_unit(u) && return t
-        SymJ._isreal(u, B) === true || return t
+        SymJ._isreal(u, _radicand_signs(u, x, B)) === true || return t
         SymJ._signs(u, B) == SymJ._POS && return t
         rest * log(abs(u))
     end
     F.kind == SymJ.ADD || return fix(F)
     Sym(F.num) + SymJ._add_many(fix(Sym(c) * t) for (c, t) in zip(F.coefs, F.args))
+end
+
+# A with the sign of each parameter radicand of an even root in u (free of x) that the sign
+# oracle decides from a fact as a fact itself: √(-1/(a b)) is real under a b < 0, which the
+# realness test alone does not see (∫ 1/(a x² + b) dx, case a b < 0, as a log|u|)
+function _radicand_signs(u::Sym, x::Sym, A::SymJ.Assumptions)
+    rads = Sym[]
+    evenroot(e) = e isa Sym && e.kind == SymJ.NUMBER && (q = SymJ.unwrap_const(e); q isa Rational && iseven(denominator(q)))
+    keep(b) = !SymJ.has(b, x) && SymJ._hassymbol(b) && !any(r -> isequal(r, b), rads) && push!(rads, b)
+    SymJ._has_node(u, t -> begin
+        t.kind == SymJ.MUL && for (b, e) in zip(t.args, t.exps); evenroot(e) && keep(b); end
+        t.kind == SymJ.POW && evenroot(t.args[2]) && keep(t.args[1])
+        false
+    end)
+    isempty(rads) && return A
+    oracle = SymJ._sign_oracle(A)
+    for r in rads
+        s = oracle(r)
+        s in (1, -1) || continue
+        A = something(SymJ._with_fact(A, SymJ.Relation(s == 1 ? :gt : :lt, r, SymJ.ZERO)), A)
+    end
+    A
 end
 
 # The antiderivative by cases on the signs of parameter expressions that its form depends
