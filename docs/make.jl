@@ -95,7 +95,12 @@ makedocs(;
     checkdocs=:all,
     pages=[
         "Home" => "index.md",
-        "Tutorial" => "tutorial.md",
+        "Tutorial" => [
+            "tutorial/expressions.md",
+            "tutorial/solving.md",
+            "tutorial/calculus.md",
+            "tutorial/matrices.md",
+        ],
         "Implementation" => "implementation.md",
         "Design notes" => ["design/index.md", "design/algebra.md", "design/calculus.md"],
         "Reference" => ["reference/index.md"; ["reference/$(p.file).md" for p in REFERENCE]],

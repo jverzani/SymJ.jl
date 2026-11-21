@@ -23,6 +23,13 @@
     @test free_symbols(sum(zs)) == zs
     @test free_symbols(sum(ws)) == ws
     @test free_symbols(x10 + x2 + x) == [x, x2, x10]
+    # isconstant: no free variables; a definite integral's variable is bound
+    @test SymJ.isconstant(sqrt(Sym(2)) + Sym(pi))
+    @test SymJ.isconstant(3)
+    @test !SymJ.isconstant(x + 1)
+    @test !SymJ.isconstant(sin(x)^2 + cos(x)^2)
+    @test SymJ.isconstant(SymJ.Integral(exp(-x^2), (x, -Inf, Inf)))
+    @test !SymJ.isconstant(SymJ.Integral(exp(-x^2), (x, 0, y)))
 end
 
 @testset "parameters" begin

@@ -58,6 +58,25 @@ function _natural_lt(a::AbstractString, b::AbstractString)
     length(ta) == length(tb) ? a < b : length(ta) < length(tb)
 end
 free_symbols(::Number) = Sym[]
+
+"""
+    SymJ.isconstant(ex)::Bool
+
+`true` when `ex` has no free variables, tested without allocating (as
+`free_symbols` does). The variable of an unevaluated definite integral is
+bound, so `SymJ.Integral(exp(-x^2), (x, -Inf, Inf))` is constant.
+
+The test is structural: `sin(x)^2 + cos(x)^2` is not constant until it is
+simplified. (SymPy's `is_constant` instead checks whether the value depends
+on the variables.)
+
+```julia
+@syms x
+SymJ.isconstant(sqrt(Sym(2)) + 1), SymJ.isconstant(x + 1)   # (true, false)
+```
+"""
+isconstant(ex::Sym) = !_hasfree(ex)
+isconstant(::Number) = true
 # (of an array or a tuple, and of a relation (relations.jl): the union over the parts; SymPy #7204)
 function free_symbols(xs::Union{AbstractArray,Tuple})
     s = Set{Sym}()
