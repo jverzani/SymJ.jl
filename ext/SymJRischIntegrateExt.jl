@@ -21,9 +21,77 @@ function RischIntegrate.integrate(ex::Sym, x::Sym; assume = nothing, kw...)
     # sin(x)^2; SymPy #4459)
     SymJ._isnamed(x) || throw(ArgumentError("integrate: $x is not a symbol; integrate with respect to a symbol (substitute u = $x first)"))
     r = _unwrap(_indefinite_by_signs(ex, x; assume, kw...))
+    # over ℝ, log|u| (each case under its conditions)
+    A0 = something(SymJ._assumptions(assume), SymJ.Assumptions())
+    if !SymJ._LOG_ABS[]
+    elseif r isa Sym
+        r = _log_abs(r, x, A0)
+    elseif r isa SymJ.Cases
+        cs = [c => (v isa Sym ? _log_abs(v, x, something(SymJ._with_fact(A0, SymJ.FactAnd(Any[c...])), A0)) : v) for (c, v) in r.cases]
+        r = SymJ.Cases{typejoin(map(c -> typeof(c.second), cs)...)}(cs)
+    end
     # exp(c log u) as u^c, the integrand's own form (xⁿ log x had exp(n log x) back)
     r isa Sym && (r = SymJ._exp_log_powers(r))
     r isa Sym && !SymJ._isexactex(ex) ? SymJ._floatify(r) : r
+end
+
+# An antiderivative over ℝ: its terms c log(u), c free of x, with u real and not known
+# positive (under A, x and the parameters real), as c log|u|: ∫ 1/x dx = log|x|, valid on
+# both sides of 0 where log(x) is complex for x < 0 (Rubi, Mathematica and SymPy, over ℂ,
+# give log(x)). A log times a factor in x keeps its form (x log x - x for ∫ log x: the
+# integrand itself needs x > 0).
+function _log_abs(F::Sym, x::Sym, A::SymJ.Assumptions)
+    reals = Any[v ∈ SymJ.ℝ for v in SymJ._sort_by_name!(collect(SymJ.free_symbols(F))) if SymJ._isnamed(v)]
+    B = something(SymJ._with_fact(A, SymJ.FactAnd(reals)), A)
+    function fix(t::Sym)
+        # t = (factors free of x) * log(u)
+        lg, rest = nothing, SymJ.ONE
+        if t.kind == SymJ.FN && t.name === :log && length(t.args) == 1
+            lg = t
+        elseif t.kind == SymJ.MUL
+            for (b, p) in zip(t.args, t.exps)
+                if b.kind == SymJ.FN && b.name === :log && length(b.args) == 1 && SymJ.has(b, x) && isone(p) && lg === nothing
+                    lg = b
+                elseif SymJ.has(b, x) || SymJ.has(p, x)
+                    return t
+                end
+            end
+            lg === nothing && return t
+            rest = t / lg
+        else
+            return t
+        end
+        u = lg.args[1]
+        (SymJ.has(u, x) && !(u.kind == SymJ.FN && u.name === :abs)) || return t
+        SymJ._has_imag_unit(u) && return t
+        SymJ._isreal(u, _radicand_signs(u, x, B)) === true || return t
+        SymJ._signs(u, B) == SymJ._POS && return t
+        rest * log(abs(u))
+    end
+    F.kind == SymJ.ADD || return fix(F)
+    Sym(F.num) + SymJ._add_many(fix(Sym(c) * t) for (c, t) in zip(F.coefs, F.args))
+end
+
+# A with the sign of each parameter radicand of an even root in u (free of x) that the sign
+# oracle decides from a fact as a fact itself: √(-1/(a b)) is real under a b < 0, which the
+# realness test alone does not see (∫ 1/(a x² + b) dx, case a b < 0, as a log|u|)
+function _radicand_signs(u::Sym, x::Sym, A::SymJ.Assumptions)
+    rads = Sym[]
+    evenroot(e) = e isa Sym && e.kind == SymJ.NUMBER && (q = SymJ.unwrap_const(e); q isa Rational && iseven(denominator(q)))
+    keep(b) = !SymJ.has(b, x) && SymJ._hassymbol(b) && !any(r -> isequal(r, b), rads) && push!(rads, b)
+    SymJ._has_node(u, t -> begin
+        t.kind == SymJ.MUL && for (b, e) in zip(t.args, t.exps); evenroot(e) && keep(b); end
+        t.kind == SymJ.POW && evenroot(t.args[2]) && keep(t.args[1])
+        false
+    end)
+    isempty(rads) && return A
+    oracle = SymJ._sign_oracle(A)
+    for r in rads
+        s = oracle(r)
+        s in (1, -1) || continue
+        A = something(SymJ._with_fact(A, SymJ.Relation(s == 1 ? :gt : :lt, r, SymJ.ZERO)), A)
+    end
+    A
 end
 
 # The antiderivative by cases on the signs of parameter expressions that its form depends
@@ -446,7 +514,7 @@ function __init__()
     reg(:sinhint; diff = (args, i) -> sinh(args[1]) / args[1])
     reg(:coshint; diff = (args, i) -> cosh(args[1]) / args[1])
     # the integrator SymJ uses inside (dsolve)
-    SymJ._INTEGRATOR[] = (f, x) -> integrate(f, x)
+    SymJ._INTEGRATOR[] = (f, x) -> SymJ.with(() -> integrate(f, x), SymJ._LOG_ABS => false)
 end
 
 @setup_workload begin

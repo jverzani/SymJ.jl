@@ -272,7 +272,7 @@ import PolyLog as PL
         # facts that fix a parameter's value in indefinite integrals (SymPy #6985)
         let k = Sym(:k), n = Sym(:n)
             @test ∫(exp(k * x), x; assume = (k ~ 0,)) == x
-            @test ∫(x^n, x; assume = (n ~ -1,)) == log(x)
+            @test ∫(x^n, x; assume = (n ~ -1,)) == log(abs(x))
         end
         # a complex antiderivative on part of a long interval is caught (SymPy #7155)
         VERSION >= v"1.12" && @test_throws ArgumentError ∫(x * acos(1 / x), (x, Sym(1) // 10, 100))  # (the older RischIntegrate refuses acos(1/x))
@@ -1026,6 +1026,21 @@ import PolyLog as PL
         # t² - 1 > 0 decides the sign of -1/(t² - 1)
         B = SymJ._with_fact(SymJ.Assumptions(), SymJ.Relation(:gt, t^2 - 1, SymJ.ZERO))
         @test SymJ._sign_oracle(B)(-1 / (t^2 - 1)) == -1
+    end
+
+    @testset "indefinite integrals over ℝ: log|u|" begin
+        @test isequal(RischIntegrate.integrate(1 / x, x), log(abs(x)))
+        @test isequal(diff(log(abs(x)), x), 1 / x)                       # back to the integrand
+        @test isequal(RischIntegrate.integrate(1 / x, x; assume = @assume(x > 0)), log(x))
+        @test isequal(RischIntegrate.integrate(1 / (x + 1), x), log(abs(x + 1)))
+        @test isequal(RischIntegrate.integrate(2x / (x^2 + 1), x), log(x^2 + 1))   # positive
+        @test isequal(RischIntegrate.integrate(log(x), x), x * log(x) - x)        # a log times x
+        @test !occursin("abs", string(RischIntegrate.integrate(1 / (x + IM), x)))  # complex
+        # √(-1/(a b)) is real under a b < 0 (the case a b < 0 of ∫ 1/(a x² + b) dx)
+        E = Base.get_extension(SymJ, :SymJRischIntegrateExt)
+        Aab = SymJ._with_fact(SymJ.Assumptions(), SymJ.Relation(:lt, a * b, SymJ.ZERO))
+        u = x + sqrt(-1 / (a * b)) * b
+        @test isequal(E._log_abs(log(u), x, Aab), log(abs(u)))
     end
 
     @testset "differentiation under the integral sign" begin
