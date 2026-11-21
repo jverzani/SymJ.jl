@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Solving — SymJ.jl</title>
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=db2edfbb">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <meta name="title" content="Solving — SymJ.jl">
+  <meta property="og:title" content="Solving — SymJ.jl">
+  <meta property="twitter:title" content="Solving — SymJ.jl">
+  <meta name="description" content="Documentation for SymJ.jl.">
+  <meta property="og:description" content="Documentation for SymJ.jl.">
+  <meta property="twitter:description" content="Documentation for SymJ.jl.">
+  <script>
+    (function(){
+      document.documentElement.classList.add('no-transition');
+      var t=localStorage.getItem('md-theme');if(t)document.documentElement.setAttribute('data-theme',t);
+      window.addEventListener('load',function(){setTimeout(function(){document.documentElement.classList.remove('no-transition');},50);});
+    })()
+  </script>
+</head>
+<body data-warn-outdated>
+  <header class="md-navbar">
+    <button id="md-hamburger" class="md-icon-btn md-hamburger" aria-label="Toggle navigation" aria-expanded="false"><svg class="md-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg></button>
+    <span class="md-navbar-title">SymJ.jl</span>
+    <span class="md-navbar-spacer"></span>
+    <button id="md-search-btn" class="md-search-bar" aria-label="Search documentation" aria-expanded="false">
+      <svg class="md-icon md-search-bar-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+      <span class="md-search-bar-label">Search docs</span>
+      <kbd class="md-search-bar-kbd">Ctrl K</kbd>
+    </button>
+    <div id="md-version" class="md-version" hidden>
+      <button id="md-version-btn" class="md-version-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="Select documentation version">
+        <span id="md-version-current" class="md-version-current"></span>
+        <svg class="md-icon md-version-caret" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M7 10l5 5 5-5z"/></svg>
+      </button>
+      <ul id="md-version-menu" class="md-version-menu" role="listbox" hidden></ul>
+    </div>
+    <a class="md-icon-btn md-repo-link" href="https://github.com/jverzani/SymJ.jl" title="View the repository on GitHub" aria-label="View the repository on GitHub" rel="noopener" target="_blank"><svg class="md-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 .3a12 12 0 00-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.4-1.8-1.4-1.8-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 0-.8.4-1.3.7-1.6-2.7-.3-5.5-1.3-5.5-6 0-1.2.5-2.3 1.3-3.1-.2-.4-.6-1.6.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 016 0c2.3-1.5 3.3-1.2 3.3-1.2.7 1.6.2 2.8.1 3.2.8.8 1.3 1.9 1.3 3.2 0 4.6-2.8 5.6-5.5 5.9.5.4.9 1.1.9 2.2v3.3c0 .3.1.7.8.6A12 12 0 0012 .3z"/></svg><span class="md-repo-label">GitHub</span></a>
+    <button id="md-theme-toggle" class="md-icon-btn" title="Toggle dark mode" aria-label="Toggle dark mode"><svg class="md-icon md-icon-light" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0a.996.996 0 000-1.41l-1.06-1.06zm1.06-10.96a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/></svg><svg class="md-icon md-icon-dark" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg></button>
+  </header>
+  <div class="md-layout">
+    <nav class="md-sidebar">
+      <a href="../../">Home</a>
+      <div class="md-nav-section">
+        <span class="md-nav-section-title">Tutorial</span>
+        <a href="../../tutorial/expressions/">Symbolic expressions</a>
+        <a href="../../tutorial/solving/" class="md-nav-active">Solving</a>
+        <a href="../../tutorial/calculus/">Calculus</a>
+        <a href="../../tutorial/matrices/">Matrices</a>
+      </div>
+      <a href="../../implementation/">Implementation</a>
+      <div class="md-nav-section">
+        <span class="md-nav-section-title">Design notes</span>
+        <a href="../../design/index/">Design notes</a>
+        <a href="../../design/algebra/">Design notes: algebra</a>
+        <a href="../../design/calculus/">Design notes: calculus</a>
+      </div>
+      <div class="md-nav-section">
+        <span class="md-nav-section-title">Reference</span>
+        <a href="../../reference/index/">Reference</a>
+        <a href="../../reference/expressions/">Expressions and evaluation</a>
+        <a href="../../reference/polynomials/">Polynomials</a>
+        <a href="../../reference/rational/">Rational functions</a>
+        <a href="../../reference/simplification/">Simplification</a>
+        <a href="../../reference/assumptions/">Assumptions</a>
+        <a href="../../reference/solving/">Solving equations</a>
+        <a href="../../reference/sums/">Sums and recurrences</a>
+        <a href="../../reference/matrices/">Matrices</a>
+        <a href="../../reference/piecewise/">Piecewise functions</a>
+        <a href="../../reference/calculus/">Calculus</a>
+        <a href="../../reference/ode/">Differential equations</a>
+        <a href="../../reference/patterns/">Pattern matching</a>
+      </div>
+    </nav>
+    <main class="md-content">
+      <article class="md-article">
+      <div class="md-article-actions"><a class="md-icon-btn md-edit-link" href="https://github.com/jverzani/SymJ.jl/blob/main/docs/src/tutorial/solving.md" title="Edit source on GitHub" aria-label="Edit source on GitHub"><svg class="md-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 000-1.41l-2.34-2.34a.996.996 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></a></div>
+<h1 id="Solving" class="md-heading">Solving<a href="#Solving" class="md-heading-anchor" aria-label="Link to this section">#</a></h1>
+<p>Solving equations: roots of polynomials, equations and inequalities in one unknown, and systems.</p>
+<p>SymJ provides solvers for different types of equations, the most general being <code class="md-code-inline">solve</code>, described here along with a few other methods. In the Calculus section we also introduce <code class="md-code-inline">rsolve</code> and <code class="md-code-inline">dsolve</code>.</p>
+<p>Equations are specified with <code class="md-code-inline">~</code> (as is common in Julia) or <code class="md-code-inline">Eq</code>. This infix operator binds more loosely than everything else, so no parentheses are typically needed. Equations are held internally as a <code class="md-code-inline">Relation</code>. The left- and right-hand sides of a relation are returned by <code class="md-code-inline">lhs</code> and <code class="md-code-inline">rhs</code> respectively.</p>
+<h2 id="Roots-of-polynomials" class="md-heading">Roots of polynomials<a href="#Roots-of-polynomials" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>We will see more uses later, but <code class="md-code-inline">solve</code> finds the roots of a polynomial. Degrees up to four are solved exactly, with real roots of cubics given in trigonometric form (no complex numbers needed):</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">p = expand((x^2 + x)^3 - 2)
+solve(p ~ 0, x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left[  - \frac{\sqrt{4 \cdot 2^{\frac{1}{3}} + 1}}{2} - \frac{1}{2}, \; \frac{\sqrt{4 \cdot 2^{\frac{1}{3}} + 1}}{2} - \frac{1}{2}, \;  - \frac{\sqrt{4 \cdot \left( -1 \right)^{\frac{2}{3}} \cdot 2^{\frac{1}{3}} + 1}}{2} - \frac{1}{2}, \;  - \frac{\sqrt{-4 \cdot \left( -1 \right)^{\frac{1}{3}} \cdot 2^{\frac{1}{3}} + 1}}{2} - \frac{1}{2}, \; \frac{\sqrt{-4 \cdot \left( -1 \right)^{\frac{1}{3}} \cdot 2^{\frac{1}{3}} + 1}}{2} - \frac{1}{2}, \; \frac{\sqrt{4 \cdot \left( -1 \right)^{\frac{2}{3}} \cdot 2^{\frac{1}{3}} + 1}}{2} - \frac{1}{2} \right]\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve(x^3 - 3x + 1 ~ 0, x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left[ 2 \cdot \cos\left( \frac{10 \cdot \pi}{9} \right), \; 2 \cdot \cos\left( \frac{4 \cdot \pi}{9} \right), \; 2 \cdot \cos\left( \frac{2 \cdot \pi}{9} \right) \right]\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve(x^4 - 10x^2 + 1 ~ 0, x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left[  - \sqrt{2 \cdot \sqrt{6} + 5}, \;  - \sqrt{-2 \cdot \sqrt{6} + 5}, \; \sqrt{-2 \cdot \sqrt{6} + 5}, \; \sqrt{2 \cdot \sqrt{6} + 5} \right]\]
+</div>
+</div>
+<p>(Neither of the last two examples can be factored with <code class="md-code-inline">factor</code>, which provides factorization into irreducibles over the rationals.)</p>
+<p>From degree five, it is possible there are no roots in radicals. Those of special forms, such as <code class="md-code-inline">x^5 ~ 2</code>, are still solved exactly by <code class="md-code-inline">solve</code>.</p>
+<p>When exact roots aren&#39;t identifiable, <code class="md-code-inline">SymJ.fsolve</code> finds the roots numerically, the real ones by default (with <code class="md-code-inline">domain = ℂ</code> all of them):</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">(
+SymJ.fsolve(x^5 - x + 1 ~ 0, x),
+SymJ.fsolve(x^5 - x + 1 ~ 0, x; domain = ℂ)
+)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \left[ -1.1673039782614187 \right], \; \left[ -1.1673039782614187, \; -1.0839541013177107 \cdot i - 0.18123244446987538, \; 1.0839541013177107 \cdot i - 0.18123244446987538, \; -0.35247154603172626 \cdot i + 0.7648844336005848, \; 0.35247154603172626 \cdot i + 0.7648844336005848 \right] \right)\]
+</div>
+</div>
+<p>The real roots of a polynomial with rational coefficients can be found numerically, with certainty, when the closed form is unwieldy. <code class="md-code-inline">SymJ.real_roots</code> gives them correctly rounded, each repeated by its multiplicity, and <code class="md-code-inline">SymJ.root_intervals</code> exact isolating intervals:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">(
+SymJ.real_roots(x^3 - 2x - 5, x),
+SymJ.real_roots((x - 1)^2 * (x^2 - 2), x)
+)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">([2.0945514815423265], [-1.4142135623730951, 1.0, 1.0, 1.4142135623730951])</code></pre>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.root_intervals(x^2 - 2, x; width = 1 // 100)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">2-element Vector{Tuple{Rational{BigInt}, Rational{BigInt}, Int64}}:
+ (-91//64, -181//128, 1)
+ (181//128, 91//64, 1)</code></pre>
+</div>
+<h2 id="Solving-equations" class="md-heading">Solving equations<a href="#Solving-equations" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
+<p>Non-polynomial equations can also be solved.</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve(a*sin(x) + b ~ 0, x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left[  - \arcsin\left( \frac{b}{a} \right), \; \arcsin\left( \frac{b}{a} \right) + \pi \right]\]
+</div>
+</div>
+<p>Answers to <code class="md-code-inline">solve(eqn, var)</code> are a vector of <code class="md-code-inline">Sym</code> values, empty when there are no identified solutions, or <code class="md-code-inline">Cases</code> when the answer depends on the values of the parameters.</p>
+<p>Equations in which <code class="md-code-inline">x</code> appears through one function are solved by solving for that function first:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve(exp(2x) - 3exp(x) + 2 ~ 0, x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left[ 0, \; \log\left( 2 \right) \right]\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve(sqrt(x + 1) ~ x - 1, x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left[ 3 \right]\]
+</div>
+</div>
+<p>Several logarithms of the unknown are combined; roots where a logarithm would be complex (here <code class="md-code-inline">x = -2</code>) are dropped:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve(log(x) + log(x - 1) ~ log(Sym(6)), x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left[ 3 \right]\]
+</div>
+</div>
+<p>A product is zero where one of its factors is, so a product (or a sum with a common factor) is solved factor by factor. A factor that is never zero, such as <code class="md-code-inline">(a/x)^x</code>, gives no roots, and a root where another factor is undefined is dropped (<code class="md-code-inline">x*log(x)</code> none at <code class="md-code-inline">0</code>).</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve(x * log(x) ~ 0, x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left[ 1 \right]\]
+</div>
+</div>
+<p>Some equations need the Lambert W function, from the <a href="https://github.com/jlapeyre/LambertW.jl">LambertW</a> package:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve(x * exp(x) ~ 1, x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left[ \mathrm{lambertw}\left( 1 \right) \right]\]
+</div>
+</div>
+<h3 id="Generic-values" class="md-heading">Generic values<a href="#Generic-values" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p>Symbols other than the unknown are allowed.</p>
+<p>Such symbols, or parameters, take <em>generic values</em>: an expression in them alone is taken to be nonzero, so the quadratic formula comes out as it is usually written:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve(a * x^2 + b * x + c ~ 0, x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left[ \frac{ - b - \sqrt{-4 \cdot a \cdot c + b^{2}}}{2 \cdot a}, \; \frac{ - b + \sqrt{-4 \cdot a \cdot c + b^{2}}}{2 \cdot a} \right]\]
+</div>
+</div>
+<p>An assumption that makes a coefficient vanish gives that case:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve(a * x^2 + b * x + c ~ 0, x; assume = (a ~ 0))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left[  - \frac{c}{b} \right]\]
+</div>
+</div>
+<p>A symbolic exponent gives the principal root only. <code class="md-code-inline">x^n = 1</code> has <code class="md-code-inline">n</code> roots for a positive integer <code class="md-code-inline">n</code>, but their number depends on <code class="md-code-inline">n</code>, so with <code class="md-code-inline">n</code> symbolic the answer is the principal one:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms n
+solve(x^n ~ 1, x; assume = (n in Integers, n ≫ 0))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left[ 1 \right]\]
+</div>
+</div>
+<p>With a number for <code class="md-code-inline">n</code>, all of them are identified:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve(x^3 ~ 1, x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left[ 1, \; \frac{ - i \cdot \sqrt{3}}{2} - \frac{1}{2}, \; \frac{i \cdot \sqrt{3}}{2} - \frac{1}{2} \right]\]
+</div>
+</div>
+<h3 id="Inequalities" class="md-heading">Inequalities<a href="#Inequalities" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p><code class="md-code-inline">&lt;</code> and its relatives compare numbers and return <code class="md-code-inline">true</code> or <code class="md-code-inline">false</code>, so inequalities use other operators: <code class="md-code-inline">≪</code> (typed <code class="md-code-inline">\ll</code>), <code class="md-code-inline">≦</code> (<code class="md-code-inline">\leqq</code>), <code class="md-code-inline">≫</code> (<code class="md-code-inline">\gg</code>), <code class="md-code-inline">≧</code> (<code class="md-code-inline">\geqq</code>) and <code class="md-code-inline">≶</code> (<code class="md-code-inline">\lessgtr</code>).</p>
+<p>The solution to an inequality is a union of intervals:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve(x^2 - 1 ≫ 0, x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( -\infty, -1 \right) \cup \left( 1, \infty \right)\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve((x - 1) / (x + 2) ≧ 0, x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( -\infty, -2 \right) \cup \left[ 1, \infty \right)\]
+</div>
+</div>
+<h3 id="More-on-assumptions" class="md-heading">More on assumptions<a href="#More-on-assumptions" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p>Symbols are complex numbers unless a fact says otherwise. Facts are relations, such as <code class="md-code-inline">x &gt; 0</code>, or membership in one of <code class="md-code-inline">Integers ⊂ Rationals ⊂ Reals ⊂ Complexes</code> (also written <code class="md-code-inline">ℤ ⊂ ℚ ⊂ ℝ ⊂ ℂ</code>), such as <code class="md-code-inline">n in Integers</code>. Facts are passed to the <code class="md-code-inline">assume</code> keyword, and only the solutions they allow are kept.</p>
+<p>The <code class="md-code-inline">@assume</code> macro lets facts be written with Julia&#39;s familiar Boolean operators, including <code class="md-code-inline">&amp;&amp;</code>, <code class="md-code-inline">||</code>, <code class="md-code-inline">!</code> and chained comparisons.</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve(x^2 ~ 4, x; assume = @assume(x &gt; 0))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left[ 2 \right]\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve(x^2 + 1 ~ 0, x; assume = @assume(x in Reals))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left[ \; \right]\]
+</div>
+</div>
+<p>Without the macro, relations use the symbolic operators: <code class="md-code-inline">x ≫ 0</code> (or <code class="md-code-inline">Gt(x, 0)</code>), and <code class="md-code-inline">n ∈ ℤ</code> for membership.</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve(x^2 ~ 2, x; assume = (x ∈ ℚ,))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left[ \; \right]\]
+</div>
+</div>
+<p><code class="md-code-inline">@assuming</code> gives facts for a block of code (as does the function <code class="md-code-inline">assuming</code>, with a <code class="md-code-inline">do</code> block):</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@assuming x &gt; 0 begin
+    solve(x^3 ~ 8, x), solve(x^2 - 5x + 6 ~ 0, x; assume = @assume(x &gt; 2))
+end</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \left[ 2 \right], \; \left[ 3 \right] \right)\]
+</div>
+</div>
+<p>The facts are read by the operations that take <code class="md-code-inline">assume</code> (<code class="md-code-inline">refine</code>, <code class="md-code-inline">simplify</code>, <code class="md-code-inline">solve</code>, <code class="md-code-inline">limit</code>, …), not by arithmetic: an expression is built the same way inside a block as outside it, so it never depends on the facts in force. <code class="md-code-inline">(a^4)^(3/4)</code> is not <code class="md-code-inline">a^3</code> for every <code class="md-code-inline">a</code> (it is <code class="md-code-inline">1</code> at <code class="md-code-inline">a = -1</code> and at <code class="md-code-inline">a = im</code>), so <code class="md-code-inline">16(a^4)^(3/4)/(9a^2)</code> keeps <code class="md-code-inline">(a^4)^(3/4)</code> even with <code class="md-code-inline">a &gt; 0</code> assumed; <code class="md-code-inline">simplify</code> or <code class="md-code-inline">refine</code> in the block applies the facts, and <code class="md-code-inline">refine = true</code> refines the block&#39;s value with them:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@assuming a &gt; 0 begin
+    e = 16(a^4)^(3//4) / (9a^2)
+    e, simplify(e)
+end</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \frac{16 \cdot \left( a^{4} \right)^{\frac{3}{4}}}{9 \cdot a^{2}}, \; \frac{16 \cdot a}{9} \right)\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@assuming refine = true a &gt; 0 begin
+    16(a^4)^(3//4) / (9a^2)
+end</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\frac{16 \cdot a}{9}\]
+</div>
+</div>
+<h4 id="Cases" class="md-heading">Cases<a href="#Cases" class="md-heading-anchor" aria-label="Link to this section">#</a></h4>
+<p>When the answer depends on something the facts leave open, the result lists the cases:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve(x^2 ~ a, x; assume = @assume(x in Reals, a in Reals))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\begin{cases} \left[ \; \right] &amp; a &lt; 0 \\ \left[ 0 \right] &amp; a = 0 \\ \left[  - \sqrt{a}, \; \sqrt{a} \right] &amp; a &gt; 0 \end{cases}\]
+</div>
+</div>
+<p>Without <code class="md-code-inline">a ∈ ℝ</code>, <code class="md-code-inline">a</code> may be complex, so the cases are a fact and its negation:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">cs = solve(x^2 ~ a, x; assume = @assume(x &gt; 0))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\begin{cases} \left[ \sqrt{a} \right] &amp; a &gt; 0 \\ \left[ \; \right] &amp; \lnot \left( a &gt; 0 \right) \end{cases}\]
+</div>
+</div>
+<p>Calling the cases with a value gives the answer for it:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">cs(a =&gt; 4), cs(a =&gt; -1)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \left[ 2 \right], \; \left[ \; \right] \right)\]
+</div>
+</div>
+<p>Contradictory facts are an error (<code class="md-code-inline">@assume(x &gt; 1 &amp;&amp; x &lt; 0)</code>), and the <code class="md-code-inline">Assumptions</code> value <code class="md-code-inline">@assume</code> makes can be reused: <code class="md-code-inline">A = @assume(x &gt; 0, n in Integers)</code>, then <code class="md-code-inline">assume = A</code>.</p>
+<p>As with polynomials, for an equation <code class="md-code-inline">solve</code> cannot solve exactly, <code class="md-code-inline">SymJ.fsolve</code> (with name and functionality mirroring Maple&#39;s function) finds its roots numerically: the real ones, on the whole line or an interval, and with <code class="md-code-inline">domain = ℂ</code> complex ones too.</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">(
+SymJ.fsolve(cos(x) ~ x, x),
+SymJ.fsolve(log(x) + sin(x) ~ 1, x, (0, 4))
+)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \left[ 0.7390851332151607 \right], \; \left[ 1.1099563755802675, \; 3.3530284715132392 \right] \right)\]
+</div>
+</div>
+<h3 id="External-zero-finding" class="md-heading">External zero finding<a href="#External-zero-finding" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p>The packages for numerical root finding also take SymJ expressions as they are, since an expression is callable (<code class="md-code-inline">lambdify</code> makes a faster function): <code class="md-code-inline">Roots.find_zero(cos(x) - x, 0.5)</code>, or with Newton&#39;s method and the exact derivative, <code class="md-code-inline">find_zero((lambdify(f, x), lambdify(diff(f, x), x)), x0, Roots.Newton())</code>.</p>
+<h3 id="Systems" class="md-heading">Systems<a href="#Systems" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p>A system of equations gives a vector of solutions, each a <code class="md-code-inline">Dict</code> from the unknowns to their values. A linear system&#39;s answer is a single solution (possibly in terms of free unknowns), yet a vector is returned:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve([x + y ~ 3, x - y ~ 1], [x, y])</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left[ \begin{array}{l} \left\{ x = 2, \; y = 1 \right\} \end{array} \right]\]
+</div>
+</div>
+<p>With parameters, a generic value is assumed—the pivots are taken to be nonzero (here <code class="md-code-inline">a + 1</code>; with <code class="md-code-inline">a ~ -1</code> assumed the system has no solution):</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">eqns, vars = [a * x + y ~ 1, x - y ~ b], [x, y]
+solve(eqns, vars)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left[ \begin{array}{l} \left\{ x = \frac{b + 1}{a + 1}, \; y = \frac{ - a \cdot b + 1}{a + 1} \right\} \end{array} \right]\]
+</div>
+</div>
+<p>Polynomial systems are solved through a lex Gröbner basis, which is triangular:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve([x^2 + y^2 ~ 1, x ~ y], [x, y])</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left[ \begin{array}{l} \left\{ x =  - \frac{\sqrt{2}}{2}, \; y =  - \frac{\sqrt{2}}{2} \right\} \\ \left\{ x = \frac{\sqrt{2}}{2}, \; y = \frac{\sqrt{2}}{2} \right\} \end{array} \right]\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve([x*y ~ 1, x + y ~ 3], [x, y])</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left[ \begin{array}{l} \left\{ x = \frac{\sqrt{5}}{2} + \frac{3}{2}, \; y =  - \frac{\sqrt{5}}{2} + \frac{3}{2} \right\} \\ \left\{ x =  - \frac{\sqrt{5}}{2} + \frac{3}{2}, \; y = \frac{\sqrt{5}}{2} + \frac{3}{2} \right\} \end{array} \right]\]
+</div>
+</div>
+<p>With infinitely many solutions, the unknowns left free map to themselves:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve([x^2 + y^2 ~ 1], [x, y])</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left[ \begin{array}{l} \left\{ x =  - \sqrt{ - y^{2} + 1}, \; y = y \right\} \\ \left\{ x = \sqrt{ - y^{2} + 1}, \; y = y \right\} \end{array} \right]\]
+</div>
+</div>
+<p>A system of linear inequalities gives a description of the region, each unknown between bounds in the ones after it:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve([x ≧ 0, y ≧ 0, x + y ≦ 1], [x, y])</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[y \in \left[ 0, 1 \right], \; x \in \left[ 0,  - y + 1 \right]\]
+</div>
+</div>
+      </article>
+      <footer class="md-footer">
+<p>Built with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and <a href="https://github.com/mthelm85/MaterialDocs.jl">MaterialDocs.jl</a>.</p>
+      </footer>
+    </main>
+    <aside class="md-toc">
+      <div class="md-toc-inner">
+        <p class="md-toc-title">On this page</p>
+          <a class="md-toc-link md-toc-h2" href="#Roots-of-polynomials">Roots of polynomials</a>
+          <a class="md-toc-link md-toc-h2" href="#Solving-equations">Solving equations</a>
+            <a class="md-toc-link md-toc-h3" href="#Generic-values">Generic values</a>
+            <a class="md-toc-link md-toc-h3" href="#Inequalities">Inequalities</a>
+            <a class="md-toc-link md-toc-h3" href="#More-on-assumptions">More on assumptions</a>
+            <a class="md-toc-link md-toc-h3" href="#External-zero-finding">External zero finding</a>
+            <a class="md-toc-link md-toc-h3" href="#Systems">Systems</a>
+      </div>
+    </aside>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/julia.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/julia-repl.min.js"></script>
+  <script>hljs.highlightAll();</script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.18.6/katex.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.18.6/katex.min.js"></script>
+  <script>var MD_KATEX_OPTIONS = {};
+document.querySelectorAll('.md-math').forEach(function (el) {
+  var tex = el.textContent.trim().replace(/^\\[\[(]/, '').replace(/\\[\])]$/, '');
+  katex.render(tex, el, Object.assign({ throwOnError: false }, MD_KATEX_OPTIONS,
+    { displayMode: el.classList.contains('md-math-display') }));
+});</script>
+  <script src="../../siteinfo.js"></script>
+  <script src="../../../versions.js"></script>
+  <script src="../../assets/materialdocs.js?v=db2edfbb"></script>
+</body>
+</html>
