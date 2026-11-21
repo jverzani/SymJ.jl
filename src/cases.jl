@@ -243,7 +243,7 @@ function _solved_for(r::Relation)
     isempty(vs) && return r
     a, k = _linform(r.lhs)
     i = findfirst(v -> haskey(a, v), vs)
-    i === nothing && return r.op in (:eq, :ne) ? _solved_for_reciprocal(r, vs) : r
+    i === nothing && return r.op in (:eq, :ne) ? _solved_for_reciprocal(r, vs) : _solved_for_quotient(r)
     p = vs[i]
     c = a[p]
     rest = expand(r.lhs - Sym(c) * p)
@@ -252,6 +252,31 @@ function _solved_for(r::Relation)
     op = c < N0 && r.op in (:lt, :le, :gt, :ge) ?
         Dict(:lt => :gt, :le => :ge, :gt => :lt, :ge => :le)[r.op] : r.op
     Relation(op, p, -k / Sym(c))
+end
+
+# c/q ⋈ 0 (an order relation, c a number, q with symbols): q ⋈′ 0, 1/q having q's sign,
+# ⋈ flipped for c < 0, q's positive numeric factor dropped and then solved for a symbol if
+# linear (-1/(4a) > 0, a sign the integrator asks, is a < 0; -1/(4ab) > 0 is ab < 0); else
+# r as it is
+function _solved_for_quotient(r::Relation)
+    flip = Dict(:lt => :gt, :le => :ge, :gt => :lt, :ge => :le)
+    # (a sum without its numeric content: 4t^2 - 4 > 0 as t^2 - 1 > 0, 1 - t^2 > 0 as
+    # t^2 - 1 < 0)
+    if iszero(r.rhs) && r.op in keys(flip) && (c = _content_free(r.lhs); c !== r.lhs)
+        q = cancel(r.lhs / c)
+        q.kind == NUMBER && return Relation(q.num > N0 ? r.op : flip[r.op], c, ZERO)
+    end
+    n, d = numer_denom(r.lhs)
+    (n.kind == NUMBER && !iszero(n) && _hassymbol(d)) || return r
+    op = n.num > N0 ? r.op : flip[r.op]
+    if d.kind == MUL && d.num > N0
+        d = d / Sym(d.num)
+    elseif d.kind == MUL
+        d, op = d / Sym(d.num) * (d.num > N0 ? 1 : -1), d.num > N0 ? op : flip[op]
+    end
+    q = Relation(op, d, ZERO)
+    s = _solved_for(q)
+    s === q ? q : s
 end
 
 # c/p + k ⋈ 0 (⋈ = or ≠), c and k numbers, c ≠ 0 ≠ k: p ⋈ -c/k, the equation times p,

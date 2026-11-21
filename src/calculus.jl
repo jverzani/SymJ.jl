@@ -79,6 +79,9 @@ register_function!(:Derivative; eval = _derivative_rule)
 # An integral SymJ could not do (no integrator, or the integrator failed), unevaluated;
 # its derivative is the integrand. The RischIntegrate extension sets the integrator.
 const _INTEGRATOR = Ref{Any}(nothing)
+# (false for dsolve's integrals: log u, not log|u|, as its constant absorbs the sign and
+# log|y| would keep y from being solved for)
+const _LOG_ABS = ScopedValue(true)
 function _integrate(f::Sym, x::Sym)
     iszero(f) && return ZERO
     has(f, x) || return f * x
@@ -352,6 +355,14 @@ function _diff(ex::Sym, x::Sym)
                 push!(terms, mul(Di, da))
             end
             return isempty(terms) ? ZERO : _add_many(terms)
+        end
+        # log|u| of a real u (no i in it), x real: u'/u, as for log u (u u'/|u|², from |u|'s
+        # rule, left integrate's log|x| answers to differentiate to x/|x|², not 1/x)
+        if ex.name === :log && length(ex.args) == 1 && ex.args[1].kind == FN && ex.args[1].name === :abs &&
+           length(ex.args[1].args) == 1 && !_has_imag_unit(ex.args[1].args[1])
+            u = ex.args[1].args[1]
+            du = _diff(u, x)
+            return iszero(du) ? ZERO : du / u
         end
         # |u| of a complex-valued u (an i in it), x real: d|u|/dx = Re(conj(u) u')/|u|, not
         # u u'/|u|, which holds for real u only (SymPy #4757)

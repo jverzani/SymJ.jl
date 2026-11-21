@@ -1343,6 +1343,28 @@ integrate(1 / (x^3 + 1), x)
 integrate(1 / (x^3 - x), x), integrate((2x + 3) / (x^2 + 1), x)
 ```
 
+SymJ integrates over the real numbers: the variable of integration and the parameters
+are taken to be real. This differs from Rubi, Mathematica and SymPy, which take them to be
+complex and give antiderivatives valid over ℂ (on principal branches). Over ℝ, an
+antiderivative whose real form depends on the sign of a parameter comes by cases, each
+case real (`assume` picks one):
+
+```@example tut
+integrate(1 / (x^2 + a), x)
+```
+
+```@example tut
+integrate(1 / (x^2 + a), x; assume = @assume(a > 0))
+```
+
+For the same reason a logarithm of an expression that may be negative has its absolute
+value: `∫ 1/x dx` is `log|x|`, an antiderivative on both sides of 0 (the others give
+`log(x)`, complex for `x < 0`). An argument known to be positive keeps the plain log:
+
+```@example tut
+integrate(1 / x, x), integrate(1 / x, x; assume = @assume(x > 0)), integrate(2x / (x^2 + 1), x)
+```
+
 ```@example tut
 integrate(sin(x)^3, x), integrate(sqrt(1 - x^2), x)
 ```
