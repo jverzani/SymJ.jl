@@ -15,7 +15,7 @@ so generic term-rewriting code, such as
 and [RischIntegrate](https://github.com/jverzani/RischIntegrate.jl)
 for integrals, works on them.
 
-- The [Tutorial](@ref) works through the symbolic side of calculus with SymJ.
+- The tutorial works through the symbolic side of calculus with SymJ, in four pages: [Expressions](tutorial/expressions.md), [Solving](tutorial/solving.md), [Calculus](tutorial/calculus.md) and [Matrices](tutorial/matrices.md).
 
 - [Implementation](@ref) discusses the design choices: one node type, exact numbers, packed polynomials, and the gcd and factoring algorithms.
 
