@@ -1,9 +1,8 @@
-# Expressions
+# Symbolic expressions
 
-This page works through the symbolic side of calculus with SymJ:
-making variables and expressions, evaluating and substituting,
-polynomials and rational functions, solving equations, and limits,
-derivatives and integrals. It follows the outline of the [Giac page of
+This tutorial works through the use of SymJ to explore concepts from calculus symbolically.
+It covers making variables and expressions, evaluating and substituting,
+polynomials and rational functions, solving equations, and the core concepts of limits, derivatives and integrals. It originally mirrored the outline of the [Giac page of
 Calculus with
 Julia](https://github.com/jverzani/CalculusWithJuliaNotes.jl/blob/main/quarto/alternatives/giac.qmd).
 
@@ -38,9 +37,12 @@ SymJ's among them.
 !!! note "Typeset output in notebooks"
     With [Latexify](https://github.com/korsbo/Latexify.jl) loaded
     (`using Latexify`), SymJ's results also display as LaTeX, as on
-    this page. Notebooks that render LaTeX, such as Jupyter
+    tutorial pages. Notebooks that render LaTeX, such as Jupyter
     (through IJulia) and Pluto, then show them as typeset mathematics;
     `latexify(ex)` gives the LaTeX itself.
+
+Once installed, the SymJ package loads in the typical manner. Below we
+also load RischIntegrate, which is called on to perform integration.
 
 ```@example tut
 using SymJ
@@ -65,7 +67,7 @@ The `@syms` macro makes variables and binds them to the same names:
 @syms x y
 ```
 
-`Sym(:z)` makes one without binding a name when called with a symbol or string.
+`Sym(:z)` or `Sym("z")` makes one without binding a name when called with a symbol or string.
 
 ```@example tut
 z = Sym(:z)
@@ -87,10 +89,19 @@ indices (the array itself is indexed from 1):
 
 ```@example tut
 @syms xs[0:3] A[1:2, 1:2]
-xs[1], A[1,1]
+xs[1], A[2,1]
 ```
 
+On each page of this tutorial, the following variables and symbolic functions are assumed to be present:
+
+```@example tut
+@syms x y z a b c t f()
+```
+
+
 ## Symbolic numbers
+
+Symbolic numbers can be created by promotion or construction.
 
 When a symbolic value meets a Julia integer or rational, the number becomes an exact symbolic number:
 
@@ -125,37 +136,6 @@ A common idiom is to use `one(x)` or `zero(x)` instead of `1` or `0`.
 
 Expressions are formed with combinations of symbolic numbers, variables, and deferred function calls.
 
-For symbolic numbers, there are some useful functions.
-
-Functions with no numeric argument stay unevaluated, while exact values at standard points are simplified:
-
-```@example tut
-sin(x), sin(Sym(π) / 4), log(Sym(1)), sin(Sym(2))
-```
-
-
-The `unwrap_const` function returns a Julia value, when there are no free variables:
-
-```@example tut
-ex = Sym(pi)^2/4
-SymJ.unwrap_const(ex)
-```
-The `rationalize` function replaces the floating-point numbers in an expression by nearby rationals:
-
-```@example tut
-rationalize(0.5x + 1.25)
-```
-
-`SymJ.nsimplify` recognizes floats as exact numbers: rationals, algebraic numbers of low degree in radicals, and rational combinations of given constants:
-
-```@example tut
-(
-SymJ.nsimplify(0.5x + 1.4142135623730951),
-SymJ.nsimplify(1.618033988749895),
-SymJ.nsimplify(2.0943951023931953; constants = [pi])
-)
-```
-
 An expression is a tree: an operation applied to arguments. SymJ implements
 TermInterface, so `operation` and `arguments` take it apart; `isexpr` checks if there is an expression tree (or a leaf):
 
@@ -165,7 +145,7 @@ F = 9 // 5 * (y - 32)
 operation(F), arguments(F), isexpr(F), isexpr(Sym(9//5))
 ```
 
-Expressions are built by applying functions to variables. They are kept in a canonical form: like terms are collected, numbers are combined, and products of powers merge.
+Expressions are built by applying functions to variables. Expressions are kept in a canonical form: like terms are collected, numbers are combined, and products of powers merge.
 
 ```@example tut
 ex = x + 2x - y + x * y * x
@@ -176,29 +156,6 @@ ex = x + 2x - y + x * y * x
 exp(x) * exp(2x),
 (x * y)^3,
 sin(-x)
-)
-```
-
-There are functions to extract and manipulate parts of expressions.
-
-`SymJ.gather` groups the terms of an expression by powers of a variable (SymPy's
-`collect`), and `SymJ.coeff` picks out one coefficient:
-
-```@example tut
-@syms a b c
-ex = a * x^2 + b * x^2 + a * x - b * x + c
-```
-
-```@example tut
-SymJ.gather(ex, x), SymJ.coeff(ex, x^2)
-```
-
-For evaluation, `SymJ.horner` writes a polynomial in nested form, and `SymJ.cse` names the subexpressions that occur more than once:
-
-```@example tut
-(
-SymJ.horner(3x^4 - 2x^3 + x - 7, x),
-SymJ.cse((x + y)^2 + sin(x + y))
 )
 ```
 
@@ -228,12 +185,6 @@ subs(2a + 2b + c, a + b => w)
 )
 ```
 
-Calling an expression with pairs does the same:
-
-```@example tut
-ex(x => 2)
-```
-
 Calling an equation (written with `~`, as in the section on solving equations below)
 substitutes into both sides; `lhs` and `rhs` give the sides:
 
@@ -246,29 +197,52 @@ eq(x => z + 1)
 lhs(eq), rhs(eq)
 ```
 
-## Numerical evaluation
+## Numerical evaluation of symbolic constants
 
-Calling an expression with a number evaluates it with Julia's arithmetic on that number, so the result is a Julia number of the matching type:
+
+SymJ has both symbolic numbers and symbolic expressions which are numeric constants (like `Sym(2)` and `sqrt(Sym(2))`).
+
+On construction, values at standard points are simplified, returning a symbolic number instead of a constant symbolic expression. For example:
 
 ```@example tut
-u = x^2 - 2x + 1
-u(3), u(3.0), u(1 // 3), u(big(2.5))
+sin(Sym(π) / 4), log(Sym(1)), sin(Sym(2))
 ```
 
-A constant expression (one with no free variables) converts to a Julia number in several ways:
+To work with these symbolic values in the rest of the Julia ecosystem, there are numerous ways to produce related values.
+
+In SymJ, symbolic expressions are subtypes of `Function` (that is, `Sym <: Function`) and have an associated call syntax. What is returned differs by what is called and how. For a symbolic number or numeric constant, the expression is evaluated to a Julia object:
+
+```@example tut
+ex, ex1 = Sym(2)^8, sqrt(Sym(2))
+ex(), ex1()
+```
+
+The type should match what would result if the expression were built non-symbolically.
+
+
+The `unwrap_const` function is a named functional equivalent.
+
+```@example tut
+ex = Sym(pi)^2/4
+SymJ.unwrap_const(ex)
+```
+
+When an expression is non-constant (it contains a free symbol), both 0-argument evaluation and `unwrap_const` simply return the expression.
+
+The conversion of a symbolic constant to a numeric Julia value can be controlled in different ways, as this table summarizes:
 
 | call | gives | note |
 |:-----|:------|:-----|
 | `ex()`, `SymJ.unwrap_const(ex)` | the exact Julia value | `Int`, `Rational`, `π`, …; a float where Julia's arithmetic gives one (`sqrt(2)`) |
 | `N(ex)` | a `Float64` (`ComplexF64` when not real) | checked in higher precision |
 | `float(ex)` | a `Float64` or a `BigFloat` (or their complex) | as Julia's `float`: `BigFloat` when `ex` holds a big integer or rational, or is past `Float64`'s range |
-| `SymJ.evalf(ex, T, prec)` | a `T` (`Complex{T}` when not real) | a `BigFloat` to `prec` bits |
+| `SymJ.evalf(ex, T, prec)` | a `T` (`Complex{T}` when not real) | for `BigFloat` type, use `prec` bits |
 | `T(ex)` (`Int`, `Rational`, `Float64`, `BigFloat`, …) | a `T` | an `InexactError` when the value is not a `T` |
 
 `N` is a function which returns a `Float64` value for a numeric expression; `float` returns an `AbstractFloat` value, possibly a `BigFloat`. All but `T(ex)` return an expression with a free variable unchanged, so `SymJ.unwrap_const` and `float` can be mapped over a mix of constants and expressions:
 
 ```@example tut
-map(SymJ.unwrap_const, [Sym(3) / 4, sqrt(Sym(2)), u]), float(Sym(pi) / 4)
+map(SymJ.unwrap_const, [Sym(3) / 4, sqrt(Sym(2)), x^2 + x]), float(Sym(pi) / 4)
 ```
 
 ```@example tut
@@ -293,8 +267,36 @@ round(Sym(5) / 2, RoundNearestTiesAway)
 
 `isreal`, `isfinite`, `isinf` and `isnan` answer `true` only when it
 is known: `isreal(x)` is `false` for a symbol, which is complex unless
-an enclosing `@assuming` block says otherwise (as `isinteger(x)` is
-`false`). A real expression is finite.
+an enclosing `@assuming` block (described in "Solving") says otherwise (as
+`isinteger(x)` is `false`). A real expression is finite.
+
+### Rationalizing numbers
+
+The `rationalize` function replaces the floating-point numbers in an expression by nearby rationals:
+
+```@example tut
+rationalize(0.5x + 1.25)
+```
+
+`SymJ.nsimplify` recognizes floats as exact numbers: rationals, algebraic numbers of low degree in radicals, and rational combinations of given constants:
+
+```@example tut
+(
+SymJ.nsimplify(0.5x + 1.4142135623730951),
+SymJ.nsimplify(1.618033988749895),
+SymJ.nsimplify(2.0943951023931953; constants = [pi])
+)
+```
+
+## Evaluation of expressions with variables
+
+For expressions with a single free symbol, calling that expression with a number evaluates it with Julia's arithmetic on that number, so the result is a Julia number of the matching type:
+
+```@example tut
+u = x^2 - 2x + 1
+u(3), u(3.0), u(1 // 3), u(big(2.5))
+```
+
 
 Because the arithmetic is generic, automatic differentiation and other
 number types work through it. An expression can also be broadcast over
@@ -304,24 +306,6 @@ a collection:
 u.(0:4)
 ```
 
-With several variables, keywords give their values by name. When every
-variable has a numeric value the result is a Julia number, and
-otherwise the expression with the given values substituted:
-
-```@example tut
-ex = a * x^2 + b * x + c
-ex(; x = 2, a = 1, b = -3, c = 2), ex(; x = 2)
-```
-
-Names that don't appear are ignored, so one set of values can be used
-for several expressions:
-
-```@example tut
-vals = (; x = 1.5, y = 2.0)
-[e(; vals...) for e in (x + y, x * y, x^y)]
-```
-
-
 Calling interprets the expression each time. For many evaluations, `lambdify` compiles it into a Julia function, as fast as one written by hand:
 
 ```@example tut
@@ -329,9 +313,40 @@ g = lambdify(sin(x)^2 + exp(-x / 2), x)
 g(1.0)
 ```
 
+
+With several variables, the use of positional arguments is ambiguous, so keyword arguments are used to assign values by name. When every variable has a numeric value, the result is a Julia number.
+
+```@example tut
+ex = a * x^2 + b * x + c
+ex(; x = 2, a = 1, b = -3, c = 2)
+```
+
+Names that don't appear are ignored, so one set of values can be used
+for several expressions:
+
+```@example tut
+vals = (; x = 1.5, y = 2.0)
+[e(; vals...) for e in (sqrt(x), x * y, x^y)]
+```
+
+
+When the number of specified values that match is *smaller* than the number of free variables, the values are substituted and a symbolic value returned:
+
+```@example tut
+ex = a * x^2 + b * x + c
+ex(; x = 2)
+```
+
+Substitution is *always* performed when replacements are called using pairs notation:
+
+```@example tut
+ex(a => 1, b=>-3, c=>2)
+```
+The use of pairs is a shortcut notation for `subs`.
+
 ## Plotting
 
-Since an expression in one variable is callable, it can be passed where a function is expected, for instance to a plotting package:
+Since an expression in zero or one variable is callable, it can be passed where a function is expected, for instance to a plotting package:
 
 ```julia
 using Plots
@@ -347,161 +362,38 @@ xs = ys = range(-3, 3, 100)
 contour(xs, ys, (x,y) -> ex(; x, y))
 ```
 
+## Manipulating symbolic expressions
 
-## Polynomials
+There are several functions to extract and manipulate parts of expressions.
 
-### Construction
-
-A polynomial expression can be expanded with `expand`:
-
-```@example tut
-p = expand((x - 1) * (x - 2) * (x + 3))
-```
-
-`Poly` converts an expression into a sparse, multivariate polynomial in given generators. Its coefficients and exponents are available; `Sym` converts it back to an expression.
+ The `free_symbols` method returns a vector of all free symbols, empty if the expression is constant. (`SymJ.isconstant` tests for this without allocating.)
 
 ```@example tut
-P = Poly(p, x)
-coefficients(P), exponent_vectors(P), degree(P)
+ex = x^2 - 2y^2
+free_symbols(ex), SymJ.isconstant(ex)
 ```
 
-Other symbols become coefficients:
-
-```@example tut
-Q = Poly(a * x^2 + b * x + c, x)
-coefficients(Q)
-```
-
-Some evaluations are more performant using the `Poly` type.
-
-### Evaluation and shifts
-
-A polynomial is evaluated by calling it; a shift is a substitution:
-
-```@example tut
-p(2), expand(p(x => x + 1))
-```
-
-### Factoring
-
-`factor` factors over the rationals, in any number of variables:
-
-```@example tut
-factor(p), factor(x^4 + 4), factor(x^6 - y^6)
-```
-
-`factor_squarefree` only separates repeated factors, which is cheaper:
-
-```@example tut
-factor_squarefree(expand((x - 1)^3 * (x + 2)^2))
-```
-
-The greatest common divisor of polynomials:
-
-```@example tut
-gcd(expand((x - 1)^2 * (x + y)), expand((x - 1) * (x + y)^2))
-```
-
-The least common multiple is implemented in `lcm`.
-
-`SymJ.decompose` writes a polynomial as a composition of polynomials
-that do not decompose further, `p = g₁(g₂(⋯))`. `solve` uses it: an
-irreducible polynomial of degree above 4 whose components have degree
-at most 4 has its roots found through them, exactly:
-
-```@example tut
-p = expand((x^2 + x)^3 - 2)
-SymJ.decompose(p, x), solve(p ~ 0, x)[1:2]
-```
-
-`SymJ.minimal_polynomial` gives the irreducible polynomial with
-integer coefficients that an algebraic number is a root of:
-
-```@example tut
-(
-SymJ.minimal_polynomial(sqrt(Sym(2)) + sqrt(Sym(3)), x),
-SymJ.minimal_polynomial(cos(Sym(pi) / 7), x)
-)
-```
-
-### Resultants
-
-The resultant of two polynomials in `x` is zero exactly when they have
-a common root. It is a polynomial in the other variables, so it
-eliminates `x` from a system:
-
-```@example tut
-resultant(x^2 + y^2 - 1, x - y, x)
-```
-
-The discriminant is zero exactly when a polynomial has a repeated root:
+`SymJ.gather` groups the terms of an expression by powers of a variable (SymPy's `collect`); `SymJ.coeff` picks out one coefficient:
 
 ```@example tut
 @syms a b c
-discriminant(a*x^2 + b*x + c, x), discriminant(x^3 + a*x + b, x)
-```
-
-### Gröbner bases
-
-A Gröbner basis of a set of polynomials generates the same ideal and
-has the same common zeros. In the lex order, the default, it is
-triangular: the last polynomials involve only the last variables.
-
-```@example tut
-groebner([x^2 + y^2 - 1, x*y - 1//4], x, y)
-```
-
-The basis is `[1]` exactly when the polynomials have no common zero:
-
-```@example tut
-groebner([x^2 + y^2 - 1, x^2 + y^2 - 4], x, y)
-```
-
-`reduced` divides by the basis. The remainder is zero exactly when a
-polynomial is in the ideal:
-
-```@example tut
-G = groebner([x^2 + y^2 - 1, x - y], x, y)
-reduced(x^2 - y^2, G, x, y), reduced(x^3, G, x, y)
-```
-
-## Rational functions
-
-`cancel` reduces a rational expression to lowest terms:
-
-```@example tut
-r = (x^3 - 1) / (x^2 - 1)
-cancel(r)
+ex = a * x^2 + b * x^2 + a * x - b * x + c
 ```
 
 ```@example tut
-cancel(1 / x + 1 / (x + 1))
+SymJ.gather(ex, x), SymJ.coeff(ex, x^2)
 ```
 
-The `numerator` and `denominator` generics return the top and bottom of a rational expression. The function `numer_denom` gives the numerator and denominator without reducing:
+For evaluation, `SymJ.horner` writes a polynomial in nested form, and `SymJ.cse` names the subexpressions that occur more than once:
 
 ```@example tut
-numer_denom(r)
+(
+SymJ.horner(3x^4 - 2x^3 + x - 7, x),
+SymJ.cse((x + y)^2 + sin(x + y))
+)
 ```
 
-### Partial fractions
-
-`apart` decomposes a rational function into a polynomial part and
-simple fractions:
-
-```@example tut
-apart((x^3 + 1) / (x^2 - 1), x)
-```
-
-```@example tut
-apart(1 / (x^4 - 1), x)
-```
-
-Other symbols are allowed in the coefficients:
-
-```@example tut
-apart(1 / ((x - a) * (x - b)), x)
-```
+However, the most commonly used manipulations involve expansion and simplification.
 
 ## Simplification
 
@@ -629,6 +521,18 @@ SymJ.expand_trig(tan(2x))
 )
 ```
 
+`SymJ.expand_log` splits logarithms of products and powers where the assumptions allow it; `force = true` takes every base as positive:
+
+```@example tut
+(
+SymJ.expand_log(log(x^2 * y); assume = @assume(x > 0, y > 0)),
+SymJ.expand_log(log(x * y)),
+SymJ.expand_log(log(x / y); force = true)
+)
+```
+
+## Rewriting parts of an expression
+
 `SymJ.rewrite(ex, target)` writes the functions of an expression
 through another one: trigonometric and hyperbolic functions through
 `exp`, inverse ones through `log`, `tan` and `sec` through `sin` and
@@ -645,59 +549,7 @@ SymJ.rewrite(tan(x) + cos(x), tan => sin)
 )
 ```
 
-`SymJ.expand_log` splits logarithms of products and powers where the assumptions allow it; `force = true` takes every base as positive:
-
-```@example tut
-(
-SymJ.expand_log(log(x^2 * y); assume = @assume(x > 0, y > 0)),
-SymJ.expand_log(log(x * y)),
-SymJ.expand_log(log(x / y); force = true)
-)
-```
-
-## Piecewise functions
-
-`SymJ.piecewise(c₁ => v₁, c₂ => v₂, …)` (not exported) is the value of
-the first piece whose condition holds; a condition is a relation, a
-tuple of relations that all hold, or `true`. It is an expression like
-any other: substitution picks a piece, and `diff`, `limit`, `refine`
-and `lambdify` take it piece by piece:
-
-```@example tut
-pw = SymJ.piecewise(x ≪ 0 => -x, (0 ≦ x, x ≪ 1) => x^2, true => 1)
-pw, pw(x => -2), diff(pw, x)
-```
-
-```@example tut
-limit(pw, x => 0), limit(pw, x => 1; dir = :-)
-```
-
-The unit step `SymJ.heaviside` (½ at 0) and the delta `SymJ.dirac` are
-its derivative pair; `SymJ.piecewise(ex)` writes `heaviside`, `sign`,
-`abs`, `max` and `min` as pieces:
-
-```@example tut
-H = SymJ.heaviside
-diff(H(x - 1), x), SymJ.piecewise(abs(x - 1))
-```
-
-`SymJ.piecewise_fold` combines piecewise functions in a sum, product
-or other expression into one, merging neighbouring pieces that agree;
-`simplify` does it when the result is smaller (a definite integral
-with a parameter gives such sums):
-
-```@example tut
-SymJ.piecewise_fold(abs(x) + abs(x - 1), x)
-```
-
-With parameters whose order is not known, the answer is by cases:
-
-```@example tut
-@syms a b
-SymJ.piecewise_fold(abs(x - a) + abs(x - b), x)
-```
-
-## Pattern matching
+### Pattern matching
 
 `SymJ.pattern` (not exported) makes a pattern from a quoted
 expression, with `~x` marking a slot (the syntax comes from the
@@ -758,4 +610,222 @@ where a rule applies:
 ```@example tut
 d = SymJ.@rule (~x)^(~n::isinteger) => ~n * (~x)^(~n - 1)
 d(x^3), d(x^a)
+```
+
+
+## Polynomials
+
+Polynomial expressions have several methods. Some are defined on symbolic expressions that are polynomial and others only for expressions of the `Poly` type, which is used to more efficiently represent sparse, multivariate polynomials.
+
+For example, a polynomial expression in factored form is not expanded by default, but can be expanded with `expand`:
+
+```@example tut
+p = expand((x - 1) * (x - 2) * (x + 3))
+```
+Related is `factor`, which factors over the rationals, in any number of variables:
+
+```@example tut
+(
+factor(p),
+factor(x^4 + 4),
+factor(x^6 - y^6)
+)
+```
+
+
+Assumptions may change how an expression factors:
+
+```@example tut
+ex = sqrt(1 - x^2) + sqrt(1 - x)
+(
+factor(ex),
+factor(ex; assume = (x ∈ ℝ,))
+)
+```
+
+(Without facts, symbols are complex, and
+$\sqrt{ab} = \sqrt{a}\sqrt{b}$ can fail.)
+
+`factor_squarefree` only separates repeated factors, which is cheaper:
+
+```@example tut
+factor_squarefree(expand((x - 1)^3 * (x + 2)^2))
+```
+
+Other polynomial operations include the least common multiple (`lcm`) and the greatest common divisor (`gcd`) of polynomials:
+
+```@example tut
+gcd(expand((x - 1)^2 * (x + y)), expand((x - 1) * (x + y)^2))
+```
+
+
+`SymJ.decompose` writes a polynomial as a composition of polynomials
+that do not decompose further, `p = g₁(g₂(⋯))`. `solve` uses it: an
+irreducible polynomial of degree above 4 whose components have degree
+at most 4 has its roots found through them, exactly:
+
+```@example tut
+q = expand((x^2 + x)^3 - 2)
+SymJ.decompose(q, x), solve(q ~ 0, x)[1:2]
+```
+
+(The `solve` function is introduced later in this tutorial.)
+
+`SymJ.minimal_polynomial` gives the irreducible polynomial with
+integer coefficients that an algebraic number is a root of:
+
+```@example tut
+(
+SymJ.minimal_polynomial(sqrt(Sym(2)) + sqrt(Sym(3)), x),
+SymJ.minimal_polynomial(cos(Sym(pi) / 7), x)
+)
+```
+
+### Construction of Poly objects
+
+`Poly` converts an expression into a sparse, multivariate polynomial in given generators. Its coefficients and exponents are available; `Sym` converts it back to an expression.
+
+```@example tut
+P = Poly(p, x)
+coefficients(P), exponent_vectors(P), degree(P)
+```
+
+Other symbols become coefficients:
+
+```@example tut
+Q = Poly(a * x^2 + b * x + c, x)
+coefficients(Q)
+```
+
+Some evaluations are more performant using the `Poly` type, such as those involving the expansion of high powers of a polynomial.
+
+### Evaluation and shifts
+
+A polynomial is evaluated by calling it; a shift is a substitution:
+
+```@example tut
+P(2), expand(P(x => x + 1))
+```
+
+
+
+## Rational functions
+
+`cancel` reduces a rational expression to lowest terms:
+
+```@example tut
+r = (x^3 - 1) / (x^2 - 1)
+cancel(r)
+```
+
+```@example tut
+cancel(1 / x + 1 / (x + 1))
+```
+
+The `numerator` and `denominator` generics return the top and bottom of a rational expression. The function `numer_denom` gives the numerator and denominator without reducing:
+
+```@example tut
+numer_denom(r)
+```
+
+### Partial fractions
+
+`apart` decomposes a rational function into a polynomial part and
+simple fractions:
+
+```@example tut
+apart((x^3 + 1) / (x^2 - 1), x)
+```
+
+```@example tut
+apart(1 / (x^4 - 1), x)
+```
+
+Other symbols are allowed in the coefficients:
+
+```@example tut
+apart(1 / ((x - a) * (x - b)), x)
+```
+
+### Resultants
+
+The resultant of two polynomials in `x` is zero exactly when they have
+a common root. It is a polynomial in the other variables, so it
+eliminates `x` from a system:
+
+```@example tut
+resultant(x^2 + y^2 - 1, x - y, x)
+```
+
+The discriminant is zero exactly when a polynomial has a repeated root:
+
+```@example tut
+@syms a b c
+discriminant(a*x^2 + b*x + c, x), discriminant(x^3 + a*x + b, x)
+```
+
+### Gröbner bases
+
+A Gröbner basis of a set of polynomials generates the same ideal and
+has the same common zeros. In the lex order, the default, it is
+triangular: the last polynomials involve only the last variables.
+
+```@example tut
+groebner([x^2 + y^2 - 1, x*y - 1//4], x, y)
+```
+
+The basis is `[1]` exactly when the polynomials have no common zero:
+
+```@example tut
+groebner([x^2 + y^2 - 1, x^2 + y^2 - 4], x, y)
+```
+
+`reduced` divides by the basis. The remainder is zero exactly when a
+polynomial is in the ideal:
+
+```@example tut
+G = groebner([x^2 + y^2 - 1, x - y], x, y)
+reduced(x^2 - y^2, G, x, y), reduced(x^3, G, x, y)
+```
+
+## Piecewise functions
+
+`SymJ.piecewise(c₁ => v₁, c₂ => v₂, …)` (not exported) is the value of
+the first piece whose condition holds; a condition is a relation, a
+tuple of relations that all hold, or `true`. It is an expression like
+any other: substitution picks a piece, and `diff`, `limit`, `refine`
+and `lambdify` take it piece by piece:
+
+```@example tut
+pw = SymJ.piecewise(x ≪ 0 => -x, (0 ≦ x, x ≪ 1) => x^2, true => 1)
+pw, pw(x => -2), diff(pw, x)
+```
+
+```@example tut
+limit(pw, x => 0), limit(pw, x => 1; dir = :-)
+```
+
+The unit step `SymJ.heaviside` (½ at 0) and the delta `SymJ.dirac` are
+its derivative pair; `SymJ.piecewise(ex)` writes `heaviside`, `sign`,
+`abs`, `max` and `min` as pieces:
+
+```@example tut
+H = SymJ.heaviside
+diff(H(x - 1), x), SymJ.piecewise(abs(x - 1))
+```
+
+`SymJ.piecewise_fold` combines piecewise functions in a sum, product
+or other expression into one, merging neighbouring pieces that agree;
+`simplify` does it when the result is smaller (a definite integral
+with a parameter gives such sums):
+
+```@example tut
+SymJ.piecewise_fold(abs(x) + abs(x - 1), x)
+```
+
+With parameters whose order is not known, the answer is by cases:
+
+```@example tut
+@syms a b
+SymJ.piecewise_fold(abs(x - a) + abs(x - b), x)
 ```

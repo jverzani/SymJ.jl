@@ -5,8 +5,16 @@ Solving equations: roots of polynomials, equations and inequalities in one unkno
 ```@setup tut
 using SymJ
 using RischIntegrate
-@syms x y a b c
+@syms x y z a b c t f()
 ```
+
+SymJ provides solvers for different types of equations, the most general being `solve`, described here along with a few other methods. In the Calculus section we also introduce `rsolve` and `dsolve`.
+
+Equations are specified with `~` (as is common in Julia) or `Eq`. This
+infix operator binds more loosely than everything else, so no
+parentheses are typically needed. Equations are held internally as a
+`Relation`. The left- and right-hand sides of a relation are returned
+by `lhs` and `rhs` respectively.
 
 ## Roots of polynomials
 
@@ -37,19 +45,38 @@ When exact roots aren't identifiable, `SymJ.fsolve` finds the
 roots numerically, the real ones by default (with `domain = ℂ` all of them):
 
 ```@example tut
-SymJ.fsolve(x^5 - x + 1 ~ 0, x), SymJ.fsolve(x^5 - x + 1 ~ 0, x; domain = ℂ)
+(
+SymJ.fsolve(x^5 - x + 1 ~ 0, x),
+SymJ.fsolve(x^5 - x + 1 ~ 0, x; domain = ℂ)
+)
+```
+
+The real roots of a polynomial with rational coefficients can be found
+numerically, with certainty, when the closed form is
+unwieldy. `SymJ.real_roots` gives them correctly rounded, each
+repeated by its multiplicity, and `SymJ.root_intervals` exact
+isolating intervals:
+
+```@example tut
+(
+SymJ.real_roots(x^3 - 2x - 5, x),
+SymJ.real_roots((x - 1)^2 * (x^2 - 2), x)
+)
+```
+
+```@example tut
+SymJ.root_intervals(x^2 - 2, x; width = 1 // 100)
 ```
 
 ## Solving equations
 
-An equation is written with `~`:
+Non-polynomial equations can also be solved.
 
 ```@example tut
-solve(x^2 + 2x ~ 3, x)
+solve(a*sin(x) + b ~ 0, x)
 ```
 
-This infix operator binds more loosely than everything else, so no
-parentheses are typically needed. Answers to `solve(eqn, var)` are usually a vector of `Sym` values, empty when there are no identified solutions, or `Cases` when the answer depends on the values of the parameters.
+Answers to `solve(eqn, var)` are a vector of `Sym` values, empty when there are no identified solutions, or `Cases` when the answer depends on the values of the parameters.
 
 Equations in which `x` appears through one function are solved by solving for that function first:
 
@@ -76,12 +103,6 @@ another factor is undefined is dropped (`x*log(x)` none at `0`).
 solve(x * log(x) ~ 0, x)
 ```
 
-This example shows how to find critical points:
-
-```@example tut
-solve(diff((a / x)^x, x) ~ 0, x), solve(diff(x^2 * exp(-x), x) ~ 0, x)
-```
-
 Some equations need the Lambert W function, from the
 [LambertW](https://github.com/jlapeyre/LambertW.jl) package:
 
@@ -89,9 +110,13 @@ Some equations need the Lambert W function, from the
 solve(x * exp(x) ~ 1, x)
 ```
 
+### Generic values
+
 Symbols other than the unknown are allowed.
 
-Such symbols take *generic values*: an expression in them alone is taken to be nonzero, so the quadratic formula comes out as it is usually written:
+Such symbols, or parameters, take *generic values*: an expression in
+them alone is taken to be nonzero, so the quadratic formula comes out
+as it is usually written:
 
 ```@example tut
 solve(a * x^2 + b * x + c ~ 0, x)
@@ -100,7 +125,7 @@ solve(a * x^2 + b * x + c ~ 0, x)
 An assumption that makes a coefficient vanish gives that case:
 
 ```@example tut
-solve(a * x^2 + b * x + c ~ 0, x; assume = @assume(a == 0))
+solve(a * x^2 + b * x + c ~ 0, x; assume = (a ~ 0))
 ```
 
 A symbolic exponent gives the principal root only. `x^n = 1` has `n` roots for a
@@ -108,7 +133,7 @@ positive integer `n`, but their number depends on `n`, so with `n` symbolic the 
 
 ```@example tut
 @syms n
-solve(x^n ~ 1, x; assume = @assume(n in Integers, n > 0))
+solve(x^n ~ 1, x; assume = (n in Integers, n ≫ 0))
 ```
 
 With a number for `n`, all of them are identified:
@@ -119,7 +144,9 @@ solve(x^3 ~ 1, x)
 
 ### Inequalities
 
-`<` and its relatives compare numbers and return `true` or `false`, so inequalities use other operators: `≪` (typed `\ll`), `≦` (`\leqq`), `≫` (`\gg`), `≧` (`\geqq`) and `≶` (`\lessgtr`). The solution is a union of intervals:
+`<` and its relatives compare numbers and return `true` or `false`, so inequalities use other operators: `≪` (typed `\ll`), `≦` (`\leqq`), `≫` (`\gg`), `≧` (`\geqq`) and `≶` (`\lessgtr`).
+
+The solution to an inequality is a union of intervals:
 
 ```@example tut
 solve(x^2 - 1 ≫ 0, x)
@@ -129,46 +156,12 @@ solve(x^2 - 1 ≫ 0, x)
 solve((x - 1) / (x + 2) ≧ 0, x)
 ```
 
-### Systems
-
-A system of equations gives a vector of solutions, each a `Dict` from the unknowns to their values. A linear system's answer is a single solution (possibly in terms of free unknowns), yet a vector is returned:
-
-```@example tut
-solve([x + y ~ 3, x - y ~ 1], [x, y])
-```
-
-With parameters, the pivots are taken to be nonzero (here `a + 1`; with `a = -1`
-assumed the system has no solution):
-
-```@example tut
-solve([a * x + y ~ 1, x - y ~ b], [x, y])
-```
-
-Polynomial systems are solved through a lex Gröbner basis, which is triangular:
-
-```@example tut
-solve([x^2 + y^2 ~ 1, x ~ y], [x, y])
-```
-
-```@example tut
-solve([x*y ~ 1, x + y ~ 3], [x, y])
-```
-
-With infinitely many solutions, the unknowns left free map to themselves:
-
-```@example tut
-solve([x^2 + y^2 ~ 1], [x, y])
-```
-
-A system of linear inequalities gives a description of the region, each unknown between bounds in the ones after it:
-
-```@example tut
-solve([x ≧ 0, y ≧ 0, x + y ≦ 1], [x, y])
-```
 
 ### More on assumptions
 
-Symbols are complex numbers unless a fact says otherwise. Facts are relations, such as `x > 0`, or membership in one of `Integers ⊂ Rationals ⊂ Reals ⊂ Complexes` (also written `ℤ ⊂ ℚ ⊂ ℝ ⊂ ℂ`), such as `n in Integers`. The `@assume` macro writes them with Julia's operators, including `&&`, `||`, `!` and chained comparisons. They are given to `solve` with the `assume` keyword, and only the solutions they allow are kept:
+Symbols are complex numbers unless a fact says otherwise. Facts are relations, such as `x > 0`, or membership in one of `Integers ⊂ Rationals ⊂ Reals ⊂ Complexes` (also written `ℤ ⊂ ℚ ⊂ ℝ ⊂ ℂ`), such as `n in Integers`. Facts are passed to the `assume` keyword, and only the solutions they allow are kept.
+
+The `@assume` macro lets facts be written with Julia's familiar Boolean operators, including `&&`, `||`, `!` and chained comparisons.
 
 ```@example tut
 solve(x^2 ~ 4, x; assume = @assume(x > 0))
@@ -240,28 +233,17 @@ Contradictory facts are an error (`@assume(x > 1 && x < 0)`), and the
 `Assumptions` value `@assume` makes can be reused: `A = @assume(x > 0,
 n in Integers)`, then `assume = A`.
 
-The real roots of a polynomial with rational coefficients can be found
-numerically, with certainty, when the closed form is unwieldy (`solve`
-gives this cubic's roots through complex cube
-roots). `SymJ.real_roots` gives them correctly rounded, each repeated
-by its multiplicity, and `SymJ.root_intervals` exact isolating
-intervals:
 
-```@example tut
-SymJ.real_roots(x^3 - 2x - 5, x), SymJ.real_roots((x - 1)^2 * (x^2 - 2), x)
-```
-
-```@example tut
-SymJ.root_intervals(x^2 - 2, x; width = 1 // 100)
-```
-
-For an equation `solve` cannot solve exactly, `SymJ.fsolve` (with name
+As with polynomials, for an equation `solve` cannot solve exactly, `SymJ.fsolve` (with name
 and functionality mirroring Maple's function) finds its roots numerically: the
 real ones, on the whole line or an interval, and with `domain = ℂ`
 complex ones too.
 
 ```@example tut
-SymJ.fsolve(cos(x) ~ x, x), SymJ.fsolve(log(x) + sin(x) ~ 1, x, (0, 4))
+(
+SymJ.fsolve(cos(x) ~ x, x),
+SymJ.fsolve(log(x) + sin(x) ~ 1, x, (0, 4))
+)
 ```
 
 ### External zero finding
@@ -271,3 +253,40 @@ they are, since an expression is callable (`lambdify` makes a faster
 function): `Roots.find_zero(cos(x) - x, 0.5)`, or with Newton's method
 and the exact derivative, `find_zero((lambdify(f, x), lambdify(diff(f,
 x), x)), x0, Roots.Newton())`.
+
+### Systems
+
+A system of equations gives a vector of solutions, each a `Dict` from the unknowns to their values. A linear system's answer is a single solution (possibly in terms of free unknowns), yet a vector is returned:
+
+```@example tut
+solve([x + y ~ 3, x - y ~ 1], [x, y])
+```
+
+With parameters, a generic value is assumed—the pivots are taken to be nonzero (here `a + 1`; with `a ~ -1` assumed the system has no solution):
+
+```@example tut
+eqns, vars = [a * x + y ~ 1, x - y ~ b], [x, y]
+solve(eqns, vars)
+```
+
+Polynomial systems are solved through a lex Gröbner basis, which is triangular:
+
+```@example tut
+solve([x^2 + y^2 ~ 1, x ~ y], [x, y])
+```
+
+```@example tut
+solve([x*y ~ 1, x + y ~ 3], [x, y])
+```
+
+With infinitely many solutions, the unknowns left free map to themselves:
+
+```@example tut
+solve([x^2 + y^2 ~ 1], [x, y])
+```
+
+A system of linear inequalities gives a description of the region, each unknown between bounds in the ones after it:
+
+```@example tut
+solve([x ≧ 0, y ≧ 0, x + y ≦ 1], [x, y])
+```

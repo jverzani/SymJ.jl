@@ -12,7 +12,7 @@ using RischIntegrate
 
 `limit(f, x => x0)` is the limit of `f` as `x` tends to `x0`, a
 number, an expression or `Inf`. It is computed by Gruntz's algorithm,
-through GruntzLimit. An infinite limit is `Sym(Inf)` or `Sym(-Inf)`:
+through GruntzLimit. An infinite limit is returned as `Sym(Inf)` or `Sym(-Inf)`:
 
 ```@example tut
 limit(sin(x) / x, x => 0)
@@ -22,7 +22,7 @@ limit(sin(x) / x, x => 0)
 limit((1 + 1 / x)^x, x => Inf), limit(x * ((1 + 1 / x)^x - ℯ), x => Inf)
 ```
 
-Using symbolic numbers is important in many limits.
+Using exact, symbolic numbers is important in many limits.
 
 ```@example tut
 limit((sin(x) - sin(Sym(π) / 6)) / (x - Sym(π) / 6), x => Sym(π) / 6)
@@ -117,6 +117,13 @@ h2 = diff(h, x, 2)
 
 So 1 is a local maximum and 3 a local minimum.
 
+More complicated equations for finding the critical points are also possible.
+
+```@example tut
+solve(diff((a / x)^x, x) ~ 0, x), solve(diff(x^2 * exp(-x), x) ~ 0, x)
+```
+
+
 ### Example: tangent lines
 
 The tangent line at `c` is `h(c) + h'(c)(x - c)`:
@@ -124,174 +131,6 @@ The tangent line at `c` is `h(c) + h'(c)(x - c)`:
 ```@example tut
 c₀ = 2
 expand(h(c₀) + diff(h, x)(c₀) * (x - c₀))
-```
-
-## Series
-
-`series(ex, x, x0, n)` expands `ex` about `x0` with an error of order `(x - x0)^n`; `x0` defaults to 0 and `n` to 6:
-
-```@example tut
-series(sin(x), x)
-```
-
-```@example tut
-series(exp(x), x, 1, 3)
-```
-
-Laurent series (negative powers), Puiseux series (fractional powers), logarithmic terms and expansions at infinity (in powers of `1/x`) are included:
-
-```@example tut
-series(cot(x), x, 0, 4), series(sqrt(x + x^2), x, 0, 3)
-```
-
-```@example tut
-series(x^x, x, 0, 3), series(sqrt(x^2 + x), x, Inf, 3)
-```
-
-At `±Inf` an expansion may need a factor that is not a power of `x`:
-terms `exp(g)*(series)`, `cos(h)*(series)` and `sin(h)*(series)`, from
-`exp`, `sin` and `cos` of growing arguments and from the asymptotic
-expansions of SpecialFunctions' `erf`, `erfc`, `erfi`, `erfcx`,
-`expinti`, `expint`, `sinint`, `cosint`, the Bessel functions and
-`gamma` (Stirling's series; the special functions need to be brought
-in from SpecialFunctions to be used directly). Factors that cancel do
-cancel:
-
-```@example tut
-series(sin(x) / x + exp(-x) * (1 + 1/x), x, Inf, 4)
-```
-
-
-```@example tut
-using SpecialFunctions: erf, erfc
-series(erf(x), x, Inf, 4)
-```
-Exponentially small terms are kept: `erf(x)` at `Inf` is not just `1`.
-
-
-```@example tut
-series(exp(x^2) * erfc(x), x, Inf, 4)
-```
-
-
-A series is an object that keeps its error term. Series about the same
-point can be added, multiplied and divided, with the order tracked:
-
-```@example tut
-s, c = series(sin(x), x), series(cos(x), x)
-s / c
-```
-
-Calling `Sym` on a series drops the `O` term:
-
-```@example tut
-Sym(s)
-```
-
-## Sums
-
-`SymJ.summation(f, (k, a, b))` (not exported) sums `f` over `k = a, …, b`, in closed form where it finds one; `b` may be `Inf`:
-
-```@example tut
-@syms k n r
-(
-SymJ.summation(k^2, (k, 1, n)),
-SymJ.summation(r^k, (k, 0, n)),
-SymJ.summation(1 / (k * (k + 1)), (k, 1, n))
-)
-```
-
-```@example tut
-SymJ.summation(1 / k^2, (k, 1, Inf)), SymJ.summation(x^k / factorial(k), (k, 0, Inf))
-```
-
-Definite sums of binomials, which have no antidifference, come from Zeilberger's
-algorithm:
-
-```@example tut
-@syms m
-(
-SymJ.summation(binomial(n, k)^2, (k, 0, n)),
-SymJ.summation(binomial(n, k) * binomial(m, n - k), (k, 0, n))
-)
-```
-
-When Zeilberger's recurrence is of higher order, its hypergeometric solutions (found by Petkovšek's algorithm Hyper) may still give the sum; here Binet's formula for the Fibonacci numbers:
-
-```@example tut
-SymJ.summation(binomial(n - k, k), (k, 0, n))
-```
-
-Bounds other than the summand's own give an inhomogeneous recurrence, solved as well:
-
-```@example tut
-SymJ.summation(binomial(n, k), (k, 0, n - 1)), SymJ.summation(binomial(2n, k), (k, 0, n))
-```
-
-The same algorithm solves linear recurrences, `SymJ.rsolve` (not exported), from initial values or in terms of them:
-
-```@example tut
-@syms w()
-(SymJ.rsolve(w(n + 2) ~ w(n + 1) + w(n), w(n), w(0) => 0, w(1) => 1),
-SymJ.rsolve(w(n + 1) ~ 2w(n) + 1, w(n)))
-```
-
-When a recurrence has too few hypergeometric solutions, its order is
-reduced through one of them; the solutions are then iterated sums of
-hypergeometric terms (harmonic numbers, or a `Sum` that does not
-close), and the right side may be any function of `n`:
-
-```@example tut
-(
-SymJ.rsolve(w(n + 1) - w(n) ~ 1 / (n + 1), w(n), w(0) => 0),
-SymJ.rsolve(w(n + 1) ~ (n + 1) * w(n) + 1, w(n), w(0) => 1))
-
-```
-
-```@example tut
-SymJ.summation((-1)^(k + 1) * binomial(n, k) / k, (k, 1, n))
-```
-
-Solutions that are hypergeometric only on every second (or `m`-th) term are found too, as piecewise functions of `mod(n, m)`:
-
-```@example tut
-SymJ.summation((-1)^k * binomial(n, k)^2, (k, 0, n))
-```
-
-With no closed form, `rsolve` returns the recurrence itself, which is evaluated at integers by unrolling it:
-
-```@example tut
-F = SymJ.rsolve((n + 2)^2 * w(n + 2) - (7n^2 + 21n + 16) * w(n + 1) - 8(n + 1)^2 * w(n) ~ 0, w(n), w(0) => 1, w(1) => 2)
-```
-
-```@example tut
-[subs(F, n => m) for m in 0:6]
-```
-
-Harmonic numbers times a term that has an antidifference are summed by parts:
-
-```@example tut
-SymJ.summation(k * SymJ.harmonic(k), (k, 1, n))
-```
-
-`SymJ.harmonic(n, m)` is the generalized harmonic number `1 + 1/2^m + ... + 1/n^m`:
-
-```@example tut
-(
-SymJ.summation(1 / k^2, (k, 1, n)),
-SymJ.summation(SymJ.harmonic(k) / k, (k, 1, n))
-)
-```
-
-Whether a series converges can depend on a parameter; the answer then
-has cases, which assumptions settle:
-
-```@example tut
-SymJ.summation(r^k, (k, 0, Inf))
-```
-
-```@example tut
-SymJ.summation(k * r^k, (k, 0, Inf); assume = @assume(0 < r < 1))
 ```
 
 ## Integrals
@@ -439,6 +278,8 @@ split where they change:
 integrate(x^n * y^m, (y, 0, x), (x, 0, 1); assume = @assume(n > 0, m > 0))
 ```
 
+### Implicit assumptions for integration
+
 The variable of integration, by default, is assumed to be real, as are
 the parameters of a definite integral, so the `conj` that `dot` puts
 on symbols drops out. A line integral, the work of ⟨-y, x⟩ around the
@@ -467,19 +308,19 @@ equation, with constants `C1, C2, …`:
 SymJ.dsolve(y'(x) + 2y(x) ~ exp(x), y(x))
 ```
 
-The prime goes on the function, before the call. After the call, `'`
-is Julia's adjoint of the value `y(x)`, its complex conjugate, and not
-a derivative:
-
-```@example tut
-y'(x), y(x)'
-```
+!!! note "The `'` operator"
+    The prime goes on the function, before the call. After the call, `'`
+    is Julia's adjoint of the value `y(x)`, its complex conjugate, and not
+    a derivative. That is, these differ: `y'(x)`, `y(x)'` are quite different.
 
 First-order equations that are linear, separable, Bernoulli, exact or
 homogeneous are recognized:
 
 ```@example tut
-SymJ.dsolve(y'(x) ~ x * y(x)^2, y(x)), SymJ.dsolve(y'(x) ~ (x + y(x)) / x, y(x))
+(
+SymJ.dsolve(y'(x) ~ x * y(x)^2, y(x)),
+SymJ.dsolve(y'(x) ~ (x + y(x)) / x, y(x))
+)
 ```
 
 A Riccati equation, `y' = q₀ + q₁ y + q₂ y²`, is made linear (of
@@ -586,4 +427,188 @@ unknown and each order below its highest) are allowed:
 
 ```@example tut
 SymJ.dsolve([u''(t) + v(t) ~ 0, v'(t) ~ u(t) + t], [u(t), v(t)], u(0) => 1, u'(0) => 0, v(0) => 0)
+```
+
+
+## Series
+
+`series(ex, x, x0, n)` expands `ex` about `x0` with an error of order `(x - x0)^n`; `x0` defaults to 0 and `n` to 6:
+
+```@example tut
+series(sin(x), x)
+```
+
+```@example tut
+series(exp(x), x, 1, 3)
+```
+
+Laurent series (negative powers), Puiseux series (fractional powers), logarithmic terms and expansions at infinity (in powers of `1/x`) are included:
+
+```@example tut
+(
+series(cot(x), x, 0, 4),
+series(sqrt(x + x^2), x, 0, 3)
+)
+```
+
+```@example tut
+(
+series(x^x, x, 0, 3),
+series(sqrt(x^2 + x), x, Inf, 3)
+)
+```
+
+At `±Inf` an expansion may need a factor that is not a power of `x`:
+terms `exp(g)*(series)`, `cos(h)*(series)` and `sin(h)*(series)`, from
+`exp`, `sin` and `cos` of growing arguments and from the asymptotic
+expansions of SpecialFunctions' `erf`, `erfc`, `erfi`, `erfcx`,
+`expinti`, `expint`, `sinint`, `cosint`, the Bessel functions and
+`gamma` (Stirling's series; the special functions need to be brought
+in from SpecialFunctions to be used directly). Factors that cancel do
+cancel:
+
+```@example tut
+series(sin(x) / x + exp(-x) * (1 + 1/x), x, Inf, 4)
+```
+
+
+```@example tut
+using SpecialFunctions: erf, erfc
+series(erf(x), x, Inf, 4)
+```
+Exponentially small terms are kept: `erf(x)` at `Inf` is not just `1`.
+
+
+```@example tut
+series(exp(x^2) * erfc(x), x, Inf, 4)
+```
+
+
+A series is an object that keeps its error term. Series about the same
+point can be added, multiplied and divided, with the order tracked:
+
+```@example tut
+s, c = series(sin(x), x), series(cos(x), x)
+s / c
+```
+
+Calling `Sym` on a series drops the `O` term:
+
+```@example tut
+Sym(s)
+```
+
+## Sums
+
+`SymJ.summation(f, (k, a, b))` (not exported) sums `f` over `k = a, …, b`, in closed form where it finds one; `b` may be `Inf`:
+
+```@example tut
+@syms k n r
+(
+SymJ.summation(k^2, (k, 1, n)),
+SymJ.summation(r^k, (k, 0, n)),
+SymJ.summation(1 / (k * (k + 1)), (k, 1, n))
+)
+```
+
+```@example tut
+(
+SymJ.summation(1 / k^2, (k, 1, Inf)),
+SymJ.summation(x^k / factorial(k), (k, 0, Inf))
+)
+```
+
+Definite sums of binomials, which have no antidifference, come from Zeilberger's
+algorithm:
+
+```@example tut
+@syms m
+(
+SymJ.summation(binomial(n, k)^2, (k, 0, n)),
+SymJ.summation(binomial(n, k) * binomial(m, n - k), (k, 0, n))
+)
+```
+
+When Zeilberger's recurrence is of higher order, its hypergeometric solutions (found by Petkovšek's algorithm Hyper) may still give the sum; here Binet's formula for the Fibonacci numbers:
+
+```@example tut
+SymJ.summation(binomial(n - k, k), (k, 0, n))
+```
+
+Bounds other than the summand's own give an inhomogeneous recurrence, solved as well:
+
+```@example tut
+(
+SymJ.summation(binomial(n, k), (k, 0, n - 1)),
+SymJ.summation(binomial(2n, k), (k, 0, n))
+)
+```
+
+The same algorithm solves linear recurrences, `SymJ.rsolve` (not exported), from initial values or in terms of them:
+
+```@example tut
+@syms w()
+(
+SymJ.rsolve(w(n + 2) ~ w(n + 1) + w(n), w(n), w(0) => 0, w(1) => 1),
+SymJ.rsolve(w(n + 1) ~ 2w(n) + 1, w(n))
+)
+```
+
+When a recurrence has too few hypergeometric solutions, its order is
+reduced through one of them; the solutions are then iterated sums of
+hypergeometric terms (harmonic numbers, or a `Sum` that does not
+close), and the right side may be any function of `n`:
+
+```@example tut
+(
+SymJ.rsolve(w(n + 1) - w(n) ~ 1 / (n + 1), w(n), w(0) => 0),
+SymJ.rsolve(w(n + 1) ~ (n + 1) * w(n) + 1, w(n), w(0) => 1)
+)
+
+```
+
+```@example tut
+SymJ.summation((-1)^(k + 1) * binomial(n, k) / k, (k, 1, n))
+```
+
+Solutions that are hypergeometric only on every second (or `m`-th) term are found too, as piecewise functions of `mod(n, m)`:
+
+```@example tut
+SymJ.summation((-1)^k * binomial(n, k)^2, (k, 0, n))
+```
+
+With no closed form, `rsolve` returns the recurrence itself, which is evaluated at integers by unrolling it:
+
+```@example tut
+F = SymJ.rsolve((n + 2)^2 * w(n + 2) - (7n^2 + 21n + 16) * w(n + 1) - 8(n + 1)^2 * w(n) ~ 0, w(n), w(0) => 1, w(1) => 2)
+```
+
+```@example tut
+[subs(F, n => m) for m in 0:6]
+```
+
+Harmonic numbers times a term that has an antidifference are summed by parts:
+
+```@example tut
+SymJ.summation(k * SymJ.harmonic(k), (k, 1, n))
+```
+
+`SymJ.harmonic(n, m)` is the generalized harmonic number `1 + 1/2^m + ... + 1/n^m`:
+
+```@example tut
+(
+SymJ.summation(1 / k^2, (k, 1, n)),
+SymJ.summation(SymJ.harmonic(k) / k, (k, 1, n))
+)
+```
+
+Whether a series converges can depend on a parameter; the answer then
+has cases, which assumptions settle:
+
+```@example tut
+SymJ.summation(r^k, (k, 0, Inf))
+```
+
+```@example tut
+SymJ.summation(k * r^k, (k, 0, Inf); assume = @assume(0 < r < 1))
 ```

@@ -3,12 +3,17 @@
 ```@setup tut
 using SymJ
 using RischIntegrate
-@syms x y a b c
+@syms x y z a b c t f()
 ```
 
-Matrices of expressions are Julia arrays of `Sym`. With
-`LinearAlgebra`, `det`, `inv`, `lu` and `\` work exactly, pivoting (for exact entries) on
-the first nonzero entry rather than comparing magnitudes:
+!!! note "No SymMatrix type, as of yet"
+    There is no specialized `SymMatrix` type implemented. This section
+    describes methods for `Matrix{Sym}` objects.
+
+Matrices of expressions are Julia arrays of `Sym`.
+With LinearAlgebra loaded, `det`, `inv`, `lu` and `\` work exactly, pivoting
+(for exact entries) on the first nonzero entry rather than comparing
+magnitudes:
 
 ```@example tut
 using LinearAlgebra
@@ -26,21 +31,32 @@ F.L, F.U
 A \ [x, y]
 ```
 
-Row reduction (`SymJ.rref`, not exported, as it is not a LinearAlgebra
-function), rank, null spaces, and eigenvalues (with multiplicity) and
-eigenvectors:
+Row reduction (`SymJ.rref`, not exported, as it is not a LinearAlgebra function):
 
 ```@example tut
-SymJ.rref(Sym[1 2 3; 4 5 6; 7 8 9]), nullspace(Sym[1 2 3; 4 5 6; 7 8 9])
+SymJ.rref(Sym[1 2 3; 4 5 6; 7 8 9])
+```
+
+For linear systems, the matrix representation $Ax = b$ is available through `SymJ.linear_eq_to_matrix`:
+
+```@example tut
+eqns, vars = [a * x + y ~ 1, x - y ~ b], [x, y]
+SymJ.linear_eq_to_matrix(eqns, vars)
+```
+
+The rank, null spaces, eigenvectors, and eigenvalues (with multiplicity) can be found symbolically. For example:
+
+```@example tut
+nullspace(Sym[1 2 3; 4 5 6; 7 8 9])
 ```
 
 ```@example tut
 eigvals(Sym[1 2; 3 4]), eigvecs([a b; b a])
 ```
 
-`dot` and `norm` work entry by entry. Symbols are complex, so `dot`
-conjugates its first argument; for real symbols, `refine` under the
-assumptions removes the conjugates:
+`dot` and `norm` work entry by entry. Symbols are assumed complex by
+default, so `dot` conjugates its first argument; for real symbols,
+`refine` under the assumptions removes the conjugates:
 
 ```@example tut
 u = [x, y, 1]
