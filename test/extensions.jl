@@ -482,7 +482,7 @@ import PolyLog as PL
         E = Base.get_extension(SymJ, :SymJRischIntegrateExt)
         if E._has_oracle()                                               # RischIntegrate with a sign oracle
             ∫ = RischIntegrate.integrate
-            @test ∫(1 / (x^2 + a), x) == atan(x / sqrt(a)) / sqrt(a)         # generic
+            @test ∫(1 / (x^2 + a), x) isa SymJ.Cases                         # on the sign of a
             F = ∫(1 / (x^2 + a), x; assume = @assume(a < 0))
             @test !SymJ._hasfn(F, :atan)
             @test SymJ._hasfn(F, :log)
@@ -987,6 +987,45 @@ import PolyLog as PL
         # not when it diverges (e^(-x) sin(x)/x² at 0), nor with a parameter
         @test_throws RischIntegrate.NotElementary RischIntegrate.integrate(exp(-x) * sin(x) / x^2, (x, 0, Inf))
         @test_throws RischIntegrate.NotElementary RischIntegrate.integrate(y * exp(x^3), (x, 0, 1))
+    end
+
+    @testset "indefinite integrals over ℝ: cases on parameter signs" begin
+        @syms t
+        # (RischIntegrate's sign oracle: the installed one of Julia ≥ 1.12)
+        if VERSION >= v"1.12"
+            r = RischIntegrate.integrate(1 / (x^2 + a), x)
+            @test r isa SymJ.Cases
+            @test Set(join(string.(c.first), ", ") for c in r.cases) == Set(["a ≪ 0", "a ≫ 0"])
+            @test isequal(only(c.second for c in r.cases if string(only(c.first)) == "a ≫ 0"), atan(x / sqrt(a)) / sqrt(a))
+            # each case's form differentiates back, under its condition
+            ln = only(c.second for c in r.cases if string(only(c.first)) == "a ≪ 0")
+            @test iszero(simplify(diff(ln, x) - 1 / (x^2 + a); assume = @assume(a < 0)))
+            # a sign given: that case only
+            @test isequal(RischIntegrate.integrate(1 / (x^2 + a), x; assume = @assume(a > 0)), atan(x / sqrt(a)) / sqrt(a))
+            # a sign the integrator asks as -1/(4ab): the condition as a*b
+            s = RischIntegrate.integrate(1 / (a * x^2 + b), x)
+            @test Set(join(string.(c.first), ", ") for c in s.cases) == Set(["a*b ≪ 0", "a*b ≫ 0"])
+            # the parameters real: √(a²) is |a| (the older integrator refuses abs)
+            @test isequal(RischIntegrate.integrate(sqrt(a^2), x), abs(a) * x)
+            # a fact on two intervals (t² > 1) decides its own sign, so each case gets its form
+            s = RischIntegrate.integrate(1 / (x^2 + t^2 - 1), x)
+            k = findfirst(c -> join(string.(c.first), ", ") == "t^2 - 1 ≫ 0", s.cases)
+            @test SymJ._hasfn(s.cases[k].second, :atan)
+            # the two signs giving one answer, up to expansion, are one case
+            @test RischIntegrate.integrate(sqrt(a^2 - x^2), x) isa Sym
+        end
+        # a case where the integrand is nowhere real is dropped: √(a x² + b) with a, b < 0
+        # (a < 0 implied by -b/a < 0 and b < 0)
+        E = Base.get_extension(SymJ, :SymJRischIntegrateExt)
+        R = SymJ.FactAnd(Any[a ∈ SymJ.ℝ, b ∈ SymJ.ℝ])
+        @test E._nowhere_real(sqrt(a * x^2 + b), x, SymJ._with_fact(SymJ.Assumptions(), SymJ.FactAnd(Any[R, -b / a ≪ 0, b ≪ 0])))
+        @test !E._nowhere_real(sqrt(a * x^2 + b), x, SymJ._with_fact(SymJ.Assumptions(), SymJ.FactAnd(Any[R, -b / a ≪ 0, b ≫ 0])))
+        @test E._same_answer(-(-sin(x) - x) * a, a * (x + sin(x)))
+        # no sign asked: one answer, as before
+        @test isequal(RischIntegrate.integrate(x^n, x), x^(n + 1) / (n + 1))
+        # t² - 1 > 0 decides the sign of -1/(t² - 1)
+        B = SymJ._with_fact(SymJ.Assumptions(), SymJ.Relation(:gt, t^2 - 1, SymJ.ZERO))
+        @test SymJ._sign_oracle(B)(-1 / (t^2 - 1)) == -1
     end
 
     @testset "differentiation under the integral sign" begin
