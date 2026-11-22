@@ -151,8 +151,11 @@ end
   `BigInt` on overflow and demotes when a result fits again. Most coefficient arithmetic
   never allocates.
 - **Floats are contagious.** A float in an operation makes the result a float.
-- **Equality.** `==` is numeric (`1 == 1.0`). `isequal` and `hash` are structural, so the
-  exact `1` and the float `1.0` are different expression nodes.
+- **Equality.** On the internal `SymNumber` coefficients, `==` is numeric (`1 == 1.0`).
+  `isequal` and `hash` are structural, so the exact `1` and the float `1.0` are different
+  expression nodes. On `Sym`, `==` is structural except between two floats, which compare
+  as IEEE numbers (`Sym(0.0) == -0.0`, `Sym(NaN) != NaN`); an exact number never equals a
+  float there (`Sym(1) != 1.0`).
 - **Exact radicals.** A number to a rational power is canonicalized as `n^(p/q) =
   c·m^(r/q)` with `m` free of `q`-th powers (trial division up to 1000, then a
   perfect-power check). For example `sqrt(8) → 2·sqrt(2)`, `4^(1/4) → sqrt(2)`,
