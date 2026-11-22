@@ -55,6 +55,18 @@
     @test_throws ArgumentError solve(x^5 - x - 1 ~ 0, x)
     @test_throws ArgumentError solve((x^5 - x - 1) * (x - 2) ~ 0, x)
     @test length(SymJ.fsolve(x^5 - x - 1 ~ 0, x; domain = ℂ)) == 5
+    @test_throws ArgumentError solve(x^5 + x + 3 ~ 0, x)               # S₅ too
+    # a solvable quintic (Galois group in F₂₀): its roots in radicals, each one a root
+    for f in (x^5 - 5x + 12, x^5 + 15x + 12, 2x^5 - 10x + 24, x^5 - 5x^3 + 5x - 3, x^5 - 10x^3 + 20x - 12)
+        r = solve(f ~ 0, x)
+        @test length(r) == 5
+        @test all(q -> abs(N(subs(f, x => q))) < 1e-9, r)
+        @test length(unique(round.(ComplexF64.(N.(r)); digits = 8))) == 5
+    end
+    let r = solve(x^5 - 5x + 12 ~ 0, x)
+        @test N(r[1]) ≈ -1.8420859661902544                              # the real root, first
+        @test SymJ._nodes(r[1]) < 200
+    end
     @test solve(x^2 - 2 ~ 0, x) == [-sqrt(Sym(2)), sqrt(Sym(2))]      # exact, sorted
     @test solve(x^2 ~ -1, x) == [-IM, IM]
     @test solve(2x^2 ~ x + 1, x) == [Sym(-1 // 2), Sym(1)]
