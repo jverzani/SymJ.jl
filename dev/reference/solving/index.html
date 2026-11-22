@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Solving equations — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=f412ee5a">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=7aa03f55">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Solving equations — SymJ.jl">
   <meta property="og:title" content="Solving equations — SymJ.jl">
@@ -81,7 +81,7 @@
 <div class="md-docstring" id="CommonSolve.solve-Tuple{Relation, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>CommonSolve.solve</code> — <span class="md-docstring-sig">Tuple{Relation, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/76297e6d2ce0405acef10320df68a137b2cf510a/src/solve.jl#L22-L101" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1d8fe47f1032e93f52ee74b95c046cebc6866841/src/solve.jl#L22-L110" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -114,6 +114,12 @@ solve(sqrt(x) ~ a, x; assume = (a ∈ ℝ,))       # a &lt; 0 =&gt; [], a ≥ 0 
 solve(x^2 ~ a, x; assume = (x ∈ ℝ, a ∈ ℝ))         # a &lt; 0 =&gt; [], a == 0 =&gt; [0], a &gt; 0 =&gt; [-√a, √a]
 solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !(a &gt; 0) =&gt; []</code></pre>
 </div>
+<p>A linear system in integer unknowns (<code class="md-code-inline">x ∈ ℤ</code>) has its integer solutions: a family of them is written in new integer parameters <code class="md-code-inline">C1, C2, …</code> (as the constants of <code class="md-code-inline">dsolve</code>), each solution given once.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve([-123x + 77y ~ 3], [x, y]; assume = (x ∈ ℤ, y ∈ ℤ))   # [Dict(x =&gt; 77C1 + 15, y =&gt; 123C1 + 24)]
+solve([2x + 4y ~ -3], [x, y]; assume = (x ∈ ℤ, y ∈ ℤ))      # [] (no integer solutions)</code></pre>
+</div>
 <p><code class="md-code-inline">drop_empty = true</code> drops the cases with no solutions (and those holding an error, such as every value of <code class="md-code-inline">x</code> solving the equation), and when one case is left gives its solutions alone: the conditions under which they hold are then not shown.</p>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -124,7 +130,7 @@ solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a &gt; 0 =&gt; [√a], !
 <div class="md-docstring" id="SymJ.fsolve">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.fsolve</code> — <span class="md-docstring-sig">Union{Tuple{AbstractVector{&lt;:Relation}, AbstractVector}, Tuple{AbstractVector{&lt;:Relation}, AbstractVector, Any}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/76297e6d2ce0405acef10320df68a137b2cf510a/src/fsolve.jl#L98-L124" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1d8fe47f1032e93f52ee74b95c046cebc6866841/src/fsolve.jl#L98-L124" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -146,7 +152,7 @@ SymJ.fsolve([x^3 + y^3 ~ 1, x^2 + y ~ 3], [x, y])                      # all its
 <div class="md-docstring" id="SymJ.fsolve-2">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.fsolve</code> — <span class="md-docstring-sig">Union{Tuple{Relation, Sym}, Tuple{Relation, Sym, Tuple{Any, Any}}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/76297e6d2ce0405acef10320df68a137b2cf510a/src/fsolve.jl#L6-L34" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1d8fe47f1032e93f52ee74b95c046cebc6866841/src/fsolve.jl#L6-L34" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -169,7 +175,7 @@ SymJ.fsolve(x^5 - x + 1 ~ 0, x; domain = ℂ)      # five roots</code></pre>
 <div class="md-docstring" id="SymJ.linear_eq_to_matrix-Tuple{Any, Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.linear_eq_to_matrix</code> — <span class="md-docstring-sig">Tuple{Any, Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/76297e6d2ce0405acef10320df68a137b2cf510a/src/linsolve.jl#L501-L516" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1d8fe47f1032e93f52ee74b95c046cebc6866841/src/linsolve.jl#L533-L548" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -188,7 +194,7 @@ A, b = SymJ.linear_eq_to_matrix([x + 2y ~ 3, a*x - y ~ 1], [x, y])
 <div class="md-docstring" id="SymJ.SymInterval">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymInterval</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/76297e6d2ce0405acef10320df68a137b2cf510a/src/intervals.jl#L10-L15" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1d8fe47f1032e93f52ee74b95c046cebc6866841/src/intervals.jl#L10-L15" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -201,7 +207,7 @@ A, b = SymJ.linear_eq_to_matrix([x + 2y ~ 3, a*x - y ~ 1], [x, y])
 <div class="md-docstring" id="SymJ.SymSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/76297e6d2ce0405acef10320df68a137b2cf510a/src/intervals.jl#L23-L30" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1d8fe47f1032e93f52ee74b95c046cebc6866841/src/intervals.jl#L23-L30" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -214,7 +220,7 @@ A, b = SymJ.linear_eq_to_matrix([x + 2y ~ 3, a*x - y ~ 1], [x, y])
 <div class="md-docstring" id="SymJ.CylindricalSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.CylindricalSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/76297e6d2ce0405acef10320df68a137b2cf510a/src/ineqsystems.jl#L13-L25" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1d8fe47f1032e93f52ee74b95c046cebc6866841/src/ineqsystems.jl#L13-L25" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -228,7 +234,7 @@ A, b = SymJ.linear_eq_to_matrix([x + 2y ~ 3, a*x - y ~ 1], [x, y])
 <div class="md-docstring" id="SymJ.ChebZeros.cheb_all_zeros-Tuple{Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.ChebZeros.cheb_all_zeros</code> — <span class="md-docstring-sig">Tuple{Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/76297e6d2ce0405acef10320df68a137b2cf510a/src/chebzeros.jl#L500-L526" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1d8fe47f1032e93f52ee74b95c046cebc6866841/src/chebzeros.jl#L500-L526" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -253,7 +259,7 @@ cheb_all_zeros(f; kwargs...)        # whole real line</code></pre>
 <div class="md-docstring" id="SymJ.ChebZeros.cheb_zeros-Tuple{Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.ChebZeros.cheb_zeros</code> — <span class="md-docstring-sig">Tuple{Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/76297e6d2ce0405acef10320df68a137b2cf510a/src/chebzeros.jl#L299-L335" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/1d8fe47f1032e93f52ee74b95c046cebc6866841/src/chebzeros.jl#L299-L335" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -310,6 +316,6 @@ cheb_zeros(f; kwargs...)             # whole real line, same as cheb_zeros(f, -I
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=f412ee5a"></script>
+  <script src="../../assets/materialdocs.js?v=7aa03f55"></script>
 </body>
 </html>
