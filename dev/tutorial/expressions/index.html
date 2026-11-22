@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Symbolic expressions — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=4db5c43a">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=e5b62c61">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Symbolic expressions — SymJ.jl">
   <meta property="og:title" content="Symbolic expressions — SymJ.jl">
@@ -91,12 +91,6 @@
 </li>
 </ul>
 <p>SymJ is written in Julia, aims to be fast, and keeps numbers exact. Limits are computed by <a href="https://github.com/jverzani/GruntzLimit.jl">GruntzLimit</a> (a dependency) and integrals by <a href="https://github.com/jverzani/RischIntegrate.jl">RischIntegrate</a>, two packages that work on the expressions of several symbolic systems, SymJ&#39;s among them.</p>
-<div class="md-admonition md-admonition-note">
-<p class="md-admonition-title">Julia versions</p>
-<div class="md-admonition-body">
-<p>SymJ and GruntzLimit support Julia 1.10 and later. RischIntegrate needs Julia 1.12 or later, so the section on integrals needs that version.</p>
-</div>
-</div>
 <div class="md-admonition md-admonition-note">
 <p class="md-admonition-title">Typeset output in notebooks</p>
 <div class="md-admonition-body">
@@ -893,11 +887,11 @@ factor(ex; assume = (x ∈ ℝ,))
 </div>
 </div>
 <p>(Without facts, symbols are complex, and <span class="md-math md-math-inline">\(\sqrt{ab} = \sqrt{a}\sqrt{b}\)</span> can fail.)</p>
-<p><code class="md-code-inline">factor_squarefree</code> only separates repeated factors, which is cheaper:</p>
+<p><code class="md-code-inline">SymJ.factor_squarefree</code> only separates repeated factors, which is cheaper:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">factor_squarefree(expand((x - 1)^3 * (x + 2)^2))</code></pre>
+<pre><code class="language-julia">SymJ.factor_squarefree(expand((x - 1)^3 * (x + 2)^2))</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( x + 2 \right)^{2} \cdot \left( x - 1 \right)^{3}\]
@@ -946,7 +940,7 @@ SymJ.minimal_polynomial(cos(Sym(pi) / 7), x)
 <pre><code class="language-julia">P = Poly(p, x)
 coefficients(P), exponent_vectors(P), degree(P)</code></pre>
 </div>
-<pre class="md-output md-output-text"><code class="nohighlight ansi">(SymNumber[1, -7, 6], [[3], [1], [0]], 3)</code></pre>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">(SymJ.SymNumber[1, -7, 6], [[3], [1], [0]], 3)</code></pre>
 </div>
 <p>Other symbols become coefficients:</p>
 <div class="md-multi-output">
@@ -990,11 +984,11 @@ cancel(r)</code></pre>
 \[\frac{2 \cdot x + 1}{x^{2} + x}\]
 </div>
 </div>
-<p>The <code class="md-code-inline">numerator</code> and <code class="md-code-inline">denominator</code> generics return the top and bottom of a rational expression. The function <code class="md-code-inline">numer_denom</code> gives the numerator and denominator without reducing:</p>
+<p>The <code class="md-code-inline">numerator</code> and <code class="md-code-inline">denominator</code> generics return the top and bottom of a rational expression. The function <code class="md-code-inline">SymJ.numer_denom</code> gives the numerator and denominator without reducing:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">numer_denom(r)</code></pre>
+<pre><code class="language-julia">SymJ.numer_denom(r)</code></pre>
 </div>
 <div class="md-math md-math-display">
 \[\left( x^{3} - 1, \; x^{2} - 1 \right)\]
@@ -1209,6 +1203,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=4db5c43a"></script>
+  <script src="../../assets/materialdocs.js?v=e5b62c61"></script>
 </body>
 </html>

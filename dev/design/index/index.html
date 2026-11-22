@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Design notes — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=70ff2230">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=55aaa596">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Design notes — SymJ.jl">
   <meta property="og:title" content="Design notes — SymJ.jl">
@@ -80,6 +80,12 @@
 <h1 id="Design-notes" class="md-heading">Design notes<a href="#Design-notes" class="md-heading-anchor" aria-label="Link to this section">#</a></h1>
 <p>SymJ is a symbolic manipulation kernel written in pure Julia. It aims for SymEngine-class speed with a small, explicit core that later layers (simplification, solving, matrices) build on.</p>
 <p>The notes are in three pages: this one (the core: the node type, numbers, functions, evaluation, relations, pattern matching, open questions), <a href="../../design/algebra/#design-algebra">Algebra</a> (polynomials, solving, simplification, linear algebra, assumptions) and <a href="../../design/calculus/#design-calculus">Calculus</a> (piecewise functions, summation, differential equations).</p>
+<div class="md-admonition md-admonition-note">
+<p class="md-admonition-title">Authorship</p>
+<div class="md-admonition-body">
+<p>These notes were written with Claude (Anthropic) from the development sessions and reviewed by jverzani.</p>
+</div>
+</div>
 <h2 id="Goals" class="md-heading">Goals<a href="#Goals" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
 <ul>
 <li><p><strong>Speed comparable to SymEngine.</strong> Construction, canonicalization, expansion, differentiation and substitution should be within a small factor of SymEngine, and ideally faster.</p>
@@ -254,7 +260,7 @@ end</code></pre>
 <p>Unevaluated applications are <code class="md-code-inline">FN</code> nodes identified by name. Behaviour lives in a registry:</p>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">register_function!(:sin; julia = sin,                 # numeric evaluation, TermInterface.operation
+<pre><code class="language-julia">SymJ.register_function!(:sin; julia = sin,                 # numeric evaluation, TermInterface.operation
                          eval  = args -&gt; ...,         # simplification, or `nothing`
                          diff  = (args, i) -&gt; ...)    # ∂/∂argᵢ</code></pre>
 </div>
@@ -637,6 +643,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=70ff2230"></script>
+  <script src="../../assets/materialdocs.js?v=55aaa596"></script>
 </body>
 </html>

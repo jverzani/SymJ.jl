@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Calculus — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=f0e28d8d">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=1e74bea2">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Calculus — SymJ.jl">
   <meta property="og:title" content="Calculus — SymJ.jl">
@@ -293,6 +293,35 @@ expand(h(c₀) + diff(h, x)(c₀) * (x - c₀))</code></pre>
 \[\left(  - \log\left( \left|x\right| \right) + \frac{\log\left( \left|x^{2} - 1\right| \right)}{2}, \; 3 \cdot \arctan\left( x \right) + \log\left( x^{2} + 1 \right) \right)\]
 </div>
 </div>
+<p>SymJ integrates over the real numbers: the variable of integration and the parameters are taken to be real. This differs from Rubi, Mathematica and SymPy, which take them to be complex and give antiderivatives valid over ℂ (on principal branches). Over ℝ, an antiderivative whose real form depends on the sign of a parameter comes by cases, each case real (<code class="md-code-inline">assume</code> picks one):</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">integrate(1 / (x^2 + a), x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\begin{cases} \frac{\log\left( \left|\frac{x + \frac{a}{\sqrt{ - a}}}{x - \frac{a}{\sqrt{ - a}}}\right| \right)}{2 \cdot \sqrt{ - a}} &amp; a &lt; 0 \\ \frac{\arctan\left( \frac{x}{\sqrt{a}} \right)}{\sqrt{a}} &amp; a &gt; 0 \end{cases}\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">integrate(1 / (x^2 + a), x; assume = @assume(a &gt; 0))</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\frac{\arctan\left( \frac{x}{\sqrt{a}} \right)}{\sqrt{a}}\]
+</div>
+</div>
+<p>For the same reason a logarithm of an expression that may be negative has its absolute value: <code class="md-code-inline">∫ 1/x dx</code> is <code class="md-code-inline">log|x|</code>, an antiderivative on both sides of 0 (the others give <code class="md-code-inline">log(x)</code>, complex for <code class="md-code-inline">x &lt; 0</code>). An argument known to be positive keeps the plain log:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">integrate(1 / x, x), integrate(1 / x, x; assume = @assume(x &gt; 0)), integrate(2x / (x^2 + 1), x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \log\left( \left|x\right| \right), \; \log\left( x \right), \; \log\left( x^{2} + 1 \right) \right)\]
+</div>
+</div>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -460,7 +489,7 @@ integrate(x^n * y^m, (y, 0, x), (x, 0, 1); assume = @assume(n &gt; 0, m &gt; 0))
 </div>
 </div>
 <h3 id="Implicit-assumptions-for-integration" class="md-heading">Implicit assumptions for integration<a href="#Implicit-assumptions-for-integration" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
-<p>The variable of integration, by default, is assumed to be real, as are the parameters of a definite integral, so the <code class="md-code-inline">conj</code> that <code class="md-code-inline">dot</code> puts on symbols drops out. A line integral, the work of ⟨-y, x⟩ around the unit circle:</p>
+<p>The variable of integration, by default, is assumed to be real, as are the parameters, so the <code class="md-code-inline">conj</code> that <code class="md-code-inline">dot</code> puts on symbols drops out. A line integral, the work of ⟨-y, x⟩ around the unit circle:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -975,6 +1004,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=f0e28d8d"></script>
+  <script src="../../assets/materialdocs.js?v=1e74bea2"></script>
 </body>
 </html>
