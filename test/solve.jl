@@ -344,6 +344,16 @@
     @test P2s.intervals[1] ⊆ P2s
     @test !(solve(x ≦ 1, x) ⊆ P2s.intervals[1])
     @test sqrt(Sym(2)) in solve(x^2 ≦ 2, x) && !(sqrt(Sym(2)) in solve(x^2 ≪ 2, x))
+    # exponentials (stored as ℯ^u) and other positive bases to a power in x
+    @test S(exp(x) ≫ 2) == "(log(2), ∞)"
+    @test S(Sym(2)^x ≫ 3) == "(log(3)/log(2), ∞)"
+    @test S((Sym(1) // 2)^x ≪ Sym(1) // 8) == "(3, ∞)"
+    @test S(Sym(2)^x + Sym(4)^x ≪ 6) == "(-∞, 1)"
+    @test S(exp(-x^2) ≫ Sym(1) // 2) == "(-sqrt(log(2)), sqrt(log(2)))"
+    @test S(exp(1 / x) ≫ 2) == "(0, 1/log(2))"
+    @test S(exp(sqrt(x)) ≫ 2) == "(log(2)^2, ∞)"
+    @test S(x * exp(x) ≪ 1) == "(-∞, lambertw(1))"
+    @test S(exp(x) ≪ 0) == "∅"
     @test_throws ArgumentError solve(a * x ≫ 1, x)               # parameters: not yet
     @test_throws ArgumentError solve(sin(x) ≫ 0, x)
     @test_throws ArgumentError solve(x^5 + a * x + 1 ~ 0, x)  # degree 5, symbolic
