@@ -272,6 +272,33 @@
     @test isempty(solve([x^2 + y^2 ~ 1, x^2 + y^2 ~ 4], [x, y]))
     @test sameset(solve([x^2 + y^2 ~ 1], [x, y]), [Dict(x => sqrt(1 - y^2), y => y), Dict(x => -sqrt(1 - y^2), y => y)])   # y free
     @test sameset(solve([1 / x + 1 / y ~ 1, x ~ y], [x, y]), [Dict(x => 2, y => 2)])         # rational
+    # transcendental systems: unknowns through generators of their own, or given explicitly
+    @test sameset(solve([x + y ~ 4, 2^x + 2^y ~ 10], [x, y]), [Dict(x => 1, y => 3), Dict(x => 3, y => 1)])   # SymPy #29315
+    @test solve([2^x * 3^y ~ 12, x + y ~ 3], [x, y]) == [Dict(x => 2, y => 1)]
+    @test sameset(solve([2^x + 2^y ~ 6, 2^(x + y) ~ 8], [x, y]), [Dict(x => 1, y => 2), Dict(x => 2, y => 1)])
+    let (p, q) = Sym.((:p, :q))
+        d = only(solve([p * exp(-90q) ~ 33, p * exp(-92q) ~ 66], [p, q]))   # SymPy #24060
+        @test d[p] == Sym(33) / 2^45
+        @test simplify(d[q] + log(Sym(2)) / 2) == 0
+    end
+    @test sameset(solve([sin(x) + cos(y) ~ 1, sin(x) - cos(y) ~ 0], [x, y]),
+                  [Dict(x => PI / 6, y => PI / 3), Dict(x => PI / 6, y => 5PI / 3), Dict(x => 5PI / 6, y => PI / 3), Dict(x => 5PI / 6, y => 5PI / 3)])
+    @test sameset(solve([sin(x) + cos(x) ~ 1, y ~ sin(x)], [x, y]), [Dict(x => 0, y => 0), Dict(x => PI / 2, y => 1), Dict(x => 2PI, y => 0)])   # [0, 2π], as for one equation
+    @test solve([log(x) + log(y) ~ 1, log(x) - log(y) ~ 0], [x, y]) == [Dict(x => exp(Sym(1) // 2), y => exp(Sym(1) // 2))]
+    @test sameset(solve([x * exp(y) ~ 2, y ~ log(x)], [x, y]),
+                  [Dict(x => sqrt(Sym(2)), y => log(sqrt(Sym(2)))), Dict(x => -sqrt(Sym(2)), y => log(-sqrt(Sym(2))))])
+    @test solve([x + y ~ PI / 2, sin(x) ~ cos(y)], [x, y]) == [Dict(x => PI / 2 - y, y => y)]
+    let (s, c) = Sym.((:s, :c))
+        # a free unknown's special values: the component where a basis element's content
+        # (c - s) vanishes (the points were lost; SymPy #26070)
+        sols = solve([x^2 + y^2 + 2x * y * s ~ 25, y^2 + 2x^2 - 2x * y * c + 2x * y * s ~ 25, 4x^2 + y^2 - 4x * y * c ~ 25, s^2 + c^2 ~ 1], [x, y, s, c])
+        @test count(d -> d[c] == sqrt(Sym(2)) / 2, sols) == 2
+        @test count(d -> d[y] == sqrt(Sym(5)), sols) == 2
+        sols = solve([x^2 + y^2 + 2x * y * sin(a) ~ 25, y^2 + 2x^2 - 2x * y * cos(a) + 2x * y * sin(a) ~ 25, 4x^2 + y^2 - 4x * y * cos(a) ~ 25], [x, y, a])
+        @test Dict(x => sqrt(Sym(10)), y => sqrt(Sym(5)), a => PI / 4) in map(d -> Dict(k => simplify(v) for (k, v) in d), sols)
+        @test Dict(x => 0, y => 5, a => a) in sols                         # any a
+        @test length(sols) == 6
+    end
     @test sameset(solve([y ~ x^2 / (x - 1), x * (x - 1) ~ 0], [x, y]), [Dict(x => 0, y => 0)])   # pole dropped
     @test length(solve([x + y + z ~ 0, x * y + y * z + z * x ~ 0, x * y * z ~ 1], [x, y, z])) == 6
     @test length(solve([x^2 + y^2 ~ a^2, x ~ y], [x, y])) == 2                # a parameter

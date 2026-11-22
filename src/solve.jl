@@ -41,7 +41,11 @@ differentiation; other derivatives of it are held as they are. In a system, `abs
 `real`, `imag` and `conj` of the unknowns are solved over the complex numbers, through
 each unknown's real and imaginary parts (`[I*R ~ 220, abs(I) ~ 2]`: a family written
 with a free part such as `R_im`); with the unknowns assumed real (`assume = (I ∈ ℝ,)`),
-`abs` is `±` its argument and only real solutions are kept (`I = ±2`).
+`abs` is `±` its argument and only real solutions are kept (`I = ±2`). Unknowns
+that appear only through exponentials (`2^x + 2^y ~ 10`), one function (`log(x)`,
+`sin(2y)`), or `sin` and `cos` of one argument are solved for those first, the
+others polynomially (`[x^2 + y^2 + 2x*y*sin(a) ~ 25, …]`); an unknown an equation
+gives explicitly (`y ~ log(x)`) is substituted into the others.
 
 An equation through `sin` or `cos` gives the solutions for its argument in `[0, 2π]`,
 each once: `cos(x) ~ 0` gives `[π/2, 3π/2]`, `sin(x) ~ -1//2` gives `[7π/6, 11π/6]`, and
