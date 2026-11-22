@@ -1,7 +1,7 @@
 # Rational expressions: common denominators and cancellation of common factors.
 
 """
-    numer_denom(ex) -> (numerator, denominator)
+    SymJ.numer_denom(ex) -> (numerator, denominator)
 
 Write `ex` as a single fraction. Rational coefficients and factors with negative
 exponents move to the denominator, and sums are brought over a common denominator.

@@ -7,8 +7,8 @@
 # two sets of factors are coprime, so factors of equal multiplicity are multiplied.
 
 """
-    factor_squarefree(p::Poly) -> (unit, [f₁ => 1, f₂ => 2, ...])
-    factor_squarefree(ex::Sym)
+    SymJ.factor_squarefree(p::Poly) -> (unit, [f₁ => 1, f₂ => 2, ...])
+    SymJ.factor_squarefree(ex::Sym)
 
 Squarefree factorization: `p == unit * f₁^m₁ * f₂^m₂ * ...` with the `fᵢ` squarefree,
 pairwise coprime, of positive leading coefficient and integer content 1, and the
@@ -41,7 +41,7 @@ function _factor_squarefree_poly(p::Poly{SymNumber}; gcd_method::Symbol = :auto)
 end
 
 """
-    squarefree_part(p)
+    SymJ.squarefree_part(p)
 
 The product of the distinct irreducible factors of `p` (its radical), with positive
 leading coefficient and integer content 1. Also for expressions.

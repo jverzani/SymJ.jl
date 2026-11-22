@@ -12,7 +12,7 @@ module SymJLatexifyExt
 
 using SymJ
 using SymJ: Relation, SymSet, SymInterval, CylindricalSet, Cases, SymSeries, Membership,
-            _NotFact, NumberSet
+            _NotFact, NumberSet, SymNumber
 using Latexify
 
 # the printed form as a Julia expression, with ℯ and im as the letters e and i, and big

@@ -24,7 +24,7 @@ Base.showerror(io::IO, e::DivisionByZero) = print(io, "DivisionByZero: ", e.msg)
 _isdivzero(err) = err isa DivisionByZero || err isa DivideError
 
 """
-    SymNumber <: Real
+    SymJ.SymNumber <: Real
 
 Numeric scalar used inside symbolic expressions. It is exact (an integer or rational of
 arbitrary size) unless constructed from a floating point value. Small values never

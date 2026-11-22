@@ -42,7 +42,7 @@ end
     @test e(3) == 9a + 3b + 1 && e(x => 2) == 4a + 2b + 1 && e(y) == a * y^2 + b * y + 1
     @test (2a)(3) == 2a && a() === a && e() === e
     @test (x^2)(3) === 9                                  # no parameters: numeric, as before
-    @test_throws ArgumentError evaluate(e, 2.0)           # parameters have no value
+    @test_throws ArgumentError SymJ.evaluate(e, 2.0)           # parameters have no value
     @test e(x => 2, a => 1, b => 0)() === 5               # all substituted: a number
     # calculus and algebra treat parameters as symbols
     @test diff(e, x) == 2a * x + b && diff(e, a) == x^2 && diff(sin(a * x), a) == x * cos(a * x)
