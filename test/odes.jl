@@ -110,6 +110,23 @@
     @test subs(I4, Sym(:u) => 2, a => 3, b => x) == SymJ._mkfn_node(:Integral, Sym[3cos(Sym(:u)), Sym(:u), Sym(0), x])
     @test diff(I4, b) == a * cos(b)
     @test_throws ArgumentError D(y'(x) ~ y(x)^2 + x, y(x))                                  # Riccati to Airy: no method
+    # nonlinear in y′: Clairaut (the lines and the envelope), singular solutions, d'Alembert
+    # and x = h(y′) parametric (with antiderivatives: test/extensions.jl)
+    @test D(y(x) ~ x * y'(x) + y'(x)^2, y(x)) == [y(x) ~ C1 * x + C1^2, y(x) ~ -x^2 / 4]
+    @test D(y(x) ~ x * y'(x) + exp(y'(x)), y(x)) == [y(x) ~ C1 * x + exp(C1), y(x) ~ x * log(-x) - x]
+    @test D(y(x) ~ x * y'(x) + y'(x)^2, y(x), y(0) => 1) == [y(x) ~ 1 - x, y(x) ~ 1 + x]
+    @test D(y'(x)^2 ~ 4y(x), y(x)) == [y(x) ~ (C1 - x)^2, y(x) ~ 0]
+    @test D(y'(x)^2 ~ y(x)^2, y(x)) == [y(x) ~ C1 / exp(x), y(x) ~ C1 * exp(x)]   # y = 0 is C1 = 0
+    p = Sym(:p)
+    r = D(y(x) ~ 2x * y'(x) + y'(x)^2, y(x))
+    @test r[1] == SymJ.ParametricSolution(C1 / p^2 - 2p / 3, (6C1 - p^3) / (3p), p, (x, y(x)))
+    @test r[2] == (y(x) ~ 0)
+    @test string(r[1]) == "{x = -2*p/3 + C1/p^2, y(x) = (-p^3 + 6*C1)/(3*p); p}"
+    r = D(y(x) ~ x * y'(x)^2 + y'(x)^3, y(x))
+    @test r[2:3] == [y(x) ~ 0, y(x) ~ x + 1]
+    s = D(x ~ y'(x)^3 + y'(x), y(x))
+    @test s == SymJ.ParametricSolution(p^3 + p, 3p^4 / 4 + p^2 / 2 + C1, p, (x, y(x)))
+    @test lambdify(subs(s, C1 => 0))(1.0) == (2.0, 1.25)
     @test_throws ArgumentError D(y'(x) ~ y(x), y(x), y(0) => 1, y(1) => 2)
     @test_throws ArgumentError D(y(x) + x ~ 0, y(x))
     @test_throws ArgumentError D(y'(x) - y(x), y(x))

@@ -34,6 +34,12 @@ A variable may also be a function call, `u(t)` or its derivative: `lambdify(u'(t
 """
 lambdify(ex, vars::Sym...) = _lambdify(ex, collect(Sym, vars))
 lambdify(ex, vars::Union{Tuple,AbstractVector}) = _lambdify(ex, Sym[Sym(v) for v in vars])
+# a parametric solution: p ↦ (X(p), Y(p)), then the other free symbols
+function lambdify(s::ParametricSolution, vars::Sym...)
+    vs = isempty(vars) ? Sym[s.p; [v for v in free_symbols(s.x + s.y) if !_eq(v, s.p)]] : collect(Sym, vars)
+    fx, fy = lambdify(s.x, vs), lambdify(s.y, vs)
+    (args...) -> (fx(args...), fy(args...))
+end
 function lambdify(ex)
     vars = free_symbols(ex)
     length(vars) <= 1 || throw(ArgumentError(

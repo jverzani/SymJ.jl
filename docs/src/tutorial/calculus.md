@@ -352,6 +352,18 @@ second order), or solved from a particular solution:
 SymJ.dsolve(y'(x) ~ y(x)^2 - 2 / x^2, y(x))
 ```
 
+An equation nonlinear in `y'` gives its general solutions and its
+singular solutions; Clairaut's equation gives a family of lines and
+their envelope, and d'Alembert's equation a solution in the parameter
+`p = y'`:
+
+```@example tut
+(
+SymJ.dsolve(y(x) ~ x * y'(x) + y'(x)^2, y(x)),
+SymJ.dsolve(y(x) ~ 2x * y'(x) + y'(x)^2, y(x))
+)
+```
+
 When `y` cannot be solved for, the solution is implicit:
 
 ```@example tut
