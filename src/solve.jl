@@ -29,8 +29,9 @@ degree 4 and for equations that factor into such pieces (and for higher degrees 
 special forms: `a xⁿ + b`, cyclotomic polynomials, compositions); an irreducible factor
 of higher degree that `solve` finds no roots in radicals for is an error, as `solve` gives
 only exact solutions: [`SymJ.fsolve`](@ref) gives its roots numerically. (Most such
-factors have no roots in radicals; the solvable quintics, as `x^5 - 5x + 12`, are not
-recognized yet.) Solutions are sorted, real
+factors have no roots in radicals. A quintic over the rationals that has them, its
+Galois group solvable, as `x^5 - 5x + 12`, gets them, through its Lagrange resolvents;
+they are large expressions.) Solutions are sorted, real
 ones first. An equation with no solution gives an empty
 vector. A solution must be in the equation's domain: `(x^2 - 1)/(x - 1) ~ 2` has none,
 though cancelling gives `x + 1 = 2`. For a system, `solve([eqs...], [vars...])`, giving a vector of `Dict`s;
@@ -1740,10 +1741,19 @@ function _solve_irreducible(c::Vector{Sym}, f)
     r === nothing || return r
     all(ci -> !_hassymbol(ci), c) || throw(ArgumentError(
         "solve: an irreducible factor of degree $d with symbolic coefficients"))
+    # a solvable quintic (Galois group in F₂₀): its roots in radicals (x⁵ - 5x + 12), for
+    # a solve the user called (internal callers keep the numeric roots: the radicals are
+    # large)
+    if d == 5 && _SOLVE_STRICT[] === true
+        r = _solvable_quintic(c)
+        r === nothing || return r
+    end
     if _SOLVE_STRICT[] === true
         p = f === nothing ? _add_many(Sym[c[k] * Sym(:x)^(k - 1) for k in eachindex(c)]) : Sym(f)
         throw(ArgumentError("solve: no roots in radicals found for the irreducible factor $p of degree $d " *
-                            "(most such factors have none; some solvable quintics are not covered either); " *
+                            (d == 5 && all(ci -> ci.kind == NUMBER && isexact(ci.num), c) ?
+                             "(it has none: its Galois group is not solvable); " :
+                             "(most such factors have none; solvable ones of degree above 5 are not recognized); ") *
                             "for numeric roots use SymJ.fsolve (fsolve(eq, x) for the real ones, " *
                             "fsolve(eq, x; domain = ℂ) for all; fsolve(eqs, vars) for a system)"))
     end
