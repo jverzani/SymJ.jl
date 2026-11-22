@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Design notes — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=7a9e445e">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=70ff2230">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Design notes — SymJ.jl">
   <meta property="og:title" content="Design notes — SymJ.jl">
@@ -237,7 +237,7 @@ end</code></pre>
 </li>
 <li><p><strong>Floats are contagious.</strong> A float in an operation makes the result a float.</p>
 </li>
-<li><p><strong>Equality.</strong> <code class="md-code-inline">==</code> is numeric (<code class="md-code-inline">1 == 1.0</code>). <code class="md-code-inline">isequal</code> and <code class="md-code-inline">hash</code> are structural, so the exact <code class="md-code-inline">1</code> and the float <code class="md-code-inline">1.0</code> are different expression nodes.</p>
+<li><p><strong>Equality.</strong> On the internal <code class="md-code-inline">SymNumber</code> coefficients, <code class="md-code-inline">==</code> is numeric (<code class="md-code-inline">1 == 1.0</code>). <code class="md-code-inline">isequal</code> and <code class="md-code-inline">hash</code> are structural, so the exact <code class="md-code-inline">1</code> and the float <code class="md-code-inline">1.0</code> are different expression nodes. On <code class="md-code-inline">Sym</code>, <code class="md-code-inline">==</code> is structural except between two floats, which compare as IEEE numbers (<code class="md-code-inline">Sym(0.0) == -0.0</code>, <code class="md-code-inline">Sym(NaN) != NaN</code>); an exact number never equals a float there (<code class="md-code-inline">Sym(1) != 1.0</code>).</p>
 </li>
 <li><p><strong>Exact radicals.</strong> A number to a rational power is canonicalized as <code class="md-code-inline">n^(p/q) = c·m^(r/q)</code> with <code class="md-code-inline">m</code> free of <code class="md-code-inline">q</code>-th powers (trial division up to 1000, then a perfect-power check). For example <code class="md-code-inline">sqrt(8) → 2·sqrt(2)</code>, <code class="md-code-inline">4^(1/4) → sqrt(2)</code>, <code class="md-code-inline">2^(-1/2) → sqrt(2)/2</code>.</p>
 <ul class="md-list-tight">
@@ -637,6 +637,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=7a9e445e"></script>
+  <script src="../../assets/materialdocs.js?v=70ff2230"></script>
 </body>
 </html>
