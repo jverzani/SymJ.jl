@@ -30,11 +30,10 @@
 
 - [x] Julia ≥ 1.12 (RischIntegrate main needs 1.12; CI's 1.10 job becomes 1.12)
 - [x] Remove the `VERSION >= v"1.12"` test guards and the RischIntegrate 1.0 feature
-  checks; RischIntegrate compat "1.4" until its next release
-- [ ] Bump RischIntegrate to its next release (with #184–#186: answers valid for every
-  real parameter value); SymJ's #203 gives a wrong case with 1.4.0
-  (√(a+bx)√(a-bx), a < 0)
-- [ ] With that release, add the waiting tests: ∫₀¹ (√x - 1)/log x = log(3/2)
+  checks; RischIntegrate compat "1.5"
+- [x] Bump RischIntegrate to 1.5.0 (with #184–#186: answers valid for every real
+  parameter value); SymJ's #203 gives a wrong case with 1.4.0 (√(a+bx)√(a-bx), a < 0)
+- [x] With that release, add the waiting tests: ∫₀¹ (√x - 1)/log x = log(3/2)
   (RischIntegrate #177) and SymPy #4231 (RischIntegrate #157)
 
 ## Release

@@ -207,6 +207,8 @@ import PolyLog as PL
     @testset "RischIntegrate: definite integrals" begin
         ∫ = RischIntegrate.integrate
         Inf_ = Sym(Inf)
+        # ∫₀¹ (√x - 1)/log x by differentiating under the integral sign (RischIntegrate #177)
+        @test ∫((sqrt(x) - 1) / log(x), (x, 0, 1)) == log(Sym(3) / 2)
         # equal limits; two deltas over the line; a series term by term (SymPy #5098, #5588, #4831)
         let f = SymFunction(:f), a = Sym(:a), x1 = Sym(:x1), x2 = Sym(:x2)
             @test iszero(∫(f(x), (x, a, a)))
@@ -895,6 +897,11 @@ import PolyLog as PL
         @test RischIntegrate.integrate(Poly(x + x^2 * y + y^3, x, y), (y, 0, PI)) ==
               RischIntegrate.integrate(x + x^2 * y + y^3, (y, 0, PI))
         @test RischIntegrate.integrate(Poly(x^2 + 1, x), x) == x^3 / 3 + x
+        # a square root of x + log x (#4231; RischIntegrate #157)
+        let L = log(x)
+            f = (1 + 2x + sqrt(x + L) * (1 + 3x) + x^2) / (x * (x + sqrt(x + L)) * sqrt(x + L))
+            @test iszero(simplify(diff(RischIntegrate.integrate(f, x), x) - f))
+        end
     end
 
     @testset "wrong answers (SymPy review, round 19)" begin
