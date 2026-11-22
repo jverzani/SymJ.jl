@@ -72,7 +72,7 @@ _arity_error(l::LambdifiedFunction{N}, n) where {N} = throw(ArgumentError(
 Base.show(io::IO, l::LambdifiedFunction) = print(io, "lambdified function of (", join(l.vars, ", "), ")")
 
 """
-    lambdify_expr(ex, vars)
+    SymJ.lambdify_expr(ex, vars)
 
 The Julia expression (an anonymous function) that [`lambdify`](@ref) compiles.
 """

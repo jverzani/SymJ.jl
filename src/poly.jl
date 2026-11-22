@@ -189,7 +189,7 @@ The generators (variables) of `p`, most significant first.
 gens(p::Poly) = p.gens
 
 """
-    nterms(p::Poly)
+    SymJ.nterms(p::Poly)
 
 Number of nonzero terms.
 """

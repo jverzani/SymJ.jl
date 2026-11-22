@@ -163,7 +163,7 @@ end
     @test L(Sym(1)) == 1 / s && L(t^3) == 6 / s^4 && L(exp(2t)) == 1 / (s - 2) && L(sin(3t)) == 3 / (s^2 + 9)
     @test L(cos(w * t)) == s / (s^2 + w^2) && L(sinh(t)) == 1 / (s^2 - 1) && L(t * sin(t)) == 2s / (s^2 + 1)^2
     # bᵗ = e^(t log b) (SymPy #28136); derivatives of an unknown u(t) (#28720)
-    @test iszero(cancel(L(Sym(2)^t) - 1 / (s - log(Sym(2)))))     # (signs arranged differently on Julia 1.10)
+    @test iszero(cancel(L(Sym(2)^t) - 1 / (s - log(Sym(2)))))
     @test iszero(cancel(L(w^t) - 1 / (s - log(w))))
     let U = SymJ.apply_function(:LaplaceTransform, Sym[u(t), t, s])
         @test L(diff(u(t), t, 2)) == s^2 * U - s * u(0) - subs(diff(u(t), t), t => 0)

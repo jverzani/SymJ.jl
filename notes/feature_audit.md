@@ -1,17 +1,19 @@
-# Feature audit: SymJ against SymPy and Giac
+# Feature audit and roadmap: SymJ against SymPy and Giac
 
-What SymPy and Giac provide, area by area, and where SymJ stands. Written 2026-10-23
-against SymPy 1.14 and Giac (through Giac.jl 0.14), with SymJ 0.1.0 plus GruntzLimit
-(limits) and RischIntegrate (integrals). Every SymPy name below was checked to exist in
-SymPy 1.14, and every Giac command in Giac.jl's command table; SymJ's column was checked
-against its source and by running it. Updated 2026-10-25: series, assumptions, `limit`
-with assumptions, `refine` and `simplify`, complex parts and LaTeX output are done.
-Updated 2026-11-01: the feature gaps found in a review of SymPy issues #28909–#30902 are
-added (and on 2026-11-02 those of #27909–#28908), each with its SymPy issue numbers. Updated 2026-11-04: those of #26909–#27908 and #25409–#26908 are added; on 2026-11-05 those of #23909–#25408; the review's correctness fixes are tracked
-separately (the review is recorded in [sympy_review/](sympy_review/README.md)). Names checked against SymPy 1.14 and Giac.jl's command table as before.
+What SymPy and Giac provide, area by area, where SymJ stands, and what to build next.
+Written 2026-10-23 against SymPy 1.14 and Giac (through Giac.jl 0.14), with SymJ 0.1.0
+plus GruntzLimit (limits) and RischIntegrate (integrals); every SymPy name was checked to
+exist in SymPy 1.14, and every Giac command in Giac.jl's command table. Updated through
+2026-11-21 (#206). The SymPy issue review (2026-10-31 – 2026-11-18) added the feature gaps
+it found, with their SymPy issue numbers; its record, including the gaps by round, is in
+[sympy_review/](sympy_review/README.md).
 
-**Legend:** ✅ has · ◐ partial · ❌ missing · ★ planned (all done: series, assumptions, a basic
-`simplify`, summation, differential equations)
+The [capability tables](#numbers-and-the-core) come first, then the
+[roadmap](#roadmap): what is deferred by decision, what is open from the SymPy issue
+audit and by area, and what is done.
+
+**Legend:** ✅ has · ◐ partial · ❌ missing · ★ planned in the first audit (all done:
+series, assumptions, a basic `simplify`, summation, differential equations)
 
 ## Numbers and the core
 
@@ -23,7 +25,7 @@ separately (the review is recorded in [sympy_review/](sympy_review/README.md)). 
 | Complex numbers: `re`, `im`, `conj`, `arg` | `re`, `im`, `conjugate`, `arg` | `re`, `im`, `conj`, `arg` | ✅ `real`, `imag`, `conj`, `angle`, `reim` (exact for constants; identities for every complex value as built; parts under assumptions through `refine`); `adjoint` for matrices of expressions |
 | Symbolic infinity and undefined | `oo`, `zoo`, `nan` | `infinity`, `undef` | ◐ limits return `Sym(Inf)`; no symbolic infinity in expressions; no accumulation bounds (`AccumBounds`; SymPy #28576) |
 | Numeric evaluation | `evalf(n)` | `evalf` | ✅ `N` (Float64, checked in higher precision, so cancellation is recovered), `float` (Julia's: BigFloat for big numbers), `SymJ.evalf(ex, T, prec)` (a BigFloat to `prec` bits), calling with `BigFloat`, dual numbers, … (SymPy #28537, #28514) |
-| Assumptions on symbols | `symbols(positive=True)`, `ask`, `refine`, `Q` | `assume` | ✅ `Assumptions`, `@assume`, `assuming`/`@assuming`, per call or per block, not stored on symbols; used by `solve`, `limit`, `refine` and `simplify` (`sqrt(x^2) = x` for `x > 0`); ◐ not yet by `integrate`, systems of equations, or integer congruences (`mod(n, 3) == 1`); no prime or composite predicate (SymPy #27446, #27441), no reasoning about unknown functions (congruence, SymPy #28154); round 5 (SymPy #23909–#25408): transcendental and algebraic predicates (#25237) |
+| Assumptions on symbols | `symbols(positive=True)`, `ask`, `refine`, `Q` | `assume` | ✅ `@assume`, `assuming`/`@assuming` (a `SymJ.Assumptions`), per call or per block, not stored on symbols; used by `solve` (equations and systems), `limit`, `refine`, `simplify` (`sqrt(x^2) = x` for `x > 0`), `integrate`, `rsolve` and `dsolve`; expressions in parameters are generic (nonzero) by default; ◐ not integer congruences (`mod(n, 3) == 1`); no prime or composite predicate (SymPy #27446, #27441), no reasoning about unknown functions (congruence, SymPy #28154); round 5 (SymPy #23909–#25408): transcendental and algebraic predicates (#25237) |
 | Parameters (named constants) | — | — | ◐ implemented, hidden until the shared-name question is settled |
 
 ## Expressions
@@ -34,6 +36,7 @@ separately (the review is recorded in [sympy_review/](sympy_review/README.md)). 
 | Substitution | `subs` | `subst` | ✅ `subs`, calling with pairs or keywords |
 | Compiled numeric functions | `lambdify` | — | ✅ `lambdify` (as fast as hand-written code); no `constants` keyword (substitute first; SymPy #25491) |
 | Generic term interface | — | — | ✅ TermInterface |
+| Constant test | `is_constant` | — | ✅ `SymJ.isconstant` (no free variables, structural; SymPy's also tests whether the value depends on them) |
 | Pattern matching and rewrite rules | `Wild`, `match`, `replace` | rules | ✅ `SymJ.pattern`/`SymJ.@pattern` with `match`, `eachmatch`, `occursin`: associative-commutative, slots `~x`, `~!x`, `~~x`, `~~~x`, head slots, predicates; `SymJ.@rule`, `SymJ.rule`, `SymJ.rewrite`, `replace` (rules, or `old => new` pairs: patterns, predicates, subexpressions; SymPy's `replace`) (stages 1–4 of `notes/pattern_matching.md`: rule sets indexed by head; trig rules among `simplify`'s candidates); round 5 (SymPy #23909–#25408): no `epath` path selection (#25139) |
 | Collect by powers, coefficients | `collect`, `coeff` | `collect`, `coeff` | ✅ `SymJ.gather` (one variable or several, any powers, function calls), `SymJ.coeff`; `Poly` for polynomials |
 | Horner form | `horner` | `horner` | ✅ `SymJ.horner`, in one variable or recursively in several |
@@ -51,7 +54,7 @@ separately (the review is recorded in [sympy_review/](sympy_review/README.md)). 
 | Trigonometric | `trigsimp`, `exptrigsimp` | `tlin`, `tcollect`, `texpand` | ✅ through `simplify` (`SymJ.simplify_trig`, `SymJ.simplify_hyperbolic`): normal form modulo `sin² + cos² = 1` (`cosh² - sinh² = 1`), multiple and sum angles, exponentials ↔ trig and hyperbolic; ❌ trigonometric factorization (SymPy #28214) |
 | Powers and logarithms | `powsimp`, `powdenest`, `logcombine` | `lncollect`, `lnexpand` | ✅ through `simplify` and `refine`, under assumptions: powers combined and denested, logarithms combined or expanded (`exp(x)*exp(y) == exp(x + y)` is canonical) |
 | Gamma and combinatorial | `gammasimp`, `combsimp` | — | ✅ `SymJ.simplify_gamma` (also inside `simplify`): integer shifts combined, ratios as binomials, reflection and duplication formulas |
-| Rational functions | `cancel`, `together`, `apart`, `ratsimp` | `normal`, `ratnormal`, `partfrac`, `propfrac` | ✅ `cancel`, `apart`, `numer_denom`. `cancel` is `together` followed by cancelling: one fraction in lowest terms, the denominator multiplied out (1/x + 1/(x(x − 1)) is 1/(x − 1)). `SymJ.together` is SymPy's form: the lcm of the denominators kept factored, nothing cancelled, the numerator expanded |
+| Rational functions | `cancel`, `together`, `apart`, `ratsimp` | `normal`, `ratnormal`, `partfrac`, `propfrac` | ✅ `cancel`, `apart`, `SymJ.numer_denom`. `cancel` is `together` followed by cancelling: one fraction in lowest terms, the denominator multiplied out (1/x + 1/(x(x − 1)) is 1/(x − 1)). `SymJ.together` is SymPy's form: the lcm of the denominators kept factored, nothing cancelled, the numerator expanded |
 | Expansion | `expand`, `expand_trig`, `expand_log` | `expand`, `texpand`, `lnexpand` | ✅ `expand` (fast, multinomial); `SymJ.expand_trig` (sums and integer multiples, trigonometric and hyperbolic), `SymJ.expand_log` (under assumptions, or `force = true`) |
 
 ## Polynomials
@@ -61,12 +64,12 @@ separately (the review is recorded in [sympy_review/](sympy_review/README.md)). 
 | Polynomial type and arithmetic | `Poly` | built in | ✅ `Poly`, packed monomials |
 | Division, gcd, lcm | `div`, `rem`, `gcd`, `lcm` | `quo`, `rem`, `gcd`, `lcm` | ✅ modular gcd, Zippel chosen automatically (faster than FLINT on many benchmarks) |
 | Factor over ℚ, any number of variables | `factor`, `factor_list` | `factor` | ✅ Zassenhaus, van Hoeij, Wang's EEZ |
-| Squarefree decomposition | `sqf_list` | `sqrfree` | ✅ `factor_squarefree`, `squarefree_part` |
+| Squarefree decomposition | `sqf_list` | `sqrfree` | ✅ `SymJ.factor_squarefree`, `SymJ.squarefree_part` |
 | Factor over extensions, ℤ[i], ℤ/p | `factor(…; extension, gaussian, modulus)` | `cfactor`, factor mod p | ❌ also no algebraic number fields, irreducibility tests or `gcdex`/`invert` over them (SymPy #30845, #30613, #30196, #30158), and no polynomials over ℤ/p (#29715); `AlgebraicNumber` arithmetic (#26743), `factor` with `extension` (#25592); round 5 (SymPy #23909–#25408): exact square roots in ground domains (`is_square`, #25094), polynomial n-th roots (#25087) |
 | Resultant, discriminant | `resultant`, `discriminant` | `resultant`, `discriminant` | ✅ modular or subresultant, chosen per input |
 | Gröbner bases | `groebner` | `gbasis` | ✅ Buchberger with Gebauer–Möller and sugar; lex through FGLM; `reduced` |
-| Roots: exact to degree 4, numeric beyond | `roots`, `nroots` | `solve`, `proot` | ✅ through `solve` (cubics with three real roots in trigonometric form); ❌ no `RootOf`/`CRootOf` objects (SymPy #26740, #25965) |
-| Real root isolation and counting | `real_roots`, `count_roots`, `sturm` | `realroot`, `sturm` | ◐ numeric roots only; ❌ counting complex roots in a region (SymPy #26202) |
+| Roots: exact to degree 4, numeric beyond | `roots`, `nroots` | `solve`, `proot` | ✅ exactly through `solve` (cubics with three real roots in trigonometric form; `solve` is exact only, and points to `SymJ.fsolve` past degree 4), numerically through `SymJ.fsolve`; ❌ no `RootOf`/`CRootOf` objects (SymPy #26740, #25965) |
+| Real root isolation and counting | `real_roots`, `count_roots`, `sturm` | `realroot`, `sturm` | ✅ `SymJ.real_roots` (correctly rounded, with multiplicity), `SymJ.root_intervals` (exact isolating intervals); ❌ counting complex roots in a region (SymPy #26202) |
 | Interpolation | `interpolate` | `lagrange` | ❌ |
 | Orthogonal and cyclotomic polynomials | `legendre`, `chebyshevt`, `hermite`, `cyclotomic_poly` | `legendre`, `tchebyshev1`, `hermite`, `cyclotomic` | ❌ (Legendre of symbolic degree: SymPy #27298) |
 | Minimal polynomial; composition | `minimal_polynomial`, `compose`, `decompose` | — | ✅ `SymJ.minimal_polynomial` (radicals, `im`, trig of rational multiples of π; by resultants), `SymJ.decompose` (complete functional decomposition, characteristic 0; `solve` uses it for degree > 4); composition is `subs` |
@@ -88,7 +91,7 @@ separately (the review is recorded in [sympy_review/](sympy_review/README.md)). 
 | Congruences: equations in `mod` | `solveset` (with `Mod`), `solve_congruence` | — | ❌ cannot invert `mod` (SymPy #27562, #26632, #25883); round 5 (SymPy #23909–#25408): #24115 |
 | Nonlinear inequality systems | partial | partial | ❌ (sample points of sign conditions, CAD-like: SymPy #26177) |
 | Solving for an expression; rearranging | `solve(…, exclude)`, `solve` for `Vo/Vin` | — | ❌ solving for a ratio of unknowns (#24148); fixed-point forms `x = g(x)` (#24081) |
-| Numeric root finding, any equation | `nsolve` | `fsolve` | ◐ polynomials: `SymJ.real_roots` (correctly rounded) and `SymJ.root_intervals` (exact isolation); other equations through Roots.jl or NonlinearSolve.jl, which take SymJ expressions as they are (no `nsolve`: SymPy #27799, #25897, #25895, #25447); round 5 (SymPy #23909–#25408): #24727 |
+| Numeric root finding, any equation | `nsolve` | `fsolve` | ✅ `SymJ.fsolve` (Maple's): one equation's real roots on the line or an interval, complex ones with `domain = ℂ`; a system's solution by Newton from a start, or all solutions of a polynomial system; polynomials also through `SymJ.real_roots`; Roots.jl and NonlinearSolve.jl take SymJ expressions as they are (SymPy's `nsolve`: #27799, #25897, #25895, #25447, #24727) |
 | Diophantine equations | `diophantine` | `isolve` | ❌ (SymPy #29269, #26788, #26783, #26045, #25775); round 5 (SymPy #23909–#25408): #24128 |
 | Recurrences | `rsolve` | `rsolve`, `seqsolve` | ✅ `SymJ.rsolve`: linear, polynomial coefficients, by Hyper (hypergeometric solutions, combined, A and B over algebraic numbers too), right sides that are sums of hypergeometric terms; d'Alembertian solutions by reduction of order (harmonic numbers, iterated sums), any right side; Liouvillian solutions by sections, piecewise in `mod(n, m)` (the double factorial); otherwise the recurrence itself, `DifferenceRoot`, evaluated at integers (Franel); ◐ no arithmetic on those |
 | Ordinary differential equations | `dsolve`, `classify_ode`, `checkodesol` | `desolve` | ◐ ★ `SymJ.dsolve`: first order (linear, separable, Bernoulli, exact with integrating factors, homogeneous, Riccati), linear with constant coefficients of any order (undetermined coefficients, variation of parameters), Cauchy–Euler, `y` missing, autonomous second order (`y'' = f(y, y')`); initial conditions (`y'(0) => 1`); linear systems with constant coefficients, of any order; series solutions (`series = n`: Taylor at an ordinary point, nonlinear too; Frobenius at a regular singular point); Laplace transforms for constant coefficients (chosen for `heaviside`/`dirac` right sides, or `method = :laplace`), systems too; every solution checked; several branches of `y'` give a solution each; ❌ Lie symmetries (`infinitesimals`; SymPy #30644, #30643) and equations nonlinear in y′, other nonlinear first-order classes (#25773); ❌ power-series (Frobenius, Bessel-type) methods for variable coefficients, `x^2*u + u'' ~ 0` (SymPy #28438), reductions to Bessel's equation (#26275, #25819); ❌ differential-algebraic systems (#28390, #26717); round 5 (SymPy #23909–#25408): Picard iteration (#24119) |
@@ -102,9 +105,9 @@ separately (the review is recorded in [sympy_review/](sympy_review/README.md)). 
 | Limits, one-sided, at ∞ | `limit` (Gruntz) | `limit` | ✅ `limit`, through GruntzLimit (66/66 of its benchmark; answers by case of a parameter, which neither offers; assumptions settle cases); ❌ multivariable (SymPy #30871); elliptic integrals, modified Bessel functions (#26250, #26040), `floor` of an argument tending to ∞ (#27773); round 5 (SymPy #23909–#25408): multivariable limits (#24225) |
 | Series, Taylor, asymptotic, `O` | `series`, `fps`, `O` | `series`, `taylor` | ✅ Taylor, Laurent, Puiseux, at ∞, log terms (no `fps`, SymPy #29027, #26824, #26626, #26039; no coefficient of `x^n` for symbolic `n`, #27723; no `O` in expressions); one variable only: no multivariate (total-degree) Taylor series (SymPy #28583); no series of unknown functions (#26858), real branches of `abs` (#25682); asymptotic series at ±∞ with `e^g`, `cos h`, `sin h` factors (erf, Ei, Si, Ci, Bessel, Stirling; #27109, #26257, #26207, #26210, #26096); round 5 (SymPy #23909–#25408): series reversion (#24251, #24249); integrating expressions with `O` terms (#24477) |
 | Padé approximants | — | `pade` | ❌ (requested, SymPy #27665) |
-| Indefinite integrals | `integrate` | `integrate` | ✅ RischIntegrate (175/175 of the Apostol set, more than either); ❌ antiderivatives in special functions beyond `erf`/`erfi` and polylogarithms: hypergeometric, Fresnel, elliptic, Owen's T (SymPy #30374, #29910, #29900, #30070, #30014, #30110; RischIntegrate's); round 5 (SymPy #23909–#25408): integrals of unevaluated `Sum`s, termwise (#25405); Fresnel antiderivatives, `cos(x^2)` (#25093); `atan2` integrands (#24004) |
+| Indefinite integrals | `integrate` | `integrate` | ✅ RischIntegrate (175/175 of the Apostol set, more than either), over ℝ: the variable and the parameters real (SymPy, Mathematica and Rubi work over ℂ), so an answer whose real form depends on a parameter's sign comes by cases (`∫ 1/(x² + a)`), cases equal up to expansion merged and cases where the integrand is nowhere real dropped, and `log|u|` for a log of an expression that may be negative (`dsolve` keeps `log u`); Fresnel antiderivatives (`SymJ.fresnels`, `SymJ.fresnelc`; SymPy #25093); ❌ antiderivatives in special functions beyond `erf`/`erfi` and polylogarithms: hypergeometric, Fresnel, elliptic, Owen's T (SymPy #30374, #29910, #29900, #30070, #30014, #30110; RischIntegrate's); round 5 (SymPy #23909–#25408): integrals of unevaluated `Sum`s, termwise (#25405); `atan2` integrands (#24004) |
 | Definite and improper integrals | `integrate(f, (x, a, b))` | `integrate(f, x, a, b)` | ✅ split at the integrand's singular points, one-sided limits there and at ±∞, `±∞` or an error when divergent, `Cases` on parameters (`∫₀^∞ e^(-ax)`); assumptions pick antiderivative forms through RischIntegrate's sign oracle (needs a RischIntegrate with it); with no antiderivative, Beta integrals over [0, π/2] (∫ sinᵃx cosᵇx; SymPy #30664), and differentiation under the integral sign with a constant of the integrand as the parameter, checked against quadrature (#30869, #30677: ∫₀^π log((1 + cos x/2)/(1 - cos x/2))/cos x = π²/3); ❌ other Beta forms such as ∫₀¹ xᵃ(1-x)ᵇ (#29751), a parameter inserted where the integrand has none (`∫₀^π e^(cos x) cos(sin x)`, #21030), and the Leibniz rule for integrals of unknown functions (#26249); `∫₀^(π/2) log(1 + cos x/2)/cos x = 5π²/72` since its I'(a) is refined under the assumptions on a (atan(√((1-a)/(1+a))) as acos(a)/2); integral representations of special functions, digamma and ζ (#26523, #26512); round 5 (SymPy #23909–#25408): integrals giving Bessel functions, `∫₀^π e^(z cos θ) dθ` (#25194); oscillatory improper integrals, `sinc` Fourier pairs (#25137); symbolic powers `n` over [0, π/2] (#24139) |
-| Numeric integration | `Integral(...).evalf()` | `romberg`, `gaussquad` | ❌ (QuadGK on a `lambdify`'d function); no unevaluated `Integral` to evaluate numerically when there is no antiderivative (SymPy #29833) |
+| Numeric integration | `Integral(...).evalf()` | `romberg`, `gaussquad` | ✅ a definite integral with no elementary antiderivative stays an unevaluated `SymJ.Integral`, whose `N` is by quadrature (QuadGK; SymPy #29833) |
 | Sums of series | `summation`, `Sum` | `sum` | ✅ ★ `SymJ.summation`: Faulhaber, Gosper, partial fractions (harmonic, polygamma, `ζ(2n)`), binomial theorem, hypergeometric series, Zeilberger (definite hypergeometric sums: `Σ binomial(n,k)^2`, Vandermonde; recurrences of order up to 3 by Hyper, else d'Alembertian solutions, `Σ (-1)^(k+1) binomial(n,k)/k = H_n`, else interlaced ones, `Σ (-1)^k binomial(n,k)^3` (Dixon); bounds other than the summand's own); harmonic numbers by parts (`Σ k H_k`), generalized ones `H(n, m)` (`Σ 1/k^m`, `Σ H_k/k = (H_n² + H_n^(2))/2`; not Euler sums such as `Σ H_k/k²`); infinite sums by `limit`, convergence by cases; ◐ unevaluated `Sum` when the recurrence's solutions are not d'Alembertian (`Σ binomial(n,k)^3`); ❌ bilateral sums, from -∞ (SymPy #27786); no numeric evaluation of an unevaluated `Sum` (#27765); round 5 (SymPy #23909–#25408): products of symbolic `Sum`s not merged into a multiple sum by `expand` (#25078) |
 | Products | `product`, `Product` | `product` | ❌ |
 | Laplace, Fourier, Mellin, Z transforms | `laplace_transform`, `inverse_laplace_transform`, `fourier_transform`, `mellin_transform` | `laplace`, `ilaplace`, `fourier`, `ifourier`, `ztrans`, `invztrans` | ◐ `SymJ.laplace_transform`, `SymJ.inverse_laplace_transform`: polynomials, exponentials, sines and cosines, `heaviside`/`dirac` shifts; inverse of rational functions times `e^(-cs)`. Not yet: Fourier (SymPy #26053), Mellin, Z (Z transforms: SymPy #29695, not in 1.14); `floor` (staircase) and held transforms (#26999), a convolution-theorem helper (#26023); round 5 (SymPy #23909–#25408): Fourier transforms (#24101, #25137) |
@@ -139,7 +142,7 @@ separately (the review is recorded in [sympy_review/](sympy_review/README.md)). 
 | Capability | SymPy | Giac | SymJ |
 |:--|:--|:--|:--|
 | Elementary functions with exact values and rules | ✅ | ✅ | ✅ (Base's mathematical functions) |
-| Special functions | `gamma`, `zeta`, `besselj`, `erf`, `polylog`, `hyper`, `meijerg`, … | many | ✅ through SpecialFunctions, HypergeometricFunctions, PolyLog (dependencies); ❌ Meijer G; ❌ Fresnel integrals (`fresnels`, `fresnelc`), associated Legendre (`assoc_legendre`), `hyperexpand`, `besselsimp`, Owen's T (not in SymPy 1.14) (SymPy #30064, #29645, #30708, #29905, #30345; Bessel naming #29706); also Lerch Φ `lerchphi` and `expand_func` (#27276), spherical harmonics `Ynm`, `Znm` (#26906), `hyperexpand` of Meijer G (#26525), Fresnel (#26306), `Shi`, `Chi` (#26208), generalized `expint(ν, z)` (#25845); round 5 (SymPy #23909–#25408): Meijer G and `hyperexpand` (#25123, #24374), Jacobi elliptic functions `sn`, `cn`, `dn` (#24494), regularized incomplete beta `betainc_regularized` (#24186), Euler numbers and polynomials `euler` (#24156), spherical Bessel functions (#23970) |
+| Special functions | `gamma`, `zeta`, `besselj`, `erf`, `polylog`, `hyper`, `meijerg`, … | many | ✅ through SpecialFunctions, HypergeometricFunctions, PolyLog (dependencies); ✅ Fresnel integrals `SymJ.fresnels`, `SymJ.fresnelc`; ❌ Meijer G; ❌ associated Legendre (`assoc_legendre`), `hyperexpand`, `besselsimp`, Owen's T (not in SymPy 1.14) (SymPy #30064, #29645, #30708, #29905, #30345; Bessel naming #29706); also Lerch Φ `lerchphi` and `expand_func` (#27276), spherical harmonics `Ynm`, `Znm` (#26906), `hyperexpand` of Meijer G (#26525), Fresnel (#26306), `Shi`, `Chi` (#26208), generalized `expint(ν, z)` (#25845); round 5 (SymPy #23909–#25408): Meijer G and `hyperexpand` (#25123, #24374), Jacobi elliptic functions `sn`, `cn`, `dn` (#24494), regularized incomplete beta `betainc_regularized` (#24186), Euler numbers and polynomials `euler` (#24156), spherical Bessel functions (#23970) |
 | Piecewise, Heaviside, Dirac delta | `Piecewise`, `Heaviside`, `DiracDelta` | `piecewise`, `Heaviside`, `Dirac` | ✅ `SymJ.piecewise`, `SymJ.heaviside`, `SymJ.dirac`: substitution, `diff`, `limit` by side, `refine`, `lambdify`, integration interval by interval (continuous) and of `dirac`; rewriting `abs`, `sign`, `max`, `min`; from `Cases`; ◐ no simplification across pieces (sums of piecewise functions are not combined), breakpoints with several parameters not ordered; ❌ `SingularityFunction` (SymPy #26700) |
 | Combinatorial functions | `factorial`, `binomial`, `fibonacci`, `harmonic`, `bell`, … | `factorial`, `comb`, … | ◐ `factorial`, `binomial` (a polynomial for an integer `k`) |
 
@@ -161,6 +164,162 @@ separately (the review is recorded in [sympy_review/](sympy_review/README.md)). 
 | Code generation (C, Fortran, …) | `sympy.codegen` | — | ❌ (`lambdify` covers Julia) |
 | Plotting | `plot` | `plot` | ✅ expressions are callable, so Plots.jl and others plot them directly |
 
+## Roadmap
+
+### Deferred by decision
+
+| Item | Decided | Why |
+|:--|:--|:--|
+| Limits in SymJ itself (a Gruntz port; prototype `SymJ._glimit`, 62/66 of GruntzLimit's benchmark, as fast as cached GruntzLimit) | hold off (2026-11-19) | GruntzLimit works; a port needs symbolic exponents in the series code (`_PS`, ~95 sites) |
+| Series with symbolic exponents, step 2 (`x^a + x^2`, by cases on `a`) | not started | step 1 (irrational constant exponents, a factor `x^a`) is done (#190, #195); step 2 waits on the port above |
+| Parameters (`SymJ.@parameters`, named constants kept by calling) | hidden | until the question of a name shared with a variable is settled |
+| The sign or content of a sum inside a product (`-(x + y)/z` against `(x + y)/(-z)`; SymPy #4596) | left (2026-11-16) | normalizing it changes how many results print |
+| Rational exponents printed as `1//3`, so output pastes back (SymPy #5458) | left (2026-11-16) | tempting later, for round trips at the command line |
+| `expand` idempotent where radicals merge into a sum (SymPy #5743) | dropped (2026-11-16) | every fix tried made checking an ODE system's solution 5× slower |
+| An inference barrier at `show` (the precompile "exceeding 2501 frames" line) | not in (2026-11-15) | it makes Julia 1.14-beta1's precompile of SymJ run past 15 minutes |
+| Julia LTS support | Julia ≥ 1.12 (2026-11-21) | RischIntegrate needs Julia 1.12 |
+
+### Open from the SymPy issue audit
+
+The review's [fixes table](sympy_review/README.md#fixes-by-cause) had 126 SymJ fixes with
+no status, or in progress. Rechecked against main on 2026-11-21 (with RischIntegrate 1.5.0
+and GruntzLimit 1.9.0): 53 were fixed by later PRs, 29 are feature gaps (now in
+[Open, by area](#open-by-area)), 5 are settled by decisions (generic parameter values,
+structural `==`), and 39 are still open. Each row's note in the table says what main
+does now. All of the RischIntegrate and GruntzLimit fixes are closed.
+
+Still open, by area (SymPy issue numbers):
+
+- **Wrong answers.** `∫₀¹ 2πi e^(6πit)/(e^(2πit) - 1/2) dt` gives iπ/4, not iπ/2 (the
+  integrand's jumps are not located; #13609). `x, y ∈ ℤ` is ignored by a linear system
+  that has integer solutions: no Diophantine parametrization (#14170; one with none
+  gives `[]`).
+- **A regression.** `∫∫ sin(x² + y²)` over the disc raises a `MethodError` in
+  `_fresnel_num` (`src/fresnel.jl`); it was a clean `RischNotImplemented` (#12645).
+- **Definite integrals.** Parametric case trees whose branches are errors
+  (`∫₀^π 1/(a²cos²x + b²sin²x)` with a, b > 0, #14394; #19046 without assumptions);
+  conditions left as `(-w⁴/π⁴)^(1/4) ≶ 0` (r18-extra-4); an inner integral's cases that
+  split the outer interval (#7164); no fallback for `∫₀¹ (1 - x⁴)^(-1/3)`, `∫₀^∞ x/cosh x`
+  (#14154, #14043), #20171, #20043, `∫₀^∞ cos(πx/2)cos x/(1 - x²)` (and `N` fails at its
+  removable pole x = 1; #18796); `∫₀^b 1/(7 + y - y⁵)` known only numerically (#5147);
+  transcendental constants in RischIntegrate (#21066; a float base `N(ℯ)^(-2πix)`,
+  r18-extra-6).
+- **Solving.** `(7^x)^x = 2` (#17452); `angle(x + i) = 0` (#19506); `r³ = V` over ℝ with
+  V < 0 left in subcases (#11379); a symmetric five-equation system whose hidden zero is
+  not recognized (#19038); solutions not tidied (±√(5 ± 2√6) for ±√2 ± √3, #14244; the
+  circle–line intersection, #23889).
+- **Differential equations and recurrences.** `f′² = f³` and `f′ = f + b g, g′ = b f - g`
+  fail their own check (#15889, #18562); `(f g)″ = 0` left as nested integrals of `g′/g`
+  (#21791); `rsolve` of a cubic characteristic polynomial fails its check (#17990), and
+  with symbolic coefficients (`cos θ`) needs a symbolic gcd (#18751).
+- **Polynomials and linear algebra.** gcd with algebraic coefficients (`gcd(x² + 1, x + i)`,
+  `gcd(4√5/7, 2√5/3)`; #18391, #14364); `cancel` with float coefficients (#13805); a
+  Gröbner basis of two general cubics with 14 parameters (> 400 s; #12071);
+  `jordan_form(k*[0 -c b; c 0 -a; -b a 0])` raises `DivisionByZero` (#9204).
+- **Simplification and functions.** `acos(D) + 2atan((D - 1)/√(1 - D²))` for 0 < D < 1
+  (#15940); `√(xy)/(xy)` (#21571); `lambertw(-π/2) = iπ/2` (#5080); `Inf + i` and
+  complex-direction limits (#17701); `factorial(n) ≥ n` undecided (#13616).
+- **Sums.** `Σ binomial(n, m) sin(mx) cos((n - m)x)` (#14412); `Σ 1/(√m + √(m - 1))`
+  needs its denominator rationalized to telescope (#14195).
+- **Other.** `piecewise` conditions with `x ∈ ℤ` (#17112); the pattern
+  `(~a1*a + ~b1)/(~c1*a + ~d1) + (~a2*a + ~b2)/(~c2*a + ~d2)` (#16774); `latexify` of a
+  `Poly` (#4799).
+
+### Open, by area
+
+In rough order of value for calculus-level use; each item's SymPy issues are in the
+tables below or in the [gaps by round](sympy_review/README.md#feature-gaps-by-round).
+
+1. **Integration.** Antiderivatives in special functions beyond `erf`, `erfi`, Fresnel
+   and polylogarithms: hypergeometric, elliptic, Owen's T (RischIntegrate's; SymPy
+   #30374, #29910). Definite integrals with no elementary antiderivative by contour or
+   series methods (`∫₀^π e^(cos x) cos(sin x) = π`, #21030; #20171; #18796), Beta forms
+   such as `∫₀¹ xᵃ(1-x)ᵇ` (#29751, #14549), polar coordinates for double integrals over a
+   disc (#12645), Bessel-K results (#9461). Large parametric case trees take seconds
+   (#14394). Limits of special functions the limit code does not know beyond `erf`,
+   `erfc`, `erfi`, `sinint`, `cosint` at ±∞.
+2. **Solving.** All solutions of trigonometric equations as image sets (#29675, #29435);
+   trigonometric functions of different multiples of the angle (#30401, #19488);
+   transcendental systems (`2^x + 2^y ~ 10`, #30849); inequalities with parameters
+   (#30688, #30598) and transcendental or `abs` inequalities (#27589, #27573, #25983);
+   mixed polynomial–trigonometric equations (`x = sin x`, #15989); `x^(yz) = x` (#10864); congruences and
+   Diophantine equations (#27562, #29269); the solvable quintics (Galois group in F₂₀,
+   `x^5 - 5x + 12`), which have roots in radicals (a resolvent-sextic test and the
+   Dummit/Spearman–Williams formulas). Integer facts that narrow conditions (for an
+   integer `x < 1000`, `x ≥ 999` is `x = 999`; #27627) and congruences as facts
+   (`mod(n, 3) == 1`).
+3. **Differential equations.** Bessel-type and other special-function equations
+   (`x^2*u + u'' ~ 0`, #28438; #17397; `x y'' = 2y`, #7224); `f′² = g(f)` split into
+   `f′ = ±√g` where the split's check fails (`f′² = f³`, #15889); Abel equations (#16387);
+   Lie symmetries (#30644); differential-algebraic systems (#28390, #9251).
+4. **Series and limits.** Formal power series (`fps`, #29027); multivariate Taylor
+   series (#28583); reciprocals of sums with exponential factors (`1/(1 + e^x)`) and
+   limits through asymptotic series (#26040); an exponentially small term inside a
+   function's argument at ∞ (`sin(1/x + e^(-x))`, #21938); `log(log x)` at 0 (#21227);
+   multivariable limits (#30871); limits of unevaluated sums (#14196).
+5. **Simplification.** Trigonometric factorization (#28214); rational functions over an
+   algebraic extension (#20236); denesting square roots of several surds (#21599);
+   denominators with higher roots rationalized (#14184); `√(s - a)√(s + a)` with
+   `s = √(a² + b²)` (#20251); a complex constant as a + bi (#11193); `asinh` of a
+   constant as a logarithm (#10429); real and imaginary parts recombined (#10822);
+   contiguous relations of ₂F₁ (#17702); `min`/`max` shifts (#18643).
+6. **Sums and recurrences.** Arithmetic on the recurrence objects `rsolve` returns
+   (holonomic closure), and `summation` returning one (it keeps `Sum` for
+   `Σ binomial(n, k)^3`); Euler sums (`Σ H_k/k²`); power sums with a symbolic exponent
+   (`Σ m^k`, Faulhaber; #14197); closed forms in incomplete gamma (#11643); telescoping
+   detection (#14195); finite trigonometric sums (#14412); bilateral sums (#27786); numeric values of an
+   unevaluated `Sum` (#27765); symbolic products ∏ (#3410).
+7. **Polynomials and algebraic numbers.** Factoring over extensions, ℤ[i] and ℤ/p
+   (#30845, #29715, #3298); gcd and cancel over ℚ(i) and algebraic extensions (#18391,
+   #15358); `RootOf`/`CRootOf` objects (#26740); interpolation; orthogonal and cyclotomic
+   polynomials; counting complex roots in a region (#26202).
+8. **Linear algebra.** Symbolic Cholesky and Schur (#28477, #28255); SVD and matrix
+   functions when the eigenvalues are roots of an irreducible cubic (#10355, #15362);
+   permanents; rotation matrices; large parametric linear systems, whose Gauss–Jordan
+   elimination spends about two minutes in multivariate gcds (#14694, 18 equations).
+9. **Transforms and vector calculus.** Fourier, Mellin and Z transforms (#26053, #29695)
+   and Fourier series (#30183); a table of special-function Laplace transforms; `jacobian`,
+   `hessian` and the vector operators (#30186); ranges, extrema and monotonicity of a
+   function (`function_range`, #30505).
+10. **Functions.** Meijer G and `hyperexpand`; associated Legendre functions and spherical
+    harmonics; Lerch Φ; Jacobi elliptic functions; combinatorial numbers (`fibonacci`,
+    `bell`, Euler numbers).
+11. **Objects SymJ does not have**, the largest gaps by issue count (some may belong in
+    separate packages): symbolic sets (`ImageSet`, `Range`, `ProductSet`, symbolic
+    intervals); matrix expressions (`MatrixSymbol`, block matrices, matrix calculus;
+    about 70 SymPy issues); noncommutative symbols; `IndexedBase` and `KroneckerDelta`;
+    Boolean logic; a symbolic infinity in expressions and `AccumBounds`; an unevaluated
+    `Derivative` for users; number theory (Primes.jl has much of it).
+12. **Performance.** Multivariate factoring of large products (about 50 s for six
+    variables); Gröbner bases over a parametric field by FGLM (#12071); the precompile
+    workload (about 80 s of inference, spread thinly).
+
+### Done since the first audit
+
+- The planned work (★): series (Taylor, Laurent, Puiseux, at ∞, asymptotic with
+  exponential factors, #111), assumptions, `simplify` and `refine`, summation (Gosper,
+  Zeilberger, Hyper, d'Alembertian and Liouvillian solutions), `SymJ.dsolve` (first-order
+  and linear methods, systems, series solutions, Laplace transforms), `SymJ.rsolve`.
+- The SymPy issue review, rounds 1–20 (#85–#182): see
+  [sympy_review/](sympy_review/README.md).
+- Defaults: generic parameter values (#154) and the default-assumption decisions 3–6
+  (#155–#158); indefinite integrals over ℝ by cases on parameter signs, with `log|u|`
+  (#203, #204).
+- Polynomials and linear algebra: Gröbner bases over parameter fields (#88), matrix
+  `sqrt`, `log`, non-integer powers and `pinv` (#98), `SymJ.linear_eq_to_matrix` (#187),
+  Smith and Hermite normal forms (#188).
+- Equations: `SymJ.fsolve` (#169, #170), `solve` exact only (#171).
+- Calculus: unevaluated integrals valued by quadrature (#184), `SymJ.residue` (#186),
+  Fresnel integrals (#189), series with non-rational exponents (#190, #195), definite
+  integrals by differentiation under the integral sign (#196, #200), parametric
+  definite integrals with conditions in the parameters' own terms (#198, #199, #201).
+- Expressions: `SymJ.evalf` and `float` as Julia's (#183), `SymJ.together` (#194),
+  `SymJ.isconstant` (#206), `==` on floats as IEEE with exact ≠ float kept (#209).
+- Earlier: trigonometric and logarithmic expansion, gamma and combinatorial
+  simplification, LaTeX output (a Latexify extension), resultants and Gröbner bases
+  (polynomial systems are solved), real and imaginary parts and `conj`, simplification
+  under assumptions.
+
 ## Probably out of scope for SymJ
 
 Areas both systems cover that belong in separate packages rather than a symbolic kernel:
@@ -172,369 +331,3 @@ permutation groups (`sympy.combinatorics`), tensors and differential geometry
 `simplex_reduce`; SymPy #29382, #29368, #28747, #28104, #28089), quaternions (`Quaternion`; #30560, #28556, #27393, #24943, #24925; octonions #25637), symbolic curve fitting (#24255),
 finite fields (polynomials and matrices over GF(p): SymPy #28156, #28121, #27663, #25445), discrete
 transforms (`fft`; #28169).
-
-## Gaps worth considering
-
-The planned work (★) is done: series, assumptions, a basic `simplify`, summation, and
-differential equations (`SymJ.dsolve`: first-order and linear methods, linear systems,
-autonomous reduction with its branches, Riccati, series solutions and Laplace
-transforms). Of the rest, in rough order of value for calculus-level use:
-
-1. **Symbolic linear algebra**: feature complete for now. `det`, `inv`, `lu`, `\`,
-   `SymJ.rref`, `rank`, `nullspace`, eigenvalues and eigenvectors, `qr`, `svd`,
-   `SymJ.jordan_form` and matrix functions (`exp`, `sin`, `cos`, `A^n`) are done. The SVD
-   refuses when `AᴴA` has an irreducible cubic (or higher) factor, whose roots have no
-   usable closed form.
-2. **Definite hypergeometric sums and recurrences**: Zeilberger and Hyper are done
-   (`SymJ.rsolve`; second- and third-order Zeilberger recurrences solved by their
-   hypergeometric solutions, Binet's formula from `Σ binomial(n-k, k)`), with right
-   sides that are sums of hypergeometric terms, the inhomogeneous recurrences of
-   bounds other than the summand's own (`Σ_{k=0}^{n-1} binomial(n, k)`), and A, B
-   factors over algebraic numbers; d'Alembertian solutions by reduction of order
-   (`harmonic(n)`, iterated sums, any right side), and Liouvillian ones by sections
-   (piecewise in `mod(n, m)`), for `rsolve` and Zeilberger; otherwise `rsolve` returns
-   the recurrence itself (`DifferenceRoot`, evaluated at integers). Open: arithmetic on
-   those (holonomic closure properties), and returning one from `summation` (which keeps
-   `Sum` for `Σ binomial(n, k)^3`).
-3. **Piecewise functions, Heaviside and Dirac**: done, with `SymJ.piecewise_fold`
-   combining sums and products of them into one (and `simplify` doing so when smaller).
-   Breakpoints with several parameters are ordered by the assumptions, and split into
-   cases (a `Cases`) when the assumptions do not order them.
-4. **Definite integrals**: done (singular points, limits, divergence, cases on
-   parameters, and Cauchy principal values with `principal_value = true`). Open: limits
-   of special functions the limit code does not know beyond `erf`, `erfc`, `erfi`,
-   `sinint`, `cosint` at ±∞.
-5. **Laplace transforms**: done for the elementary transforms and `heaviside`/`dirac`
-   shifts (and used by `dsolve`). Open: a table of special-function transforms, and
-   Fourier, Mellin and Z transforms.
-6. **Numeric root finding**: real roots of polynomials are isolated exactly
-   (`SymJ.root_intervals`, `SymJ.real_roots`); for other equations Roots.jl and
-   NonlinearSolve.jl work on SymJ expressions directly (callable, or through
-   `lambdify`), so no solver of its own is planned.
-7. **Utilities**: `SymJ.gather` (SymPy's `collect`), `SymJ.coeff` and `rationalize(ex)`
-   are done, and `SymJ.horner`, `SymJ.cse`, `SymJ.rewrite(ex, target)`,
-   `SymJ.nsimplify` (constant recognition).
-8. **Assumptions, the remaining pieces**: integer congruences, `assume` for systems of
-   equations, and assumptions in `integrate`. (`@assuming refine = true` refines the
-   block's value, since construction does not read the facts.) Integer assumptions could
-   also narrow conditions: for an integer `x < 1000`, `x ≥ 999` is `x = 999`, after which
-   a piecewise's piece at that point merges with the next one (SymPy #27627; the merge
-   itself is done, the narrowing is not).
-9. **Asymptotic series with exponential factors** — done (2026-11-04, branch
-   asymptotic-series): a `SymSeries` at ±∞ carries pieces `e^g·(series)`,
-   `e^g cos(h)·(series)` and `e^g sin(h)·(series)`; `exp`, `sin`, `cos` of growing
-   arguments, `erf`, `erfc`, `erfi`, `erfcx`, `expinti`, `expint`, `sinint`, `cosint`,
-   the four Bessel functions and Stirling's series for `gamma` (`loggamma` as an ordinary
-   series). Not yet: a reciprocal of a sum with such factors (`1/(1 + e^x)`), limits
-   through these series (#26040), and finite points (essential singularities stay errors).
-   The original note: (decided 2026-11-04, for the next
-   round of feature work). At ±∞, `series(erf(x), x, Inf)` is an error for now: past
-   its 1, erf's expansion is `e^(-x²)` times a series in 1/x, exponentially small, so as
-   a power series in 1/x it would be `1 + O(x^-n)` for every n (SymPy #27109). The plan
-   is SymPy's form, `1 - e^(-x²)(1/(√π x) - 1/(2√π x³) + …)`: a `SymSeries` whose
-   terms may carry a factor `e^(g(x))`, through addition, multiplication and printing.
-   Answering `1 + O(…)` (dropping exponentially small terms) was rejected: correct but
-   empty, and a change of convention everywhere. With it come the other asymptotic
-   expansions at ∞ the reviews found missing: `erfc`, `Ei`/`expinti`, `Si` and `Ci`
-   (#26257, #26207), the modified Bessel functions `besseli`/`besselk` (#26210; also
-   their limits at ∞, #26040), and Stirling's series for `gamma` (#26096).
-10. **Gaps from the seventh SymPy review (#20909–#22408)**, none a wrong answer:
-   - series: `log(log(x))` at 0, a logarithmic leading term inside log (#21227);
-     irrational exponents, `exp(w^(1/π))` (#21358; done since: an exponent is a rational
-     plus an irrational constant, ordered numerically, so `x + x^√2` and `1/(1 + x^π)`
-     expand; symbolic exponents, `x^a + x^2`, still error); a small exponential inside an
-     oscillating argument at ∞, `sin(1/x + e^(-x)) - sin(1/x)` (#21938).
-   - `dsolve`: Riccati equations not in the recognized forms, `u' = (x + u)²` by the
-     substitution w = x + u (#21503).
-   - definite integrals without an elementary antiderivative by contour or series
-     methods: `∫₀^π e^(cos x) cos(sin x) dx = π` (#21030).
-   - algebraic numbers: `atan` of a radical that is `tan(kπ/n)` not recognized, so
-     `cos(25 atan(…))` stays (#21324); denesting square roots of sums of several surds,
-     `√(19 + 3√2 + 6√3 - √10)` (#21599).
-11. **Gaps from the eighth SymPy review (#19409–#20908)**, none a wrong answer:
-   - solve: `angle(u) = r` (a ray, not points; #19506); trigonometric functions of
-     different multiples of one angle, `tan(x/6) = cos(x/2)` (#19488).
-   - simplify: rational functions over an algebraic extension, a derivative in
-     `√(x² + x + 1)` that is `(√(x² + x + 1) - 1)/x` modulo the minimal polynomial (#20236);
-     trigonometric quotients collapsed to one multiple angle, `64/sin(2x)⁶` (#20091);
-     √(a - √(a²+b²))·√(a + √(a²+b²)) products under assumptions (#20251).
-   - definite integrals: contour methods for `∫ log(1 + x²)/(9 + (7 - x)²)` over ℝ (#20171);
-     a numeric fallback on finite intervals for non-elementary integrands (round-8 extra);
-     incomplete gamma for `∫_y^∞ e^(-x³) dx` (#20685, in the order given); |sec x| over a
-     period (its breakpoints are poles).
-   - `subs` results are not always in the canonical form of the same expression built
-     directly, `-(-√2(x - 1) + x + 1)/(x - 1)` (#20616).
-   - Also from the first pass: Diophantine equations, function_range/maximum over a
-     domain, periodicity, symbolic derivative orders, factoring over GF(p), Legendre
-     polynomials, incomplete/regularized beta and gamma, factorial2, special matrices
-     (Vandermonde, Toeplitz), divide-and-conquer recurrences, nonlinear ODE systems,
-     matrix expressions, `apart` with an extension or RootSum, noncommutative symbols,
-     ImageSet/ProductSet, `collect`, `diff` of equations, integer factorization of
-     numbers (`factor(12)`).
-12. **Gaps from the ninth SymPy review (#17909–#19408)**, none a wrong answer:
-   - solve: the 5-equation symmetric system x_i = 1/(1 + Σ others) (a zero hidden in
-     nested complex radicals is taken as an identity; #19038); parameter cases e = 1,
-     c = 0 of a system with a symbolic exponent (round-9 extra); nested trigonometric
-     equations give the outer roots of one period only (sin(sin x) = 0; #18022).
-   - rsolve: irreducible cubic characteristic polynomials fail its own check (#17990);
-     coefficients with cos θ reach the numeric gcd (#18751).
-   - dsolve: a parametric 2×2 constant-coefficient system fails its check (#18562).
-   - gcd and cancel over algebraic extensions (x² + 1 and x + i; #18391).
-   - definite integrals: ∫₀^∞ cos(πx/2)cos x/(1 - x²) (#18796); a rational function in
-     parameters over ℝ splits on whether √(-g²) is real, with "known only numerically"
-     cases (#19046; g, K > 0 is right).
-   - simplify: min/max shifts (min(0, n - 1 - c) + min(c, n - 1); #18643); -a/a for a
-     sum a with radicals is not cancelled automatically (#18799); merging Or of
-     relations under assumptions (n = 0 | n ≥ 1 as n ≥ 0 for integer n; #18389).
-   - limits of harmonic(n) (GruntzLimit has no rule for it).
-   - From the first pass: sets (Interval/FiniteSet/ImageSet objects), Diophantine
-     equations, modular roots, Fourier transforms and series, numeric root finding
-     (2^x + 3^x = 5^x), boolean simplification, Smith normal form, matrix symbols and
-     block matrices, KroneckerDelta, multinomial, Bessel ODEs, B-splines, companion
-     matrices, noncommutative symbols, AccumBounds, Poly over GF(p), BigFloat inputs
-     (Sym(BigFloat) rounds to Float64).
-
-13. **Gaps from the tenth SymPy review (#16409–#17908, #30903–#31016)**, none a wrong
-   answer:
-   - solve: trigonometric systems that do not decouple (sin x sin y = 0, cos x cos y =
-     1; #16618); (7^x)^x as 7^(x²) only for real x (#17452); a system of 38 solved
-     equations passes the case limit, and its generic leaf is "too many cases" (#17186;
-     keeping the generic side past the limit made a round-5 parametric system run on).
-   - piecewise conditions that are memberships (x ∈ ℤ; #17112).
-   - dsolve: Bessel and other special-function ODEs (#17397, #17592).
-   - simplify: contiguous relations of ₂F₁ (#17702); (x + y)² and (-x - y)² have
-     different canonical forms (== is structural; #17768).
-   - infinities in the complex plane (Inf + im, directional limits; #17701); exp(Inf*k)
-     with k > 0 under refine.
-   - patterns: a sum of two linear fractions does not match its pattern (#16774).
-   - GruntzLimit: binomial with two arguments, li2, impolylog (handed off).
-   - From the first pass: symbolic sets (ImageSet, ProductSet, Range, intersections,
-     symbolic intervals), matrix expressions (MatrixSymbol, Hadamard), orthogonal and
-     Euler polynomials, B-splines, Fresnel and Marcum Q functions, RisingFactorial,
-     frac, noncommutative symbols, modular and discrete-log equations, PDEs, CRootOf,
-     function_range/continuous_domain, change of variables in derivatives (dsubs).
-
-14. **Gaps from the eleventh SymPy review (#14909–#16408)**:
-   - dsolve: f′² = g(f) not split into f′ = ±√g (and f′ = f^(3/2)'s 4/(C - x)² is
-     rejected by the numeric check on the branch where it fails; #15889); Abel ODEs
-     (#16387); conditions at a singular point of the general solution are refused rather
-     than taken as limits (Legendre, f(±1); #15113).
-   - solve: mixed polynomial–trigonometric equations (x = sin x, even over ℝ; #15989).
-   - simplify: the atan half-angle identity atan(√((1 - D)/(1 + D))) = acos(D)/2 (#15940).
-   - gcd and cancel over ℚ(i) and the Gaussian integers (#15358); matrix functions with
-     irreducible cubic eigenvalues (#15362).
-   - Σ_{n≥2} xⁿ/n stays unevaluated (the n ≥ 1 sum is −log(1 − x)); Lerch Φ in general.
-   - nullspace through exp(iu) (#15585) gives its vectors in exponential, not trig, form;
-     symbolic eigenvectors with eigenvalues past 3000 nodes are refused (#15076).
-   - numeric roots are Float64: a root below 1e-308 (x⁵ − 10⁴⁰⁰x + 1) prints as 0.0.
-   - RischIntegrate and GruntzLimit items handed off (round11/prompts).
-   - From the first pass: nonlinear and variable-coefficient ODE systems, sympy.vector
-     coordinate systems, number theory (discrete log, divisor functions, diophantine),
-     Legendre functions, finite-field factoring, differentiating with respect to a
-     function, Boolean logic, ConditionSet, nsolve from a point, matrix symbols.
-15. **Gaps from the twelfth SymPy review (#13409–#14908)**:
-   - large symbolic linear systems: the 18-equation chain in 28 parameters (#14694) spends
-     minutes in multivariate gcds during Gauss–Jordan elimination.
-   - parametric definite integrals whose antiderivative has the parameters in its
-     denominators: ∫₀^π 1/(a²cos²x + b²sin²x) with a, b > 0 (#14394) splits into many
-     cases, each taking endpoint limits (a = 2, b = 3 gives π/6 in 3 s).
-   - finite trigonometric sums Σ_{k=1}^{n} cos(kt), sin(kt) and Σ binomial(n, m) sin(mx)
-     cos((n-m)x) (#14137, #14412): the exponential route leaves i in its closed form.
-   - cancel with float coefficients (#13805): no approximate gcd.
-   - the Beta integral folded onto [0, 1], ∫₀¹ (x^(p-1) + x^(q-1))/(1 + x)^(p+q) (#14549).
-   - rationalizing denominators with cube and higher roots (#14184).
-   - bounds such as n! ≥ n (#13616): refine knows signs only (n! > 0).
-16. **Gaps from the thirteenth SymPy review (#11909–#13408)**:
-   - multivariate factoring of large random products (six variables, degrees 8 and 6;
-     round-13 extra) takes about 50 s.
-   - Gröbner bases of two general bivariate cubics with fourteen parameters (#12071) take
-     more than 3 minutes (FGLM over a parametric field).
-   - double integrals over a disc that need polar coordinates,
-     ∫∫ sin(x² + y²) over x² + y² ≤ 1 (#12645).
-   - From the first pass: trigonometric and parametric inequalities (cos x < 1/2, K > Py;
-     #13290, #13116, #12560), transcendental nonlinear systems (#13272), dsolve systems
-     with variable coefficients or nonlinear ones (#13376, #13060, #11968), numeric
-     evaluation of unevaluated integrals (#13371, #12646), radical forms of cos(rπ)
-     (cos(π/17); #13066), rising and falling factorials (#13233), periodicity (#13207),
-     function_range (#13273), symbolic derivative orders (#12484), differentiating with
-     respect to a function call (#12139), Fourier and Z transforms (#12591, #12502),
-     symbolic Cholesky (#12500), N to a number of digits and chop (#12680, #12209),
-     gcd of radicals (#12794), integrals of floor and ceiling (#12234), the Bessel-I
-     result of ∫₀^∞ e^(-(x-x₀)²)/√x (#12626), Diophantine equations (#11959, #11956,
-     #11955), discrete logarithms and modular equations (#13201, #13178), and the objects
-     SymJ does not have: symbolic sets (FiniteSet, ProductSet, ImageSet, ComplexRegion,
-     symbolic intervals), MatrixSymbol and matrix expressions, IndexedBase and
-     KroneckerDelta, noncommutative symbols, holonomic functions, sequences, formal power
-     series, B-splines, PDE separation, boolean logic expressions, Q.prime.
-17. **Gaps from the fourteenth SymPy review (#10409–#11908)**:
-   - solve: x^(yz) = x, a symbolic exponent against its base, is refused (#10864); real
-     roots of r³ = V with V's sign undecided are not classified (#11379).
-   - eigenvalues of a symmetric 3×3 in Cardano's complex form, not the trigonometric real
-     form (#11514); Aⁿ of a nilpotent matrix with symbolic n gives no cases (#10563).
-   - simplify: asinh of a constant rewritten as a log (#10429); re/im parts recombined
-     into one complex expression (#10822); a complex constant quotient in Cartesian form,
-     (1 - 2i + √3 i)/(2 - √3 + i) = -i (#11193).
-   - cse finds common sums, not common subproducts (#11428).
-   - Σ of incomplete-gamma (hypergeometric) series in closed form (#11643).
-   - From the first pass: holonomic functions (#11284–#11329, #11490, #11541), Diophantine
-     equations and Pell's equation (#11486, #11712, #11697, #10861 and the diop issues),
-     nsolve (#11768, #11860), PDE separation (#11726, #11342), Fourier transforms of
-     distributions and Fourier series (#11772, #10912, #11626), integrals of spherical
-     Bessel functions (#11891), ₁F₂ and its limits (#10802), more special functions
-     (Struve, Kummer U, Jacobi elliptic, Riemann θ, subfactorial, Laguerre; #11579,
-     #10881, #10962, #10961), rising and falling factorials (#11105, #10938), symbolic
-     derivative orders and differentiation with respect to an expression or a derivative
-     (#11762, #11573, #11467, #11737), partial factorization (#11869), rewriting to sums
-     and to real/imaginary parts (#11377, #10897), subs on a Poly (#11447), rsolve in
-     several variables (#11063), dsolve constant names (#11024), finite differences
-     (#11007), factor of an integer (#10596), modular roots and discrete logarithms
-     (#11502, #10886, #11512), sum-of-squares decomposition (#11332), inverses of user
-     functions for solve (#10487), step-by-step solutions (#11088), and the objects SymJ
-     does not have: symbolic sets (Range, ImageSet, ConditionSet, ComplexRegion, product
-     sets), MatrixSymbol and matrix expressions, Indexed, noncommutative symbols, boolean
-     ITE.
-18. **Gaps from the fifteenth SymPy review (#8909–#10408)**:
-   - solve: inequalities with parameters (1.5x + 1 < a); ceil(x) - floor(x) = 1 or 0
-     (all non-integers, all integers: sets SymJ cannot write).
-   - definite integrals: no non-elementary fallback, ∫₀^∞ e^(-√(x² + y²))/√(x² + y²) dx is
-     K₀(y) (#9461; or polar coordinates).
-   - dsolve: differential-algebraic systems with a singular leading matrix, reducible by
-     elimination (#9251).
-   - matrices (last): Jordan form of k·M with a parametric eigenvalue, so the Lorentz
-     system's dsolve fails (#9204); svd/cond with squared singular values roots of an
-     irreducible cubic (#10355).
-   - A Bool from Julia's a ≠ b (structural, true for distinct symbols) in a solve system
-     is dropped silently as `true`; Ne(a, b) is the relation.
-   - Done 2026-11-14: float inequalities, #10398's conditions for real parameters, floor
-     with ceil (#9118), impossible inner-integral cases (#10211), Bessel's equation
-     (#9819), cse subproducts (#10228).
-19. **Gaps from the sixteenth SymPy review (#7409–#8908)**:
-   - assumptions: linear facts with irrational coefficients ((√2 - 1)b - y < 0 from y > b > 0),
-     so a definite integral keeps cases its facts settle (#8556).
-   - sums: Σ sin(nx) to ∞ (cases on x ∈ 2πℤ, divergent otherwise; #8329); a limit at -∞ of
-     xⁿ with n an integer needs parity cases (#8634; GruntzLimit refuses).
-   - solve: inequalities in an integer unknown (#8221) and transcendental inequalities,
-     |x|^π ≥ 0, eˣ > 1 (#8204); the 46-case answer of a system with equations in the
-     parameters alone could be ~6 cases (#7621).
-   - integrate: cases conditioned on the integration variable itself (Σ sin(nx) closed form
-     at sin(x/2) = 0, a set of points) integrated case by case (#7827).
-   - simplify: the Black–Scholes identity, exponential quotients with logs in the exponents
-     (#7769).
-   - design questions: sorting symbols (`sort([y, x])`, #7413: no canonical `<` on symbols);
-     error messages that show floats as the exact binary rationals they were converted to
-     (#8503).
-   - From the first pass (feature gaps): Indexed/IndexedBase and MatrixSymbol, symbolic
-     FiniteSet/ImageSet/Interval objects, Product, KroneckerDelta, Fourier transforms,
-     diophantine equations, nsolve, number-theory functions (multiplicity, totient,
-     subfactorial, bell, fibonacci, Catalan, Euler numbers, B-splines, Laguerre),
-     boolean logic, noncommutative symbols, modular roots, time-dependent ODE systems,
-     Clairaut ODEs, deep factor (inside function arguments).
-20. **Gaps from the seventeenth SymPy review (#5909–#7408)**:
-   - dsolve: Bessel-type equations, x y'' = 2y as √x (C₁ I₁(√(8x)) + C₂ K₁(√(8x))) (#7224).
-   - series: a symbolic exponent of a vanishing base, log(x)^a at x = 1 as
-     (x - 1)^a (1 + …), needs series with symbolic exponents (#7168; done since: such
-     powers are a factor x^a of the series); Bessel functions of
-     half-integer order as elementary functions (#6154).
-   - simplify: fractions in a tower of radicals, 1/(s + 1) + 1/(s - 1) + s with
-     s = √(2 + √5), reduced over ℚ(√5)(s) (#6651); the zero of a quartic's root in a
-     parameter substituted back (#6829).
-   - solve: equations with float exponents whose differences are integers to rounding,
-     (1 + x)^0.9389 and (1 + x)^1.9389, need a numeric solver after exactifying (extra-9,
-     #6363); a float residue (1e-116) in a solution where the system has x = 0 is not
-     chopped (extra-8, #6785); x^y = 0 without a sign for y stays [] (y > 0 gives [0];
-     #6745).
-   - subs: √x => y leaving a bare x (#6976): internal radical solving relies on subs not
-     rewriting x + 1 inside a radical, so it was tried and reverted.
-   - refine: atan(sin x/cos x) outside -π/2 < x < π/2 (the + π shifts; #6495); imaginary
-     assumptions (positive/negative imaginary symbols; #6106).
-
-21. **Precompile inference** (2026-11-15): the "inference of Sym() from Sym(Any...) exceeding
-   2501 frames" info line comes from printing: a Sym interpolated in an error message
-   ("… $ex") makes inference follow string(String, Sym) into all of `show`. An inference
-   barrier at `show` (or at its inner `_show` call) removes the line on Julia 1.13, but
-   makes Julia 1.14-beta1's precompile of SymJ run past 15 minutes (92 s without), so it
-   is not in. Alternatives: messages that do not interpolate expressions, or a later 1.14.
-   Total inference in the precompile workload is ~80 s over ~51k method instances, spread
-   thinly; trimming the workload is the remaining lever (not done: first calls slower).
-
-22. **Solvable quintics** (2026-11-15): `solve` is exact only (#171), so an irreducible
-   factor of degree ≥ 5 it finds no radicals for is an error pointing to `fsolve`. The
-   solvable ones (Galois group in F₂₀, as `x^5 - 5x + 12`) do have roots in radicals; a
-   resolvent-sextic test and the Dummit/Spearman–Williams formulas would give them.
-
-23. **Gaps from the eighteenth SymPy review (#4409–#5908)**:
-   - integrate with a float base, 2.718…^(-2πix) (RischIntegrate: more than 8
-     transcendental constants; the exact exp(-2πix) works; extra-6).
-   - canonical form of sums inside products: -(x + y)/z is (-x - y)/z but (x + y)/(-z)
-     is -(x + y)/z, and their difference does not cancel without simplify; (-x - 1)/(-y - 1)
-     stays (#4596, #4592). Pulling the sign or content out of such sums would change how
-     many results print; left (user decision 2026-11-16).
-   - printing x^(1/3): pasted back into Julia it is a Float64 exponent; printing rational
-     exponents as 1//3 would round-trip (#5458). Left for now (user 2026-11-16: tempting
-     later, for round trips from the command line).
-   - deep nesting (f(f(…f(x))) 10,000 deep) overflows the stack in printing and diff;
-     SymPy raises RecursionError too (#5557).
-   - expand is not idempotent where radicals merge into a sum inside a product:
-     expand((1 - √(1+x))√(1+x) y) is -(x + 1)y + √(x + 1)y, and a second expand gives
-     -xy + √(x + 1)y - y (#5743). Every fix tried (re-expanding merged sums in the
-     multiplication loop, or a second pass for small results) changed the intermediate
-     forms cancel builds and made checking an ODE system's solution 5× slower, or hours on
-     Julia 1.10; dropped (2026-11-16).
-   - N of a besseli/gamma expression cancelling in Float64: no BigFloat besseli for the
-     high-precision check (#5691).
-
-24. **Gaps from the nineteenth SymPy review (#2909–#4408)** (2026-11-18):
-   - integer factorization (`factorint`, perfect powers): `factor(Sym(1030903))` stays
-     1030903 = 53²·367 (#4356, #4388, #4055).
-   - noncommutative symbols (#4395, #4360, #4059, #3757, #3741, #3153, #3130).
-   - unevaluated `Integral` and `Derivative` for users (`evaluate = false`), and a change of
-     variables on an Integral (#3534, #3359, #3335, #3575, #4083, #4086).
-   - a symbolic product ∏ (#3410, #3284); sums over the roots of a polynomial (RootSum,
-     #3674); RootOf objects (#3150).
-   - series: symbolic exponents at a branch point, `series(w^a, w, 0, 2)` (#4047, as
-     #7168; done since: a factor `w^a` of the series); a `dir` keyword (#4162); Order objects (#4279, #4266); convergence
-     acceleration (#3543).
-   - closed forms of the alternating series Σ (-1)ᵏ log k / k = γ log 2 - log² 2/2 (#4189)
-     and Σ (-1)ᵏ (ζ(k) - 1)/(k 2ᵏ) = log(3√π/4) + (γ - 1)/2 (#4188); both open in SymPy.
-     Σ (2k + 1)²/(2k)! stays unevaluated too (found with the #4171 fix).
-   - fsolve: Newton's method from a start with a singular Jacobian gives up
-     (`fsolve([x^y ~ 1, x ~ 2], [x, y], [x => 1.0, y => 1.1])` misses y = 0; #4027).
-   - functions: `bernoulli(n)` for users (#4193), Stieltjes constants (#4186), Kronecker
-     delta (#3772), spherical harmonics (#3537), Legendre polynomials as a function
-     (#3330); exact cos(π/8), cos(π/17) and other constructible values (#3804).
-   - helpers: `jacobian`, gradient/divergence/laplacian (#3899, #3922); `has(ex, cos)` for
-     a function head (#3282); `diff(ex)` for one variable (#3649); an algebraic-number
-     predicate (#4176); `as_independent` (#3784); a formula classifier (#4157).
-   - product-to-sum for unlike arguments, sin(x)cos(y) (#3456); factoring over extensions,
-     x³ - 2 (#3298).
-   - LaTeX printer options: folding function brackets, inline fractional exponents, a LaTeX
-     name per symbol, line wrapping (#4397, #4347, #4340, #4346, #3001).
-   - out of the core: symbolic optimization (#4173), L² Gram–Schmidt of functions
-     (#4211), vector and tensor calculus (#4298, #4238, #4058, #3115), sets with
-     cardinality (#2995), Boolean algebra (#2943), ranges attached to symbols (#3588),
-     the method of brackets (#4344), a Degree constant (#4180).
-
-25. **Gaps from the twentieth SymPy review (#945–#2908, #31017–#31179)** (2026-11-18):
-   - matrix expressions: MatrixSymbol, symbolic shapes and slicing, block matrices
-     (BlockDiagMatrix, `block_collapse`) (#2778, #2748, #2452, #2459, #2460, #31178).
-   - number theory: a Chinese remainder function `crt` for users (#31177, #31126);
-     modular equations over ℤ in solve (#31048).
-   - sets: Range sets and iteration over unions (#31145); symbolic intervals with a
-     measure (#31030).
-   - transforms: the Fourier transform (#2803); residues (#2519; done since: `SymJ.residue`).
-   - `eliminate` (Mathematica's Eliminate; groebner by hand) (#2720); boolean constraints
-     in solve's systems (#2715); symbolic Boolean algebra, Xor/Implies/Equivalent/ITE
-     (#2697, #1441).
-   - lambdify with nested argument groups (#2790); symbol-name modifiers in display,
-     xHat as x̂ (#2518); Lie-symmetry infinitesimals of ODEs (#2372).
-   - from the fixes: a two-sided `asech`, `asec`, `acsc` series at a branch point
-     (only points inside a cut were made consistent); √(sinh² u + 1) = cosh u for real u
-     in simplify (found checking Kamke 1.113); homogeneous ODEs with |x| (they are solved
-     with `assume = (x ≫ 0,)` or `(x ≪ 0,)`); conditions on cos(a) and other bounded
-     functions in solve's cases are not reduced (x = cos(a)√(x² + 1) has redundant cases);
-     ∫₀¹ log(x^i)² and other integrals whose antiderivative jumps at infinitely many
-     points are refused.
-
-Done since the first audit: trigonometric and logarithmic expansion, gamma and combinatorial simplification, LaTeX output (a Latexify extension), resultants and Gröbner
-bases (polynomial systems are solved), real and imaginary parts and `conj`, and
-simplification under assumptions (`refine`, `simplify`).

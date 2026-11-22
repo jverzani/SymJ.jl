@@ -161,7 +161,7 @@ The `Poly` constructor is used to create sparse, multivariate, symbolic polynomi
 
 ```@example usage
 q = Poly(x^2 * y + 3x - 1, x, y)
-degree(q), degree(q, y), nterms(q)
+degree(q), degree(q, y), SymJ.nterms(q)
 ```
 
 ### Equations and inequalities
@@ -203,10 +203,6 @@ diff(x^2 * y, x, y)
 Limits are computed by GruntzLimit (loaded by default) and
 integrals by RischIntegrate, two companion packages that work on
 SymJ expressions.
-
-!!! note "Julia versions"
-    SymJ supports Julia 1.10 and later. RischIntegrate needs Julia 1.12
-    or later, so the integrals here need that version.
 
 ```@example usage
 limit(sin(x) / x, x => 0), limit((1 + 1 / x)^x, x => Inf)

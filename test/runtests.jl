@@ -1,6 +1,7 @@
 using SymJ
 using SymJ: PI, E, IM, ADD, MUL, POW, FN, NUMBER, kind
 using SymJ: @parameters, parameter, isparameter, free_parameters   # internal for now
+using SymJ: AbstractSymbolic, SymNumber, SymFunction, numer_denom, factor_squarefree, Assumptions   # unexported
 using TermInterface
 using Test
 import ForwardDiff

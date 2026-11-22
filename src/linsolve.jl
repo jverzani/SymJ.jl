@@ -226,30 +226,62 @@ function _family_narrow(s::AbstractDict, vars::Vector{Sym}, A)
     zv = Sym[v for v in vars if get(A.dom, v, _CR) <= _ZR && _hassymbol(vals[v])]
     if !isempty(zv) && all(t -> get(A.dom, t, _CR) <= _ZR, zfree)
         ok = true
-        D = 1
+        D = big(1)
+        W0 = Rational{BigInt}[]
+        Cm = Vector{Rational{BigInt}}[]
         for v in zv
             w = vals[v]
             w0 = subs(w, (t => ZERO for t in zfree)...)
             cs = [subs(w, (u => (_eq(u, t) ? ONE : ZERO) for u in zfree)...) - w0 for t in zfree]
             aff = iszero(expand(w - w0 - sum(c * t for (c, t) in zip(cs, zfree))))
             (aff && all(c -> c.kind == NUMBER && _isrational(c, Assumptions()) === true, [w0; cs])) || (ok = false; break)
-            for c in [w0; cs]
-                D = lcm(D, Int(denominator(Rational{BigInt}(N(c)))))
+            push!(W0, _rat(w0.num))
+            push!(Cm, [_rat(c.num) for c in cs])
+            for c in [W0[end]; Cm[end]]
+                D = lcm(D, denominator(c))
             end
         end
-        if ok && D > 1 && Float64(D)^length(zfree) <= 20_000
-            found = false
-            for ks in Iterators.product((0:D-1 for _ in zfree)...)
-                pt = [t => Sym(k) for (t, k) in zip(zfree, ks)]
-                if all(v -> (q = subs(vals[v], pt...); q.kind == NUMBER && _isinteger(q, Assumptions()) === true), zv)
-                    found = true; break
-                end
-            end
-            found || return nothing
+        if ok && D > 1
+            # the integer t's with every integer unknown's value an integer, t = t0 + B n
+            # over n ∈ ℤᵏ, the parameters C1, C2, … (2x + 4y = -3 has none; -123x + 77y = 3
+            # has x = 77C1 + 46, y = 123C1 + 73; SymPy #14170)
+            L = _integer_lattice(W0, reduce(vcat, permutedims.(Cm)), D)
+            L === nothing && return nothing
+            t0, B = L
+            Cs = Sym[Sym(Symbol("C", j)) for j in 1:length(zfree)]
+            tn = [zfree[i] => Sym(t0[i]) + sum(Sym(B[i, j]) * Cs[j] for j in eachindex(Cs)) for i in eachindex(zfree)]
+            vals = Dict{Sym,Sym}(v => expand(subs(w, tn...)) for (v, w) in vals)
         end
     end
     T = typeof(s)
-    T(k => vals[k] for k in keys(s))
+    T(k => vals[k] for k in union(keys(s), Sym[v for v in free if !_eq(vals[v], v)]))
+end
+
+# The t ∈ ℤᵏ with w0 + C t ∈ ℤᵐ (C m × k, rational; D a common denominator): (t0, B) with
+# those t exactly t0 + B n, n ∈ ℤᵏ, or nothing when there are none. With s = w0 + C t,
+# [D C  -D I] (t, s) = -D w0 over the integers, by the Smith form U A V = S: y = V⁻¹(t, s)
+# has yᵢ = (U b)ᵢ/Sᵢᵢ for i ≤ m (rank m) and y free beyond.
+function _integer_lattice(w0::Vector{Rational{BigInt}}, C::Matrix{Rational{BigInt}}, D::BigInt)
+    m, k = size(C)
+    Ai = BigInt[j <= k ? numerator(D * C[i, j]) : (j - k == i ? -D : big(0)) for i in 1:m, j in 1:(k + m)]
+    b = BigInt[numerator(-D * w0[i]) for i in 1:m]
+    S, U, V = _smith!(copy(Ai))
+    c = U * b
+    y = zeros(BigInt, k + m)
+    for i in 1:m
+        d = S[i, i]
+        (iszero(d) || !iszero(rem(c[i], d))) && return nothing
+        y[i] = div(c[i], d)
+    end
+    t0 = (V * y)[1:k]
+    B = V[1:k, (m + 1):(m + k)]
+    # one parameter: a positive step, the offset in [0, step)
+    if k == 1
+        st = abs(B[1, 1])
+        B = reshape([st], 1, 1)
+        iszero(st) || (t0 = [mod(t0[1], st)])
+    end
+    t0, B
 end
 
 # the t with w(t) in I, a set in t

@@ -17,14 +17,13 @@ import CommonEq: Eq, Lt, Le, Gt, Ge, Ne, ⩵, ≪, ≦, ≫, ≧, ≶, ≷
 RuntimeGeneratedFunctions.init(@__MODULE__)
 import TermInterface: isexpr, iscall, head, children, operation, arguments, maketerm
 
-export AbstractSymbolic, Sym, SymNumber, SymFunction
-export @syms, subs, evaluate, lambdify, lambdify_expr, expand, free_symbols, has, N
-export register_function!
-export numer_denom, cancel, factor_squarefree, squarefree_part, factor, apart, resultant, discriminant, groebner, reduced
-export solve, lambertw, series, limit, GruntzError, simplify, refine
-export Assumptions, assuming, @assume, @assuming, ℤ, ℚ, ℝ, ℂ, Integers, Rationals, Reals, Complexes
+export Sym
+export @syms, subs, lambdify, expand, free_symbols, has, N
+export cancel, factor, apart, resultant, discriminant, groebner, reduced
+export solve, lambertw, series, limit, simplify, refine
+export assuming, @assume, @assuming, ℤ, ℚ, ℝ, ℂ, Integers, Rationals, Reals, Complexes
 export Relation, lhs, rhs, Eq, Lt, Le, Gt, Ge, Ne, ⩵, ≪, ≦, ≫, ≧, ≶, ≷
-export Poly, gens, nterms, coefficients, exponent_vectors, degree, divides, divexact
+export Poly, gens, coefficients, exponent_vectors, degree, divides
 
 include("numbers.jl")
 include("types.jl")
@@ -52,6 +51,7 @@ include("iteration.jl")
 include("terminterface.jl")
 include("relations.jl")
 include("solve.jl")
+include("quintic.jl")
 include("intervals.jl")
 include("linsolve.jl")
 include("ineqsystems.jl")

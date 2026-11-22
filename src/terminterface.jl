@@ -20,7 +20,7 @@ TermInterface.head(x::Sym) = operation(x)
 # builds the node, on numbers it evaluates.
 module _NamedOps
 import ..SymJ
-for f in (:factorial, :binomial, :lambertw, :harmonic, :li, :heaviside, :dirac)
+for f in (:factorial, :binomial, :lambertw, :harmonic, :li, :heaviside, :dirac, :fresnels, :fresnelc)
     @eval function $f(args...)
         any(a -> a isa SymJ.Sym, args) && return SymJ.apply_function($(QuoteNode(f)), SymJ.Sym[SymJ.Sym(a) for a in args])
         SymJ.FUNCTION_RULES[$(QuoteNode(f))].julia(args...)
@@ -28,7 +28,7 @@ for f in (:factorial, :binomial, :lambertw, :harmonic, :li, :heaviside, :dirac)
 end
 end
 const _NAMED_OPS = Dict{Symbol,Function}(f => getfield(_NamedOps, f) for f in
-    (:factorial, :binomial, :lambertw, :harmonic, :li, :heaviside, :dirac))
+    (:factorial, :binomial, :lambertw, :harmonic, :li, :heaviside, :dirac, :fresnels, :fresnelc))
 
 # For POW and FN the node's own vector is returned; treat it as read-only.
 function TermInterface.arguments(x::Sym)

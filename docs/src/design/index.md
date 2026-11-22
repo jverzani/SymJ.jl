@@ -9,6 +9,10 @@ evaluation, relations, pattern matching, open questions), [Algebra](@ref design-
 (polynomials, solving, simplification, linear algebra, assumptions) and
 [Calculus](@ref design-calculus) (piecewise functions, summation, differential equations).
 
+!!! note "Authorship"
+    These notes were written with Claude (Anthropic) from the development sessions
+    and reviewed by jverzani.
+
 ## Goals
 
 - **Speed comparable to SymEngine.** Construction, canonicalization, expansion,
@@ -173,7 +177,7 @@ Unevaluated applications are `FN` nodes identified by name. Behaviour lives in a
 registry:
 
 ```julia
-register_function!(:sin; julia = sin,                 # numeric evaluation, TermInterface.operation
+SymJ.register_function!(:sin; julia = sin,                 # numeric evaluation, TermInterface.operation
                          eval  = args -> ...,         # simplification, or `nothing`
                          diff  = (args, i) -> ...)    # ∂/∂argᵢ
 ```
