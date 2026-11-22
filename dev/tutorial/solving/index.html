@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Solving — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=d1dfbd4a">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=6633fff3">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Solving — SymJ.jl">
   <meta property="og:title" content="Solving — SymJ.jl">
@@ -271,6 +271,16 @@ solve(x^n ~ 1, x; assume = (n in Integers, n ≫ 0))</code></pre>
 \[\left( -\infty, -2 \right) \cup \left[ 1, \infty \right)\]
 </div>
 </div>
+<p>With parameters, which an order makes real, the set comes by cases on them:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve(x^2 ≦ a, x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\begin{cases} \emptyset &amp; a &lt; 0 \\ \left\{ 0 \right\} &amp; a = 0 \\ \left[  - \sqrt{a}, \sqrt{a} \right] &amp; a &gt; 0 \end{cases}\]
+</div>
+</div>
 <h3 id="More-on-assumptions" class="md-heading">More on assumptions<a href="#More-on-assumptions" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <p>Symbols are complex numbers unless a fact says otherwise. Facts are relations, such as <code class="md-code-inline">x &gt; 0</code>, or membership in one of <code class="md-code-inline">Integers ⊂ Rationals ⊂ Reals ⊂ Complexes</code> (also written <code class="md-code-inline">ℤ ⊂ ℚ ⊂ ℝ ⊂ ℂ</code>), such as <code class="md-code-inline">n in Integers</code>. Facts are passed to the <code class="md-code-inline">assume</code> keyword, and only the solutions they allow are kept.</p>
 <p>The <code class="md-code-inline">@assume</code> macro lets facts be written with Julia&#39;s familiar Boolean operators, including <code class="md-code-inline">&amp;&amp;</code>, <code class="md-code-inline">||</code>, <code class="md-code-inline">!</code> and chained comparisons.</p>
@@ -478,6 +488,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=d1dfbd4a"></script>
+  <script src="../../assets/materialdocs.js?v=6633fff3"></script>
 </body>
 </html>
