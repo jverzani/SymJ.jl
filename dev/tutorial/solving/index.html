@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Solving — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=6633fff3">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=32a89386">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Solving — SymJ.jl">
   <meta property="og:title" content="Solving — SymJ.jl">
@@ -436,6 +436,25 @@ solve(eqns, vars)</code></pre>
 \[\left[ \begin{array}{l} \left\{ x = \frac{\sqrt{5}}{2} + \frac{3}{2}, \; y =  - \frac{\sqrt{5}}{2} + \frac{3}{2} \right\} \\ \left\{ x =  - \frac{\sqrt{5}}{2} + \frac{3}{2}, \; y = \frac{\sqrt{5}}{2} + \frac{3}{2} \right\} \end{array} \right]\]
 </div>
 </div>
+<p>Unknowns that appear only through exponentials, through one function, or through <code class="md-code-inline">sin</code> and <code class="md-code-inline">cos</code> of one argument are solved for those first:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve([x + y ~ 4, 2^x + 2^y ~ 10], [x, y])</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left[ \begin{array}{l} \left\{ x = 3, \; y = 1 \right\} \\ \left\{ x = 1, \; y = 3 \right\} \end{array} \right]\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">solve([sin(x) + cos(y) ~ 1, sin(x) - cos(y) ~ 0], [x, y])</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left[ \begin{array}{l} \left\{ x = \frac{\pi}{6}, \; y = \frac{\pi}{3} \right\} \\ \left\{ x = \frac{\pi}{6}, \; y = \frac{5 \cdot \pi}{3} \right\} \\ \left\{ x = \frac{5 \cdot \pi}{6}, \; y = \frac{\pi}{3} \right\} \\ \left\{ x = \frac{5 \cdot \pi}{6}, \; y = \frac{5 \cdot \pi}{3} \right\} \end{array} \right]\]
+</div>
+</div>
 <p>With infinitely many solutions, the unknowns left free map to themselves:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -488,6 +507,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=6633fff3"></script>
+  <script src="../../assets/materialdocs.js?v=32a89386"></script>
 </body>
 </html>
