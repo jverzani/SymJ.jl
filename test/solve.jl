@@ -637,6 +637,38 @@ end
     @test S(x * exp(x) ~ 1; domain = ℂ) == "{lambertw(1, n) | n ∈ ℤ}"
     @test S(2^x ~ 4x; domain = ℂ) == "{-lambertw(-log(2)/4, n)/log(2) | n ∈ ℤ}"
     @test S(x^2 * exp(x) ~ 1; domain = ℂ) == "{2*lambertw(1/2, n) | n ∈ ℤ} ∪ {2*lambertw(-1/2, n) | n ∈ ℤ}"
+    # membership in families not linear in their variable: n solved for, or Lambert's
+    # branch found numerically
+    L = SS(x * exp(x) ~ 1, x; domain = ℂ)
+    @test SymJ.apply_function(:lambertw, Sym[1, -1]) in L
+    @test SymJ.apply_function(:lambertw, Sym[1, 3]) in L
+    @test !(Sym(2) in L)
+    R = SS(sin(x^2) ~ 0, x)
+    @test sqrt(2PI) in R
+    @test !(sqrt(Sym(2)) in R)
+    # several trigonometric functions of one angle with a parameter: by cases, through one
+    # of them or tan(x/2); u = π apart (a = -1 for sin + cos)
+    let a = Sym(:a)
+        cs = SS(sin(x) + cos(x) ~ a, x)
+        @test length(cs.cases) == 4
+        @test PI / 2 in cs(a => 1)
+        @test Sym(0) in cs(a => 1)
+        @test isempty(cs(a => 2))
+        @test PI in cs(a => -1)
+        @test 3PI / 2 in cs(a => -1)
+        @test !(PI / 2 in cs(a => -1))
+        ct = SS(tan(x) + cot(x) ~ a, x)
+        @test isempty(ct(a => 1))
+        @test PI / 4 in ct(a => 2)
+        c2 = SS(sin(x)^2 + cos(x) ~ a, x)
+        @test isempty(c2(a => 2))
+        @test PI / 2 in c2(a => 1)
+        @test Sym(0) in c2(a => 1)
+        @test length(c2.cases) == 4
+        c3 = SS(sin(x) - a * cos(x) ~ 0, x)
+        @test PI / 4 in c3(a => 1)
+        @test PI in c3(a => 0)
+    end
 end
 
 @testset "fsolve" begin

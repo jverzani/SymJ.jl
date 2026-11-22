@@ -33,9 +33,11 @@ end
 
 The set [`SymJ.solveset`](@ref) gives: the union of finitely many `points`, of the
 families in `families` ([`SymJ.ImageSet`](@ref)), and of the unsolved parts in
-`unsolved` ([`SymJ.ConditionSet`](@ref)). Supports `in`, `isempty`, `∩` with an interval
-set (a family linear in its variable cut to its finitely many members), and `collect`
-when it is finite. Not exported.
+`unsolved` ([`SymJ.ConditionSet`](@ref)). Supports `in` (for a family not linear in its
+variable, the variable solved for, or Lambert's branch found numerically:
+`lambertw(1, -1) in {lambertw(1, n) | n ∈ ℤ}`), `isempty`, `∩` with an interval set (a
+family linear in its variable cut to its finitely many members), and `collect` when it is
+finite. Not exported.
 """
 struct SolutionSet
     x::Sym
@@ -60,7 +62,10 @@ principal branch, `solveset` gives the families: `sin(x) ~ 1//2` has
 [`SymJ.ConditionSet`](@ref) rather than an error, and an inequality gives `solve`'s set.
 The bound variables are named `n`, `m`, `k`, … (skipping names in `eq`). Over ℝ,
 parameters are taken real and the answer comes by cases on them: `sin(x) ~ a` has the
-families for `-1 ≤ a ≤ 1` and `∅` otherwise. An equation through Lambert's W has every
+families for `-1 ≤ a ≤ 1` and `∅` otherwise. Several trigonometric functions of one
+angle with a parameter go through one of them (`tan(x) + cot(x) ~ a` in `tan(x)`) or
+`tan(x/2)`, the angle `π` decided apart (`sin(x) + cos(x) ~ a`: `-√2 ≤ a ≤ √2, a ≠ -1`,
+and `a = -1`). An equation through Lambert's W has every
 branch: over ℂ `{W_k(a) : k ∈ ℤ}` (shown `lambertw(a, n)`), over ℝ the real branches
 `W₀` and, on `[-1/e, 0)`, `W₋₁`. With Latexify loaded, the sets display as LaTeX. Not
 exported.
@@ -115,18 +120,36 @@ function solveset(eq::Relation, x::Sym; domain = ℝ)
 end
 
 # cases on one parameter with the same set merged, their conditions as one interval
-# (a = -1, -1 < a < 1, a = 1: -1 ≤ a ≤ 1); r as it is when a condition is not a bound
-# on p or the union is not one interval
+# (a = -1, -1 < a < 1, a = 1: -1 ≤ a ≤ 1), less the points that are cases of their own
+# (a ≠ -1); conditions in p alone (a² - 2 < 0) read as sets of its values. r as it is
+# when a condition is not one in p alone
 function _ss_merge_cases(r::Cases, p::Sym)
+    full = SymSet([SymInterval(nothing, nothing, false, false)])
+    function condset(c)
+        c isa Relation || return nothing
+        f = c.lhs - c.rhs
+        all(v -> _eq(v, p), free_symbols(f)) || return nothing
+        if _eq(c.lhs, p) && !_hassymbol(c.rhs)
+            b = c.rhs
+            c.op === :eq && return SymSet([SymInterval(b, b, true, true)])
+            c.op === :ne && return SymSet([SymInterval(nothing, b, false, false), SymInterval(b, nothing, false, false)])
+            c.op in (:lt, :le) && return SymSet([SymInterval(nothing, b, false, c.op === :le)])
+            c.op in (:gt, :ge) && return SymSet([SymInterval(b, nothing, c.op === :ge, false)])
+        end
+        S = try solve(c, p; assume = (p ∈ ℝ,)) catch err; err isa ArgumentError || rethrow(); nothing end
+        S isa SymSet && return S
+        if S isa AbstractVector && c.op === :eq && all(v -> !_hassymbol(v), S)
+            return SymSet([SymInterval(v, v, true, true) for v in _sort_roots!(Sym[Sym(v) for v in S])])
+        end
+        nothing
+    end
     sets = SymSet[]
     for (conds, _) in r.cases
-        S = SymSet([SymInterval(nothing, nothing, false, false)])
+        S = full
         for c in conds
-            (c isa Relation && c.op in (:lt, :le, :gt, :ge, :eq) && _eq(c.lhs, p) && !_hassymbol(c.rhs)) || return r
-            b = c.rhs
-            I = c.op === :eq ? SymInterval(b, b, true, true) :
-                c.op in (:lt, :le) ? SymInterval(nothing, b, false, c.op === :le) : SymInterval(b, nothing, c.op === :ge, false)
-            S = S ∩ SymSet([I])
+            T = condset(c)
+            T === nothing && return r
+            S = S ∩ T
         end
         push!(sets, S)
     end
@@ -137,31 +160,41 @@ function _ss_merge_cases(r::Cases, p::Sym)
         haskey(groups, k) || (push!(keys, k); groups[k] = Int[])
         push!(groups[k], i)
     end
-    length(keys) == length(r.cases) && return r
-    out = Pair{Vector{Any},Any}[]
+    ispoint(I) = I.lo !== nothing && I.hi !== nothing && _eq(I.lo, I.hi)
+    bounds(I) = ispoint(I) ? Any[Relation(:eq, p, I.lo)] :
+        Any[(I.lo === nothing ? Relation[] : [Relation(I.lclosed ? :ge : :gt, p, I.lo)])...;
+            (I.hi === nothing ? Relation[] : [Relation(I.rclosed ? :le : :lt, p, I.hi)])...]
+    # the points that are cases by themselves
+    lone = Sym[S.intervals[1].lo for S in sets if length(S.intervals) == 1 && ispoint(S.intervals[1])]
+    out = Tuple{Vector{Any},Any,Float64}[]
+    lowest(I) = I.lo === nothing ? -Inf : real_part(N(I.lo))
     for k in keys
         is = groups[k]
         S = reduce(union, sets[is])
-        if length(S.intervals) != 1          # (a < -1 and a > 1: kept apart)
-            append!(out, [Vector{Any}(r.cases[i].first) => r.cases[i].second for i in is])
-            continue
+        isempty(S.intervals) && continue
+        Is = S.intervals
+        # gaps of single points, each a case of its own: the hull, less those points
+        holes = Sym[]
+        ok = all(eachindex(Is)[1:end-1]) do j
+            a, b = Is[j], Is[j + 1]
+            g = a.hi !== nothing && b.lo !== nothing && _eq(a.hi, b.lo) && !a.rclosed && !b.lclosed &&
+                any(q -> _eq(q, a.hi), lone)
+            g && push!(holes, a.hi)
+            g
         end
-        I = S.intervals[1]
-        conds = Any[]
-        if I.lo !== nothing && I.hi !== nothing && _eq(I.lo, I.hi)
-            push!(conds, Relation(:eq, p, I.lo))
-        else
-            I.lo === nothing || push!(conds, Relation(I.lclosed ? :ge : :gt, p, I.lo))
-            I.hi === nothing || push!(conds, Relation(I.rclosed ? :le : :lt, p, I.hi))
+        if ok
+            H = SymInterval(Is[1].lo, Is[end].hi, Is[1].lclosed, Is[end].rclosed)
+            push!(out, ([bounds(H); Any[Relation(:ne, p, h) for h in holes]], r.cases[is[1]].second, lowest(H)))
+        else                                   # (a < -1 and a > 1: kept apart)
+            for I in Is                               # (a² > 2: a < -√2, a > √2)
+                push!(out, (bounds(I), r.cases[is[1]].second, lowest(I)))
+            end
         end
-        push!(out, conds => r.cases[is[1]].second)
     end
-    length(out) == 1 && isempty(out[1].first) && return out[1].second
-    # (in the order of the parameter's values)
-    lo(c) = (b = c.first[1].rhs; v = N(b); c.first[1].op in (:lt, :le) ? -Inf : v)
-    sort!(out; by = lo)
-    T = typejoin(map(c -> typeof(c.second), out)...)
-    Cases{T}(out)
+    length(out) == 1 && isempty(out[1][1]) && return out[1][2]
+    sort!(out; by = c -> c[3])                 # (in the order of the parameter's values)
+    T = typejoin(map(c -> typeof(c[2]), out)...)
+    Cases{T}(Pair{Vector{Any},T}[c[1] => c[2] for c in out])
 end
 
 # the assumptions of the case being solved (parameters over ℝ), or nothing
@@ -316,6 +349,11 @@ function _ss(e::Sym, x::Sym, real::Bool, fresh, bvs::Vector{Sym}, bcs::Vector{Re
             out
         end
     end
+    # with parameters, two or more trigonometric functions of one angle: through tan(u/2)
+    if P === nothing && !any(v -> has(e, v), bvs) && any(s -> !_eq(s, x), free_symbols(e))
+        r = _ss_halfangle(e, x, real, fresh, bvs, bcs, depth)
+        r === nothing || return r
+    end
     # one periodic or multivalued generator g(u): its values y, g inverted with every
     # branch, then u = v solved
     tgens = Sym[g for g in gens if !_eq(g, x) && !_ss_algebraic(g, x)]
@@ -336,6 +374,11 @@ function _ss(e::Sym, x::Sym, real::Bool, fresh, bvs::Vector{Sym}, bcs::Vector{Re
         u = _ss_arg(G)
         out = _SSMember[]
         for y in ys
+            # (over ℝ with parameters, the values of G real: their radicands ≥ 0, by cases;
+            # tan x + cot x = a has none for |a| < 2)
+            if real && _SS_ASSUME[] !== nothing && !any(v -> has(Sym(y), v), bvs)
+                any(R -> _ss_decide_ge(R, Sym[]) === false, unique(_ss_radicands!(Sym[], Sym(y)))) && continue
+            end
             for (v, nv, nc) in _ss_merge(_ss_invert(G, Sym(y), real, fresh, bvs, bcs))
                 if _eq(u, x)
                     push!(out, (v, nv, nc))
@@ -450,6 +493,9 @@ end
 function _ss_decide_ge(R::Sym, bvs)
     vs = [v for v in bvs if has(R, v)]
     if isempty(vs)
+        # (a parameter's: by cases on it, over ℝ)
+        A = _SS_ASSUME[]
+        _hassymbol(R) && A !== nothing && return _decide(Relation(:ge, expand(R), ZERO), A)
         _hassymbol(R) && throw(_SSUnsolved())
         v = N(R)
         (v isa Real || abs(imag(v)) < 1e-12) || return false
@@ -502,6 +548,60 @@ const _SS_HYP = (:sinh, :cosh, :tanh)
 
 _ss_isexp(g::Sym, x::Sym) = g.kind == POW && !has(g.args[1], x) && has(g.args[2], x)
 _ss_periodic(g::Sym, x::Sym) = _ss_isexp(g, x) || (g.kind == FN && g.name in (_SS_TRIG..., _SS_HYP..., :log))
+# e rational in sin, cos, tan, cot, sec, csc of one angle u = k x + c (k a number), two or
+# more of them, with parameters (the period path needs numbers): sin u = 2T/(1 + T²),
+# cos u = (1 - T²)/(1 + T²), …, in T = tan(u/2), one generator inverted with its branches;
+# and u = π + 2πn, where T is undefined, when e vanishes there (by cases on a parameter,
+# solved again at its value: sin x + cos x = a at a = -1). nothing when not of this form
+function _ss_halfangle(e::Sym, x::Sym, real::Bool, fresh, bvs::Vector{Sym}, bcs::Vector{Relation}, depth::Int)
+    us, names = Sym[], Set{Symbol}()
+    _replace_walk(e) do t
+        if t.kind == FN && t.name in _SS_TRIG && length(t.args) == 1 && has(t.args[1], x)
+            any(u -> _eq(u, t.args[1]), us) || push!(us, t.args[1])
+            push!(names, t.name)
+        end
+        nothing
+    end
+    (length(us) == 1 && length(names) >= 2) || return nothing
+    u = us[1]
+    k = expand(diff(u, x))
+    (has(k, x) || _hassymbol(k) || iszero(k)) && return nothing
+    Z = Sym(:_ssT)
+    # one of the functions alone first: tan and cot in tan u, sin and csc in sin u, cos and
+    # sec in cos u, sin in even powers only in cos u (cos in sin u) (tan x + cot x = a is
+    # quadratic in tan x, quartic in tan(x/2))
+    rational(q) = !has(q, x) && !_has_node(q, t -> t.kind == POW && has(t.args[1], Z) && t.args[2].kind == NUMBER && !_isint(t.args[2].num)) &&
+                  !_has_node(q, t -> t.kind == MUL && any(((b, w),) -> has(b, Z) && w.kind == NUMBER && !_isint(w.num), zip(t.args, t.exps)))
+    for (G, rules) in ((tan(u), [tan(u) => Z, cot(u) => 1 / Z]), (sin(u), [sin(u) => Z, csc(u) => 1 / Z]),
+                       (cos(u), [cos(u) => Z, sec(u) => 1 / Z]),
+                       (cos(u), [cos(u) => Z, sec(u) => 1 / Z, sin(u) => sqrt(1 - Z^2), csc(u) => 1 / sqrt(1 - Z^2)]),
+                       (sin(u), [sin(u) => Z, csc(u) => 1 / Z, cos(u) => sqrt(1 - Z^2), sec(u) => 1 / sqrt(1 - Z^2)]))
+        eZ = cancel(expand(subs(e, rules...)))
+        rational(eZ) || continue
+        return _ss(subs(eZ, Z => G), x, real, fresh, bvs, bcs, depth + 1)
+    end
+    rules = [sin(u) => 2Z / (1 + Z^2), cos(u) => (1 - Z^2) / (1 + Z^2), tan(u) => 2Z / (1 - Z^2),
+             cot(u) => (1 - Z^2) / (2Z), sec(u) => (1 + Z^2) / (1 - Z^2), csc(u) => (1 + Z^2) / (2Z)]
+    eZ = cancel(subs(e, rules...))
+    has(eZ, x) && return nothing
+    ms = _ss(subs(eZ, Z => tan(u / 2)), x, real, fresh, bvs, bcs, depth + 1)
+    # u = π: sin u = 0, cos u = -1, tan u = 0, sec u = -1 (cot, csc undefined there)
+    (:cot in names || :csc in names) && return ms
+    v = cancel(subs(e, sin(u) => 0, cos(u) => -1, tan(u) => 0, sec(u) => -1))
+    join(a, b) = _ss_map(a) do a_; _ss_map(b) do b_; _SSMember[a_; b_] end end
+    iszero(v) && return join(ms, _ss(cos(u / 2), x, real, fresh, bvs, bcs, depth + 1))
+    qs = Sym[q for q in free_symbols(v) if !_eq(q, x)]
+    A = _SS_ASSUME[]
+    (isempty(qs) || length(qs) > 1 || A === nothing) && return ms
+    q = qs[1]
+    r0s = try _solve_generic(v ~ 0, q) catch err; err isa ArgumentError || rethrow(); Sym[] end
+    for r0 in (r0s isa AbstractVector && !(r0s isa Cases) ? r0s : Sym[])
+        has(r0, q) && continue
+        _decide(Relation(:eq, q - r0, ZERO), A) === true && return _ss(subs(e, q => r0), x, real, fresh, bvs, bcs, depth + 1)
+    end
+    ms
+end
+
 _ss_invertible(g::Sym, x::Sym) = (_ss_isexp(g, x) && _ispositive_const(g.args[1])) ||
     (g.kind == FN && length(g.args) == 1 && g.name in (_SS_TRIG..., _SS_HYP..., :log))
 _ss_arg(g::Sym) = g.kind == POW ? g.args[2] : g.args[1]
@@ -688,16 +788,57 @@ function Base.in(v, S::SolutionSet)
     for f in S.families
         length(f.vars) == 1 || throw(ArgumentError("membership in a family of more than one variable is not supported"))
         n = only(f.vars)
-        a, b = subs(f.expr, n => 0), cancel(subs(f.expr, n => 1) - subs(f.expr, n => 0))
-        iszero(expand(f.expr - a - b * n)) || throw(ArgumentError("membership in $(f.expr) is not supported"))
-        k = N((w - a) / b)
-        k isa Complex && (abs(imag(k)) < 1e-9 ? (k = real(k)) : continue)
-        kr = round(Int, k)
-        abs(k - kr) < 1e-9 || continue
-        all(c -> c(n => kr) === true, f.conds) && return true
+        any(kr -> all(c -> c(n => kr) === true, f.conds), _ss_indices(f.expr, n, w)) && return true
     end
     isempty(S.unsolved) || throw(ArgumentError("membership in a ConditionSet is not decided"))
     false
+end
+
+# the integers k with expr(k) = w: from a + b n directly; else n solved for (√(πn) = w),
+# or, n only as Lambert W's branch, W solved for and its branch found numerically
+# (lambertw(1, n) ∋ W₋₁(1)); an error when none of these applies
+function _ss_indices(expr::Sym, n::Sym, w::Sym)
+    isint(k) = (k isa Complex && abs(imag(k)) < 1e-9 && (k = real(k)); k isa Real && isfinite(k) && abs(k - round(k)) < 1e-9)
+    near(p, q) = (d = try N(p - q) catch; nothing end; d isa Number && abs(d) < 1e-9 * max(1, abs(N(q))))
+    a, b = subs(expr, n => 0), cancel(subs(expr, n => 1) - subs(expr, n => 0))
+    if iszero(expand(expr - a - b * n))
+        k = N((w - a) / b)
+        return isint(k) ? [round(Int, real(k))] : Int[]
+    end
+    Ls = Sym[]
+    _replace_walk(expr) do t
+        t.kind == FN && t.name === :lambertw && length(t.args) == 2 && has(t.args[2], n) && !any(l -> _eq(l, t), Ls) && push!(Ls, t)
+        nothing
+    end
+    if length(Ls) == 1 && !has(Ls[1].args[1], n)
+        L = Ls[1]
+        U = Sym(:_ssW)
+        h = subs(expr, L => U)
+        has(h, n) && throw(ArgumentError("membership in $(expr) is not supported"))
+        us = try _solve_generic(h ~ w, U) catch err; err isa ArgumentError || rethrow(); throw(ArgumentError("membership in $(expr) is not supported")) end
+        out = Int[]
+        for uv in us
+            un = try N(uv) catch; continue end
+            k0 = round(Int, imag(complex(un)) / (2π))
+            for k in (k0 - 2):(k0 + 2)
+                near(apply_function(:lambertw, Sym[L.args[1], Sym(k)]), uv) || continue
+                for j in _ss_indices(L.args[2], n, Sym(k))
+                    j in out || push!(out, j)
+                end
+            end
+        end
+        return out
+    end
+    ks = try _solve_generic(expr ~ w, n) catch err; err isa ArgumentError || rethrow(); throw(ArgumentError("membership in $(expr) is not supported")) end
+    (ks isa AbstractVector && !(ks isa Cases)) || throw(ArgumentError("membership in $(expr) is not supported"))
+    out = Int[]
+    for kv in ks
+        k = try N(kv) catch; continue end
+        isint(k) || continue
+        j = round(Int, real(k))
+        near(subs(expr, n => j), w) && !(j in out) && push!(out, j)
+    end
+    out
 end
 
 # the members in an interval set: a family linear in its one variable, cut to the
