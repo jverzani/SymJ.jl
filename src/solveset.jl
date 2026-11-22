@@ -58,8 +58,12 @@ principal branch, `solveset` gives the families: `sin(x) ~ 1//2` has
 `{log(2) + 2πin : n ∈ ℤ}`. Nested functions are inverted in turn: `sin(sin(x)) ~ 0` is
 `sin(x) ∈ {πm}`, which over ℝ is `sin(x) = 0`. An equation it cannot solve gives a
 [`SymJ.ConditionSet`](@ref) rather than an error, and an inequality gives `solve`'s set.
-The bound variables are named `n`, `m`, `k`, … (skipping names in `eq`). With parameters,
-the answer may come by cases, as `solve`'s. Not exported.
+The bound variables are named `n`, `m`, `k`, … (skipping names in `eq`). Over ℝ,
+parameters are taken real and the answer comes by cases on them: `sin(x) ~ a` has the
+families for `-1 ≤ a ≤ 1` and `∅` otherwise. An equation through Lambert's W has every
+branch: over ℂ `{W_k(a) : k ∈ ℤ}` (shown `lambertw(a, n)`), over ℝ the real branches
+`W₀` and, on `[-1/e, 0)`, `W₋₁`. With Latexify loaded, the sets display as LaTeX. Not
+exported.
 
 ```julia
 SymJ.solveset(sin(x) ~ 1//2, x)              # {π/6 + 2πn} ∪ {5π/6 + 2πn}
@@ -68,6 +72,8 @@ SymJ.solveset(exp(x) ~ 2, x; domain = ℂ)     # {log(2) + 2πin}
 SymJ.solveset(sin(x^2) ~ 0, x)               # {-√(πn), √(πn) : n ≥ 0}
 S = SymJ.solveset(cos(x) ~ 0, x)
 S ∩ solve([x ≧ 0, x ≦ 2PI], [x])             # {π/2, 3π/2}
+SymJ.solveset(sin(x) ~ a, x)                 # a < -1 => ∅, -1 ≤ a ≤ 1 => {asin(a) + 2πn} ∪ …, a > 1 => ∅
+SymJ.solveset(x*exp(x) ~ 1, x; domain = ℂ)   # {lambertw(1, n) | n ∈ ℤ}
 ```
 """
 function solveset(eq::Relation, x::Sym; domain = ℝ)
@@ -81,14 +87,85 @@ function solveset(eq::Relation, x::Sym; domain = ℝ)
     names = [s for s in _SS_NAMES if !(s in used)]
     k = Ref(0)
     fresh() = (k[] += 1; Sym(k[] <= length(names) ? names[k[]] : Symbol("n", k[])))
+    e = eq.lhs - eq.rhs
+    unsolved = SolutionSet(x, Sym[], ImageSet[], [ConditionSet(x, eq, domain)])
+    ps = Sym[s for s in union(free_symbols(e), free_parameters(e)) if !_eq(s, x)]
+    if domain == ℝ && !isempty(ps)
+        # parameters over ℝ are real; the answer by cases on them (sin(x) = a: |a| ≤ 1)
+        B = something(_ASSUMING[], Assumptions())
+        for p in ps
+            _isreal(p, B) === true || (B = _with_fact(B, p ∈ ℝ))
+        end
+        run(C) = with(_SS_ASSUME => C) do
+            try _ss(e, x, true, fresh, Sym[], Relation[], 0) catch err; err isa _SSUnsolved || rethrow(); nothing end
+        end
+        conv(m) = m isa Vector ? _ss_set(x, m, names) : unsolved
+        r = _by_cases(run, B)
+        r isa Cases || return conv(r)
+        r = _map_cases(conv, r)
+        return length(ps) == 1 ? _ss_merge_cases(r, ps[1]) : r
+    end
     r = try
-        _ss(eq.lhs - eq.rhs, x, domain == ℝ, fresh, Sym[], Relation[], 0)
+        _ss(e, x, domain == ℝ, fresh, Sym[], Relation[], 0)
     catch err
         err isa _SSUnsolved || rethrow()
-        return SolutionSet(x, Sym[], ImageSet[], [ConditionSet(x, eq, domain)])
+        return unsolved
     end
     r isa Cases ? _map_cases(m -> _ss_set(x, m, names), r) : _ss_set(x, r, names)
 end
+
+# cases on one parameter with the same set merged, their conditions as one interval
+# (a = -1, -1 < a < 1, a = 1: -1 ≤ a ≤ 1); r as it is when a condition is not a bound
+# on p or the union is not one interval
+function _ss_merge_cases(r::Cases, p::Sym)
+    sets = SymSet[]
+    for (conds, _) in r.cases
+        S = SymSet([SymInterval(nothing, nothing, false, false)])
+        for c in conds
+            (c isa Relation && c.op in (:lt, :le, :gt, :ge, :eq) && _eq(c.lhs, p) && !_hassymbol(c.rhs)) || return r
+            b = c.rhs
+            I = c.op === :eq ? SymInterval(b, b, true, true) :
+                c.op in (:lt, :le) ? SymInterval(nothing, b, false, c.op === :le) : SymInterval(b, nothing, c.op === :ge, false)
+            S = S ∩ SymSet([I])
+        end
+        push!(sets, S)
+    end
+    keys = String[]
+    groups = Dict{String,Vector{Int}}()
+    for (i, (_, v)) in enumerate(r.cases)
+        k = string(v)
+        haskey(groups, k) || (push!(keys, k); groups[k] = Int[])
+        push!(groups[k], i)
+    end
+    length(keys) == length(r.cases) && return r
+    out = Pair{Vector{Any},Any}[]
+    for k in keys
+        is = groups[k]
+        S = reduce(union, sets[is])
+        if length(S.intervals) != 1          # (a < -1 and a > 1: kept apart)
+            append!(out, [Vector{Any}(r.cases[i].first) => r.cases[i].second for i in is])
+            continue
+        end
+        I = S.intervals[1]
+        conds = Any[]
+        if I.lo !== nothing && I.hi !== nothing && _eq(I.lo, I.hi)
+            push!(conds, Relation(:eq, p, I.lo))
+        else
+            I.lo === nothing || push!(conds, Relation(I.lclosed ? :ge : :gt, p, I.lo))
+            I.hi === nothing || push!(conds, Relation(I.rclosed ? :le : :lt, p, I.hi))
+        end
+        push!(out, conds => r.cases[is[1]].second)
+    end
+    length(out) == 1 && isempty(out[1].first) && return out[1].second
+    # (in the order of the parameter's values)
+    lo(c) = (b = c.first[1].rhs; v = N(b); c.first[1].op in (:lt, :le) ? -Inf : v)
+    sort!(out; by = lo)
+    T = typejoin(map(c -> typeof(c.second), out)...)
+    Cases{T}(out)
+end
+
+# the assumptions of the case being solved (parameters over ℝ), or nothing
+const _SS_ASSUME = ScopedValue{Union{Nothing,Assumptions}}(nothing)
 
 # members: (expression, bound variables, conditions on them)
 const _SSMember = Tuple{Sym,Vector{Sym},Vector{Relation}}
@@ -218,7 +295,8 @@ function _ss(e::Sym, x::Sym, real::Bool, fresh, bvs::Vector{Sym}, bcs::Vector{Re
     # trigonometric functions of multiples of one angle linear in x: solve's roots over one
     # period, each repeated by the period
     # (not with bound variables in e: their values are enumerated or kept by inverting)
-    P = any(v -> has(e, v), bvs) ? nothing : _ss_period(e, x)
+    # (nor with parameters: the roots are not numbers to reduce modulo the period)
+    P = any(v -> has(e, v), bvs) || any(s -> !_eq(s, x), free_symbols(e)) ? nothing : _ss_period(e, x)
     if P !== nothing
         r = _ss_solve(e, x, real, depth)
         return _ss_map(r) do rs
@@ -245,7 +323,7 @@ function _ss(e::Sym, x::Sym, real::Bool, fresh, bvs::Vector{Sym}, bcs::Vector{Re
         G = tgens[1]
         Y = Sym(Symbol("_ssy", objectid(G)))
         eY = subs(e, G => Y)
-        has(eY, x) && throw(_SSUnsolved())
+        has(eY, x) && return _ss_lambert(e, x, real, fresh, bvs, bcs, depth)
         ys = try
             with(_SOLVE_STRICT => true) do
                 _solve_eq(eY ~ 0, Y)
@@ -277,12 +355,62 @@ end
 
 real_part(v) = v isa Complex ? real(v) : v
 
+# x outside its exponentials (x eˣ = a, 2ˣ = 4x): solve's roots through Lambert's W, each
+# from (αx + β) e^(γx + δ) = K, a linear change of variable, so every branch of W gives
+# one: over ℂ the branches W_k, k ∈ ℤ (checked at a few k); over ℝ, W₀(z) for z ≥ -1/e
+# and W₋₁(z) for -1/e ≤ z < 0, decided by cases for a parameter z
+function _ss_lambert(e::Sym, x::Sym, real::Bool, fresh, bvs, bcs, depth)
+    any(v -> has(e, v), bvs) && throw(_SSUnsolved())
+    gens = unique(_ss_gens!(Sym[], e, x))
+    all(g -> _eq(g, x) || (_ss_isexp(g, x) && _ispositive_const(g.args[1]) && _ispolyin(g.args[2], [x])), gens) ||
+        throw(_SSUnsolved())
+    params = any(s -> !_eq(s, x), free_symbols(e))
+    # numbers only, over ℝ: solve's real roots are all of them (both real branches)
+    if real && !params
+        rs = _ss_solve(e, x, true, depth)
+        all(r -> _has_node(r, t -> t.kind == FN && t.name === :lambertw), rs) || throw(_SSUnsolved())
+        return _SSMember[(r, copy(bvs), copy(bcs)) for r in rs]
+    end
+    rs = _ss_solve(e, x, false, depth)
+    rs isa Cases && throw(_SSUnsolved())
+    isW(t) = t.kind == FN && t.name === :lambertw
+    out = _SSMember[]
+    for r in rs
+        ws = Sym[]
+        _has_node(r, t -> (isW(t) && (any(w -> _eq(w, t), ws) || push!(ws, t)); false))
+        isempty(ws) && throw(_SSUnsolved())
+        z = ws[1].args[1]
+        all(w -> _eq(w.args[1], z), ws) || throw(_SSUnsolved())
+        branch(k) = _replace_walk(t -> isW(t) ? (iszero(k) ? lambertw(z) : apply_function(:lambertw, Sym[z, Sym(k)])) : nothing, r)
+        if real
+            A = _SS_ASSUME[]
+            A === nothing && throw(_SSUnsolved())
+            _decide(Relation(:ge, expand(z + exp(-ONE)), ZERO), A) || continue
+            push!(out, (branch(0), copy(bvs), copy(bcs)))
+            _decide(Relation(:lt, z, ZERO), A) && push!(out, (branch(-1), copy(bvs), copy(bcs)))
+        else
+            n = fresh()
+            f = branch(n)
+            # (each branch a root, at a few k, where there are no parameters)
+            if !params
+                for k in -2:2
+                    v = try _evalc(subs(e, x => subs(f, n => k))) catch; throw(_SSUnsolved()) end
+                    abs(v) < 1e-8 * max(1, abs(_evalc(subs(f, n => k)))) || throw(_SSUnsolved())
+                end
+            end
+            any(m -> isequal(m[1], f), out) || push!(out, (f, [bvs; n], copy(bcs)))
+        end
+    end
+    out
+end
+
 _ss_map(f, r) = r isa Cases ? _map_cases(f, r) : f(r)
 
 function _ss_solve(e::Sym, x::Sym, real::Bool, depth::Int)
     r = try
         with(_SOLVE_STRICT => true) do
-            real ? solve(e ~ 0, x; assume = (x ∈ ℝ,)) : solve(e ~ 0, x)
+            A = _SS_ASSUME[]
+            real ? solve(e ~ 0, x; assume = A === nothing ? (x ∈ ℝ,) : _with_fact(A, x ∈ ℝ)) : solve(e ~ 0, x)
         end
     catch err
         err isa ArgumentError || rethrow()
@@ -421,7 +549,14 @@ function _ss_invert(g::Sym, y::Sym, real::Bool, fresh, bvs::Vector{Sym}, bcs::Ve
     function within(lo, hi; lc = true, hc = true)
         vs = [v for v in bvs if has(y, v)]
         if isempty(vs)
-            _hassymbol(y) && throw(_SSUnsolved())         # (parameters over ℝ: not yet)
+            if _hassymbol(y)
+                # parameters (real): the bounds decided, by cases
+                A = _SS_ASSUME[]
+                A === nothing && throw(_SSUnsolved())
+                okl = lo === nothing || _decide(Relation(lc ? :ge : :gt, expand(y - lo), ZERO), A)
+                okh = hi === nothing || _decide(Relation(hc ? :le : :lt, expand(y - hi), ZERO), A)
+                return okl && okh ? [(y, copy(bcs))] : Tuple{Sym,Vector{Relation}}[]
+            end
             w = N(y)
             (w isa Real || abs(imag(w)) < 1e-12) || return Tuple{Sym,Vector{Relation}}[]
             w = real_part(w)
@@ -537,6 +672,13 @@ function _ss_invert(g::Sym, y::Sym, real::Bool, fresh, bvs::Vector{Sym}, bcs::Ve
 end
 
 ## the set
+
+# a case's set at values of the parameters (cs(a => 2) of a Cases from solveset)
+_ssrel(c::Relation, vals) = Relation(c.op, subs(c.lhs, vals...), subs(c.rhs, vals...))
+_subsvals(f::ImageSet, vals) = ImageSet(subs(f.expr, vals...), f.vars, Relation[_ssrel(c, vals) for c in f.conds])
+_subsvals(c::ConditionSet, vals) = ConditionSet(c.x, _ssrel(c.eq, vals), c.domain)
+_subsvals(S::SolutionSet, vals) = SolutionSet(S.x, _sort_roots!(Sym[subs(p, vals...) for p in S.points]),
+    ImageSet[_subsvals(f, vals) for f in S.families], ConditionSet[_subsvals(c, vals) for c in S.unsolved])
 
 Base.isempty(S::SolutionSet) = isempty(S.points) && isempty(S.families) && isempty(S.unsolved)
 

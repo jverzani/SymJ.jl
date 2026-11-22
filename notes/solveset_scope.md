@@ -4,8 +4,11 @@ Status: a first version built (2026-11-22, `src/solveset.jl`); decisions below. 
 finite sets, image sets (several bound variables, conditions on them), ConditionSet;
 periodic equations through `solve`'s one period; exp, bᵘ, log, sin, cos, tan, cot, sec,
 csc, sinh, cosh, tanh inverted with every branch, nested; `in`, `∩` with an interval
-set, `collect`. Not yet: parameters over ℝ (a ConditionSet), `lambertw` branches over
-ℂ, LaTeX.
+set, `collect`. Added the same day: parameters over ℝ, real, by cases (equal neighbouring
+cases merged into one interval); Lambert's W with every branch over ℂ (checked at
+k = -2…2 without parameters) and W₀, W₋₁ over ℝ; LaTeX through Latexify. Not yet:
+membership in a family not linear in its variable (`lambertw(1, n)`), periodic equations
+with parameters through more than one trigonometric function (a ConditionSet).
 
 ## Why
 

@@ -12,7 +12,7 @@ module SymJLatexifyExt
 
 using SymJ
 using SymJ: Relation, SymSet, SymInterval, CylindricalSet, Cases, SymSeries, Membership,
-            _NotFact, NumberSet
+            _NotFact, NumberSet, SolutionSet, ImageSet, ConditionSet
 using Latexify
 
 # the printed form as a Julia expression, with ℯ and im as the letters e and i, and big
@@ -255,9 +255,21 @@ _texanswer(v) = v isa Exception ? "\\text{" * replace(_errmsg(v), r"[\\{}_^#%&$~
 _tex(cs::Cases) = "\\begin{cases} " *
     join((_texanswer(v) * " & " * _texconds(conds) for (conds, v) in cs.cases), " \\\\ ") * " \\end{cases}"
 
+# solveset's sets: points, families over ℤ, unsolved parts, joined by ∪
+_tex(f::ImageSet) = "\\left\\{ " * _raw(f.expr) * " \\;\\middle|\\; " * join(map(_raw, f.vars), ", ") *
+    " \\in \\mathbb{Z}" * join((", \\; " * _texcond(c) for c in f.conds)) * " \\right\\}"
+_tex(c::ConditionSet) = "\\left\\{ " * _raw(c.x) * " \\in " * _SETTEX[c.domain.rank] * " \\;\\middle|\\; " * _raw(c.eq) * " \\right\\}"
+function _tex(S::SolutionSet)
+    parts = String[]
+    isempty(S.points) || push!(parts, "\\left\\{ " * join(map(_raw, S.points), ", ") * " \\right\\}")
+    append!(parts, map(_tex, S.families))
+    append!(parts, map(_tex, S.unsolved))
+    isempty(parts) ? "\\emptyset" : join(parts, " \\cup ")
+end
+
 const _TeX = Union{Sym,Relation,SymNumber,Poly,SymSeries,AbstractArray{Sym},AbstractArray{SymNumber},
                    AbstractDict{Sym,Sym},AbstractVector{<:AbstractDict{Sym,Sym}},AbstractVector{<:Relation},
-                   SymSet,CylindricalSet,Cases}
+                   SymSet,CylindricalSet,Cases,SolutionSet}
 _tex(t::Tuple) = "\\left( " * join(map(_tex, t), ", \\; ") * " \\right)"
 
 ## display

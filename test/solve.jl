@@ -540,6 +540,29 @@ end
     @test collect(C0 ∩ solve([x ≧ 0, x ≦ 2PI], [x])) == [PI / 2, 3PI / 2]
     @test_throws ArgumentError collect(C0)
     @test_throws ArgumentError SS(x ~ 1, x; domain = ℚ)
+    # parameters over ℝ: real, the answer by cases on them, equal neighbours merged
+    let a = Sym(:a)
+        @test string(SS(sin(x) ~ a, x)) == "Pair{Vector{Any}, SymJ.SolutionSet}[[a ≪ -1] => ∅, " *
+              "[a ≧ -1, a ≦ 1] => {2*n*π + asin(a) | n ∈ ℤ} ∪ {2*n*π - asin(a) + π | n ∈ ℤ}, [a ≫ 1] => ∅]"
+        cs = SS(exp(x) ~ a, x)
+        @test isempty(cs(a => -1))
+        @test collect(cs(a => 2)) == [log(Sym(2))]
+        @test S(log(x) ~ a) == "{exp(a)}"
+        @test collect(SS(x^2 ~ a, x)(a => 0)) == [0]
+        @test S(tan(x) ~ a) == "{n*π + atan(a) | n ∈ ℤ}"
+        @test S(sin(x) ~ a; domain = ℂ) == "{2*n*π + asin(a) | n ∈ ℤ} ∪ {2*n*π - asin(a) + π | n ∈ ℤ}"
+        # Lambert's W: the real branches, W₀ and W₋₁ on [-1/e, 0), by cases for a parameter
+        cw = SS(x * exp(x) ~ a, x)
+        @test isempty(cw(a => -1))
+        @test length(collect(cw(a => -Sym(1) // 10))) == 2
+        @test collect(cw(a => 1)) == [lambertw(Sym(1))]
+        @test S(x * exp(x) ~ a; domain = ℂ) == "{lambertw(a, n) | n ∈ ℤ}"
+    end
+    @test collect(SS(x * exp(x) ~ -Sym(1) // 10, x)) == [lambertw(-Sym(1) // 10, -1), lambertw(-Sym(1) // 10)]
+    @test isempty(SS(x * exp(x) ~ -1, x))
+    @test S(x * exp(x) ~ 1; domain = ℂ) == "{lambertw(1, n) | n ∈ ℤ}"
+    @test S(2^x ~ 4x; domain = ℂ) == "{-lambertw(-log(2)/4, n)/log(2) | n ∈ ℤ}"
+    @test S(x^2 * exp(x) ~ 1; domain = ℂ) == "{2*lambertw(1/2, n) | n ∈ ℤ} ∪ {2*lambertw(-1/2, n) | n ∈ ℤ}"
 end
 
 @testset "fsolve" begin

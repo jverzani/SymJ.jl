@@ -178,6 +178,18 @@ SymJ.solveset(sin(x^2) ~ 0, x)
 SymJ.solveset(cos(x) ~ 0, x) ∩ solve([x ≧ 0, x ≦ 2π], [x])
 ```
 
+Over ℝ, parameters are real, and the answer comes by cases on them:
+
+```@example tut
+SymJ.solveset(sin(x) ~ a, x)
+```
+
+Equations through Lambert's W have all its branches over ℂ:
+
+```@example tut
+SymJ.solveset(x * exp(x) ~ 1, x; domain = ℂ)
+```
+
 
 ### More on assumptions
 
