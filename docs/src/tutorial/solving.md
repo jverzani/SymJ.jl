@@ -156,6 +156,12 @@ solve(x^2 - 1 ≫ 0, x)
 solve((x - 1) / (x + 2) ≧ 0, x)
 ```
 
+With parameters, which an order makes real, the set comes by cases on them:
+
+```@example tut
+solve(x^2 ≦ a, x)
+```
+
 
 ### More on assumptions
 

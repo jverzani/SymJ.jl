@@ -345,7 +345,41 @@
     @test P2s.intervals[1] ⊆ P2s
     @test !(solve(x ≦ 1, x) ⊆ P2s.intervals[1])
     @test sqrt(Sym(2)) in solve(x^2 ≦ 2, x) && !(sqrt(Sym(2)) in solve(x^2 ≪ 2, x))
-    @test_throws ArgumentError solve(a * x ≫ 1, x)               # parameters: not yet
+    # exponentials (stored as ℯ^u) and other positive bases to a power in x
+    @test S(exp(x) ≫ 2) == "(log(2), ∞)"
+    @test S(Sym(2)^x ≫ 3) == "(log(3)/log(2), ∞)"
+    @test S((Sym(1) // 2)^x ≪ Sym(1) // 8) == "(3, ∞)"
+    @test S(Sym(2)^x + Sym(4)^x ≪ 6) == "(-∞, 1)"
+    @test S(exp(-x^2) ≫ Sym(1) // 2) == "(-sqrt(log(2)), sqrt(log(2)))"
+    @test S(exp(1 / x) ≫ 2) == "(0, 1/log(2))"
+    @test S(exp(sqrt(x)) ≫ 2) == "(log(2)^2, ∞)"
+    @test S(x * exp(x) ≪ 1) == "(-∞, lambertw(1))"
+    @test S(exp(x) ≪ 0) == "∅"
+    # parameters (real, generic): by cases on the facts that decide the set
+    let b = Sym(:b), cs = solve(a * x ≫ 1, x)
+        @test cs isa SymJ.Cases
+        @test length(cs) == 2                                      # (no case a = 0)
+        @test string(cs(a => 2)) == "(1/2, ∞)"
+        @test string(cs(a => -2)) == "(-∞, -1/2)"
+        @test string(solve(a * x ≫ 1, x; assume = @assume(a > 0))) == "(1/a, ∞)"
+        @test S(x ≫ a) == "(a, ∞)"
+        @test S(1 / (x - a) ≫ 0) == "(a, ∞)"
+        q = solve(x^2 ≦ a, x)
+        @test length(q) == 3
+        @test string(q(a => 0)) == "{0}"
+        @test string(q(a => 4)) == "[-2, 2]"
+        @test isempty(q(a => -1))
+        @test length(solve(x^2 ≪ a, x)) == 2                       # a ≤ 0 merged: ∅
+        r = solve((x - a) * (x - b) ≪ 0, x)
+        @test string(r(a => 1, b => 3)) == "(1, 3)"
+        @test isempty(r(a => 2, b => 2))
+        u = solve(x^2 + a * x + 1 ≫ 0, x)
+        @test string(u(a => 2)) == "(-∞, -1) ∪ (-1, ∞)"            # the double root
+        @test string(u(a => 1)) == "(-∞, ∞)"
+        @test string(solve((x - a) / (x - 1) ≧ 0, x)(a => 3)) == "(-∞, 1) ∪ [3, ∞)"
+        @test_throws ArgumentError solve(x^3 ≫ a, x)               # odd roots: not yet
+        @test_throws ArgumentError solve(exp(x) ≫ a, x)            # rational in x only
+    end
     @test_throws ArgumentError solve(sin(x) ≫ 0, x)
     @test_throws ArgumentError solve(x^5 + a * x + 1 ~ 0, x)  # degree 5, symbolic
 

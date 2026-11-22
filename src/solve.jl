@@ -91,6 +91,17 @@ solve(x^2 ~ a, x; assume = (x ∈ ℝ, a ∈ ℝ))         # a < 0 => [], a == 0
 solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a > 0 => [√a], !(a > 0) => []
 ```
 
+An inequality (`≪`, `≦`, `≫`, `≧`, `≶`) gives its set of solutions, a union of
+intervals. With parameters, which an order takes to be real, an inequality rational in
+`x` gives its set by cases on them: on the realness of its roots and poles in `x`, their
+order, and the sign between them. The parameters are generic, as for equations, so
+`a*x ≫ 1` has no case `a = 0`.
+
+```julia
+solve(a*x ≫ 1, x)        # a < 0 => (-∞, 1/a), a > 0 => (1/a, ∞)
+solve(x^2 ≦ a, x)        # a < 0 => ∅, a == 0 => {0}, a > 0 => [-√a, √a]
+```
+
 A linear system in integer unknowns (`x ∈ ℤ`) has its integer solutions: a family of
 them is written in new integer parameters `C1, C2, …` (as the constants of `dsolve`),
 each solution given once.

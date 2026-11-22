@@ -51,6 +51,8 @@ _subsvals(v::Sym, vals) = subs(v, vals...)
 _subsvals(v::AbstractVector{Sym}, vals) = Sym[_subsvals(u, vals) for u in v]
 _subsvals(v::AbstractVector, vals) = map(u -> _subsvals(u, vals), v)
 _subsvals(v::AbstractDict{Sym,Sym}, vals) = Dict{Sym,Sym}(k => subs(w, vals...) for (k, w) in v)
+_subsvals(v::SymSet, vals) = (sb(e) = e === nothing ? nothing : subs(e, vals...);
+    SymSet(SymInterval[SymInterval(sb(I.lo), sb(I.hi), I.lclosed, I.rclosed) for I in v.intervals], v.var))
 _subsvals(v, vals) = v
 
 # shown as GruntzLimit shows its LimitCases: conditions with Julia's operators
@@ -1068,9 +1070,170 @@ end
 function _solve_ineq_assumed(r::Relation, x::Sym, A::Assumptions)
     get(A.dom, x, _CR) <= _QR && throw(ArgumentError("solve: inequalities in an integer or rational unknown are not supported"))
     sub = [k => w for (k, w) in A.subst if !_eq(k, x)]
-    S = _solve_eq(isempty(sub) ? r : Relation(r.op, subs(r.lhs, sub...), subs(r.rhs, sub...)), x)
+    r = isempty(sub) ? r : Relation(r.op, subs(r.lhs, sub...), subs(r.rhs, sub...))
     T = get(A.sets, x, nothing)
+    if _ineq_params(r, x)
+        T === nothing || throw(ArgumentError("solve: inequalities with parameters and assumptions about $x are not supported yet"))
+        return _solve_inequality_params(r, x, A)
+    end
+    S = _solve_eq(r, x)
     T === nothing ? S : SymSet((S ∩ T).intervals, x)
+end
+
+## inequalities with parameters
+
+_ineq_params(r::Relation, x::Sym) = (e = r.lhs - r.rhs;
+    any(s -> !_eq(s, x), free_symbols(e)) || any(s -> !_eq(s, x), free_parameters(e)))
+
+# An inequality in x with parameters, rational in x: by cases on the facts about the
+# parameters that decide it, which are the realness of its roots and poles in x, their
+# order, and the sign of lhs - rhs between them (a x > 1: a > 0 => (1/a, ∞), a < 0 =>
+# (-∞, 1/a); x² < a: a ≤ 0 => ∅, a > 0 => (-√a, √a)). The parameters are real, as an
+# order needs, and generic, as for equations: a leading coefficient in x is nonzero
+# unless the assumptions make it zero (a x > 1 has no case a = 0).
+function _solve_inequality_params(r::Relation, x::Sym, A::Assumptions)
+    e = cancel(r.lhs - r.rhs)
+    ps = Sym[s for s in union(free_symbols(e), free_parameters(e)) if !_eq(s, x)]
+    B = A
+    for p in ps
+        _isreal(p, B) === true || (B = _with_fact(B, p ∈ ℝ))
+    end
+    n, d = numer_denom(e)
+    for q in (n, d)
+        has(q, x) && !_ispolyin(q, [x]) &&
+            throw(ArgumentError("solve: inequalities with parameters are supported for rational functions of $x only, not $r"))
+    end
+    # generic: each leading coefficient nonzero, or the term dropped when it is zero
+    function lead(q)
+        has(q, x) || return q
+        while has(q, x)
+            P = Poly{Sym}(expand(q), [x])
+            k = degree(P, x)
+            c = coeff(q, x, k)
+            _hassymbol(c) || return q
+            z = _holds(Relation(:eq, c, ZERO), B)
+            z === true || (B = _with_fact(B, Relation(:ne, c, ZERO)); return q)
+            q = expand(q - c * x^k)
+        end
+        q
+    end
+    n, d = lead(expand(n)), lead(expand(d))
+    S = _by_cases(C -> _ineq_params_case(r.op, n, d, x, C), B)
+    # (a fact decided twice, by the realness of a root and by its equality to another, is
+    # listed once)
+    S isa Cases ? typeof(S)([unique(c) => v for (c, v) in S.cases]) : S
+end
+
+# the radicands of even roots in e that involve symbols
+function _even_radicands!(out, e::Sym)
+    if e.kind == POW || e.kind == MUL
+        bs, ps = e.kind == MUL ? (e.args, e.exps) : (e.args[1:1], e.args[2:2])
+        for (b, p) in zip(bs, ps)
+            p.kind == NUMBER && isexact(p.num) && iseven(_denominator(p.num)) && _hassymbol(b) && push!(out, b)
+        end
+    end
+    foreach(a -> _even_radicands!(out, a), e.args)
+    out
+end
+
+# a root in x, real for the case's parameter values: its even roots' radicands ≥ 0. Odd
+# roots of expressions in the parameters are refused: the principal a^(1/3) is not the
+# real cube root for a < 0, and its conjugates (-1)^(2/3) a^(1/3) are not real
+function _param_root_real(ρ::Sym, B::Assumptions)
+    v = _isreal(ρ, B)
+    v === nothing || return v
+    _has_node(ρ, t -> (t.kind == POW && t.args[2].kind == NUMBER && !_isint(t.args[2].num) &&
+                       isodd(_denominator(t.args[2].num)) && _hassymbol(t.args[1])) ||
+                      (t.kind == MUL && any(((b, p),) -> p.kind == NUMBER && !_isint(p.num) &&
+                       isodd(_denominator(p.num)) && _hassymbol(b), zip(t.args, t.exps)))) &&
+        throw(ArgumentError("solve: inequalities with parameters whose roots in x are odd roots ($ρ) are not supported yet"))
+    all(R -> _decide(Relation(:ge, R, ZERO), B), unique(_even_radicands!(Sym[], ρ)))
+end
+
+function _ineq_params_case(op::Symbol, n::Sym, d::Sym, x::Sym, B::Assumptions)
+    # the real roots of q with their multiplicities, by q's squarefree factors in x
+    function roots(q)
+        has(q, x) || return Tuple{Sym,Int}[]
+        f = factor_squarefree(q)
+        fs = f.kind == MUL ? collect(zip(f.args, f.exps)) : f.kind == POW ? [(f.args[1], f.args[2])] : [(f, ONE)]
+        out = Tuple{Sym,Int}[]
+        for (g, k) in fs
+            has(g, x) || continue
+            (k.kind == NUMBER && _isint(k.num)) || throw(ArgumentError("solve: cannot find the multiplicities of the roots of $q in $x"))
+            for ρ in _solve_eq(g ~ 0, x)
+                _param_root_real(ρ, B) && push!(out, (ρ, Int(_numerator(k.num))))
+            end
+        end
+        out
+    end
+    # the breakpoints, distinct and in order: point, multiplicity as a zero of n, of d
+    # (two roots equal when c√u = 0, decided as u = 0, √u then 0 in the endpoints:
+    # x² + ax + 1 has one double root -a/2 for a² = 4)
+    zr = Sym[]
+    function same(p, q)
+        c = cancel(p - q)
+        u = c.kind == POW && c.args[2] == HALF ? c.args[1] :
+            c.kind == MUL && length(c.args) == 1 && c.exps[1] == HALF ? c.args[1] : nothing
+        u === nothing && return _decide(Relation(:eq, c, ZERO), B)
+        _decide(Relation(:gt, u, ZERO), B) && return false     # (u's sign as the radicand's)
+        z = _decide(Relation(:eq, u, ZERO), B)
+        z && push!(zr, u)
+        z
+    end
+    pts = Tuple{Sym,Int,Int}[]
+    for (ρ, kn, kd) in [[(z, k, 0) for (z, k) in roots(n)]; [(p, 0, k) for (p, k) in roots(d)]]
+        j = findfirst(q -> same(q[1], ρ), pts)
+        if j === nothing
+            push!(pts, (ρ, kn, kd))
+        else
+            q = pts[j]
+            pts[j] = (q[1], q[2] + kn, q[3] + kd)
+        end
+    end
+    lt(p, q) = _decide(Relation(:lt, cancel(p[1] - q[1]), ZERO), B)
+    for i in 2:length(pts)                         # (insertion sort: few points)
+        j = i
+        while j > 1 && lt(pts[j], pts[j - 1])
+            pts[j], pts[j - 1] = pts[j - 1], pts[j]
+            j -= 1
+        end
+    end
+    # the sign right of every point, from the leading coefficients; to the left of a
+    # point it flips when the point's multiplicity (zero less pole) is odd
+    lc(q) = has(q, x) ? coeff(q, x, degree(Poly{Sym}(q, [x]), x)) : q
+    m = length(pts)
+    pos = Vector{Bool}(undef, m + 1)
+    pos[m + 1] = _decide(Relation(:gt, cancel(lc(n) * lc(d)), ZERO), B)
+    for i in m:-1:1
+        pos[i] = isodd(pts[i][2] + pts[i][3]) ? !pos[i + 1] : pos[i + 1]
+    end
+    open_in = [op in (:gt, :ge) ? p : !p for p in pos]
+    # a zero (not a pole) is in when the relation is not strict
+    pt_in = [p[3] == 0 && op in (:le, :ge) for p in pts]
+    # the case's equalities in the endpoints (a = 0: {0}, not {-√a})
+    sub = [collect(B.subst); [sqrt(u) => ZERO for u in zr]]
+    pv(p) = isempty(sub) ? p : expand(subs(p, sub...))
+    # pieces (-∞, p1), {p1}, (p1, p2), …, {pm}, (pm, ∞) merged
+    out = SymInterval[]
+    lo, lclosed, building = nothing, false, false
+    for i in 1:(m + 1)
+        if open_in[i] && !building
+            lo = i == 1 ? nothing : pv(pts[i - 1][1])
+            lclosed = i > 1 && pt_in[i - 1]
+            building = true
+        end
+        i == m + 1 && break
+        p = pv(pts[i][1])
+        if building
+            pt_in[i] && open_in[i + 1] && continue
+            push!(out, SymInterval(lo, p, lclosed, pt_in[i]))
+            building = false
+        elseif pt_in[i] && !open_in[i + 1]
+            push!(out, SymInterval(p, p, true, true))
+        end
+    end
+    building && push!(out, SymInterval(lo, nothing, lclosed, false))
+    SymSet(out, x)
 end
 
 # r with each √(-u), u the square of a polynomial w, as i w (a root's sign is its pair's)
