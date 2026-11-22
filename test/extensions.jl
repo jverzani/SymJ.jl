@@ -1124,5 +1124,9 @@ import PolyLog as PL
         @test N(RischIntegrate.integrate(sin(x^2), (x, 0, Inf))) ≈ sqrt(2π) / 4 rtol = 1e-14
         @test N(RischIntegrate.integrate(sin(x^2), (x, -Inf, Inf))) ≈ sqrt(2π) / 2 rtol = 1e-14
         @test latexify(S(x)) == raw"$\mathrm{S}\left( x \right)$"
+        # S and C rebuilt by name in RischIntegrate's terms (a MethodError from the numeric
+        # function: ∫∫ sin(x² + y²) over the disc; SymPy #12645)
+        @test nameof(operation(S(x))) === :fresnels
+        @test_throws RischIntegrate.RischNotImplemented RischIntegrate.integrate(sin(x^2 + a^2), (a, -sqrt(1 - x^2), sqrt(1 - x^2)), (x, -1, 1))
     end
 end

@@ -1029,6 +1029,12 @@ end
     @syms x y z n a F t c
     IM, PI = SymJ.IM, SymJ.PI
     SF = SymJ.SpecialFunctionsSupport.SF
+    # atan(u) = -acos((1 - u²)/(1 + u²))/2 for real u ≤ 0, atan being odd (#15940)
+    let D = Sym(:D), A = @assume(D > 0, D < 1)
+        @test simplify(acos(D) + 2atan(D / (sqrt(1 - D) * sqrt(1 + D)) - 1 / sqrt(1 - D^2)); assume = A) == 0
+        @test refine(atan((D - 1) / sqrt(1 - D^2)); assume = A) == -acos(D) / 2
+        @test refine(atan(-D); assume = @assume(D > 0)) == -atan(D)
+    end
     # log of a power of |u|; mod of integer coefficients (#15854, #15493)
     @test simplify(log(abs(x)^2) / log(abs(x))) == 2
     @test refine(mod(3n, 2); assume = (n ∈ ℤ,)) == mod(n, 2)
@@ -1098,6 +1104,16 @@ end
     @test isempty(solve([x + y ~ 1, x - y ~ 0], [x, y]; assume = (x ∈ ℤ, y ∈ ℤ)))
     @test solve([x + y ~ 2, x - y ~ 0], [x, y]; assume = (x ∈ ℤ, y ∈ ℤ)) == [Dict(x => 1, y => 1)]
     @test isempty(solve([x^2 ~ 2, y ~ 1], [x, y]; assume = (x ∈ ℚ,)))
+    # a family of integer solutions in integer parameters C1, C2, …
+    let C1 = Sym(:C1), C2 = Sym(:C2)
+        @test solve([-123x + 77y ~ 3], [x, y]; assume = (x ∈ ℤ, y ∈ ℤ)) == [Dict(x => 77C1 + 15, y => 123C1 + 24)]
+        @test solve([2x + 3y ~ 7], [x, y]; assume = (x ∈ ℤ, y ∈ ℤ)) == [Dict(x => 2 - 3C1, y => 2C1 + 1)]
+        @test isempty(solve([2x + 4y ~ -3], [x, y]; assume = (x ∈ ℤ, y ∈ ℤ)))
+        S = only(solve([3x + 6y ~ 4z - 1], [x, y, z]; assume = (x ∈ ℤ, y ∈ ℤ, z ∈ ℤ)))
+        @test iszero(expand(3S[x] + 6S[y] - 4S[z] + 1))
+        @test S[y] == C1
+        @test S[z] == 6C1 - 3C2 + 1
+    end
     # back-substitution at 256 bits: no points with residuals to 1e34 (#14799)
     # (fsolve's: solve gives only exact solutions)
     S = SymJ.fsolve([x^2 + y^2 + w^2 ~ 1, x^5 + y - 3 // 10 ~ 0, x * y * w ~ 1 // 100], [x, y, w]; domain = ℂ)

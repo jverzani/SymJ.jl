@@ -91,6 +91,15 @@ solve(x^2 ~ a, x; assume = (x ∈ ℝ, a ∈ ℝ))         # a < 0 => [], a == 0
 solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a > 0 => [√a], !(a > 0) => []
 ```
 
+A linear system in integer unknowns (`x ∈ ℤ`) has its integer solutions: a family of
+them is written in new integer parameters `C1, C2, …` (as the constants of `dsolve`),
+each solution given once.
+
+```julia
+solve([-123x + 77y ~ 3], [x, y]; assume = (x ∈ ℤ, y ∈ ℤ))   # [Dict(x => 77C1 + 15, y => 123C1 + 24)]
+solve([2x + 4y ~ -3], [x, y]; assume = (x ∈ ℤ, y ∈ ℤ))      # [] (no integer solutions)
+```
+
 `drop_empty = true` drops the cases with no solutions (and those holding an error, such
 as every value of `x` solving the equation), and when one case is left gives its
 solutions alone: the conditions under which they hold are then not shown.
