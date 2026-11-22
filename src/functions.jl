@@ -7,7 +7,7 @@
 # Names with no rule (user functions) stay unevaluated.
 
 """
-    SymFunction(name)
+    SymJ.SymFunction(name)
 
 A symbolic function. Calling it builds an unevaluated application:
 
@@ -56,7 +56,7 @@ end
 const FUNCTION_RULES = Dict{Symbol,FunctionRule}()
 
 """
-    register_function!(name; julia=nothing, eval=nothing, diff=nothing)
+    SymJ.register_function!(name; julia=nothing, eval=nothing, diff=nothing)
 
 Attach behaviour to the function `name`: a Julia function used for numeric evaluation,
 a simplification rule `args -> Union{Nothing,Sym}`, and a partial-derivative rule

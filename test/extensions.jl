@@ -135,8 +135,7 @@ import PolyLog as PL
         @test SF.gamma(Sym(-3) / 2) == 4sqrt(PI) / 3
     end
 
-    # (the special functions are in RischIntegrate 1.2 on; Julia 1.10 resolves 1.0)
-    isdefined(RischIntegrate, :clausen2) && @testset "RischIntegrate: special functions in answers" begin
+    @testset "RischIntegrate: special functions in answers" begin
         ∫ = RischIntegrate.integrate
         # Clausen functions and the like are expressions: diff and N work on the answer
         F = ∫(x / sin(x), x)
@@ -175,9 +174,7 @@ import PolyLog as PL
         @test N(∫(P(x ≪ 0.5 => 0, true => 1), (x, 0, 1))) ≈ 0.5
         @test N(∫(P(x ≪ 0.25 => x, x ≪ 0.75 => 1, true => x^2), (x, 0, 1))) ≈ 1 / 32 + 1 / 2 + 37 / 192
         # complex pieces made continuous where the one-sided limit fails (SymPy #28190)
-        # (complex constants need a recent RischIntegrate; Julia 1.10 resolves an older one)
-        ri_complex = try ∫(exp(IM * x), x); true catch; false end
-        ri_complex && let rect = P((-Sym(1) // 2 ≦ x, x ≦ Sym(1) // 2) => 1, true => 0)
+        let rect = P((-Sym(1) // 2 ≦ x, x ≦ Sym(1) // 2) => 1, true => 0)
             @test ∫(rect * exp(-2IM * x), (x, -Inf, Inf)) == sin(Sym(1))
             @test ∫(rect * exp(-2IM * PI * a * x), (x, -Inf, Inf)) == sin(PI * a) / (PI * a)   # generic a
             @test ∫(rect * exp(-2IM * PI * a * x), (x, -Inf, Inf); assume = (a ~ 0,)) == 1
@@ -210,6 +207,8 @@ import PolyLog as PL
     @testset "RischIntegrate: definite integrals" begin
         ∫ = RischIntegrate.integrate
         Inf_ = Sym(Inf)
+        # ∫₀¹ (√x - 1)/log x by differentiating under the integral sign (RischIntegrate #177)
+        @test ∫((sqrt(x) - 1) / log(x), (x, 0, 1)) == log(Sym(3) / 2)
         # equal limits; two deltas over the line; a series term by term (SymPy #5098, #5588, #4831)
         let f = SymFunction(:f), a = Sym(:a), x1 = Sym(:x1), x2 = Sym(:x2)
             @test iszero(∫(f(x), (x, a, a)))
@@ -222,7 +221,7 @@ import PolyLog as PL
         # a variable that is not a symbol is refused (SymPy #4459); ∫₀^(π/2) cos(x)^(2n) for
         # an integer n > 0 by the limit at π/2, not 0 (SymPy #5804)
         @test_throws ArgumentError ∫(sin(x), sin(x))
-        VERSION >= v"1.12" && let n = Sym(:n)                            # (the older RischIntegrate cannot)
+        let n = Sym(:n)
             @test iszero(simplify(∫(cos(x)^(2n), (x, 0, PI / 2); assume = (n ∈ ℤ, n ≫ 0)) -
                                   sqrt(PI) * SymJ.SpecialFunctionsSupport.SF.gamma(n + Sym(1) // 2) / (2SymJ.SpecialFunctionsSupport.SF.gamma(n + 1))))
         end
@@ -267,7 +266,7 @@ import PolyLog as PL
         end
         # x sin(a/x) at 0 by a limit, not substituted (SymPy #6154; a DivisionByZero)
         let t = Sym(:t), a = Sym(:a), w = Sym(:w)
-            VERSION >= v"1.12" && @test_throws RischIntegrate.NotElementary ∫(sin(a / t) * cos(w * t) / t, (t, 0, Inf); assume = (a ≫ 0, w ≫ 0))
+            @test_throws RischIntegrate.NotElementary ∫(sin(a / t) * cos(w * t) / t, (t, 0, Inf); assume = (a ≫ 0, w ≫ 0))
         end
         # facts that fix a parameter's value in indefinite integrals (SymPy #6985)
         let k = Sym(:k), n = Sym(:n)
@@ -275,17 +274,17 @@ import PolyLog as PL
             @test ∫(x^n, x; assume = (n ~ -1,)) == log(abs(x))
         end
         # a complex antiderivative on part of a long interval is caught (SymPy #7155)
-        VERSION >= v"1.12" && @test_throws ArgumentError ∫(x * acos(1 / x), (x, Sym(1) // 10, 100))  # (the older RischIntegrate refuses acos(1/x))
+        @test_throws ArgumentError ∫(x * acos(1 / x), (x, Sym(1) // 10, 100))
         # floor and ceil integrated by unit intervals (SymPy #8420, #8480)
         @test ∫(1 / floor(x)^2, (x, 1, Inf)) == SymJ.PI^2 / 6
         @test ∫(x - floor(x), (x, 0, Inf)) == Inf_
         @test ∫(x * floor(x), (x, 0, 3)) == Sym(13) // 2
         # |x| in a product's exponent (SymPy #8849)
-        VERSION >= v"1.12" && @test ∫(exp(-abs(x)) * cos(2x), (x, -Inf, Inf)) == Sym(2) // 5
-        VERSION >= v"1.12" && @test iszero(simplify(∫(exp(-abs(x)) * x, (x, -1, 2)) - (2 / exp(Sym(1)) - 3 / exp(Sym(2)))))
+        @test ∫(exp(-abs(x)) * cos(2x), (x, -Inf, Inf)) == Sym(2) // 5
+        @test iszero(simplify(∫(exp(-abs(x)) * x, (x, -1, 2)) - (2 / exp(Sym(1)) - 3 / exp(Sym(2)))))
         # the inner integral's cases at y = ±√(-h²) impossible for real y, h > 0 (SymPy #10211)
-        # (the older RischIntegrate that Julia 1.10 resolves cannot do the inner integral)
-        VERSION >= v"1.12" && let (y, h, w) = (Sym(:y), Sym(:h), Sym(:w))
+
+        let (y, h, w) = (Sym(:y), Sym(:h), Sym(:w))
             r = ∫(1 / sqrt((y - x)^2 + h^2)^3, (x, 0, w), (y, 0, w); assume = (h ≫ 0, w ≫ 0))
             @test iszero(simplify(r - 2(sqrt(h^2 + w^2) - h) / h^2))
         end
@@ -314,8 +313,7 @@ import PolyLog as PL
             f = (sqrt(4s^2 + 1) / 2 + Sym(3) / 2) / (sqrt(4s^2 + 1) / 2 + Sym(1) / 2)^(Sym(3) // 2)
             @test N(subs(∫(f, (s, 0, n1)), n1 => 1)) ≈ sum(N(subs(f, s => (k - Sym(1) // 2) / 2000)) for k in 1:2000) / 2000 rtol = 1e-6
         end
-        # exact with the RischIntegrate Julia 1.12 gets; the older one gives approximate constants
-        same(v, w) = VERSION >= v"1.12" ? v == w : N(v) ≈ N(w)
+        same(v, w) = v == w
         @test ∫(x^2, (x, 0, 3)) == 9
         @test ∫(sin(x), (x, 0, PI)) == 2
         # Gaussian integrals with a parameter (SymPy #28485)
@@ -363,12 +361,10 @@ import PolyLog as PL
         @test cs(n => 2) == Sym(1 // 3)
         @test cs(n => -1) == Inf_
         @test cs(n => -2) == Inf_
-        if VERSION >= v"1.12"                                            # (the older RischIntegrate cannot)
-            cs = ∫(1 / (x^2 + a), (x, 0, Inf))
-            @test cs(a => 4) == PI / 4
-            @test cs(a => 0) == Inf_
-            @test_throws ArgumentError cs(a => -1)                       # a pole at 1
-        end
+        cs = ∫(1 / (x^2 + a), (x, 0, Inf))
+        @test cs(a => 4) == PI / 4
+        @test cs(a => 0) == Inf_
+        @test_throws ArgumentError cs(a => -1)                       # a pole at 1
         @test N(∫(1 / (x - a), (x, 0, 1))(a => 2)) ≈ -log(2)
         # iterated: an inner integral by cases on the outer variable keeps the cases its
         # interval allows, or is split where they change
@@ -380,9 +376,7 @@ import PolyLog as PL
         @test ∫(cs, (x, -1, 2)) == Sym(5 // 2)
         @test ∫(cs, (x, 2, -1)) == Sym(-5 // 2)
         @test ∫(cs, (x, 1, 2)) == Sym(3 // 2)
-        if VERSION >= v"1.12"                                            # (the older RischIntegrate cannot)
-            @test same(∫(sqrt(1 - x^2), (x, y, sqrt(1 - y^2)), (y, 0, sqrt(Sym(2)) / 2)), 1 - sqrt(Sym(2)) / 2)   # constants simplified
-        end
+        @test same(∫(sqrt(1 - x^2), (x, y, sqrt(1 - y^2)), (y, 0, sqrt(Sym(2)) / 2)), 1 - sqrt(Sym(2)) / 2)   # constants simplified
         # log(u), u < 0 at an end, as log(-u) + iπ, in a power or squared too
         IM = SymJ.IM
         @test ∫(log(x), (x, -1, 0)) == IM * PI - 1
@@ -392,12 +386,10 @@ import PolyLog as PL
         @test isapprox(ComplexF64(N(subs(∫(x^m, (x, -1, 0); assume = @assume(m > 0)), m => Sym(1) // 3))),
                        exp(im * π / 3) / (4 / 3))
         # a variable end: the integral by cases, its limit taking the case that holds (Gabriel's horn)
-        if VERSION >= v"1.12"                                            # (the older RischIntegrate cannot)
-            @syms M
-            horn = ∫(2PI * (1 / x) * sqrt(1 + (-1 / x)^2), (x, 1, M))
-            @test horn isa Sym
-            @test limit(horn, M => Inf) == Inf_
-        end
+        @syms M
+        horn = ∫(2PI * (1 / x) * sqrt(1 + (-1 / x)^2), (x, 1, M))
+        @test horn isa Sym
+        @test limit(horn, M => Inf) == Inf_
         # the variable is real: conj(x) is x, as from dot (a line integral, Green's theorem)
         r, ⋅ = [cos(x), sin(x)], SymJ.LinearAlgebra.dot
         @test ∫([-r[2], r[1]] ⋅ diff.(r, x), (x, 0, 2PI)) == 2PI
@@ -417,8 +409,7 @@ import PolyLog as PL
         @syms t
         @test iszero(cancel(∫(exp(c * t), (t, 0, 1)) - (exp(c) - 1) / c))
         @test ∫(exp(c * t), (t, 0, 1); assume = (c ~ 0,)) == 1
-        # (complex constants in the integrand: RischIntegrate 1.2 on; not on Julia 1.10)
-        (try ∫(exp(IM * x), x); true catch; false end) && @test ∫(exp(im * b * x), (x, -1, 1); assume = (b ~ 0,)) == 2
+        @test ∫(exp(im * b * x), (x, -1, 1); assume = (b ~ 0,)) == 2
         @test subs(∫((b - a) * exp(t * c + (1 - t) * a), (t, 0, 1); assume = (c ~ a,)), c => a) == (b - a) * exp(a)
         @test ∫(x / a, (x, 0, 1)) == 1 / (2a)               # the integrand's own denominator: no case
         # drop_removable_singularities = true: a case that is the formula's limit is merged into it
@@ -432,7 +423,7 @@ import PolyLog as PL
 
     @testset "RischIntegrate: principal values" begin
         ∫(f, t...; kw...) = RischIntegrate.integrate(f, t...; principal_value = true, kw...)
-        same(v, w) = VERSION >= v"1.12" ? v == w : N(v) ≈ N(w)
+        same(v, w) = v == w
         @test ∫(1 / x, (x, -1, 1)) == 0
         @test same(∫(1 / x, (x, -1, 2)), log(Sym(2)))
         @test same(∫(1 / (x - 1), (x, 0, 3)), log(Sym(2)))
@@ -461,12 +452,10 @@ import PolyLog as PL
         @test N(∫(1 / abs(sin(x)), (x, 1, 2))) ≈ 1.0476051700585143
         @test ∫(1 / abs(sin(x)), (x, 1, 4)) == Sym(Inf)
         @test ∫(1 / abs(x - 1), (x, 2, 3)) == log(Sym(2))             # the piece is fixed on [2, 3]
-        if VERSION >= v"1.12"          # an antiderivative known only numerically (₂F₁, root sums): a float
-            @test N(∫(x / sqrt(1 - x^3), (x, 0, 1 // 2))) ≈ 0.12832329160032097
-            @test N(∫(1 / (x^5 - x + 1), (x, 0, 1))) ≈ 1.5919853723336097
-            @test N(∫(1 / (x^5 - x + 1), (x, 1, 0))) ≈ -1.5919853723336097
-            @test_throws ArgumentError ∫(x / sqrt(1 - x^3), (x, 0, 2))     # singular at 1
-        end
+        @test N(∫(x / sqrt(1 - x^3), (x, 0, 1 // 2))) ≈ 0.12832329160032097
+        @test N(∫(1 / (x^5 - x + 1), (x, 0, 1))) ≈ 1.5919853723336097
+        @test N(∫(1 / (x^5 - x + 1), (x, 1, 0))) ≈ -1.5919853723336097
+        @test_throws ArgumentError ∫(x / sqrt(1 - x^3), (x, 0, 2))     # singular at 1
         @test_throws ArgumentError RischIntegrate.integrate(1 / x, (x, -1, 1))   # only when asked
         # parameters: the cases, with logs of negative arguments made real
         v = ∫(1 / (x - a), (x, 0, 2); assume = @assume(a > 0, a < 2))
@@ -525,13 +514,10 @@ import PolyLog as PL
     @testset "wrong answers (SymPy review, round 4)" begin
         @syms t A
         # the antiderivative jumps where the integrand is smooth: split there too (#26283)
-        # (RischIntegrate 1.2 on; Julia 1.10 resolves 1.0)
-        if isdefined(RischIntegrate, :clausen2)
-            @test RischIntegrate.integrate(1 / (A - cos(t)), (t, 0, 2PI); assume = (A ≫ 1,)) == 2PI / sqrt(A^2 - 1)
-            # (by value: RischIntegrate 1.3 gives it over one denominator)
-            @test iszero(simplify(RischIntegrate.integrate(cos(t) / (A - cos(t)), (t, 0, 2PI); assume = (A ≫ 1,)) - (2PI * A / sqrt(A^2 - 1) - 2PI)))
-            @test RischIntegrate.integrate(1 / (3 - cos(t)), (t, 0, 2PI)) == PI / sqrt(Sym(2))
-        end
+        @test RischIntegrate.integrate(1 / (A - cos(t)), (t, 0, 2PI); assume = (A ≫ 1,)) == 2PI / sqrt(A^2 - 1)
+        # (by value: RischIntegrate 1.3 gives it over one denominator)
+        @test iszero(simplify(RischIntegrate.integrate(cos(t) / (A - cos(t)), (t, 0, 2PI); assume = (A ≫ 1,)) - (2PI * A / sqrt(A^2 - 1) - 2PI)))
+        @test RischIntegrate.integrate(1 / (3 - cos(t)), (t, 0, 2PI)) == PI / sqrt(Sym(2))
         # Bessel functions of non-integer order at 0: x^ν times a series in x² (#25678)
         @test Sym(series(SF.besselj(Sym(1) // 2, x), x, 0, 4)) == expand(sqrt(Sym(2)) / sqrt(PI) * (sqrt(x) - x^(Sym(5) // 2) / 6))
         @test N(subs(Sym(series(SF.bessely(Sym(5) // 3, x), x, 0, 4)), x => Sym(1) // 100)) ≈ SF.bessely(5 / 3, 0.01) rtol = 1e-8
@@ -545,12 +531,10 @@ import PolyLog as PL
         @syms z a b r R n tf
         F = SymFunction(:F)
         # ₂F₁ antiderivatives at the ends: continuity, Gauss's sum at 1 (#26477)
-        if isdefined(RischIntegrate, :clausen2)
-            v = RischIntegrate.integrate(z^(a - 1) * (1 - z)^(b - 1), (z, 0, 1); assume = (a ≫ 0, b ≫ 0))
-            @test N(subs(v, a => Sym(3) // 2, b => Sym(5) // 2)) ≈ SF.beta(1.5, 2.5)
-            v = RischIntegrate.integrate(z^(a - Sym(1) // 2) * sqrt(1 - z), (z, 0, 1); assume = (a ≫ 0,))
-            @test N(subs(v, a => 2)) ≈ SF.beta(2.5, 1.5)
-        end
+        v = RischIntegrate.integrate(z^(a - 1) * (1 - z)^(b - 1), (z, 0, 1); assume = (a ≫ 0, b ≫ 0))
+        @test N(subs(v, a => Sym(3) // 2, b => Sym(5) // 2)) ≈ SF.beta(1.5, 2.5)
+        v = RischIntegrate.integrate(z^(a - Sym(1) // 2) * sqrt(1 - z), (z, 0, 1); assume = (a ≫ 0,))
+        @test N(subs(v, a => 2)) ≈ SF.beta(2.5, 1.5)
         # unknown functions of x: their integrals held, the rest integrated (#25457, #26249, #26116)
         @test RischIntegrate.integrate(F(r) + r, r) == r^2 / 2 + SymJ._mkfn_node(:Integral, Sym[F(r), r])
         @test RischIntegrate.integrate(3F(r) * sin(a), r) == 3sin(a) * SymJ._mkfn_node(:Integral, Sym[F(r), r])
@@ -602,13 +586,11 @@ import PolyLog as PL
         sol = SymJ.dsolve(x^2 * (2 - x) * diff(u(x), x, 2) + 2x * diff(u(x), x) - 2u(x) ~ exp(-x) * x^2 * (2 - x)^2, u(x))
         @test sol isa SymJ.Relation
         # 1/(C + cos x) over a period by cases on C, divergent for |C| ≤ 1 (#23613)
-        if isdefined(RischIntegrate, :clausen2)
-            r = ∫(1 / (C + cos(x)), (x, 0, 2PI))
-            @test r isa SymJ.Cases
-            @test any(cv -> cv.second == 2PI / sqrt(C^2 - 1), r)
-            @test_throws ArgumentError ∫(1 / (Sym(1) // 2 + cos(x)), (x, 0, 2PI))
-            @test_throws ArgumentError ∫(1 / (-Sym(1) // 3 + cos(x)), (x, 0, 2PI))
-        end
+        r = ∫(1 / (C + cos(x)), (x, 0, 2PI))
+        @test r isa SymJ.Cases
+        @test any(cv -> cv.second == 2PI / sqrt(C^2 - 1), r)
+        @test_throws ArgumentError ∫(1 / (Sym(1) // 2 + cos(x)), (x, 0, 2PI))
+        @test_throws ArgumentError ∫(1 / (-Sym(1) // 3 + cos(x)), (x, 0, 2PI))
     end
 
     @testset "wrong answers (SymPy review, round 7)" begin
@@ -676,7 +658,7 @@ import PolyLog as PL
     @testset "missing cases (SymPy review, round 9)" begin
         @syms n
         # the even part over (-∞, ∞) (#19175)
-        same(v, w) = VERSION >= v"1.12" ? v == w : N(v) ≈ N(w)            # (the older RischIntegrate: numerically)
+        same(v, w) = v == w
         @test same(RischIntegrate.integrate(exp(-x^2) / (1 + exp(x)), (x, -Inf, Inf)), sqrt(PI) / 2)
         # floats in a definite integral: a float value; x^n kept as a power
         @test RischIntegrate.integrate(2.5x, (x, 0, 1)) == Sym(1.25)
@@ -789,10 +771,8 @@ import PolyLog as PL
         # a case's fact undefined at another case's value (w = 0 in F3/w): no DivisionByZero
         # (#12568, #11992, #12249)
         @test RischIntegrate.integrate(1 / (1 + x^2 * y^2), (y, 0, z)) isa SymJ.Cases
-        if VERSION >= v"1.12"                                            # (the older RischIntegrate cannot)
-            @test RischIntegrate.integrate(1 / sqrt(c^2 + (3 - w * s)^2), (s, 0, L0)) isa SymJ.Cases
-            @test RischIntegrate.integrate((z - r * mu) / (z^2 + r^2 - 2r * z * mu)^(Sym(3) / 2), (mu, -1, 1)) isa SymJ.Cases
-        end
+        @test RischIntegrate.integrate(1 / sqrt(c^2 + (3 - w * s)^2), (s, 0, L0)) isa SymJ.Cases
+        @test RischIntegrate.integrate((z - r * mu) / (z^2 + r^2 - 2r * z * mu)^(Sym(3) / 2), (mu, -1, 1)) isa SymJ.Cases
     end
 
     @testset "missing cases (SymPy review, round 13)" begin
@@ -917,6 +897,11 @@ import PolyLog as PL
         @test RischIntegrate.integrate(Poly(x + x^2 * y + y^3, x, y), (y, 0, PI)) ==
               RischIntegrate.integrate(x + x^2 * y + y^3, (y, 0, PI))
         @test RischIntegrate.integrate(Poly(x^2 + 1, x), x) == x^3 / 3 + x
+        # a square root of x + log x (#4231; RischIntegrate #157)
+        let L = log(x)
+            f = (1 + 2x + sqrt(x + L) * (1 + 3x) + x^2) / (x * (x + sqrt(x + L)) * sqrt(x + L))
+            @test iszero(simplify(diff(RischIntegrate.integrate(f, x), x) - f))
+        end
     end
 
     @testset "wrong answers (SymPy review, round 19)" begin
@@ -946,7 +931,7 @@ import PolyLog as PL
         @test N(RischIntegrate.integrate(log(z + 2), (z, -3 - im, -3 + im))) ≈ 0.26394350735484 * im rtol = 1e-10
         @test N(RischIntegrate.integrate(csc(z), (z, 1 - im, 1 + im))) ≈ 1.8987949537455 * im rtol = 1e-10
         # log(x^i) = i log(x) only for x > e^-π: no value rather than a wrong one (#31017)
-        # (the older RischIntegrate of Julia 1.10 refuses the integrand itself)
+
         @test_throws Union{ArgumentError, RischIntegrate.RischNotImplemented} RischIntegrate.integrate(log(z^im)^2, (z, 0, 1))
     end
 
@@ -957,8 +942,8 @@ import PolyLog as PL
         @test RischIntegrate.integrate(1 / (x^2 + a^2), (x, -1, 1)) == 2atan(1 / a) / a
         @test RischIntegrate.integrate(a / (x^2 + a^2), (x, -1, 1)) == 2atan(1 / a)
         @test RischIntegrate.integrate(1 / (x^2 + a^2), (x, 0, 1)) == atan(1 / a) / a
-        # (the older RischIntegrate of Julia 1.10 cannot integrate it: a parameter in the radicand)
-        VERSION >= v"1.12" && @test RischIntegrate.integrate((a / sqrt(x^2 + a^2))^3, (x, -1, 1)) == 2a / sqrt(a^2 + 1)
+
+        @test RischIntegrate.integrate((a / sqrt(x^2 + a^2))^3, (x, -1, 1)) == 2a / sqrt(a^2 + 1)
     end
 
     @testset "no elementary antiderivative: the definite integral unevaluated" begin
@@ -966,17 +951,13 @@ import PolyLog as PL
         v = RischIntegrate.integrate(exp(x^3), (x, 0, 1))
         @test SymJ._isdefint(v)
         @test N(v) ≈ 1.3419044179774198 rtol = 1e-12
-        # ∫₀¹∫₀¹ e^(-x²y²): the inner one in erf, the outer unevaluated (SymPy #5326; the
-        # older RischIntegrate of Julia 1.10 cannot do the inner one)
-        if VERSION >= v"1.12"
-            w = RischIntegrate.integrate(exp(-x^2 * y^2), (x, 0, 1), (y, 0, 1))
-            @test SymJ._isdefint(w)
-            @test N(w) ≈ 0.9059404763223628 rtol = 1e-10
-        end
+        # ∫₀¹∫₀¹ e^(-x²y²): the inner one in erf, the outer unevaluated (SymPy #5326)
+        w = RischIntegrate.integrate(exp(-x^2 * y^2), (x, 0, 1), (y, 0, 1))
+        @test SymJ._isdefint(w)
+        @test N(w) ≈ 0.9059404763223628 rtol = 1e-10
         @test N(RischIntegrate.integrate(exp(-x^2) * log(x + 2), (x, 0, Inf))) ≈ 0.8231099519447602 rtol = 1e-10
         # integrate(ex): the unevaluated integrals in ex carried out, innermost first; those
         # that cannot be kept
-        # (numerically: the older RischIntegrate of Julia 1.10 gives √π as a float)
         @test N(RischIntegrate.integrate(SymJ.Integral(exp(-x^2), (x, 0, Inf)))) ≈ sqrt(π) / 2 rtol = 1e-14
         @test RischIntegrate.integrate(SymJ.Integral(x * y, (x, 0, 1), (y, 0, 2))) == 1
         @test RischIntegrate.integrate(1 + SymJ.Integral(x^2, x)) == 1 + x^3 / 3
@@ -991,29 +972,26 @@ import PolyLog as PL
 
     @testset "indefinite integrals over ℝ: cases on parameter signs" begin
         @syms t
-        # (RischIntegrate's sign oracle: the installed one of Julia ≥ 1.12)
-        if VERSION >= v"1.12"
-            r = RischIntegrate.integrate(1 / (x^2 + a), x)
-            @test r isa SymJ.Cases
-            @test Set(join(string.(c.first), ", ") for c in r.cases) == Set(["a ≪ 0", "a ≫ 0"])
-            @test isequal(only(c.second for c in r.cases if string(only(c.first)) == "a ≫ 0"), atan(x / sqrt(a)) / sqrt(a))
-            # each case's form differentiates back, under its condition
-            ln = only(c.second for c in r.cases if string(only(c.first)) == "a ≪ 0")
-            @test iszero(simplify(diff(ln, x) - 1 / (x^2 + a); assume = @assume(a < 0)))
-            # a sign given: that case only
-            @test isequal(RischIntegrate.integrate(1 / (x^2 + a), x; assume = @assume(a > 0)), atan(x / sqrt(a)) / sqrt(a))
-            # a sign the integrator asks as -1/(4ab): the condition as a*b
-            s = RischIntegrate.integrate(1 / (a * x^2 + b), x)
-            @test Set(join(string.(c.first), ", ") for c in s.cases) == Set(["a*b ≪ 0", "a*b ≫ 0"])
-            # the parameters real: √(a²) is |a| (the older integrator refuses abs)
-            @test isequal(RischIntegrate.integrate(sqrt(a^2), x), abs(a) * x)
-            # a fact on two intervals (t² > 1) decides its own sign, so each case gets its form
-            s = RischIntegrate.integrate(1 / (x^2 + t^2 - 1), x)
-            k = findfirst(c -> join(string.(c.first), ", ") == "t^2 - 1 ≫ 0", s.cases)
-            @test SymJ._hasfn(s.cases[k].second, :atan)
-            # the two signs giving one answer, up to expansion, are one case
-            @test RischIntegrate.integrate(sqrt(a^2 - x^2), x) isa Sym
-        end
+        r = RischIntegrate.integrate(1 / (x^2 + a), x)
+        @test r isa SymJ.Cases
+        @test Set(join(string.(c.first), ", ") for c in r.cases) == Set(["a ≪ 0", "a ≫ 0"])
+        @test isequal(only(c.second for c in r.cases if string(only(c.first)) == "a ≫ 0"), atan(x / sqrt(a)) / sqrt(a))
+        # each case's form differentiates back, under its condition
+        ln = only(c.second for c in r.cases if string(only(c.first)) == "a ≪ 0")
+        @test iszero(simplify(diff(ln, x) - 1 / (x^2 + a); assume = @assume(a < 0)))
+        # a sign given: that case only
+        @test isequal(RischIntegrate.integrate(1 / (x^2 + a), x; assume = @assume(a > 0)), atan(x / sqrt(a)) / sqrt(a))
+        # a sign the integrator asks as -1/(4ab): the condition as a*b
+        s = RischIntegrate.integrate(1 / (a * x^2 + b), x)
+        @test Set(join(string.(c.first), ", ") for c in s.cases) == Set(["a*b ≪ 0", "a*b ≫ 0"])
+        # the parameters real: √(a²) is |a| (the older integrator refuses abs)
+        @test isequal(RischIntegrate.integrate(sqrt(a^2), x), abs(a) * x)
+        # a fact on two intervals (t² > 1) decides its own sign, so each case gets its form
+        s = RischIntegrate.integrate(1 / (x^2 + t^2 - 1), x)
+        k = findfirst(c -> join(string.(c.first), ", ") == "t^2 - 1 ≫ 0", s.cases)
+        @test SymJ._hasfn(s.cases[k].second, :atan)
+        # the two signs giving one answer, up to expansion, are one case
+        @test RischIntegrate.integrate(sqrt(a^2 - x^2), x) isa Sym
         # a case where the integrand is nowhere real is dropped: √(a x² + b) with a, b < 0
         # (a < 0 implied by -b/a < 0 and b < 0)
         E = Base.get_extension(SymJ, :SymJRischIntegrateExt)
@@ -1044,61 +1022,55 @@ import PolyLog as PL
     end
 
     @testset "differentiation under the integral sign" begin
-        # (exact on the RischIntegrate of Julia ≥ 1.12; the older one of Julia 1.10 may keep
-        # the integral unevaluated, whose value is then the same by quadrature)
-        exact = VERSION >= v"1.12"
         # a constant made a parameter: I'(a) = 2π/√(1 - a²), I(0) = 0 (SymPy #30869, #30677)
         v = RischIntegrate.integrate(log((1 + cos(x) / 2) / (1 - cos(x) / 2)) / cos(x), (x, 0, PI))
         @test N(v) ≈ π^2 / 3 rtol = 1e-12
-        exact && @test isequal(v, PI^2 / 3)
+        @test isequal(v, PI^2 / 3)
         w = RischIntegrate.integrate(log(1 + cos(x) / 3), (x, 0, PI))       # π log((3 + 2√2)/6)
         @test N(w) ≈ π * log((3 + 2sqrt(2)) / 6) rtol = 1e-12
-        exact && @test !SymJ._isdefint(w)
+        @test !SymJ._isdefint(w)
         u = RischIntegrate.integrate(exp(-x) * sin(2x) / x, (x, 0, Inf))       # atan(2)
         @test N(u) ≈ atan(2) rtol = 1e-12
-        exact && @test isequal(u, atan(Sym(2)))
+        @test isequal(u, atan(Sym(2)))
         # I'(a) = 2atan(√(1 - a)/√(1 + a))/√(1 - a²), refined to acos(a)/√(1 - a²) for
         # 0 < a < 1/2, integrates in a: π²/8 - acos(1/2)²/2 = 5π²/72
         h = RischIntegrate.integrate(log(1 + cos(x) / 2) / cos(x), (x, 0, PI / 2))
         @test N(h) ≈ 5π^2 / 72 rtol = 1e-12
-        exact && @test isequal(h, 5PI^2 / 72)
+        @test isequal(h, 5PI^2 / 72)
         # none of the constants works: the integral unevaluated, as before
         @test SymJ._isdefint(RischIntegrate.integrate(exp(x^3), (x, 0, 1)))
         # with the assumptions' antiderivative a root sum, the generic one (atan's) instead
         @syms a
-        exact && @test isequal(RischIntegrate.integrate(2 / (1 - a^2 * cos(x)^2), (x, 0, PI); assume = (a ≫ 0, a ≪ 1)),
+        @test isequal(RischIntegrate.integrate(2 / (1 - a^2 * cos(x)^2), (x, 0, PI); assume = (a ≫ 0, a ≪ 1)),
                                2PI / sqrt(1 - a^2))
         # with no assumptions, by cases: 2π/√(1 - a²) for |a| < 1 (the limit at acos(1/a)
         # for |a| > 1 raised GMP's DivideError in GruntzLimit < 1.8.1)
-        if exact
-            r = RischIntegrate.integrate(2 / (1 - a^2 * cos(x)^2), (x, 0, PI))
-            @test r isa SymJ.Cases
-            @test any(c -> c.second isa Sym && isequal(c.second, 2PI / sqrt(1 - a^2)), r.cases)
-            # the conditions on the singular points acos(±1/a) as conditions on a: five
-            # cases (a = ±1: ∞; a > 1, a < -1: a pole inside; |a| < 1), no contradictory
-            # one (acos(1/a) > π/2 with acos(1/a) < acos(-1/a)) whose limit failed
-            @test length(r.cases) == 5
-            @test all(c -> c.second isa Sym || occursin("does not converge", sprint(showerror, c.second)), r.cases)
-            @test !any(c -> any(f -> occursin("acos", string(f)), c.first), r.cases)
-            # each case's condition on a itself: -1/a - 1 ~ 0 as a ~ -1, 1/a + 1 > 0 with
-            # a < 0 as a < -1, 1/a² - 1 > 0 as a² < 1
-            @test Set(join(string.(c.first), ", ") for c in r.cases) == Set(["a ~ -1", "a ~ 1", "a ≪ -1", "a ≫ 1", "a^2 ≪ 1"])
-            # singular points √(-a): their comparisons with the ends as conditions on a
-            # (√(-a) ~ 0 is a ~ 0, √(-a) - 1 > 0 is a < -1), and the iπ of log(-u) + iπ
-            # cancelling between the ends collected
-            s = RischIntegrate.integrate(1 / (x^2 + a), (x, 0, 1))
-            @test Set(join(string.(c.first), ", ") for c in s.cases) == Set(["a ~ 0", "a ~ -1", "a ≪ -1", "a ≪ 0, a ≫ -1", "a ≫ 0"])
-            v = only(c.second for c in s.cases if join(string.(c.first), ", ") == "a ≪ -1")
-            @test !has(v, IM)
-            @test N(subs(v, a => -4)) ≈ log(1 / 3) / 4 rtol = 1e-12
-        end
+        r = RischIntegrate.integrate(2 / (1 - a^2 * cos(x)^2), (x, 0, PI))
+        @test r isa SymJ.Cases
+        @test any(c -> c.second isa Sym && isequal(c.second, 2PI / sqrt(1 - a^2)), r.cases)
+        # the conditions on the singular points acos(±1/a) as conditions on a: five
+        # cases (a = ±1: ∞; a > 1, a < -1: a pole inside; |a| < 1), no contradictory
+        # one (acos(1/a) > π/2 with acos(1/a) < acos(-1/a)) whose limit failed
+        @test length(r.cases) == 5
+        @test all(c -> c.second isa Sym || occursin("does not converge", sprint(showerror, c.second)), r.cases)
+        @test !any(c -> any(f -> occursin("acos", string(f)), c.first), r.cases)
+        # each case's condition on a itself: -1/a - 1 ~ 0 as a ~ -1, 1/a + 1 > 0 with
+        # a < 0 as a < -1, 1/a² - 1 > 0 as a² < 1
+        @test Set(join(string.(c.first), ", ") for c in r.cases) == Set(["a ~ -1", "a ~ 1", "a ≪ -1", "a ≫ 1", "a^2 ≪ 1"])
+        # singular points √(-a): their comparisons with the ends as conditions on a
+        # (√(-a) ~ 0 is a ~ 0, √(-a) - 1 > 0 is a < -1), and the iπ of log(-u) + iπ
+        # cancelling between the ends collected
+        s = RischIntegrate.integrate(1 / (x^2 + a), (x, 0, 1))
+        @test Set(join(string.(c.first), ", ") for c in s.cases) == Set(["a ~ 0", "a ~ -1", "a ≪ -1", "a ≪ 0, a ≫ -1", "a ≫ 0"])
+        v = only(c.second for c in s.cases if join(string.(c.first), ", ") == "a ≪ -1")
+        @test !has(v, IM)
+        @test N(subs(v, a => -4)) ≈ log(1 / 3) / 4 rtol = 1e-12
     end
 
     @testset "missing cases (SymPy review, round 20)" begin
         @syms a
         y = SymFunction(:y)
-        # a Riccati equation through a solution of its linear form (#31017); numerically:
-        # the older RischIntegrate of Julia 1.10 gives √π as a float
+        # a Riccati equation through a solution of its linear form (#31017)
         F = SymJ.dsolve(diff(y(x), x) ~ x^2 - 5 - y(x)^2, y(x)).rhs
         @test abs(N(subs(diff(F, x) - (x^2 - 5 - F^2), x => Sym(7) // 10, Sym(:C1) => Sym(1) // 3))) < 1e-9
         # homogeneous with a radical, for x > 0: √(x² + x²v²) = x√(1 + v²) (Kamke 1.113;

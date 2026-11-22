@@ -19,7 +19,7 @@
     @syms a b
     p = Poly((x + y + 1)^3, x, y)
     @test p isa Poly{SymNumber}
-    @test nterms(p) == 10
+    @test SymJ.nterms(p) == 10
     @test Sym(p) == SymJ._expand_generic((x + y + 1)^3)
     @test gens(p) == [x, y]
     @test degree(p) == 3 && degree(p, y) == 3
@@ -95,10 +95,10 @@
     g = [Sym(Symbol(:v, i)) for i in 1:16]
     h = Poly(g[1] + 1, g...)
     @test h.layout == SymJ._uniform(16, 4)
-    @test nterms(h^14) == 15 && (h^14).layout == h.layout
+    @test SymJ.nterms(h^14) == 15 && (h^14).layout == h.layout
     h15 = h^15                                       # g[1] needs 5 bits: new layout
     @test SymJ._monotype(h15) === UInt64 && h15.layout != h.layout
-    @test nterms(h15) == 16 && Sym(h15) == expand((g[1] + 1)^15) && h15 == h^14 * h
+    @test SymJ.nterms(h15) == 16 && Sym(h15) == expand((g[1] + 1)^15) && h15 == h^14 * h
     @test hash(h15) == hash(Poly((g[1] + 1)^15, g...))
     hs = Poly(sum(g) + 1, g...)
     @test_throws SymJ._PackOverflow hs^15            # 16 fields of 5 bits: not in a UInt64
@@ -123,7 +123,7 @@
     # more than 64 generators
     g70 = [Sym(Symbol(:u, i)) for i in 1:70]
     P70 = Poly(sum(g70)^2, g70...)
-    @test nterms(P70) == 70 * 71 ÷ 2 && Sym(P70) == expand(sum(g70)^2)
+    @test SymJ.nterms(P70) == 70 * 71 ÷ 2 && Sym(P70) == expand(sum(g70)^2)
     @test gcd(P70, Poly(sum(g70) * g70[1], g70...)) == Poly(sum(g70), g70...)
     @test expand((g[1] + 1)^20) == SymJ._expand_generic((g[1] + 1)^20)  # unaffected (1 generator)
 end
@@ -141,8 +141,8 @@ end
     q, r = divrem(Poly(x^2 + 1, x), Poly(2x, x))
     @test q == Poly(x / 2, x) && r == Poly(Sym(1), x)
     @test_throws DivideError divrem(P(x), zero(P(x)))
-    @test divexact(P((x + y)^3), P(x + y)) == P((x + y)^2)
-    @test_throws ArgumentError divexact(P(x + 1), P(y))
+    @test SymJ.divexact(P((x + y)^3), P(x + y)) == P((x + y)^2)
+    @test_throws ArgumentError SymJ.divexact(P(x + 1), P(y))
     @test divides(P(x * y + x), P(y + 1)) == (true, P(x))
 
     for _ in 1:30
@@ -171,7 +171,7 @@ end
         @test G == gcd(B, A)
         @test divides(A, G)[1] && divides(B, G)[1]
         @test divides(G, g)[1]
-        @test isone(gcd(divexact(A, G), divexact(B, G)))
+        @test isone(gcd(SymJ.divexact(A, G), SymJ.divexact(B, G)))
     end
 
     # modular gcd agrees with the PRS reference implementation
@@ -235,7 +235,7 @@ end
     zs = expand(zg^2 * (x * y - z))
     @test factor_squarefree(zs; gcd_method = :zippel) == factor_squarefree(zs)
     @test factor_squarefree(P4(zs); gcd_method = :zippel) == factor_squarefree(P4(zs))
-    @test squarefree_part(zs; gcd_method = :zippel) == squarefree_part(zs)
+    @test SymJ.squarefree_part(zs; gcd_method = :zippel) == SymJ.squarefree_part(zs)
     zf = expand((x * y + z^2 + 1)^2 * (x - y * w))
     @test factor(zf; gcd_method = :zippel) == factor(zf)
     @test factor(P4(zf); gcd_method = :zippel) == factor(P4(zf))
@@ -259,7 +259,7 @@ end
     @test factor_squarefree(P(x * (y + 1)^2)) == (SymNumber(1), [P(x) => 1, P(y + 1) => 2])
     @test factor_squarefree(P(Sym(5))) == (SymNumber(5), Pair{Poly{SymNumber},Int}[])
     @test_throws ArgumentError factor_squarefree(zero(P(x)))
-    @test squarefree_part(P((x + y)^2 * (x - y) * (y + 1)^3)) == P((x + y) * (x - y) * (y + 1))
+    @test SymJ.squarefree_part(P((x + y)^2 * (x - y) * (y + 1)^3)) == P((x + y) * (x - y) * (y + 1))
     for _ in 1:15
         fs0 = [randpoly(2, 2) for _ in 1:3]
         p = P(Sym(rnd(5) + 1)) * fs0[1] * fs0[2]^2 * fs0[3]^3
@@ -280,7 +280,7 @@ end
     @test factor_squarefree((x^2 - 1) / (x^2 + 2x + 1)^2) == (x - 1) / (x + 1)^3
     @test factor_squarefree(sin(x)^2 + 2sin(x) + 1) == (sin(x) + 1)^2
     @test factor_squarefree(x / (x + 0.5)) == x / (x + 0.5)   # inexact: unchanged
-    @test squarefree_part(x^3 - x^2 - x + 1) == (x + 1) * (x - 1)
+    @test SymJ.squarefree_part(x^3 - x^2 - x + 1) == (x + 1) * (x - 1)
 
     # on expressions
     # beyond the 64-bit packing: the slower path, not a refusal or a silent no-op
@@ -601,7 +601,7 @@ end
             @test iszero(expand(r1 - resultant(p, q, x; method = :subresultant)))
         end
     end
-    @test nterms(Poly(resultant(ra*x^3 + rb*x^2 + rc*x + rd, re*x^3 + rf*x^2 + rg*x + rh, x),
+    @test SymJ.nterms(Poly(resultant(ra*x^3 + rb*x^2 + rc*x + rd, re*x^3 + rf*x^2 + rg*x + rh, x),
                       ra, rb, rc, rd, re, rf, rg, rh)) == 34                  # the known 34 terms
     # polynomials, coefficients in functions, floats
     P = resultant(Poly(x^2 + ry^2 - 1, x, ry), Poly(x - ry, x, ry), x)

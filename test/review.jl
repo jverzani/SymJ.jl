@@ -1962,7 +1962,7 @@ end
     @test limit((SF.zeta(x) - 1) * 2^x, x => Inf) == 1
     @test_throws ArgumentError limit(SF.zeta(x), x => -Inf)
     # an irrational power of a negative side (#7096)
-    @test_throws GruntzError limit(x^(-sqrt(Sym(2))), x => 0; dir = :-)
+    @test_throws SymJ.GruntzError limit(x^(-sqrt(Sym(2))), x => 0; dir = :-)
     # polygamma with an order tending to an integer (#5415)
     @test limit(SF.polygamma(2 + 1 / x, 3 + exp(-x)), x => Inf) == Sym(9) / 4 - 2SF.zeta(Sym(3))
 end

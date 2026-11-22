@@ -144,7 +144,7 @@ function divides(p::Poly, q::Poly)
 end
 
 """
-    divexact(p::Poly, q::Poly)
+    SymJ.divexact(p::Poly, q::Poly)
 
 The quotient `p / q`, which must be exact (throws an `ArgumentError` otherwise).
 """

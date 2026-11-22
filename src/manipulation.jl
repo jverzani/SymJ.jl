@@ -714,7 +714,7 @@ _too_many_symbols(ex) = throw(ArgumentError(
 ## numeric evaluation with Julia arithmetic
 
 """
-    evaluate(ex, a)
+    SymJ.evaluate(ex, a)
 
 Evaluate `ex`, which may have at most one free symbol, at `a` using Julia arithmetic on
 `a`. This is what calling an expression on a non-symbolic value does: if `u = x^2` then

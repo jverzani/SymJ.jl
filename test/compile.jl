@@ -66,7 +66,7 @@ end
     @test_throws ArgumentError u((1, 2, 3))
     @test lambdify(x^2)([1 2; 3 4]) == [7 10; 15 22]   # one variable: the value as it is
     @test string(u) == "lambdified function of (x, y)"
-    code = string(lambdify_expr(sin(x) * y + sin(x)^2 + cos(sin(x)), (x, y)))
+    code = string(SymJ.lambdify_expr(sin(x) * y + sin(x)^2 + cos(sin(x)), (x, y)))
     @test count("Base.sin(arg1)", code) == 1           # computed once
 
     # errors

@@ -118,7 +118,7 @@ end
     @test limit(1 / x, x => 0; dir = :+) == Sym(Inf) && limit(-x, x => Inf) == Sym(-Inf)
     @test limit(1 / x, x => 0; dir = :+) isa Sym && limit(x^2, x => Sym(Inf)) == Sym(Inf)
     @test limit(x * exp(1 / x), x => 0; dir = -) == 0
-    @test_throws GruntzError limit(sin(x), x => Inf)
+    @test_throws SymJ.GruntzError limit(sin(x), x => Inf)
     @test_throws ArgumentError limit(x, x => 0; dir = :up)
     # cases become Cases, with relations as conditions
     cs = limit(x^a, x => Inf)
@@ -152,7 +152,7 @@ end
     jump = SymJ.Cases{Sym}([Any[x ≪ 1] => Sym(1), Any[x ≫ 1] => Sym(2)])
     @test limit(jump, x => 1; dir = :-) == 1
     @test limit(jump, x => 1; dir = :+) == 2
-    @test_throws GruntzError limit(jump, x => 1)
+    @test_throws SymJ.GruntzError limit(jump, x => 1)
     @test limit(SymJ.Cases{Sym}([Any[x^2 ≫ 1] => Sym(5), Any[x^2 ≪ 1] => Sym(6)]), x => 1; dir = :+) == 5
     @test limit(jump, x => b; dir = :+, assume = @assume(b > 2)) == 2
     pc = SymJ.Cases{Sym}([Any[a ≪ 0] => x * a, Any[a ≫ 0] => x / a])       # cases on another symbol kept
@@ -199,7 +199,7 @@ end
     @test refine(H(x - 1); assume = @assume(x > 2)) == 1
     @test limit(f, x => 0; dir = :+) == 0 && limit(P(x ≪ 1 => x, true => 2 - x), x => 1) == 1
     @test limit(H(x), x => 0; dir = :-) == 0 && limit(f, x => Inf) == Sym(Inf)
-    @test_throws GruntzError limit(H(x), x => 0)
+    @test_throws SymJ.GruntzError limit(H(x), x => 0)
     # conditions free of x split on the parameters (SymPy #30249)
     @test limit(P(Ne(a, 0) => 0, true => x), x => a; dir = :+) == P(Ne(a, 0) => 0, true => a)
     @test limit(P(a ≫ 0 => sin(x) / x, true => x^2), x => 0) == P(a ≫ 0 => 1, true => 0)

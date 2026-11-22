@@ -30,10 +30,6 @@ dependency) and integrals by
 packages that work on the expressions of several symbolic systems,
 SymJ's among them.
 
-!!! note "Julia versions"
-    SymJ and GruntzLimit support Julia 1.10 and later. RischIntegrate
-    needs Julia 1.12 or later, so the section on integrals needs that version.
-
 !!! note "Typeset output in notebooks"
     With [Latexify](https://github.com/korsbo/Latexify.jl) loaded
     (`using Latexify`), SymJ's results also display as LaTeX, as on
@@ -646,10 +642,10 @@ factor(ex; assume = (x ∈ ℝ,))
 (Without facts, symbols are complex, and
 $\sqrt{ab} = \sqrt{a}\sqrt{b}$ can fail.)
 
-`factor_squarefree` only separates repeated factors, which is cheaper:
+`SymJ.factor_squarefree` only separates repeated factors, which is cheaper:
 
 ```@example tut
-factor_squarefree(expand((x - 1)^3 * (x + 2)^2))
+SymJ.factor_squarefree(expand((x - 1)^3 * (x + 2)^2))
 ```
 
 Other polynomial operations include the least common multiple (`lcm`) and the greatest common divisor (`gcd`) of polynomials:
@@ -722,10 +718,10 @@ cancel(r)
 cancel(1 / x + 1 / (x + 1))
 ```
 
-The `numerator` and `denominator` generics return the top and bottom of a rational expression. The function `numer_denom` gives the numerator and denominator without reducing:
+The `numerator` and `denominator` generics return the top and bottom of a rational expression. The function `SymJ.numer_denom` gives the numerator and denominator without reducing:
 
 ```@example tut
-numer_denom(r)
+SymJ.numer_denom(r)
 ```
 
 ### Partial fractions
