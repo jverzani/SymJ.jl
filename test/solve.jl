@@ -503,6 +503,45 @@ end
     @test SymJ._isreal(x^y, Assumptions(x ≪ 0, y ∈ ℚ)) === nothing
 end
 
+@testset "solveset" begin
+    SS, PI, IM = SymJ.solveset, SymJ.PI, SymJ.IM
+    S(eq; kw...) = string(SS(eq, x; kw...))
+    # periodic: families {a + Pn}, merged where their offsets are equally spaced
+    @test S(sin(x) ~ 1 // 2) == "{2*n*π + π/6 | n ∈ ℤ} ∪ {2*n*π + 5*π/6 | n ∈ ℤ}"
+    @test S(cos(x) ~ 0) == "{n*π + π/2 | n ∈ ℤ}"
+    @test S(tan(x) ~ 1) == "{n*π + π/4 | n ∈ ℤ}"
+    @test S(sin(x)^2 ~ 1 // 4) == "{n*π + π/6 | n ∈ ℤ} ∪ {n*π + 5*π/6 | n ∈ ℤ}"
+    let T = SS(sin(2x) ~ cos(x), x)                       # every solution, once
+        @test collect(T ∩ solve([x ≧ 0, x ≪ 2PI], [x])) == [PI / 6, PI / 2, 5PI / 6, 3PI / 2]
+    end
+    # over ℝ against ℂ
+    @test isempty(SS(cos(x) ~ 2, x))
+    @test S(cos(x) ~ 2; domain = ℂ) == "{2*n*π + acos(2) | n ∈ ℤ} ∪ {2*n*π - acos(2) | n ∈ ℤ}"
+    @test S(exp(x) ~ 2) == "{log(2)}"
+    @test S(exp(x) ~ 2; domain = ℂ) == "{2*im*n*π + log(2) | n ∈ ℤ}"
+    @test isempty(SS(exp(x) ~ -1, x))
+    @test S(exp(x) ~ -1; domain = ℂ) == "{2*im*n*π + im*π | n ∈ ℤ}"
+    @test S(x^2 ~ -4; domain = ℂ) == "{-2*im, 2*im}"
+    @test S(cosh(x) ~ 1) == "{0}"
+    # nested: each function inverted in turn
+    @test S(sin(sin(x)) ~ 0) == "{n*π | n ∈ ℤ}"
+    @test S(sin(sin(x)) ~ 0; domain = ℂ) == "{2*m*π + asin(n*π) | n, m ∈ ℤ} ∪ {2*m*π - asin(n*π) + π | n, m ∈ ℤ}"
+    @test S(sin(x^2) ~ 0) == "{-sqrt(n*π) | n ∈ ℤ, n >= 0} ∪ {sqrt(n*π) | n ∈ ℤ, n >= 0}"
+    @test S(exp(sin(x)) ~ 1) == "{n*π | n ∈ ℤ}"
+    # finite, unsolved, inequalities
+    @test collect(SS(x^2 ~ 4, x)) == [-2, 2]
+    @test SS(x ~ sin(x), x).unsolved[1] isa SymJ.ConditionSet
+    @test string(SS(x^2 ≪ 1, x)) == "(-1, 1)"
+    # membership and cutting to an interval
+    C0 = SS(cos(x) ~ 0, x)
+    @test 3PI / 2 in C0
+    @test -PI / 2 in C0
+    @test !(1 in C0)
+    @test collect(C0 ∩ solve([x ≧ 0, x ≦ 2PI], [x])) == [PI / 2, 3PI / 2]
+    @test_throws ArgumentError collect(C0)
+    @test_throws ArgumentError SS(x ~ 1, x; domain = ℚ)
+end
+
 @testset "fsolve" begin
     @syms x y
     F = SymJ.fsolve

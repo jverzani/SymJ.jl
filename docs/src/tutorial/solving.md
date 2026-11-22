@@ -156,6 +156,28 @@ solve(x^2 - 1 ≫ 0, x)
 solve((x - 1) / (x + 2) ≧ 0, x)
 ```
 
+### All solutions
+
+`solve` gives one period of a periodic equation and principal values of inverses. `SymJ.solveset` gives every solution, as a set: families over the integers `n`, the real solutions by default, the complex ones with `domain = ℂ`:
+
+```@example tut
+SymJ.solveset(sin(x) ~ 1//2, x)
+```
+
+```@example tut
+SymJ.solveset(exp(x) ~ 2, x; domain = ℂ)
+```
+
+Nested functions are inverted in turn, and a family can be cut to an interval:
+
+```@example tut
+SymJ.solveset(sin(x^2) ~ 0, x)
+```
+
+```@example tut
+SymJ.solveset(cos(x) ~ 0, x) ∩ solve([x ≧ 0, x ≦ 2π], [x])
+```
+
 
 ### More on assumptions
 

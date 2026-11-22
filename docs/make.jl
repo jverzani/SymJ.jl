@@ -32,7 +32,7 @@ const REFERENCE = [
     (title = "Assumptions", file = "assumptions",
      files = ["assumptions.jl", "cases.jl"]),
     (title = "Solving equations", file = "solving",
-     files = ["solve.jl", "linsolve.jl", "intervals.jl", "ineqsystems.jl", "fsolve.jl", "chebzeros.jl"],
+     files = ["solve.jl", "linsolve.jl", "intervals.jl", "ineqsystems.jl", "solveset.jl", "fsolve.jl", "chebzeros.jl"],
      modules = ["SymJ", "SymJ.ChebZeros"],
      see = ["rsolve", "dsolve"]),
     (title = "Sums and recurrences", file = "sums",
