@@ -705,9 +705,11 @@ import PolyLog as PL
         @syms t a
         f, g = SymFunction(:f), SymFunction(:g)
         ∫ = RischIntegrate.integrate
-        # an antiderivative that jumps at points not located, or a log crossing its cut:
-        # no value, not half of it (#13609; RischNotImplemented with some versions)
-        @test_throws Exception ∫(exp(2IM * PI * t) / (exp(2IM * PI * t) - 1 // 2), (t, 0, 1))
+        # an antiderivative's atan jumps where its denominator, (2cos 2πt - 1)², touches 0:
+        # located through cos(2πt) and cos(4πt) as multiples of one angle (#13609)
+        @test ∫(exp(2IM * PI * t) / (exp(2IM * PI * t) - 1 // 2), (t, 0, 1)) == 1
+        @test ∫(2PI * IM * exp(6PI * IM * t) / (exp(2PI * IM * t) - 1 // 2), (t, 0, 1)) == IM * PI / 2
+        @test ∫(exp(IM * t) / (exp(IM * t) - 1 // 2), (t, 0, 2PI)) == 2PI
         # F' ≠ f on a branch cut: no value (#14147)
         @test_throws ArgumentError ∫(asin(x), (x, 0, 9))
         @test_throws ArgumentError ∫(acos(x), (x, 2, 3))
@@ -1096,5 +1098,9 @@ import PolyLog as PL
         @test N(RischIntegrate.integrate(sin(x^2), (x, 0, Inf))) ≈ sqrt(2π) / 4 rtol = 1e-14
         @test N(RischIntegrate.integrate(sin(x^2), (x, -Inf, Inf))) ≈ sqrt(2π) / 2 rtol = 1e-14
         @test latexify(S(x)) == raw"$\mathrm{S}\left( x \right)$"
+        # S and C rebuilt by name in RischIntegrate's terms (a MethodError from the numeric
+        # function: ∫∫ sin(x² + y²) over the disc; SymPy #12645)
+        @test nameof(operation(S(x))) === :fresnels
+        @test_throws RischIntegrate.RischNotImplemented RischIntegrate.integrate(sin(x^2 + a^2), (a, -sqrt(1 - x^2), sqrt(1 - x^2)), (x, -1, 1))
     end
 end

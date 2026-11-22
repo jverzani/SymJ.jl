@@ -613,12 +613,15 @@ end
 # atan(u) = acos(w)/2 with w = (1 - u²)/(1 + u²), for u real and u ≥ 0 (u = tan(θ/2),
 # θ = acos(w) in [0, π)), when that is smaller: atan(√(1 - a)/√(1 + a)) is acos(a)/2 for
 # -1 < a ≤ 1 (the derivative integral of ∫₀^(π/2) log(1 + a cos x)/cos x, whose
-# integral in a was then found: π²/8 - acos(a)²/2); nothing otherwise
+# integral in a was then found: π²/8 - acos(a)²/2); for u ≤ 0, -acos(w)/2, atan being
+# odd (acos(D) + 2atan((D - 1)/√(1 - D²)) = 0 for 0 < D < 1; SymPy #15940); nothing
+# otherwise
 function _refine_atan_half(u::Sym, A::Assumptions)
     _hassymbol(u) || return nothing
-    (_isreal(u, A) === true && _nonneg(u, A)) || return nothing
+    _isreal(u, A) === true || return nothing
+    s = _nonneg(u, A) ? 1 : _nonneg(-u, A) ? -1 : return nothing
     w = cancel((1 - u^2) / (1 + u^2))
-    r = acos(w) / 2
+    r = s * acos(w) / 2
     _nodes(r) < _nodes(apply_function(:atan, Sym[u])) ? r : nothing
 end
 
