@@ -235,10 +235,51 @@ function _canonical_perm(xs::Vector{Sym})
 end
 @inline _eq(a::Sym, b::Sym) = a === b || (a.hash == b.hash && _cmp(a, b) == 0)
 
-Base.:(==)(a::Sym, b::Sym) = _eq(a, b)
-Base.:(==)(a::Sym, b::Number) = _eq(a, Sym(b))
-Base.:(==)(a::Number, b::Sym) = _eq(Sym(a), b)
+"""
+    a == b
+
+Are `a` and `b` the same expression? `==` returns a `Bool` and compares the expressions as
+stored, after SymJ's automatic simplifications. That is not mathematical equivalence:
+`(x + 1)^2 == x^2 + 2x + 1` is `false`, and `iszero(expand((x + 1)^2 - (x^2 + 2x + 1)))`
+decides the equivalence. A symbolic equation is [`Eq`](@ref) (or `⩵`).
+
+When both sides are numbers:
+
+- Exact numbers compare by value: `Sym(1//2) == 1//2` and `Sym(2) == 2`.
+- Floats compare as Julia's do (IEEE 754): `Sym(0.0) == -0.0` is `true` and
+  `Sym(NaN) == NaN` is `false`.
+- An exact number never equals a float: `Sym(2) == 2.0` and `Sym(1//2) == 0.5` are
+  `false`, as in SymPy. The exact `2` is the value; the float `2.0` approximates it, and
+  floats are contagious in arithmetic, so the two are kept apart.
+
+So `==` is not transitive across Julia's numbers and `Sym`: `Sym(2) == 2` and `2 == 2.0`,
+yet `Sym(2) != 2.0`. The same goes for `isequal`, so `Set(Any[2, 2.0, Sym(2)])` has two
+elements.
+
+Numbers inside an expression compare structurally, as `isequal` does. With `@syms f()`,
+`f(0.0) == f(-0.0)` is `false` and `f(NaN) == f(NaN)` is `true`.
+
+`isequal` and `hash` are structural throughout. They are what `Dict`, `Set` and `in` use:
+`isequal(Sym(0.0), -0.0)` is `false` and `isequal(Sym(NaN), NaN)` is `true`, as for Julia's
+floats, and a `Sym` number hashes as the Julia number it holds.
+
+```julia
+julia> Sym(0.0) == -0.0, Sym(NaN) == NaN, Sym(2) == 2, Sym(2) == 2.0
+(true, false, true, false)
+```
+"""
+Base.:(==)(a::Sym, b::Sym) = _symeq(a, b)
+Base.:(==)(a::Sym, b::Number) = _symeq(a, Sym(b))
+Base.:(==)(a::Number, b::Sym) = _symeq(Sym(a), b)
 Base.isequal(a::Sym, b::Sym) = _eq(a, b)
+Base.isequal(a::Sym, b::Number) = _eq(a, Sym(b))
+Base.isequal(a::Number, b::Sym) = _eq(Sym(a), b)
+
+# `==`: structural (`_eq`), except that two floats compare as IEEE numbers
+# (0.0 == -0.0, NaN != NaN)
+@inline _symeq(a::Sym, b::Sym) =
+    a.kind == NUMBER && b.kind == NUMBER && isfloat(a.num) && isfloat(b.num) ?
+    a.num.f == b.num.f : _eq(a, b)
 
 ## Introspection
 

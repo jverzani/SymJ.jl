@@ -83,6 +83,33 @@ end
     @test operation(x ≦ 1) === Le && maketerm(Relation, Le, [x, 1], nothing) == (x ≦ 1)
 end
 
+@testset "== on numbers: IEEE for floats, exact ≠ float" begin
+    # floats as Julia's ==
+    @test Sym(0.0) == -0.0
+    @test -0.0 == Sym(0.0)
+    @test Sym(0.0) == Sym(-0.0)
+    @test Sym(NaN) != NaN
+    @test NaN != Sym(NaN)
+    @test Sym(NaN) != Sym(NaN)
+    @test Sym(1.5) == 1.5
+    # isequal stays structural, as Julia's isequal
+    @test !isequal(Sym(0.0), -0.0)
+    @test !isequal(-0.0, Sym(0.0))
+    @test isequal(Sym(NaN), NaN)
+    @test isequal(NaN, Sym(NaN))
+    @test Sym(NaN) in Set([Sym(NaN)])
+    # exact numbers by value, never equal to a float
+    @test Sym(2) == 2
+    @test Sym(1 // 2) == 1 // 2
+    @test Sym(2) != 2.0
+    @test 2.0 != Sym(2)
+    @test Sym(1 // 2) != 0.5
+    @test !isequal(Sym(2), 2.0)
+    # inside an expression numbers compare structurally
+    @test f(0.0) != f(-0.0)
+    @test f(NaN) == f(NaN)
+end
+
 @testset "TermInterface" begin
     ex = 2x + sin(y)
     @test iscall(ex) && isexpr(ex)
