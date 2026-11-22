@@ -279,6 +279,16 @@ solve([x^2 + y^2 ~ 1, x ~ y], [x, y])
 solve([x*y ~ 1, x + y ~ 3], [x, y])
 ```
 
+Unknowns that appear only through exponentials, through one function, or through `sin` and `cos` of one argument are solved for those first:
+
+```@example tut
+solve([x + y ~ 4, 2^x + 2^y ~ 10], [x, y])
+```
+
+```@example tut
+solve([sin(x) + cos(y) ~ 1, sin(x) - cos(y) ~ 0], [x, y])
+```
+
 With infinitely many solutions, the unknowns left free map to themselves:
 
 ```@example tut

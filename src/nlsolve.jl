@@ -546,7 +546,7 @@ function _backsub(G::Vector{Sym}, vars::Vector{Sym}, k::Int, sol::Dict{Sym,Sym},
         s[x] = isempty(pairs) ? -c0 / c : -subs(c0, pairs...) / c
         return _backsub(G, vars, k - 1, s, degen)
     end
-    qs = Sym[]
+    qs, gs = Sym[], Sym[]
     for g in G
         _mainvar(g, vars) == k || continue
         q = isempty(pairs) ? g : expand(subs(g, pairs...))
@@ -556,13 +556,22 @@ function _backsub(G::Vector{Sym}, vars::Vector{Sym}, k::Int, sol::Dict{Sym,Sym},
             _hassymbol(q) && continue
             return Dict{Sym,Sym}[]
         end
-        push!(qs, q)
+        push!(qs, q); push!(gs, g)
     end
     isempty(qs) && return _backsub(G, vars, k - 1, sol, degen)      # x is free
-    sort!(qs; by = q -> _xdegree(q, x))
-    # where a factor common to q's coefficients vanishes, x is free there
+    p = sortperm(qs; by = q -> _xdegree(q, x))
+    qs, gs = qs[p], gs[p]
+    # where a factor common to q's coefficients vanishes, x is free there. With radicals
+    # of the values above in it (c - √(1 - c²), c free), the factor of the basis element
+    # before they were substituted (c - s), a polynomial in the unknowns, as the component
+    # (x² + y² + 2xy s = 25, …, s² + c² = 1 lost x = √10, y = √5; SymPy #26070)
     ct = _xcontent(qs[1], x)
     ct !== nothing && any(v -> has(ct, v), vars) && push!(degen, ct)
+    atoms = Set{Sym}()
+    if ct === nothing ? any(v -> has(qs[1], v), vars) : !(_poly_atoms!(atoms, ct) && all(_isnamed, atoms))
+        cg = _xcontent(gs[1], x)
+        cg !== nothing && any(v -> has(cg, v), vars) && push!(degen, cg)
+    end
     out = Dict{Sym,Sym}[]
     rs = _solve1(qs[1], x)
     # numeric roots and no parameters: this level and the rest at 256 bits
@@ -802,6 +811,37 @@ function _solve_by_elimination(eqs::Vector{<:Relation}, vars::Vector{Sym})
             return out
         end
     end
+    # an unknown an equation gives explicitly, v = f(others) with f any expression free
+    # of v, substituted into the rest (x eʸ = 2, y = log x: x² = 2)
+    for (i, e) in enumerate(ds)
+        e = expand(e)
+        e.kind == ADD || continue
+        for v in vars
+            k = findfirst(t -> _eq(t, v), e.args)
+            k === nothing && continue
+            r = -(e - Sym(e.coefs[k]) * v) / Sym(e.coefs[k])
+            has(r, v) && continue
+            others = [u for u in vars if !_eq(u, v)]
+            rest = Relation[]
+            for j in eachindex(eqs)
+                j == i && continue
+                f = try Relation(:eq, subs(eqs[j].lhs, v => r), subs(eqs[j].rhs, v => r)) catch err
+                    _isdivzero(err) || rethrow(); return nothing
+                end
+                iszero(simplify(f.lhs - f.rhs)) || push!(rest, f)
+            end
+            sub = isempty(rest) ? [Dict{Sym,Sym}()] :
+                  try _solve_generic(rest, others) catch err; err isa ArgumentError || rethrow(); return nothing end
+            sub isa AbstractVector || return nothing
+            out = Dict{Sym,Sym}[]
+            for t in sub
+                t = copy(t)
+                t[v] = subs(r, t...)
+                _defined_in(eqs, t, vars) && push!(out, t)
+            end
+            return out
+        end
+    end
     # the polynomial equations first
     P = [i for i in eachindex(ds) if ispoly(ds[i])]
     (isempty(P) || length(P) == length(ds)) && return nothing
@@ -947,44 +987,110 @@ end
 # the assumptions of the system being solved (solve(eqs, vars; assume)), or nothing
 const _SYSTEM_ASSUME = ScopedValue{Any}(nothing)
 
+# the system's unknowns each either bare (polynomially) or only through generators of
+# itself: powers b^(c v) of a constant base (one generator g per unknown, the powers
+# integer powers of it, as one equation's _common_power), one function of it
+# (sin(2x), log(x + 1)), or sin and cos (and tan) of one argument, as s and c with
+# s² + c² = 1. A polynomial system in the generators and the bare unknowns, then each
+# unknown from its generator's values (3eˣ - 2eʸ = 17, 5eˣ + 3eʸ = 41: x = log 7,
+# y = log 2, SymPy #17941; a e^(-90b) = 33, a e^(-92b) = 66, SymPy #24060;
+# sin x + cos y = 1, sin x - cos y = 0). A power of a sum of unknowns is the product of
+# their powers (2^(x + y) = 2ˣ 2ʸ). nothing when the system is not of this form.
+const _GEN_FNS = (:sin, :cos, :tan, :sinh, :cosh, :tanh, :log, :asin, :acos, :atan, :asinh, :acosh, :atanh)
+_topdown(f, e::Sym) = (v = f(e); v === nothing ? _replace_parts(t -> _topdown(f, t), e) : v)
+
 function _solve_exp_generators(eqs::Vector{<:Relation}, vars::Vector{Sym})
     es = Sym[expand(e.lhs - e.rhs) for e in eqs]
-    # the powers base^w with w in one unknown and a base free of them
-    atoms = Dict{Sym,Vector{Sym}}(v => Sym[] for v in vars)
+    isvar(t) = any(v -> _eq(t, v), vars)
+    varsin(t) = [v for v in vars if has(t, v)]
+    # an exponent q as q₀ + Σ q_v, each q_v in v alone; nothing when a term has two
+    function split_exponent(q)
+        q = expand(q)
+        terms = q.kind == ADD ? [(Sym(c) * t) for (c, t) in zip(q.coefs, q.args)] : [q]
+        q0 = q.kind == ADD ? Sym(q.num) : ZERO
+        parts = Dict{Sym,Sym}()
+        for t in terms
+            vs = varsin(t)
+            length(vs) > 1 && return nothing
+            isempty(vs) ? (q0 += t) : (parts[only(vs)] = get(parts, only(vs), ZERO) + t)
+        end
+        q0, parts
+    end
+    ispow(t) = t.kind == POW && isempty(varsin(t.args[1])) && !isempty(varsin(t.args[2]))
+    isfn(t) = t.kind == FN && t.name in _GEN_FNS && length(t.args) == 1 && !isempty(varsin(t.args[1]))
+    patoms = Dict{Sym,Vector{Sym}}(v => Sym[] for v in vars)
+    fatoms = Dict{Sym,Vector{Sym}}(v => Sym[] for v in vars)
+    bare = Set{Sym}()
     ok = true
+    addto!(l, a) = any(o -> _eq(o, a), l) || push!(l, a)
     for e in es
-        _replace_walk(e) do t
-            if t.kind == POW && !any(v -> has(t.args[1], v), vars)
-                vs = [v for v in vars if has(t.args[2], v)]
-                length(vs) == 1 && (any(a -> _eq(a, t), atoms[only(vs)]) || push!(atoms[only(vs)], t))
-                length(vs) > 1 && (ok = false)
-            elseif t.kind == MUL
-                for (b, q) in zip(t.args, t.exps)
-                    any(v -> has(b, v), vars) && continue
-                    vs = [v for v in vars if has(q, v)]
-                    isempty(vs) && continue
-                    length(vs) == 1 || (ok = false; continue)
-                    a = pow(b, q)
-                    any(o -> _eq(o, a), atoms[only(vs)]) || push!(atoms[only(vs)], a)
+        _topdown(e) do t
+            if isvar(t)
+                push!(bare, t)
+            elseif ispow(t)
+                sp = split_exponent(t.args[2])
+                sp === nothing && (ok = false; return t)
+                for (v, q) in sp[2]
+                    addto!(patoms[v], pow(t.args[1], q))
                 end
+            elseif isfn(t)
+                vs = varsin(t.args[1])
+                length(vs) == 1 || (ok = false; return t)
+                addto!(fatoms[only(vs)], t)
+            else
+                return nothing
             end
-            nothing
+            t
+        end
+        ok || return nothing
+    end
+    # each unknown's generator: (:pow, g, u, atoms, ks, cs), (:fn, g, u), (:trig, A, s, c)
+    gens = Dict{Sym,Tuple}()
+    for v in vars
+        pa, fa, b = patoms[v], fatoms[v], v in bare
+        isempty(pa) && isempty(fa) && continue
+        (b || (!isempty(pa) && !isempty(fa))) && return nothing
+        if !isempty(pa)
+            g, ks, cs = length(pa) == 1 ? (pa[1], [1], Sym[ONE]) : something(_common_power(pa), (nothing, nothing, nothing))
+            g === nothing && return nothing
+            gens[v] = (:pow, g, Sym(Symbol("_eg_", v.name)), pa, ks, cs)
+        elseif length(fa) == 1
+            gens[v] = (:fn, fa[1], Sym(Symbol("_eg_", v.name)))
+        else
+            A = fa[1].args[1]
+            all(t -> t.name in (:sin, :cos, :tan) && _eq(t.args[1], A), fa) || return nothing
+            gens[v] = (:trig, A, Sym(Symbol("_es_", v.name)), Sym(Symbol("_ec_", v.name)))
         end
     end
-    ok && all(v -> !isempty(atoms[v]), vars) || return nothing
-    gens = Dict{Sym,Tuple{Sym,Sym}}()
-    nes = es
-    for v in vars
-        as = atoms[v]
-        g, ks, cs = length(as) == 1 ? (as[1], [1], Sym[ONE]) : something(_common_power(as), (nothing, nothing, nothing))
-        g === nothing && return nothing
-        u = Sym(Symbol("_eg_", v.name))
-        gens[v] = (g, u)
-        nes = [subs(e, (a => c * u^k for (a, k, c) in zip(as, ks, cs))...) for e in nes]
+    isempty(gens) && return nothing
+    # the equations in the generators
+    function rep(t)
+        if ispow(t)
+            q0, parts = split_exponent(t.args[2])
+            out = pow(t.args[1], q0)
+            for (v, q) in parts
+                _, _, u, pa, ks, cs = gens[v]
+                a = pow(t.args[1], q)
+                i = findfirst(o -> _eq(o, a), pa)
+                out *= cs[i] * u^ks[i]
+            end
+            return out
+        elseif isfn(t)
+            G = gens[only(varsin(t.args[1]))]
+            G[1] === :fn && return G[3]
+            _, A, s, c = G
+            return t.name === :sin ? s : t.name === :cos ? c : s / c
+        end
+        nothing
     end
-    # (an unknown left outside its exponentials: not this method's)
-    any(e -> any(v -> has(e, v), vars), nes) && return nothing
-    us = Sym[gens[v][2] for v in vars]
+    nes = Sym[_topdown(rep, e) for e in es]
+    any(e -> any(v -> haskey(gens, v) && has(e, v), vars), nes) && return nothing
+    us = Sym[]
+    for v in vars
+        haskey(gens, v) || (push!(us, v); continue)
+        G = gens[v]
+        G[1] === :trig ? (push!(us, G[3]); push!(us, G[4]); push!(nes, G[3]^2 + G[4]^2 - 1)) : push!(us, G[3])
+    end
     usols = try _solve_generic(Relation[Relation(:eq, e, ZERO) for e in nes], us) catch err
         err isa ArgumentError || rethrow(); return nothing
     end
@@ -992,11 +1098,32 @@ function _solve_exp_generators(eqs::Vector{<:Relation}, vars::Vector{Sym})
     out = Dict{Sym,Sym}[]
     for d in usols
         choices = Vector{Sym}[]
+        back = Pair{Sym,Sym}[]                    # free generators: u => g(v)
         good = true
         for v in vars
-            g, u = gens[v]
+            haskey(gens, v) || (push!(choices, Sym[get(d, v, v)]); continue)
+            G = gens[v]
+            if G[1] === :trig
+                _, A, s, c = G
+                ws, wc = get(d, s, s), get(d, c, c)
+                if _eq(ws, s) || _eq(wc, c)
+                    # c free and s = ±√(1 - c²) (the level's polynomial s² + c² - 1): v free,
+                    # unless another value is in terms of them
+                    (_eq(ws, s) && _eq(wc, c)) || iszero(simplify(ws^2 + wc^2 - 1)) || return nothing
+                    any(((k, w),) -> !_eq(k, s) && !_eq(k, c) && (has(w, s) || has(w, c)), d) && return nothing
+                    push!(choices, Sym[v]); continue
+                end
+                rs = try _solve_generic(sin(A) ~ ws, v) catch err; err isa ArgumentError || rethrow(); return nothing end
+                rs isa AbstractVector || return nothing
+                push!(choices, Sym[r for r in rs if _same_value(subs(cos(A), v => r), wc)])
+                continue
+            end
+            g, u = G[2], G[3]
             w = get(d, u, u)
-            (_eq(w, u) || iszero(w)) && (good = false; break)
+            if _eq(w, u)
+                push!(back, u => g); push!(choices, Sym[v]); continue
+            end
+            G[1] === :pow && iszero(w) && (good = false; break)
             rs = try _solve_generic(g ~ w, v) catch err; err isa ArgumentError || rethrow(); Sym[] end
             rs isa AbstractVector || (good = false; break)
             push!(choices, rs)
@@ -1009,9 +1136,10 @@ function _solve_exp_generators(eqs::Vector{<:Relation}, vars::Vector{Sym})
             combos = [vcat(p, Sym[r]) for p in combos for r in c]
         end
         for combo in combos
-            push!(out, Dict{Sym,Sym}(v => r for (v, r) in zip(vars, combo)))
+            push!(out, Dict{Sym,Sym}(v => (isempty(back) ? r : subs(r, back...)) for (v, r) in zip(vars, combo)))
         end
     end
-    out
+    _uniquesols(out)
 end
+
 
