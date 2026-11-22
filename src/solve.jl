@@ -560,14 +560,19 @@ const _WEIERSTRASS_FNS = (:sin, :cos, :tan, :cot, :sec, :csc)
 
 # the one argument of trigonometric functions, all of them among sin, cos, tan, cot, sec,
 # csc; nothing otherwise
+# (the multiples of the first argument u, when they are not of x: 2πt and 4πt are 1 and
+# 2 of u = 2πt; the zeros of 2cos(4πt) - 4cos(2πt) + 3, an atan's jumps; SymPy #13609)
 function _multiple_angle_form(n::Sym, bad::Vector{Sym}, x::Sym)
     all(b -> b.kind == FN && b.name in _WEIERSTRASS_FNS && length(b.args) == 1, bad) || return nothing
-    cs = SymNumber[]
-    for b in bad
-        c = cancel(b.args[1] / x)
-        (c.kind == NUMBER && isexact(c.num) && !iszero(c.num)) || return nothing
-        push!(cs, c.num)
-    end
+    ratios(u) = (cs = SymNumber[];
+        for b in bad
+            c = cancel(b.args[1] / u)
+            (c.kind == NUMBER && isexact(c.num) && !iszero(c.num)) || return nothing
+            push!(cs, c.num)
+        end; cs)
+    cs = ratios(x)
+    cs === nothing && (x = bad[1].args[1]; cs = ratios(x))
+    cs === nothing && return nothing
     L = reduce(lcm, (_denominator(c) for c in cs); init = big(1))
     ns = [BigInt(_numerator(c * SymNumber(L))) for c in cs]
     G = reduce(gcd, ns)

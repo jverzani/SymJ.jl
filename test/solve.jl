@@ -173,6 +173,7 @@
     @test solve(tan(x) + cot(x) ~ 2, x) == [PI / 4, 5PI / 4]
     @test solve(sin(2x) + cos(2x) ~ 1, x) == [0, PI / 4]
     @test solve(sin(x) + cos(2x) ~ 1, x) == [0, PI / 6, 5PI / 6, PI]    # multiple angles
+    @test solve(2cos(4PI * x) - 4cos(2PI * x) + 3 ~ 0, x) == [Sym(1) // 6, Sym(5) // 6]   # of 2πx
     # Lambert W: (αx + β) e^(γx + δ) = K, both real branches when there are two
     @test solve(x * exp(x) ~ 1, x) == [lambertw(Sym(1))] && solve(x ~ exp(-x), x) == [lambertw(Sym(1))]
     @test Set(solve(x * exp(x) ~ -1 // 5, x)) == Set([lambertw(Sym(-1 // 5)), lambertw(Sym(-1 // 5), -1)])
