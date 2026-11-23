@@ -791,8 +791,12 @@ function _ev(ex::Sym, a, F, var)
         return _evpow(ex.args[1], ex.args[2], a, F, var)
     end
     # an unevaluated definite integral: by quadrature (in Float64)
+    # (behind an inference barrier: the integrand is evaluated with a new NamedTuple type
+    # for its variable, so inferring _ev through it, and through QuadGK, recursed on ever
+    # new types; the first simplify on Julia 1.12 took more than 5 minutes, and CI's
+    # precompile of the extensions more than an hour)
     if ex.name === :Integral && length(ex.args) == 4
-        r = _ev_integral(ex, a, var, F)
+        r = Base.inferencebarrier(_ev_integral)(ex, a, var, F)
         return F === nothing ? r : convert(r isa Real ? real(F) : Complex{real(F)}, r)
     end
     rule = get(FUNCTION_RULES, ex.name, nothing)
@@ -1214,7 +1218,8 @@ function _evalc(ex::Sym)::ComplexF64
     end
     ex.name === :piecewise && return _evalc_piecewise(ex)
     ex.name === :Derivative && length(ex.args) == 3 && return _evalc_derivative(ex)
-    ex.name === :Integral && length(ex.args) == 4 && return _ev_integral(ex, _Named(NamedTuple()), Ref{Union{Nothing,Sym}}(nothing))
+    ex.name === :Integral && length(ex.args) == 4 &&
+        return ComplexF64(Base.inferencebarrier(_ev_integral)(ex, _Named(NamedTuple()), Ref{Union{Nothing,Sym}}(nothing)))
     rule = get(FUNCTION_RULES, ex.name, nothing)
     (rule === nothing || rule.julia === nothing) && throw(ArgumentError("no numeric method for $(ex.name)"))
     # an exact integer argument stays an Int (an order, a kind: besselh(ν, 1, x))
