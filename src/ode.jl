@@ -13,7 +13,8 @@
 #   the normal form;
 # - first order, y' = f(x, y): separable, Bernoulli, exact (or with an integrating factor
 #   in x or in y alone), homogeneous (f a function of y/x), Riccati (made linear, or
-#   from a particular solution); else a Lie point symmetry (ξ, η), whose integrating
+#   from a particular solution), Abel (cubic in y, or of the second kind, with a constant
+#   invariant); else a Lie point symmetry (ξ, η), whose integrating
 #   factor 1/(η - f ξ) makes it exact, or whose canonical coordinates (r, s) make it
 #   ds/dr = F(r);
 # - autonomous, y'' = f(y, y'): p = y' as a function of y, then ∫ dy/p = x + C₂.
@@ -140,7 +141,10 @@ equation it is the Frobenius series, with a `log` term when the indicial roots a
 or an integer apart.
 
 Methods: first order linear, separable, Bernoulli, exact (with an integrating factor in
-`x` or `y` alone), homogeneous, Riccati, and else a Lie point symmetry (from
+`x` or `y` alone), homogeneous, Riccati, Abel (`y' = f₃y³ + f₂y² + f₁y + f₀`, or
+`(y + g) y' = f₂y² + f₁y + f₀` through `y + g = 1/u`, when the invariant `Φ` of the
+canonical form `dz/dξ = z³ + Φ` is constant: `y' = y³ + y + e^(3x)` is
+`∫ dz/(z³ + 1) = e^(2x)/2 + C1`, `z = e^(-x) y`), and else a Lie point symmetry (from
 [`SymJ.infinitesimals`](@ref); its integrating factor `1/(η - f ξ)`, or its canonical
 coordinates `r`, `s`, in which the equation is `ds/dr = F(r)`: `s - ∫ F dr = C1`, a
 definite `Integral` from a point when `∫ F` has no closed form; local, on one branch of
@@ -1410,7 +1414,7 @@ function _ode_first_order(P::_ODE, Cs)
     f = _ode_tidy(f)
     C = Cs[1]
     fallback = nothing             # a solution with an unevaluated integral, if no other
-    for m in (_ode_separable, _ode_bernoulli, _ode_exact, _ode_homogeneous, _ode_linear_arg, _ode_riccati, _ode_lie)
+    for m in (_ode_separable, _ode_bernoulli, _ode_exact, _ode_homogeneous, _ode_linear_arg, _ode_riccati, _ode_abel, _ode_lie)
         r = try m(P, f, a, C) catch err; err isa InterruptException && rethrow(); nothing end
         r === nothing && continue
         r = _ode_explicit(r, Y0, C)
@@ -2060,6 +2064,57 @@ function _lie_on_level(F::Sym, r::Sym, R::Sym, x::Sym, Y::Sym, branch)
         end
     end
     nothing
+end
+
+## Abel: y' = f₃ y³ + f₂ y² + f₁ y + f₀ (first kind), (y + g) y' = f₂ y² + f₁ y + f₀ (second)
+
+# The first kind in canonical form: y = E z - h (h = f₂/(3f₃), E = e^(∫p)) and ξ = ∫ f₃ E² dx
+# give dz/dξ = z³ + Φ; with the invariant Φ constant, separable: ∫ dz/(z³ + Φ) = ξ + C
+# (y' = y³ + y + e^(3x): z = e^(-x) y, ξ = e^(2x)/2, Φ = 1). The second kind through
+# y + g = 1/u, an equation of the first kind in u.
+function _ode_abel(P::_ODE, f::Sym, a::Sym, C::Sym)
+    Y, x = P.ys[1], P.x
+    n, d = numer_denom(_ode_tidy(f))
+    if has(d, Y)
+        # (y + g) y' = M(y), M quadratic: u = 1/(y + g)
+        d1 = _ode_tidy(diff(d, Y))
+        (has(d1, Y) || iszero(d1)) && return nothing
+        g = _ode_tidy(subs(d, Y => ZERO) / d1)
+        M = _ode_tidy(n / d1)
+        u = Sym(:_ode_abel_u)
+        # y' = -u'/u² - g': u' = -u² (M(1/u - g) u + g')
+        F = _ode_tidy(expand(-u^2 * (subs(M, Y => 1 / u - g) * u + diff(g, x))))
+        φ = _ode_abel1(F, x, u)
+        φ === nothing && return nothing
+        return (:implicit, _ode_tidy(subs(φ, u => 1 / (Y + g))))
+    end
+    φ = _ode_abel1(_ode_tidy(f), x, Y)
+    φ === nothing ? nothing : (:implicit, φ)
+end
+
+# φ(x, y) = C for y' = F, F a cubic in y (nothing otherwise, or Φ not constant)
+function _ode_abel1(F::Sym, x::Sym, Y::Sym)
+    e = expand(F)
+    c = [_ode_tidy(_ode_coeff(e, Y, k)) for k in 0:3]
+    any(q -> has(q, Y), c) && return nothing
+    iszero(c[4]) && return nothing
+    iszero(_ode_tidy(e - sum(c[k + 1] * Y^k for k in 0:3))) || return nothing
+    f0, f1, f2, f3 = c
+    # (a cubic with neither constant nor linear term in the shifted variable is Bernoulli,
+    # and separable cubics are done before)
+    h = _ode_tidy(f2 / (3 * f3))
+    p = _ode_tidy(f1 - f2^2 / (3 * f3))
+    q = _ode_tidy(f0 - f1 * f2 / (3 * f3) + 2 * f2^3 / (27 * f3^2) + diff(h, x))
+    E = _ode_tidy(exp(_integrate(p, x)))
+    _hasfn(E, :Integral) && return nothing
+    Φ = _ode_tidy(simplify(q / (f3 * E^3)))
+    has(Φ, x) && return nothing
+    ξ = _integrate(_ode_tidy(f3 * E^2), x)
+    _hasfn(ξ, :Integral) && return nothing
+    z = Sym(:_ode_abel_z)
+    G = _integrate(_ode_tidy(1 / (z^3 + Φ)), z)
+    _hasfn(G, :Integral) && return nothing
+    _ode_tidy(subs(G, z => (Y + h) / E) - ξ)
 end
 
 ## Riccati: y' = q₀ + q₁ y + q₂ y²

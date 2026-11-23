@@ -545,6 +545,19 @@ import PolyLog as PL
               expand(C2 * (x^6 - 36x^5 + 450x^4 - 2400x^3 + 5400x^2 - 4320x + 720))
         @test subs(D(y''(x) - 2x * y'(x) + 14y(x) ~ 0, y(x)).rhs, C1 => 0) == expand(C2 * (x^7 - 21x^5 / 2 + 105x^3 / 4 - 105x / 8))
         @test has(D((1 - x^2) * y''(x) - 2x * y'(x) + 42y(x) ~ 0, y(x)).rhs, log(x + 1))
+        # Abel equations with a constant invariant: dz/dξ = z³ + Φ, ∫ dz/(z³ + Φ) = ξ + C1
+        let r = D(y'(x) ~ y(x)^3 + y(x) + exp(3x), y(x))                       # z = e^(-x) y, ξ = e^(2x)/2
+            @test has(r.lhs, exp(2x))
+            @test has(r.lhs, atan(sqrt(Sym(3)) * (2y(x) / (3exp(x)) - Sym(1) // 3)))
+        end
+        @test has(D(x * y'(x) ~ x^2 * y(x)^3 + y(x) + x^5, y(x)).lhs, x^4)    # z = y/x, ξ = x⁴/4
+        # the second kind, (y + g) y' = M(y): u = 1/(y + g) of the first kind
+        # (compared by value: Julia 1.12 gives (2xy + 1)/(2(xy + 1)² e^(2x³/3)))
+        let r = D(y(x) * y'(x) ~ -(2x^2 + 1 / x) * y(x)^2 - 3x * y(x) - 1, y(x))
+            @test r.rhs == C1
+            @test iszero(simplify(r.lhs - (x * y(x) + Sym(1) // 2) / ((x * y(x) + 1)^2 * exp(2x^3 / 3))))
+        end
+        @test_throws ArgumentError D(y'(x) ~ y(x)^3 + x, y(x))                    # Φ not constant
         @test D(y'(x) ~ 1 / (1 + x^2), y(x)) == (y(x) ~ atan(x) + C1)
         @test D(y''(x) ~ sin(x), y(x)) == (y(x) ~ C1 * x + C2 - sin(x))
         @test D(y'(x) ~ (x^2 + y(x)^2) / (x * y(x)), y(x)) == (y(x) ~ sqrt((C1 + 2log(x)) * x^2))   # homogeneous
