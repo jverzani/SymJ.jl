@@ -552,8 +552,11 @@ import PolyLog as PL
         end
         @test has(D(x * y'(x) ~ x^2 * y(x)^3 + y(x) + x^5, y(x)).lhs, x^4)    # z = y/x, ξ = x⁴/4
         # the second kind, (y + g) y' = M(y): u = 1/(y + g) of the first kind
-        @test D(y(x) * y'(x) ~ -(2x^2 + 1 / x) * y(x)^2 - 3x * y(x) - 1, y(x)) ==
-              ((x * y(x) + Sym(1) // 2) / ((x * y(x) + 1)^2 * exp(2x^3 / 3)) ~ C1)
+        # (compared by value: Julia 1.12 gives (2xy + 1)/(2(xy + 1)² e^(2x³/3)))
+        let r = D(y(x) * y'(x) ~ -(2x^2 + 1 / x) * y(x)^2 - 3x * y(x) - 1, y(x))
+            @test r.rhs == C1
+            @test iszero(simplify(r.lhs - (x * y(x) + Sym(1) // 2) / ((x * y(x) + 1)^2 * exp(2x^3 / 3))))
+        end
         @test_throws ArgumentError D(y'(x) ~ y(x)^3 + x, y(x))                    # Φ not constant
         # Riccati in x(y): x′ = x² + y, Airy functions of -y
         @test SymJ._hasfn(D(y'(x) ~ 1 / (x^2 + y(x)), y(x)).lhs, :airyai)
