@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Solving equations — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=95945bb5">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=85fe3e78">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Solving equations — SymJ.jl">
   <meta property="og:title" content="Solving equations — SymJ.jl">
@@ -81,7 +81,7 @@
 <div class="md-docstring" id="CommonSolve.solve-Tuple{Relation, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>CommonSolve.solve</code> — <span class="md-docstring-sig">Tuple{Relation, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/ee69311ab4cbffbf331fa60c94792d5ee5ab80b1/src/solve.jl#L22-L126" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/e2d1bc055f70ae5fd086310bb9b3df407cffa91e/src/solve.jl#L22-L126" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -136,7 +136,7 @@ solve([2x + 4y ~ -3], [x, y]; assume = (x ∈ ℤ, y ∈ ℤ))      # [] (no int
 <div class="md-docstring" id="SymJ.fsolve">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.fsolve</code> — <span class="md-docstring-sig">Union{Tuple{Relation, Sym}, Tuple{Relation, Sym, Tuple{Any, Any}}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/ee69311ab4cbffbf331fa60c94792d5ee5ab80b1/src/fsolve.jl#L6-L34" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/e2d1bc055f70ae5fd086310bb9b3df407cffa91e/src/fsolve.jl#L6-L34" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -159,7 +159,7 @@ SymJ.fsolve(x^5 - x + 1 ~ 0, x; domain = ℂ)      # five roots</code></pre>
 <div class="md-docstring" id="SymJ.fsolve-2">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.fsolve</code> — <span class="md-docstring-sig">Union{Tuple{AbstractVector{&lt;:Relation}, AbstractVector}, Tuple{AbstractVector{&lt;:Relation}, AbstractVector, Any}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/ee69311ab4cbffbf331fa60c94792d5ee5ab80b1/src/fsolve.jl#L98-L124" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/e2d1bc055f70ae5fd086310bb9b3df407cffa91e/src/fsolve.jl#L98-L124" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -181,7 +181,7 @@ SymJ.fsolve([x^3 + y^3 ~ 1, x^2 + y ~ 3], [x, y])                      # all its
 <div class="md-docstring" id="SymJ.linear_eq_to_matrix-Tuple{Any, Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.linear_eq_to_matrix</code> — <span class="md-docstring-sig">Tuple{Any, Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/ee69311ab4cbffbf331fa60c94792d5ee5ab80b1/src/linsolve.jl#L533-L548" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/e2d1bc055f70ae5fd086310bb9b3df407cffa91e/src/linsolve.jl#L533-L548" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -200,7 +200,7 @@ A, b = SymJ.linear_eq_to_matrix([x + 2y ~ 3, a*x - y ~ 1], [x, y])
 <div class="md-docstring" id="SymJ.SymInterval">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymInterval</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/ee69311ab4cbffbf331fa60c94792d5ee5ab80b1/src/intervals.jl#L10-L15" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/e2d1bc055f70ae5fd086310bb9b3df407cffa91e/src/intervals.jl#L10-L15" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -213,7 +213,7 @@ A, b = SymJ.linear_eq_to_matrix([x + 2y ~ 3, a*x - y ~ 1], [x, y])
 <div class="md-docstring" id="SymJ.SymSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/ee69311ab4cbffbf331fa60c94792d5ee5ab80b1/src/intervals.jl#L23-L30" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/e2d1bc055f70ae5fd086310bb9b3df407cffa91e/src/intervals.jl#L23-L30" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -226,7 +226,7 @@ A, b = SymJ.linear_eq_to_matrix([x + 2y ~ 3, a*x - y ~ 1], [x, y])
 <div class="md-docstring" id="SymJ.CylindricalSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.CylindricalSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/ee69311ab4cbffbf331fa60c94792d5ee5ab80b1/src/ineqsystems.jl#L13-L25" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/e2d1bc055f70ae5fd086310bb9b3df407cffa91e/src/ineqsystems.jl#L13-L25" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -237,10 +237,73 @@ A, b = SymJ.linear_eq_to_matrix([x + 2y ~ 3, a*x - y ~ 1], [x, y])
 <p>Calling substitutes into the constraints it was solved from: <code class="md-code-inline">C(x =&gt; 1, y =&gt; 4)</code> is a <code class="md-code-inline">Bool</code> once every unknown has a value; with some unknowns given, <code class="md-code-inline">C(y =&gt; 1)</code> is the solution set in the others (a <code class="md-code-inline">SymSet</code> for one, a <code class="md-code-inline">CylindricalSet</code> for several). <code class="md-code-inline">pt in C</code> for a point given as a <code class="md-code-inline">Dict</code> is the same test.</p>
 </div>
 </div>
+<div class="md-docstring" id="SymJ.ConditionSet">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.ConditionSet</code></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/e2d1bc055f70ae5fd086310bb9b3df407cffa91e/src/solveset.jl#L19-L24" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.ConditionSet</code></pre>
+</div>
+<p>The solutions of <code class="md-code-inline">eq</code> in <code class="md-code-inline">domain</code> that <a href="../../reference/solving/#SymJ.solveset-Tuple{Relation, Sym}"><code class="md-code-inline">SymJ.solveset</code></a> did not find in closed form: <code class="md-code-inline">{x ∈ domain : eq}</code>. Not exported.</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.ImageSet">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.ImageSet</code></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/e2d1bc055f70ae5fd086310bb9b3df407cffa91e/src/solveset.jl#L6-L12" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.ImageSet</code></pre>
+</div>
+<p>A family of solutions <code class="md-code-inline">{expr : n ∈ ℤ}</code> from <a href="../../reference/solving/#SymJ.solveset-Tuple{Relation, Sym}"><code class="md-code-inline">SymJ.solveset</code></a>: <code class="md-code-inline">expr</code> in the bound integer variables <code class="md-code-inline">vars</code>, which satisfy the relations <code class="md-code-inline">conds</code> (<code class="md-code-inline">n ≥ 0</code>; none: all of ℤ). Not exported.</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.SolutionSet">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.SolutionSet</code></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/e2d1bc055f70ae5fd086310bb9b3df407cffa91e/src/solveset.jl#L31-L41" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.SolutionSet</code></pre>
+</div>
+<p>The set <a href="../../reference/solving/#SymJ.solveset-Tuple{Relation, Sym}"><code class="md-code-inline">SymJ.solveset</code></a> gives: the union of finitely many <code class="md-code-inline">points</code>, of the families in <code class="md-code-inline">families</code> (<a href="../../reference/solving/#SymJ.ImageSet"><code class="md-code-inline">SymJ.ImageSet</code></a>), and of the unsolved parts in <code class="md-code-inline">unsolved</code> (<a href="../../reference/solving/#SymJ.ConditionSet"><code class="md-code-inline">SymJ.ConditionSet</code></a>). Supports <code class="md-code-inline">in</code> (for a family not linear in its variable, the variable solved for, or Lambert&#39;s branch found numerically: <code class="md-code-inline">lambertw(1, -1) in {lambertw(1, n) | n ∈ ℤ}</code>), <code class="md-code-inline">isempty</code>, <code class="md-code-inline">∩</code> with an interval set (a family linear in its variable cut to its finitely many members), and <code class="md-code-inline">collect</code> when it is finite. Not exported.</p>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.solveset-Tuple{Relation, Sym}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.solveset</code> — <span class="md-docstring-sig">Tuple{Relation, Sym}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/e2d1bc055f70ae5fd086310bb9b3df407cffa91e/src/solveset.jl#L53-L83" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.solveset(eq, x; domain = ℝ)</code></pre>
+</div>
+<p>Every solution of the equation <code class="md-code-inline">eq</code> in <code class="md-code-inline">x</code>, as a set (<a href="../../reference/solving/#SymJ.SolutionSet"><code class="md-code-inline">SymJ.SolutionSet</code></a>): the real ones, or with <code class="md-code-inline">domain = ℂ</code> the complex ones. Where <code class="md-code-inline">solve</code> gives one period or a principal branch, <code class="md-code-inline">solveset</code> gives the families: <code class="md-code-inline">sin(x) ~ 1//2</code> has <code class="md-code-inline">{π/6 + 2πn : n ∈ ℤ} ∪ {5π/6 + 2πn : n ∈ ℤ}</code>, and over ℂ, <code class="md-code-inline">exp(x) ~ 2</code> has <code class="md-code-inline">{log(2) + 2πin : n ∈ ℤ}</code>. Nested functions are inverted in turn: <code class="md-code-inline">sin(sin(x)) ~ 0</code> is <code class="md-code-inline">sin(x) ∈ {πm}</code>, which over ℝ is <code class="md-code-inline">sin(x) = 0</code>. An equation it cannot solve gives a <a href="../../reference/solving/#SymJ.ConditionSet"><code class="md-code-inline">SymJ.ConditionSet</code></a> rather than an error, and an inequality gives <code class="md-code-inline">solve</code>&#39;s set. The bound variables are named <code class="md-code-inline">n</code>, <code class="md-code-inline">m</code>, <code class="md-code-inline">k</code>, … (skipping names in <code class="md-code-inline">eq</code>). Over ℝ, parameters are taken real and the answer comes by cases on them: <code class="md-code-inline">sin(x) ~ a</code> has the families for <code class="md-code-inline">-1 ≤ a ≤ 1</code> and <code class="md-code-inline">∅</code> otherwise. Several trigonometric functions of one angle with a parameter go through one of them (<code class="md-code-inline">tan(x) + cot(x) ~ a</code> in <code class="md-code-inline">tan(x)</code>) or <code class="md-code-inline">tan(x/2)</code>, the angle <code class="md-code-inline">π</code> decided apart (<code class="md-code-inline">sin(x) + cos(x) ~ a</code>: <code class="md-code-inline">-√2 ≤ a ≤ √2, a ≠ -1</code>, and <code class="md-code-inline">a = -1</code>). An equation through Lambert&#39;s W has every branch: over ℂ <code class="md-code-inline">{W_k(a) : k ∈ ℤ}</code> (shown <code class="md-code-inline">lambertw(a, n)</code>), over ℝ the real branches <code class="md-code-inline">W₀</code> and, on <code class="md-code-inline">[-1/e, 0)</code>, <code class="md-code-inline">W₋₁</code>. With Latexify loaded, the sets display as LaTeX. Not exported.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.solveset(sin(x) ~ 1//2, x)              # {π/6 + 2πn} ∪ {5π/6 + 2πn}
+SymJ.solveset(exp(x) ~ 2, x)                 # {log(2)}
+SymJ.solveset(exp(x) ~ 2, x; domain = ℂ)     # {log(2) + 2πin}
+SymJ.solveset(sin(x^2) ~ 0, x)               # {-√(πn), √(πn) : n ≥ 0}
+S = SymJ.solveset(cos(x) ~ 0, x)
+S ∩ solve([x ≧ 0, x ≦ 2PI], [x])             # {π/2, 3π/2}
+SymJ.solveset(sin(x) ~ a, x)                 # a &lt; -1 =&gt; ∅, -1 ≤ a ≤ 1 =&gt; {asin(a) + 2πn} ∪ …, a &gt; 1 =&gt; ∅
+SymJ.solveset(x*exp(x) ~ 1, x; domain = ℂ)   # {lambertw(1, n) | n ∈ ℤ}</code></pre>
+</div>
+</div>
+</div>
 <div class="md-docstring" id="SymJ.ChebZeros.cheb_all_zeros-Tuple{Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.ChebZeros.cheb_all_zeros</code> — <span class="md-docstring-sig">Tuple{Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/ee69311ab4cbffbf331fa60c94792d5ee5ab80b1/src/chebzeros.jl#L500-L526" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/e2d1bc055f70ae5fd086310bb9b3df407cffa91e/src/chebzeros.jl#L500-L526" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -265,7 +328,7 @@ cheb_all_zeros(f; kwargs...)        # whole real line</code></pre>
 <div class="md-docstring" id="SymJ.ChebZeros.cheb_zeros-Tuple{Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.ChebZeros.cheb_zeros</code> — <span class="md-docstring-sig">Tuple{Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/ee69311ab4cbffbf331fa60c94792d5ee5ab80b1/src/chebzeros.jl#L299-L335" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/e2d1bc055f70ae5fd086310bb9b3df407cffa91e/src/chebzeros.jl#L299-L335" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -322,6 +385,6 @@ cheb_zeros(f; kwargs...)             # whole real line, same as cheb_zeros(f, -I
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=95945bb5"></script>
+  <script src="../../assets/materialdocs.js?v=85fe3e78"></script>
 </body>
 </html>

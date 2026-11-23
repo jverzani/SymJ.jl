@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Solving — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=522ea62a">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=638706db">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Solving — SymJ.jl">
   <meta property="og:title" content="Solving — SymJ.jl">
@@ -281,6 +281,65 @@ solve(x^n ~ 1, x; assume = (n in Integers, n ≫ 0))</code></pre>
 \[\begin{cases} \emptyset &amp; a &lt; 0 \\ \left\{ 0 \right\} &amp; a = 0 \\ \left[  - \sqrt{a}, \sqrt{a} \right] &amp; a &gt; 0 \end{cases}\]
 </div>
 </div>
+<h3 id="All-solutions" class="md-heading">All solutions<a href="#All-solutions" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<p><code class="md-code-inline">solve</code> gives one period of a periodic equation and principal values of inverses. <code class="md-code-inline">SymJ.solveset</code> gives every solution, as a set: families over the integers <code class="md-code-inline">n</code>, the real solutions by default, the complex ones with <code class="md-code-inline">domain = ℂ</code>:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.solveset(sin(x) ~ 1//2, x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left\{ 2 \cdot n \cdot \pi + \frac{\pi}{6} \;\middle|\; n \in \mathbb{Z} \right\} \cup \left\{ 2 \cdot n \cdot \pi + \frac{5 \cdot \pi}{6} \;\middle|\; n \in \mathbb{Z} \right\}\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.solveset(exp(x) ~ 2, x; domain = ℂ)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left\{ 2 \cdot i \cdot n \cdot \pi + \log\left( 2 \right) \;\middle|\; n \in \mathbb{Z} \right\}\]
+</div>
+</div>
+<p>Nested functions are inverted in turn, and a family can be cut to an interval:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.solveset(sin(x^2) ~ 0, x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left\{  - \sqrt{n \cdot \pi} \;\middle|\; n \in \mathbb{Z}, \; n \geq 0 \right\} \cup \left\{ \sqrt{n \cdot \pi} \;\middle|\; n \in \mathbb{Z}, \; n \geq 0 \right\}\]
+</div>
+</div>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.solveset(cos(x) ~ 0, x) ∩ solve([x ≧ 0, x ≦ 2π], [x])</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left\{ \frac{\pi}{2}, \frac{3 \cdot \pi}{2} \right\}\]
+</div>
+</div>
+<p>Over ℝ, parameters are real, and the answer comes by cases on them:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.solveset(sin(x) ~ a, x)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\begin{cases} \emptyset &amp; a &lt; -1 \\ \left\{ 2 \cdot n \cdot \pi + \arcsin\left( a \right) \;\middle|\; n \in \mathbb{Z} \right\} \cup \left\{ 2 \cdot n \cdot \pi - \arcsin\left( a \right) + \pi \;\middle|\; n \in \mathbb{Z} \right\} &amp; -1 \leq a \leq 1 \\ \emptyset &amp; a &gt; 1 \end{cases}\]
+</div>
+</div>
+<p>Equations through Lambert&#39;s W have all its branches over ℂ:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.solveset(x * exp(x) ~ 1, x; domain = ℂ)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left\{ \mathrm{lambertw}\left( 1, n \right) \;\middle|\; n \in \mathbb{Z} \right\}\]
+</div>
+</div>
 <h3 id="More-on-assumptions" class="md-heading">More on assumptions<a href="#More-on-assumptions" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <p>Symbols are complex numbers unless a fact says otherwise. Facts are relations, such as <code class="md-code-inline">x &gt; 0</code>, or membership in one of <code class="md-code-inline">Integers ⊂ Rationals ⊂ Reals ⊂ Complexes</code> (also written <code class="md-code-inline">ℤ ⊂ ℚ ⊂ ℝ ⊂ ℂ</code>), such as <code class="md-code-inline">n in Integers</code>. Facts are passed to the <code class="md-code-inline">assume</code> keyword, and only the solutions they allow are kept.</p>
 <p>The <code class="md-code-inline">@assume</code> macro lets facts be written with Julia&#39;s familiar Boolean operators, including <code class="md-code-inline">&amp;&amp;</code>, <code class="md-code-inline">||</code>, <code class="md-code-inline">!</code> and chained comparisons.</p>
@@ -487,6 +546,7 @@ solve(eqns, vars)</code></pre>
           <a class="md-toc-link md-toc-h2" href="#Solving-equations">Solving equations</a>
             <a class="md-toc-link md-toc-h3" href="#Generic-values">Generic values</a>
             <a class="md-toc-link md-toc-h3" href="#Inequalities">Inequalities</a>
+            <a class="md-toc-link md-toc-h3" href="#All-solutions">All solutions</a>
             <a class="md-toc-link md-toc-h3" href="#More-on-assumptions">More on assumptions</a>
             <a class="md-toc-link md-toc-h3" href="#External-zero-finding">External zero finding</a>
             <a class="md-toc-link md-toc-h3" href="#Systems">Systems</a>
@@ -507,6 +567,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=522ea62a"></script>
+  <script src="../../assets/materialdocs.js?v=638706db"></script>
 </body>
 </html>
