@@ -491,6 +491,16 @@ import PolyLog as PL
         @test D(y'(x) ~ (x + y(x))^2, y(x)).rhs == tan(C1 + x) - x                   # SymPy #21503
         @test D(y'(x) ~ (2x + y(x) + 1)^2, y(x)).rhs == sqrt(Sym(2)) * tan(sqrt(Sym(2)) * (C1 + x)) - 2x - 1
         @test string(D(y'(x) ~ sin(x + y(x)), y(x)).rhs) == "-x + 2*atan((-C1 - x - 1)/(C1 + x - 1))"
+        # Lie symmetries: with no other method, the integrating factor 1/(η - f ξ) of a
+        # symmetry (rotations; linear or Bernoulli in x(y))
+        let rot = y'(x) ~ (y(x) - x * (x^2 + y(x)^2)) / (x + y(x) * (x^2 + y(x)^2))
+            @test D(rot, y(x)) == (x^2 / 2 + y(x)^2 / 2 - atan(x / y(x)) ~ C1)
+        end
+        @test D(y'(x) ~ 1 / (exp(y(x)) - x), y(x)) == (x * exp(y(x)) - exp(2y(x)) / 2 ~ C1)
+        @test D(y'(x) ~ y(x) / (x + y(x)^2), y(x)) == (x / y(x) - y(x) ~ C1)
+        @test D(y'(x) ~ (y(x)^3 + x^2 * y(x) - x - y(x)) / (x * y(x)^2 + x^3 + y(x) - x), y(x)) isa Relation
+        @test D(y'(x) ~ 1 / (x * y(x) + x^3 * y(x)^3), y(x)) isa Relation       # Bernoulli in x(y)
+        @test D(y'(x) ~ x / (x^2 + y(x)), y(x)) isa Relation
         # an unknown forcing: its integral from the conditions' point (SymPy #27479)
         let t = Sym(:t), P = SymFunction(:P), S = SymFunction(:S)
             r = D(diff(S(t), t) ~ P(t) - S(t), S(t), S(0) => 10)
