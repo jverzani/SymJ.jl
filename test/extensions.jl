@@ -518,10 +518,14 @@ import PolyLog as PL
             @test D(fs, y(x)) == ((2x * atan(Y / x) - 2Y + 1) * x^2 ~ C1)
             @test string(D(y'(x) ~ x + exp(Y), y(x)).rhs) == "x^2/2 - log(C1 - sqrt(2)*erfi(sqrt(2)*x/2)*sqrt(π)/2)"
             @test D(y'(x) ~ 1 / (Y + exp(x)), y(x)) isa Relation
-            # no elementary solution (∫ dr/(r² - sin r) in canonical coordinates): no method,
-            # and quickly
+            # no elementary solution: canonical coordinates, s - ∫ F(r) dr (ξ = η = y²:
+            # r = y - x, s = -1/y; rotations: r = (x² + y²)/2, s = -asin(x/√(x² + y²)), y > 0)
+            @test string(D(y'(x) ~ Y^2 / (sin(Y - x) - x^2 + 2x * Y), y(x))) == "-Integral(1/(r^2 - sin(r)), (r, 1, -x + y(x))) - 1/y(x) ~ C1"
+            @test string(D(y'(x) ~ -tan(sqrt(x^2 + Y^2) + atan(x / Y)), y(x))) ==
+                  "-Integral(cot(sqrt(2)*sqrt(r))/(2*r), (r, 1, x^2/2 + y(x)^2/2)) - asin(x/sqrt(x^2 + y(x)^2)) ~ C1"
+            # no symmetry found: no method, and quickly
             t = time()
-            @test_throws ArgumentError D(y'(x) ~ Y^2 / (sin(Y - x) - x^2 + 2x * Y), y(x))
+            @test_throws ArgumentError D(y'(x) ~ x^3 + Y^4 + sin(x * Y), y(x))
             @test time() - t < 60
         end
         # an unknown forcing: its integral from the conditions' point (SymPy #27479)

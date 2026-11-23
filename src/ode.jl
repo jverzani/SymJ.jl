@@ -11,7 +11,8 @@
 # - first order, y' = f(x, y): separable, Bernoulli, exact (or with an integrating factor
 #   in x or in y alone), homogeneous (f a function of y/x), Riccati (made linear, or
 #   from a particular solution); else a Lie point symmetry (ξ, η), whose integrating
-#   factor 1/(η - f ξ) makes it exact;
+#   factor 1/(η - f ξ) makes it exact, or whose canonical coordinates (r, s) make it
+#   ds/dr = F(r);
 # - autonomous, y'' = f(y, y'): p = y' as a function of y, then ∫ dy/p = x + C₂.
 #
 # With `series = n`, a series solution instead ("series solutions", at the end); with
@@ -137,7 +138,10 @@ or an integer apart.
 
 Methods: first order linear, separable, Bernoulli, exact (with an integrating factor in
 `x` or `y` alone), homogeneous, Riccati, and else a Lie point symmetry (from
-[`SymJ.infinitesimals`](@ref); its integrating factor `1/(η - f ξ)`); linear with constant coefficients, of any order
+[`SymJ.infinitesimals`](@ref); its integrating factor `1/(η - f ξ)`, or its canonical
+coordinates `r`, `s`, in which the equation is `ds/dr = F(r)`: `s - ∫ F dr = C1`, a
+definite `Integral` from a point when `∫ F` has no closed form; local, on one branch of
+`r = R`: `y' = y²/(sin(y - x) - x² + 2xy)` is `-1/y - ∫₁^(y-x) dr/(r² - sin r) = C1`); linear with constant coefficients, of any order
 (undetermined coefficients, else variation of parameters, for the right side);
 Cauchy–Euler; Bessel's equation `x²y'' + xy' + (α²x² - ν²)y = 0` (`C1 besselj(ν, αx) +
 C2 bessely(ν, αx)`) and the second-order homogeneous equations that reduce to it or to
@@ -1418,7 +1422,8 @@ the determining equation, the trivial ones (`η = f ξ`) left out:
 
 With `heuristic`, that one alone. A vector of pairs, in `x` and `y(x)`;
 empty when none is found. [`SymJ.dsolve`](@ref) uses one when its other first-order
-methods fail: `1/(η - f ξ)` is an integrating factor.
+methods fail: `1/(η - f ξ)` is an integrating factor, else canonical coordinates `r`, `s`
+(`ξ r_x + η r_y = 0`, `ξ s_x + η s_y = 1`) make the equation `ds/dr = F(r)`.
 
 Not exported.
 
@@ -1759,19 +1764,132 @@ end
 # a symmetry (ξ, η) gives the integrating factor μ = 1/(η - f ξ) of dy - f dx: φ = ∫ M dx +
 # h(y) with M = -f μ, N = μ (y' = (y³ + x²y - x - y)/(xy² + x³ + y - x), rotations ξ = -y,
 # η = x: φ = atan(y/x) - (x² + y²)/2 … a constant)
+#
+# Else canonical coordinates (r, s) of the symmetry, where it is a translation of s: the
+# equation is ds/dr = F(r), s - ∫ F dr = C, a definite integral from a point r₀ when ∫ F
+# has no closed form (y' = y²/(sin(y - x) - x² + 2xy), ξ = η = y²: r = y - x, s = -1/y,
+# -1/y - ∫ dr/(r² - sin r) = C). Elementary solutions first, from any symmetry.
 function _ode_lie(P::_ODE, f::Sym, a::Sym, C::Sym)
     Y0, x = P.ys[1], P.x
+    fallback = nothing
     for (_, gen) in _lie_generators(f, x, Y0)
         for (ξ, η) in gen()
             # (μ is an integrating factor of any symmetry the determining equation holds for;
             # a large integrand is not tried: integrating it can take minutes)
             μ = _ode_tidy(1 / (η - f * ξ))
             M, N = _ode_tidy(-f * μ), μ
-            _nodes(M) > 300 && continue
-            I = _integrate(M, x)
-            hp = _ode_tidy(simplify(N - diff(I, Y0)))
-            has(hp, x) && continue
-            return (:implicit, _ode_tidy(I + _integrate(hp, Y0)))
+            if _nodes(M) <= 300
+                I = _integrate(M, x)
+                hp = _ode_tidy(simplify(N - diff(I, Y0)))
+                has(hp, x) || return (:implicit, _ode_tidy(I + _integrate(hp, Y0)))
+            end
+            r = try _lie_canonical_solution(P, f, ξ, η) catch err; err isa InterruptException && rethrow(); nothing end
+            r === nothing && continue
+            _hasfn(r[2], :Integral) || return r
+            fallback === nothing && (fallback = r)
+        end
+    end
+    fallback
+end
+
+# s - ∫ F(r) dr with (r, s) canonical coordinates of the symmetry (ξ, η), or nothing:
+# ds/dr = (s_x + f s_y)/(r_x + f r_y) is a function of r alone
+function _lie_canonical_solution(P::_ODE, f::Sym, ξ::Sym, η::Sym)
+    Y, x = P.ys[1], P.x
+    R = Sym(:_lie_R)
+    rs = _lie_canonical(P, ξ, η, R)
+    rs === nothing && return nothing
+    r, s, branch = rs
+    F = _ode_tidy((diff(s, x) + f * diff(s, Y)) / (diff(r, x) + f * diff(r, Y)))
+    _nodes(F) > 300 && return nothing
+    Fr = _lie_on_level(F, r, R, x, Y, branch)
+    Fr === nothing && return nothing
+    G = _integrate(Fr, R)
+    _hasfn(G, :Integral) || return (:implicit, _ode_tidy(s - subs(G, R => r)))
+    # (no antiderivative: ∫ from a point r₀ where F is finite, the variable named r)
+    u = Sym(:r)
+    any(z -> _eq(z, u), free_symbols(P.F)) && (u = Sym(:_ode_r))
+    for r0 in (ZERO, ONE, Sym(2), -ONE)
+        v = try _evalc(subs(Fr, R => r0)) catch; continue end
+        (v isa Number && isfinite(v)) || continue
+        return (:implicit, s - _mkfn_node(:Integral, Sym[subs(Fr, R => u), u, r0, r]))
+    end
+    nothing
+end
+
+# canonical coordinates (r, s, branch) of the symmetry (ξ, η), ξ r_x + η r_y = 0 and
+# ξ s_x + η s_y = 1, or nothing: r a first integral of ξ y' = η by the elementary
+# methods, s = ∫ dx/ξ on the level curve r = R (y solved for), or ∫ dy/η (x solved for);
+# branch the solution y = y(x, R) (or x = x(y, R)) used, nothing when r is x or y
+function _lie_canonical(P::_ODE, ξ::Sym, η::Sym, R::Sym)
+    Y, Y1, x = P.ys[1], P.ys[2], P.x
+    if iszero(ξ) || iszero(η)
+        r, w, v = iszero(ξ) ? (x, η, Y) : (Y, ξ, x)
+        s = _integrate(_ode_tidy(1 / w), v)
+        return _hasfn(s, :Integral) ? nothing : (r, _ode_tidy(s), nothing)
+    end
+    C = Sym(:_lie_C)
+    Q = _ODE(ξ * Y1 - η, P.ys, x, P.yx, 1)
+    g = _ode_tidy(η / ξ)
+    r = nothing
+    for m in (_ode_separable, _ode_bernoulli, _ode_homogeneous, _ode_exact)
+        q = try m(Q, g, ξ, C) catch err; err isa InterruptException && rethrow(); nothing end
+        q === nothing && continue
+        φ = q[2]
+        if q[1] === :explicit
+            cs = try _solve_generic(Y ~ φ, C) catch; Sym[] end
+            (cs isa AbstractVector && !(cs isa Cases) && length(cs) == 1) || continue
+            φ = cs[1]
+        end
+        (_hasfn(φ, :Integral) || !has(φ, Y) && !has(φ, x)) && continue
+        r = _ode_tidy(φ)
+        break
+    end
+    r === nothing && return nothing
+    for (v, w, o) in ((Y, ξ, x), (x, η, Y))
+        has(r, v) || continue
+        vs = try _solve_generic(r ~ R, v) catch err; err isa InterruptException && rethrow(); Sym[] end
+        (vs isa AbstractVector && !(vs isa Cases)) || continue
+        for vr in vs
+            has(vr, v) && continue
+            h = _ode_tidy(1 / subs(w, v => vr))
+            _nodes(h) > 200 && continue
+            s = _integrate(h, o)
+            _hasfn(s, :Integral) && continue
+            s = _ode_tidy(subs(s, R => r))
+            z = _ode_tidy(ξ * diff(s, x) + η * diff(s, Y) - 1)
+            (iszero(z) || _ode_numzero(z, free_symbols(z)) === true) && return (r, s, v => vr)
+        end
+    end
+    nothing
+end
+
+# F(x, y), a function of r(x, y) alone, as a function of R: on the level curve r = R
+# (y, or x, solved for), at a point of the other variable, checked at another. The branch
+# s came from first (rotations, s = -asin(x/√(x² + y²)) from y = √(2R - x²): on the
+# other branch, y < 0, F has the opposite sign)
+function _lie_on_level(F::Sym, r::Sym, R::Sym, x::Sym, Y::Sym, branch)
+    v, o = has(r, Y) ? (Y, x) : (x, Y)
+    vs = if _eq(r, v)
+        [R]
+    elseif branch !== nothing
+        v, o = branch[1], _eq(branch[1], Y) ? x : Y
+        [branch[2]]
+    else
+        q = try _solve_generic(r ~ R, v) catch err; err isa InterruptException && rethrow(); Sym[] end
+        (q isa AbstractVector && !(q isa Cases)) ? q : Sym[]
+    end
+    for vr in vs
+        has(vr, v) && continue
+        Fv = _ode_tidy(subs(F, v => vr))
+        has(Fv, o) || return Fv
+        for o0 in (ZERO, ONE, Sym(2))
+            Fval = try _ode_tidy(subs(Fv, o => o0)) catch err; err isa InterruptException && rethrow(); continue end
+            val = try _evalc(subs(Fval, R => Sym(3 // 2))) catch; continue end
+            (val isa Number && isfinite(val)) || continue
+            o1 = o0 + Sym(3 // 7)
+            z = Fval - subs(Fv, o => o1)
+            _ode_numzero(z, Sym[R]) === true && return Fval
         end
     end
     nothing
