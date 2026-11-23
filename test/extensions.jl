@@ -561,8 +561,10 @@ import PolyLog as PL
         # Riccati in x(y): x′ = x² + y, Airy functions of -y
         @test SymJ._hasfn(D(y'(x) ~ 1 / (x^2 + y(x)), y(x)).lhs, :airyai)
         # a scaling symmetry, f(λx, λᵏy) = λ^(k-1) f: separable in u = y/xᵏ
-        @test D(y'(x) ~ (sin(x^2 * y(x)) - 2x^2 * y(x)) / x^3, y(x)) ==
-              (log(2 - 2cos(x^2 * y(x))) / 2 - log(2cos(x^2 * y(x)) + 2) / 2 - log(x) ~ C1)    # k = -2
+        let r = D(y'(x) ~ (sin(x^2 * y(x)) - 2x^2 * y(x)) / x^3, y(x))          # k = -2
+            @test r.rhs == C1
+            @test !has(simplify(r.lhs - (log(2 - 2cos(x^2 * y(x))) / 2 - log(2cos(x^2 * y(x)) + 2) / 2 - log(x))), x)   # up to a constant
+        end
         let r = D(y'(x) ~ y(x)^4 + x^(-Sym(4) // 3), y(x)).lhs                   # Chini, k = -1/3
             @test SymJ._hasfn(r, :Integral)
             @test has(r, x^(Sym(1) // 3) * y(x))
