@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Differential equations — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=f1dd0277">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=706d16b7">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Differential equations — SymJ.jl">
   <meta property="og:title" content="Differential equations — SymJ.jl">
@@ -77,10 +77,24 @@
     <main class="md-content">
       <article class="md-article">
 <h1 id="Differential-equations" class="md-heading">Differential equations<a href="#Differential-equations" class="md-heading-anchor" aria-label="Link to this section">#</a></h1>
+<div class="md-docstring" id="SymJ.ParametricSolution">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.ParametricSolution</code></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/aa760f779169abd77993b486e02c6dee9567940f/src/ode.jl#L993-L1004" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.ParametricSolution</code></pre>
+</div>
+<p>A solution of a first-order equation in a parameter <code class="md-code-inline">p</code>, the slope <code class="md-code-inline">y′</code> along the curve: <code class="md-code-inline">x = X(p)</code>, <code class="md-code-inline">y = Y(p)</code>. <a href="../../reference/ode/#SymJ.dsolve-Tuple{Relation, Sym, Vararg{Pair}}"><code class="md-code-inline">SymJ.dsolve</code></a> gives one when <code class="md-code-inline">p</code> cannot be eliminated: <code class="md-code-inline">y = 2x y′ + y′²</code> is <code class="md-code-inline">{x = C1/p^2 - 2p/3, y(x) = 2C1/p - p^2/3; p}</code>. The fields are <code class="md-code-inline">x</code> and <code class="md-code-inline">y</code> (the expressions <code class="md-code-inline">X</code> and <code class="md-code-inline">Y</code>), <code class="md-code-inline">p</code>, and <code class="md-code-inline">vars</code> (<code class="md-code-inline">x</code> and <code class="md-code-inline">y(x)</code>). <code class="md-code-inline">subs</code> substitutes into both expressions; <code class="md-code-inline">lambdify(s)</code> is a function of <code class="md-code-inline">p</code> and then of the other free symbols (sorted), returning <code class="md-code-inline">(X, Y)</code>.</p>
+<p>Not exported.</p>
+</div>
+</div>
 <div class="md-docstring" id="SymJ.dsolve-Tuple{Relation, Sym, Vararg{Pair}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.dsolve</code> — <span class="md-docstring-sig">Tuple{Relation, Sym, Vararg{Pair}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/477a8ee3c382f44baaadc1a1a805bb2a493886f6/src/ode.jl#L90-L171" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/aa760f779169abd77993b486e02c6dee9567940f/src/ode.jl#L90-L180" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -88,6 +102,7 @@
 <pre><code class="language-julia">SymJ.dsolve(eq, y(x), ics...; assume = nothing)</code></pre>
 </div>
 <p>Solve the ordinary differential equation <code class="md-code-inline">eq</code> (an equation, written with <code class="md-code-inline">~</code>) for the function <code class="md-code-inline">y(x)</code>. Derivatives are written <code class="md-code-inline">diff(y(x), x)</code> or <code class="md-code-inline">y&#39;(x)</code>. The result is an equation: <code class="md-code-inline">y(x) ~ S</code> with constants <code class="md-code-inline">C1, C2, …</code> (one for each order), or an implicit solution <code class="md-code-inline">φ(x, y(x)) ~ C1</code> when <code class="md-code-inline">y</code> cannot be solved for. An implicit solution quadratic in <code class="md-code-inline">y</code> gives a vector, one equation for each branch: <code class="md-code-inline">y&#39;(x) ~ (1 - x)/y(x)</code> gives <code class="md-code-inline">y(x) ~ ±sqrt(C1 + 2x - x^2)</code>. An equation that factors, with <code class="md-code-inline">y</code> in two or more factors (<code class="md-code-inline">y&#39;(x) (y&#39;&#39;(x) + 1) ~ 0</code>), gives the solutions of each factor, a vector of equations.</p>
+<p>A first-order equation nonlinear in <code class="md-code-inline">y&#39;</code> gives a vector: the general solutions, then the singular solutions (from <code class="md-code-inline">F = 0</code> and <code class="md-code-inline">∂F/∂y&#39; = 0</code>, those that solve the equation and are no member of the general solution; <code class="md-code-inline">y&#39;^2 + y^2 ~ 1</code> gives <code class="md-code-inline">±sin(x + C1)</code> and <code class="md-code-inline">±1</code>). Clairaut&#39;s <code class="md-code-inline">y = x y&#39; + f(y&#39;)</code> gives the lines <code class="md-code-inline">C1 x + f(C1)</code> and the envelope; d&#39;Alembert&#39;s <code class="md-code-inline">y = x g(y&#39;) + f(y&#39;)</code> and <code class="md-code-inline">x = h(y&#39;)</code> are solved in the parameter <code class="md-code-inline">p = y&#39;</code>, a <a href="../../reference/ode/#SymJ.ParametricSolution"><code class="md-code-inline">SymJ.ParametricSolution</code></a> <code class="md-code-inline">{x = X(p), y(x) = Y(p); p}</code> unless <code class="md-code-inline">p</code> can be eliminated simply; otherwise each branch <code class="md-code-inline">y&#39; = rᵢ(x, y)</code> is solved. <code class="md-code-inline">y&#39; = f(ax + by + c)</code> is separable in <code class="md-code-inline">u = ax + by + c</code>. With <code class="md-code-inline">y(a) =&gt; b</code>, the solutions through the point.</p>
 <p>Initial conditions are pairs, one for each order: <code class="md-code-inline">y(0) =&gt; 1, y&#39;(0) =&gt; 0</code>. They fix the constants.</p>
 <p>With assumptions (<code class="md-code-inline">assume = (k ≫ 0, m ≫ 0)</code>, an <a href="../../reference/assumptions/#SymJ.Assumptions"><code class="md-code-inline">Assumptions</code></a>, or inside <a href="../../reference/assumptions/#SymJ.assuming-Tuple{Any, Vararg{Any}}"><code class="md-code-inline">assuming</code></a>), a characteristic root they show to be complex gives cosines and sines: <code class="md-code-inline">y&#39;&#39; = -(k/m) y</code> is <code class="md-code-inline">C1 cos(√(km) x/m) + C2 sin(√(km) x/m)</code> with <code class="md-code-inline">k, m &gt; 0</code>, and <code class="md-code-inline">C1 exp(-√(-km) x/m) + C2 exp(√(-km) x/m)</code> without.</p>
 <p>An autonomous equation <code class="md-code-inline">y&#39;&#39; = f(y, y&#39;)</code> whose <code class="md-code-inline">y&#39;</code> has several branches (<code class="md-code-inline">y&#39; = ±sqrt(…)</code>, as for <code class="md-code-inline">y&#39;&#39; = -sin(y)</code>) gives a vector of solutions, one for each branch; with initial conditions, the branch through them (<code class="md-code-inline">∫ᵥʸ dy/y&#39; = x - a</code>, a definite <code class="md-code-inline">Integral(f, (y, v, y(x)))</code>, when the integral has no closed form).</p>
@@ -141,6 +156,6 @@ SymJ.dsolve([u&#39;(t) ~ v(t), v&#39;(t) ~ -u(t)], [u(t), v(t)], u(0) =&gt; 1, v
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=f1dd0277"></script>
+  <script src="../../assets/materialdocs.js?v=706d16b7"></script>
 </body>
 </html>

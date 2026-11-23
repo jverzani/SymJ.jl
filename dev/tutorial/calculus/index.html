@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Calculus — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=2ecea939">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=a8a8e60c">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Calculus — SymJ.jl">
   <meta property="og:title" content="Calculus — SymJ.jl">
@@ -552,6 +552,17 @@ SymJ.dsolve(y&#39;(x) ~ (x + y(x)) / x, y(x))
 \[y\left( x \right) = \frac{-2 \cdot x^{3} + C1}{x^{4} + C1 \cdot x}\]
 </div>
 </div>
+<p>An equation nonlinear in <code class="md-code-inline">y&#39;</code> gives its general solutions and its singular solutions; Clairaut&#39;s equation gives a family of lines and their envelope, and d&#39;Alembert&#39;s equation a solution in the parameter <code class="md-code-inline">p = y&#39;</code>:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">(
+SymJ.dsolve(y(x) ~ x * y&#39;(x) + y&#39;(x)^2, y(x)),
+SymJ.dsolve(y(x) ~ 2x * y&#39;(x) + y&#39;(x)^2, y(x))
+)</code></pre>
+</div>
+<pre class="md-output md-output-text"><code class="nohighlight ansi">(Any[y(x) ~ C1*x + C1^2, y(x) ~ -x^2/4], Any[{x = -2*p/3 + C1/p^2, y(x) = (-p^3 + 6*C1)/(3*p); p}, y(x) ~ 0])</code></pre>
+</div>
 <p>When <code class="md-code-inline">y</code> cannot be solved for, the solution is implicit:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -1018,6 +1029,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=2ecea939"></script>
+  <script src="../../assets/materialdocs.js?v=a8a8e60c"></script>
 </body>
 </html>
