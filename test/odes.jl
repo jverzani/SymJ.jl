@@ -166,6 +166,14 @@
     s = D(x ~ y'(x)^3 + y'(x), y(x))
     @test s == SymJ.ParametricSolution(p^3 + p, 3p^4 / 4 + p^2 / 2 + C1, p, (x, y(x)))
     @test lambdify(subs(s, C1 => 0))(1.0) == (2.0, 1.25)
+    # Lie symmetries: infinitesimals by the one-variable heuristics and polynomial ansatz
+    rot = y'(x) ~ (y(x) - x * (x^2 + y(x)^2)) / (x + y(x) * (x^2 + y(x)^2))
+    @test SymJ.infinitesimals(rot, y(x)) == [(-y(x), x)]                       # rotations
+    @test (exp(-y(x)), Sym(0)) in SymJ.infinitesimals(y'(x) ~ 1 / (exp(y(x)) - x), y(x))   # with (x, 1)
+    @test isempty(SymJ.infinitesimals(y'(x) ~ sin(x * y(x)) + x, y(x); degree = 1))
+    @test_throws ArgumentError SymJ.infinitesimals(y''(x) ~ y(x), y(x))
+    @test_throws ArgumentError SymJ.infinitesimals(rot, y(x); heuristic = :nosuch)
+    @test SymJ.infinitesimals(rot, y(x); heuristic = :bivariate) == [(-y(x), x)]
     @test_throws ArgumentError D(y'(x) ~ y(x), y(x), y(0) => 1, y(1) => 2)
     @test_throws ArgumentError D(y(x) + x ~ 0, y(x))
     @test_throws ArgumentError D(y'(x) - y(x), y(x))
