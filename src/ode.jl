@@ -1884,12 +1884,12 @@ function _lie_on_level(F::Sym, r::Sym, R::Sym, x::Sym, Y::Sym, branch)
         Fv = _ode_tidy(subs(F, v => vr))
         has(Fv, o) || return Fv
         for o0 in (ZERO, ONE, Sym(2))
-            Fo = try _ode_tidy(subs(Fv, o => o0)) catch err; err isa InterruptException && rethrow(); continue end
-            val = try _evalc(subs(Fo, R => Sym(3 // 2))) catch; continue end
+            Fval = try _ode_tidy(subs(Fv, o => o0)) catch err; err isa InterruptException && rethrow(); continue end
+            val = try _evalc(subs(Fval, R => Sym(3 // 2))) catch; continue end
             (val isa Number && isfinite(val)) || continue
             o1 = o0 + Sym(3 // 7)
-            z = Fo - subs(Fv, o => o1)
-            _ode_numzero(z, Sym[R]) === true && return Fo
+            z = Fval - subs(Fv, o => o1)
+            _ode_numzero(z, Sym[R]) === true && return Fval
         end
     end
     nothing
