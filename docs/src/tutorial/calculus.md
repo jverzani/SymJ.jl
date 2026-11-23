@@ -379,6 +379,18 @@ Cauchy–Euler equations, with coefficients `x^k` on `y⁽ᵏ⁾`, are solved to
 SymJ.dsolve(x^2 * y''(x) - 2y(x) ~ 0, y(x))
 ```
 
+Equations that reduce to Bessel's or Airy's equation have solutions in
+those functions, or in elementary ones for Bessel functions of
+half-integer order:
+
+```@example tut
+(
+SymJ.dsolve(x * y''(x) + y'(x) + y(x) ~ 0, y(x)),
+SymJ.dsolve(y''(x) - x * y(x) ~ 0, y(x)),
+SymJ.dsolve(y''(x) + 3 / (2x) * y'(x) + y(x) / (4x^3) ~ 0, y(x))
+)
+```
+
 An equation of second order without `x`, `y'' = f(y, y')`, is reduced
 to first order with `p = y'` as a function of `y`:
 

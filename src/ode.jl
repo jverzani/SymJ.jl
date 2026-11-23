@@ -129,7 +129,13 @@ Methods: first order linear, separable, Bernoulli, exact (with an integrating fa
 `x` or `y` alone), homogeneous, Riccati; linear with constant coefficients, of any order
 (undetermined coefficients, else variation of parameters, for the right side);
 Cauchy–Euler; Bessel's equation `x²y'' + xy' + (α²x² - ν²)y = 0` (`C1 besselj(ν, αx) +
-C2 bessely(ν, αx)`); equations without `y` (reduced to a lower order); second order without
+C2 bessely(ν, αx)`) and the second-order homogeneous equations that reduce to it or to
+Airy's: `y = e^(-∫p/2) v` turns `y'' + p y' + q y = 0` into `v'' + I v = 0`, and `I = A xᵐ
++ B/x²` gives `√x Z_ν(β x^γ)`, `I = A e^(λx) + B` gives `Z_ν(β e^(λx/2))` (`Z` is `besselj`
+and `bessely`, or `besseli` and `besselk` when `A < 0`; elementary for half-integer `ν`:
+`x y'' + y' + y = 0` is `C1 besselj(0, 2√x) + C2 bessely(0, 2√x)`), `I` linear in `x` gives
+`airyai` and `airybi` (also Riccati equations made linear: `y' = x + y²`); equations
+without `y` (reduced to a lower order); second order without
 `x` (autonomous: `p = y'` as a function of `y`). Integrals are done by
 the RischIntegrate extension when it is loaded (an unevaluated `Integral` otherwise, or
 when there is no elementary antiderivative).
@@ -374,7 +380,9 @@ function _ode_numzero(r::Sym, vars)
         v = try _evalc(isempty(vals) ? r : subs(r, vals...)) catch; continue end
         (v isa Number && isfinite(v)) || continue
         seen = true
-        abs(v) < 1e-8 || return false
+        # (relative to the terms' sizes: I₀(eˣ) is 10⁷ at x = 3; y'' = e^(2x) y)
+        sc = try sum(t -> abs(_evalc(isempty(vals) ? t : subs(t, vals...))), _terms(r)) catch; 1.0 end
+        abs(v) < 1e-8 * max(1.0, isfinite(sc) ? sc : 1.0) || return false
     end
     seen ? true : nothing
 end
@@ -568,9 +576,9 @@ function _ode_linear(P::_ODE, Cs)
     if any(c -> has(c, x), cs)
         r = _ode_exact_linear(P, a, g, Cs)
         r === nothing || return r
-        r = n == 2 && iszero(g) ? _ode_bessel(cs, x, Cs) : nothing
-        r === nothing || return r
         r = n == 2 ? _ode_normal_form(a, g, x, Cs) : nothing
+        r === nothing || return r
+        r = n == 2 && iszero(g) ? _ode_bessel(a, x, Cs) : nothing
         r === nothing || return r
         n == 2 && return _ode_reduction_of_order(a, g, x, Cs)
         return nothing
@@ -585,19 +593,110 @@ function _ode_linear(P::_ODE, Cs)
     (:explicit, _ode_tidy(_explog(subs(S, t => log(x)))))
 end
 
-# Bessel's equation x²y'' + xy' + (α²x² - ν²)y = 0 (cs the coefficients times x^(2-k)
-# over a₂: [α²x² - ν², 1, 1]), α and ν constants: C1 J_ν(αx) + C2 Y_ν(αx) (SymPy #9819)
-function _ode_bessel(cs::Vector{Sym}, x::Sym, Cs)
-    (_eq(cs[3], ONE) && _eq(cs[2], ONE)) || return nothing
-    c0 = expand(cs[1])
-    P = try Poly{Sym}(c0, [x]) catch; return nothing end
-    (degree(P, x) == 2 && iszero(coeff(c0, x, 1))) || return nothing
-    α2, ν2 = coeff(c0, x, 2), -coeff(c0, x, 0)
-    (has(α2, x) || has(ν2, x) || iszero(α2)) && return nothing
-    # (u² as u: J and Y of order ±ν span the same solutions)
-    root(q) = q.kind == POW && _eq(q.args[2], Sym(2)) ? q.args[1] : _ode_tidy(sqrt(q))
-    α, ν = root(α2), root(ν2)
-    (:explicit, Cs[1] * apply_function(:besselj, Sym[ν, α * x]) + Cs[2] * apply_function(:bessely, Sym[ν, α * x]))
+# y'' + p y' + q y = 0 through y = w v, w = e^(-∫p/2), to the normal form v'' + I v = 0,
+# I = q - p²/4 - p'/2. With I = A xᵐ + B/x² (A, B, m constants, m ≠ -2): v = √x Z_ν(β x^γ),
+# γ = (m + 2)/2, β = √A/|γ|, ν = √(1/4 - B)/|γ|, Z Bessel's J and Y, or I and K when A is
+# negative (Bowman's form; Bessel's equation itself is A = α², B = 1/4 - ν²). For ν a half
+# integer the Bessel functions are elementary (y'' + 3y'/(2x) + y/(4x³) = 0 is
+# C1 sin(1/√x) + C2 cos(1/√x); SymPy #26275). With I linear in x: Airy functions.
+function _ode_bessel(a::Vector{Sym}, x::Sym, Cs)
+    p, q = _ode_tidy(a[2] / a[3]), _ode_tidy(a[1] / a[3])
+    I = _ode_tidy(simplify(q - p^2 / 4 - diff(p, x) / 2))
+    has(I, x) || return nothing
+    w = _ode_tidy(exp(-_integrate(p, x) / 2))
+    _hasfn(w, :Integral) && return nothing
+    v = _ode_airy(I, x, Cs)
+    v === nothing && (v = _ode_bessel_v(I, x, Cs))
+    v === nothing && return nothing
+    (:explicit, _ode_tidy(w * v))
+end
+
+# v'' + I v = 0, I = -(c x + d): v = C1 Ai(k x + d/k²) + C2 Bi(k x + d/k²), k = ∛c (real)
+function _ode_airy(I::Sym, x::Sym, Cs)
+    e = expand(I)
+    P = try Poly{Sym}(e, [x]) catch; return nothing end
+    degree(P, x) == 1 || return nothing
+    c, d = -coeff(e, x, 1), -coeff(e, x, 0)
+    (has(c, x) || has(d, x)) && return nothing
+    k = c.kind == NUMBER && c.num < N0 ? -(-c)^(1 // 3) : c^(1 // 3)
+    z = _ode_tidy(k * x + d / k^2)
+    Cs[1] * apply_function(:airyai, Sym[z]) + Cs[2] * apply_function(:airybi, Sym[z])
+end
+
+# v'' + I v = 0 with I = A xᵐ + B/x² (v = √x Z_ν(s), s = β x^γ) or I = A e^(λx) + B
+# (v = Z_ν(s), s = β e^(λx/2), β = 2√A/|λ|, ν = 2√(-B)/|λ|: y'' + e^(2x) y = 0 is
+# J₀(eˣ), Y₀(eˣ))
+function _ode_bessel_v(I::Sym, x::Sym, Cs)
+    root(u) = u.kind == POW && _eq(u.args[2], Sym(2)) ? u.args[1] : _ode_tidy(sqrt(u))
+    negative(u) = _holds(Relation(:lt, u, ZERO), something(_ASSUMING[], Assumptions())) === true
+    e = expand(I)
+    R = _add_many(t for t in _terms(e) if has(t, x))
+    λ = _ode_tidy(simplify(diff(R, x) / R))
+    if !has(λ, x) && !iszero(λ)                                   # R = A e^(λx)
+        A = _ode_tidy(simplify(R / exp(λ * x)))
+        B = _ode_tidy(e - R)
+        (has(A, x) || has(B, x)) && return nothing
+        g = _ode_tidy(abs(λ) / 2)
+        modified = negative(A)
+        β = _ode_tidy(root(modified ? -A : A) / g)
+        ν = _ode_tidy(root(_ode_tidy(-B)) / g)
+        s = β * exp(λ * x / 2)
+        return _ode_bessel_pair(ν, s, ONE, exp(-λ * x / 4), modified, Cs)
+    end
+    J = expand(_ode_tidy(x^2 * I))
+    R = _add_many(t for t in _terms(J) if has(t, x))
+    B = _ode_tidy(J - R)
+    has(B, x) && return nothing
+    k = _ode_tidy(simplify(x * diff(R, x) / R))         # R = A xᵏ, k = m + 2
+    (k.kind == NUMBER && !iszero(k)) || return nothing
+    A = _ode_tidy(simplify(R / x^k))
+    has(A, x) && return nothing
+    γ = k / 2
+    g = abs(γ)
+    modified = negative(A)
+    β = _ode_tidy(root(modified ? -A : A) / g)
+    ν = _ode_tidy(root(_ode_tidy(1 // 4 - B)) / g)
+    _ode_bessel_pair(ν, β * x^γ, sqrt(x), x^((1 - γ) / 2), modified, Cs)
+end
+
+# C1 Z₁(ν, s) + C2 Z₂(ν, s) times pre; for ν a half integer, n = ν - 1/2, √s Z_ν(s) in
+# elementary functions (s jₙ(s), s yₙ(s); e^(∓s) Σ (n+k)!/(k!(n-k)!) (±2s)^(-k)) times
+# pre2 (pre/√s up to a constant)
+function _ode_bessel_pair(ν::Sym, s::Sym, pre::Sym, pre2::Sym, modified::Bool, Cs)
+    if ν.kind == NUMBER && _isint(ν.num - 1 // 2) && ν.num > N0
+        n = _toint(ν.num - 1 // 2)
+        F1, F2 = if modified
+            f(σ) = exp(σ * s) * _add_many(Sym(factorial(big(n + j)) // (factorial(big(j)) * factorial(big(n - j)))) *
+                                          (-2σ * s)^(-j) for j in 0:n)
+            f(1), f(-1)
+        else
+            s * _spherical_bessel_elementary(true, n, s), s * _spherical_bessel_elementary(false, n, s)
+        end
+        return pre2 * (Cs[1] * F1 + Cs[2] * F2)
+    end
+    Z1, Z2 = modified ? (:besseli, :besselk) : (:besselj, :bessely)
+    pre * (Cs[1] * apply_function(Z1, Sym[ν, s]) + Cs[2] * apply_function(Z2, Sym[ν, s]))
+end
+
+# Bessel functions of orders μ, μ - 1 and μ - 2 of one argument z: Z_μ by the recurrence
+# in the lower two (J_μ = 2(μ-1)/z J_{μ-1} - J_{μ-2}; Y alike; I_μ = I_{μ-2} - 2(μ-1)/z
+# I_{μ-1}; K_μ = K_{μ-2} + 2(μ-1)/z K_{μ-1}), as a derivative leaves them
+function _bessel_lower(e::Sym)
+    fns = (:besselj, :bessely, :besseli, :besselk)
+    nodes = Sym[]
+    _has_node(e, t -> (t.kind == FN && t.name in fns && length(t.args) == 2 && push!(nodes, t); false))
+    have = Set{Tuple{Symbol,Sym,Sym}}((t.name, t.args[1], t.args[2]) for t in nodes)
+    rules = Pair{Sym,Sym}[]
+    for t in nodes
+        nm, μ, z = t.name, t.args[1], t.args[2]
+        ((nm, _ode_tidy(μ - 1), z) in have && (nm, _ode_tidy(μ - 2), z) in have) || continue
+        Z(o) = apply_function(nm, Sym[_ode_tidy(o), z])
+        c = 2 * (μ - 1) / z
+        v = nm === :besselj || nm === :bessely ? c * Z(μ - 1) - Z(μ - 2) :
+            nm === :besseli ? Z(μ - 2) - c * Z(μ - 1) : Z(μ - 2) + c * Z(μ - 1)
+        any(r -> _eq(r[1], t), rules) || push!(rules, t => v)
+    end
+    isempty(rules) ? e : subs(e, rules...)
 end
 
 # y'' + p y' + q y = g through y = w v, w = e^(-∫p/2): v'' + I v = g/w with the invariant
@@ -1041,7 +1140,7 @@ function _ode_riccati_linear(P::_ODE, q0, q1, q2, C)
     sol === nothing && return nothing
     u = subs(sol[2], C2 => ONE)
     (has(u, C) && !_hasfn(u, :Integral)) || return nothing
-    (:explicit, _ode_tidy(-diff(u, x) / (q2 * u)))
+    (:explicit, _ode_tidy(_bessel_lower(-diff(u, x) / (q2 * u))))
 end
 
 function _ode_riccati_particular(P::_ODE, q0, q1, q2, C)
