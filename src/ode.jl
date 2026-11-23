@@ -99,6 +99,15 @@ in `y` gives a vector, one equation for each branch: `y'(x) ~ (1 - x)/y(x)` give
 `y(x) ~ ±sqrt(C1 + 2x - x^2)`. An equation that factors, with `y` in two or more factors
 (`y'(x) (y''(x) + 1) ~ 0`), gives the solutions of each factor, a vector of equations.
 
+A first-order equation nonlinear in `y'` gives a vector: the general solutions, then
+the singular solutions (from `F = 0` and `∂F/∂y' = 0`, those that solve the equation and
+are no member of the general solution; `y'^2 + y^2 ~ 1` gives `±sin(x + C1)` and `±1`).
+Clairaut's `y = x y' + f(y')` gives the lines `C1 x + f(C1)` and the envelope; d'Alembert's
+`y = x g(y') + f(y')` and `x = h(y')` are solved in the parameter `p = y'`, a
+[`SymJ.ParametricSolution`](@ref) `{x = X(p), y(x) = Y(p); p}` unless `p` can be
+eliminated simply; otherwise each branch `y' = rᵢ(x, y)` is solved. `y' = f(ax + by + c)`
+is separable in `u = ax + by + c`. With `y(a) => b`, the solutions through the point.
+
 Initial conditions are pairs, one for each order: `y(0) => 1, y'(0) => 0`. They fix the
 constants.
 
@@ -183,6 +192,10 @@ function dsolve(eq::Relation, yx::Sym, ics::Pair...; series::Union{Nothing,Integ
         fs === nothing || return _dsolve_factors(fs, yx)
         # a polynomial of degree ≥ 2 in y' alone (no higher derivative): y' = each root,
         # a first-order equation each (y'² = x³; SymPy #7093)
+        # nonlinear in y' (first order): Clairaut, the branches of y', d'Alembert, x = h(y'),
+        # parametric solutions, and the singular solutions
+        rs = _ode_nonlinear_p(eq, yx)
+        rs === nothing || return length(rs) == 1 ? rs[1] : rs
         fs = _ode_derivative_roots(eq, yx)
         fs === nothing || return _dsolve_factors(fs, yx)
     end
@@ -205,6 +218,16 @@ function dsolve(eq::Relation, yx::Sym, ics::Pair...; series::Union{Nothing,Integ
     if !isempty(ics) && length(ics) == P.n
         c = _ode_equilibrium(P, [_ode_ic(p, P) for p in ics])
         c === nothing || return yx ~ c
+    end
+    # first order, nonlinear in y', y(a) = b: the general solutions (C from it) and the
+    # singular ones through the point (y'² + y² = 1, y(0) = 0: ±sin x)
+    if length(ics) == 1 && P.n == 1 && has(diff(P.F, P.ys[2]), P.ys[2])
+        (o, a, b) = _ode_ic(ics[1], P)
+        rs = o == 0 ? _ode_nonlinear_p(eq, yx) : nothing
+        if rs !== nothing
+            T = _ode_fit_point(rs, P, Cs[1], a, b)
+            isempty(T) || return length(T) == 1 ? T[1] : T
+        end
     end
     sol = _ode_solve(P, Cs)
     if (sol === nothing || sol[1] === :several) && !isempty(ics)
@@ -392,7 +415,7 @@ end
 ## solving
 
 function _ode_solve(P::_ODE, Cs)
-    for m in (_ode_reduce, _ode_linear, _ode_first_order, _ode_autonomous)
+    for m in (_ode_reduce, _ode_linear, _ode_clairaut, _ode_first_order, _ode_autonomous)
         r = try m(P, Cs) catch err; err isa InterruptException && rethrow(); nothing end
         r === nothing || return r
     end
@@ -967,6 +990,244 @@ function _ode_variation(a::Vector{Sym}, g::Sym, x::Sym, basis::Vector{Sym})
     yp
 end
 
+## first order, nonlinear in y′: F(x, y, p) = 0, p = y′
+
+"""
+    SymJ.ParametricSolution
+
+A solution of a first-order equation in a parameter `p`, the slope `y′` along the curve:
+`x = X(p)`, `y = Y(p)`. [`SymJ.dsolve`](@ref) gives one when `p` cannot be eliminated:
+`y = 2x y′ + y′²` is `{x = C1/p^2 - 2p/3, y(x) = 2C1/p - p^2/3; p}`. The fields are `x`
+and `y` (the expressions `X` and `Y`), `p`, and `vars` (`x` and `y(x)`). `subs`
+substitutes into both expressions; `lambdify(s)` is a function of `p` and then of the
+other free symbols (sorted), returning `(X, Y)`.
+
+Not exported.
+"""
+struct ParametricSolution
+    x::Sym
+    y::Sym
+    p::Sym
+    vars::Tuple{Sym,Sym}
+end
+Base.:(==)(a::ParametricSolution, b::ParametricSolution) =
+    a.x == b.x && a.y == b.y && a.p == b.p && a.vars == b.vars
+Base.hash(s::ParametricSolution, h::UInt) = hash((s.x, s.y, s.p, s.vars), hash(:ParametricSolution, h))
+Base.show(io::IO, s::ParametricSolution) =
+    print(io, "{", s.vars[1], " = ", s.x, ", ", s.vars[2], " = ", s.y, "; ", s.p, "}")
+subs(s::ParametricSolution, ps::Pair...) = ParametricSolution(subs(s.x, ps...), subs(s.y, ps...), s.p, s.vars)
+
+# no initial conditions, F nonlinear in p: the general solution (Clairaut's lines; the
+# branches of p when they solve; d'Alembert's equation, x = h(p), parametric when p
+# cannot be eliminated), then the singular solutions, a vector; nothing when no method
+function _ode_nonlinear_p(eq::Relation, yx::Sym)
+    P = try _ode_parse(eq, yx) catch err; err isa ArgumentError || rethrow(); return nothing end
+    P.n == 1 || return nothing
+    Y0, Y1 = P.ys
+    has(diff(P.F, Y1), Y1) || return nothing
+    Cs = _ode_constants(1, eq)
+    used = Set(v.name for v in free_symbols(eq.lhs - eq.rhs))
+    pv = Sym(first(nm for nm in (Symbol("p", i == 0 ? "" : string(i)) for i in 0:99) if !(nm in used || nm === Cs[1].name)))
+    general = Any[]
+    lines = Sym[]                                  # p₀ x + f(p₀): d'Alembert's p₀ = g(p₀)
+    r = _ode_clairaut(P, Cs)
+    if r !== nothing && _ode_verified(P, r..., Cs)
+        push!(general, yx ~ expand(r[2]))
+    end
+    fallback = nothing
+    # the branches of p: first when F is quadratic in p (or not a polynomial in it), after
+    # the parametric methods for higher degrees (Cardano's roots: slow, and large)
+    Fp = try Poly{Sym}(expand(P.F), [Y1]) catch; nothing end
+    quadratic = Fp === nothing || degree(Fp, Y1) <= 2
+    function branches!()
+        isempty(general) || return
+        fs = _ode_derivative_roots(eq, yx)
+        fs === nothing && return
+        rs = try _dsolve_factors(fs, yx) catch err; err isa ArgumentError || rethrow(); nothing end
+        rs === nothing && return
+        any(q -> _hasfn(q.lhs - q.rhs, :Integral), rs) ? (fallback = rs) : append!(general, rs)
+    end
+    quadratic && branches!()
+    if isempty(general)
+        r = _ode_lagrange(P, Cs, pv)
+        if r !== nothing
+            X, Y, ls = r
+            append!(lines, ls)
+            append!(general, _ode_eliminate_p(P, X, Y, pv, Cs))
+        end
+    end
+    if isempty(general)
+        r = _ode_solved_for_x(P, Cs, pv)
+        r === nothing || append!(general, _ode_eliminate_p(P, r..., pv, Cs))
+    end
+    quadratic || branches!()
+    if isempty(general)
+        fallback === nothing && return nothing
+        append!(general, fallback)
+    end
+    for s in _ode_singular(P, Cs, general, lines)
+        push!(general, yx ~ s)
+    end
+    general
+end
+
+# the explicit solutions among rs through y(a) = b, C fixed by it
+function _ode_fit_point(rs, P::_ODE, C::Sym, a::Sym, b::Sym)
+    out = Relation[]
+    for r in rs
+        (r isa Relation && _eq(r.lhs, P.yx)) || continue
+        S = r.rhs
+        vs = if has(S, C)
+            v = try _solve_generic(subs(S, P.x => a) ~ b, C) catch err; err isa InterruptException && rethrow(); Sym[] end
+            v isa AbstractVector && !(v isa Cases) ? [_ode_tidy(subs(S, C => c)) for c in v if !has(c, P.x)] : Sym[]
+        else
+            iszero(_ode_tidy(subs(S, P.x => a) - b)) ? [S] : Sym[]
+        end
+        for t in vs
+            any(q -> iszero(_ode_tidy(q.rhs - t)), out) || push!(out, P.yx ~ t)
+        end
+    end
+    out
+end
+
+# F = 0 as y = G(x, p) (F linear in y), else nothing
+function _ode_solved_for_y(P::_ODE)
+    Y0 = P.ys[1]
+    d = diff(P.F, Y0)
+    (iszero(d) || has(d, Y0)) && return nothing
+    _ode_tidy(-subs(P.F, Y0 => ZERO) / d)
+end
+
+# y = x p + f(p) (Clairaut): the lines y = C x + f(C)
+function _ode_clairaut(P::_ODE, Cs)
+    P.n == 1 || return nothing
+    Y1, x = P.ys[2], P.x
+    has(diff(P.F, Y1), Y1) || return nothing
+    G = _ode_solved_for_y(P)
+    G === nothing && return nothing
+    h = _ode_tidy(G - x * Y1)
+    (has(h, x) || has(h, P.ys[1])) && return nothing
+    (:explicit, _ode_tidy(Cs[1] * x + subs(h, Y1 => Cs[1])))
+end
+
+# y = x g(p) + f(p) (d'Alembert, Lagrange), g ≢ p: differentiated, (p - g) dx/dp = x g′ +
+# f′, linear in x(p). (X, Y, lines): x = X(p), y = X g + f, and the lines y = p₀ x + f(p₀)
+# for the constant roots of p = g(p) (y = 2xp + p²: x = C/p² - 2p/3, and y = 0)
+function _ode_lagrange(P::_ODE, Cs, p::Sym)
+    Y1, x = P.ys[2], P.x
+    G = _ode_solved_for_y(P)
+    G === nothing && return nothing
+    g = _ode_tidy(diff(G, x))
+    (has(g, x) || has(g, P.ys[1])) && return nothing
+    f = _ode_tidy(G - g * x)
+    has(f, x) && return nothing
+    iszero(_ode_tidy(g - Y1)) && return nothing
+    gp, fp = subs(g, Y1 => p), subs(f, Y1 => p)
+    U = [Sym(:_ode_u0), Sym(:_ode_u1)]
+    F2 = (p - gp) * U[2] - diff(gp, p) * U[1] - diff(fp, p)
+    sol = _ode_linear(_ODE(F2, U, p, P.yx, 1), Cs[1:1])
+    sol === nothing && return nothing
+    X = _ode_tidy(sol[2])
+    lines = Sym[]
+    p0s = try _solve_generic(_ode_tidy(p - gp) ~ 0, p) catch err; err isa InterruptException && rethrow(); Sym[] end
+    for p0 in (p0s isa AbstractVector ? p0s : Sym[])
+        has(p0, p) || push!(lines, _ode_tidy(p0 * x + subs(fp, p => p0)))
+    end
+    X, _ode_tidy(X * gp + fp), lines
+end
+
+# x = h(p), y absent: dy = p dx, y = ∫ p h′(p) dp + C
+function _ode_solved_for_x(P::_ODE, Cs, p::Sym)
+    Y0, Y1, x = P.ys[1], P.ys[2], P.x
+    has(P.F, Y0) && return nothing
+    d = diff(P.F, x)
+    (iszero(d) || has(d, x)) && return nothing
+    h = _ode_tidy(subs(-subs(P.F, x => ZERO) / d, Y1 => p))
+    has(h, x) && return nothing
+    h, _ode_tidy(_integrate(_ode_tidy(p * diff(h, p)), p) + Cs[1])
+end
+
+# x = X(p), y = Y(p): p from x = X(p) when that is small (each root a solution y(x)),
+# else the parametric solution
+function _ode_eliminate_p(P::_ODE, X::Sym, Y::Sym, p::Sym, Cs)
+    x, yx = P.x, P.yx
+    # (not by Cardano's formula: x = X(p) of degree ≥ 3 in p stays parametric)
+    nX = numer_denom(_ode_tidy(X - x))[1]
+    PX = try Poly{Sym}(expand(nX), [p]) catch; nothing end
+    rs = PX !== nothing && degree(PX, p) > 2 ? Sym[] :
+         (try _solve_generic(X ~ x, p) catch err; err isa InterruptException && rethrow(); Sym[] end)
+    if rs isa AbstractVector && !(rs isa Cases) && !isempty(rs) && all(r -> !has(r, p), rs)
+        # (kept when no larger than the parametric form)
+        out = Any[]
+        for r in rs
+            S = _ode_absorb(_ode_tidy(subs(Y, p => r)), Cs, x)
+            _nodes(S) <= _nodes(X) + _nodes(Y) || break
+            _ode_verified(P, :explicit, S, Cs) && push!(out, yx ~ S)
+        end
+        length(out) == length(rs) && return out
+    end
+    _ode_param_verified(P, X, Y, p) || return Any[]
+    Any[ParametricSolution(X, Y, p, (x, yx))]
+end
+
+# F(X, Y, Y′/X′) = 0
+function _ode_param_verified(P::_ODE, X::Sym, Y::Sym, p::Sym)
+    Xp = diff(X, p)
+    iszero(Xp) && return false
+    r = subs(P.F, P.x => X, P.ys[1] => Y, P.ys[2] => _ode_tidy(diff(Y, p) / Xp))
+    z = try simplify(r) catch; r end
+    iszero(z) || _ode_numzero(r, free_symbols(r)) !== false
+end
+
+# singular solutions: y = s(x) from F = 0 and F_p = 0 (p eliminated), and the lines given,
+# that solve the equation and are not in the general solutions (y′² + y² = 1: y = ±1)
+function _ode_singular(P::_ODE, Cs, general, lines::Vector{Sym})
+    Y0, Y1, x = P.ys[1], P.ys[2], P.x
+    cands = copy(lines)
+    Fp = _ode_tidy(diff(P.F, Y1))
+    ps = try _solve_generic(Fp ~ 0, Y1) catch err; err isa InterruptException && rethrow(); Sym[] end
+    for pv in (ps isa AbstractVector && !(ps isa Cases) ? ps : Sym[])
+        has(pv, Y1) && continue
+        G = _ode_tidy(subs(P.F, Y1 => pv))
+        has(G, Y0) || continue
+        ys = try _solve_generic(G ~ 0, Y0) catch err; err isa InterruptException && rethrow(); continue end
+        ys isa AbstractVector && !(ys isa Cases) && append!(cands, ys)
+    end
+    out = Sym[]
+    for s in cands
+        ok = try _ode_singular_ok(P, Cs, general, _ode_tidy(s), out) catch err; err isa InterruptException && rethrow(); false end
+        ok && push!(out, _ode_tidy(s))
+    end
+    out
+end
+
+# s a solution of P, free of y and the constants, new, and in no general solution (an
+# evaluation error, 0^(-1/2) in an unevaluated integral at y = 1, is a no)
+function _ode_singular_ok(P::_ODE, Cs, general, s::Sym, out)
+    Y0 = P.ys[1]
+    for _ in 1:1
+        (has(s, Y0) || any(c -> has(s, c), Cs) || any(t -> _eq(t, s), out)) && return false
+        r = _ode_residual(P, :explicit, s)
+        z = try simplify(r) catch; r end
+        (iszero(z) || _ode_numzero(r, free_symbols(r)) === true) || return false
+        any(q -> _ode_in_family(s, q, P, Cs), general) && return false
+    end
+    true
+end
+
+# is y = s one of the solutions q for a constant value (y = 0 of y = C eˣ)?
+function _ode_in_family(s::Sym, q, P::_ODE, Cs)
+    q isa Relation || return false
+    x, C = P.x, Cs[1]
+    if _eq(q.lhs, P.yx)
+        has(q.rhs, C) || return _eq(_ode_tidy(q.rhs - s), ZERO)
+        vs = try _solve_generic(q.rhs ~ s, C) catch err; err isa InterruptException && rethrow(); return false end
+        return vs isa AbstractVector && any(v -> !has(v, x), vs)
+    end
+    φ = _ode_tidy(subs(q.lhs - q.rhs, P.yx => s))
+    !has(φ, x)
+end
+
 ## first order: y' = f(x, y)
 
 function _ode_first_order(P::_ODE, Cs)
@@ -978,7 +1239,7 @@ function _ode_first_order(P::_ODE, Cs)
     f = _ode_tidy(f)
     C = Cs[1]
     fallback = nothing             # a solution with an unevaluated integral, if no other
-    for m in (_ode_separable, _ode_bernoulli, _ode_exact, _ode_homogeneous, _ode_riccati, _ode_lie)
+    for m in (_ode_separable, _ode_bernoulli, _ode_exact, _ode_homogeneous, _ode_linear_arg, _ode_riccati, _ode_lie)
         r = try m(P, f, a, C) catch err; err isa InterruptException && rethrow(); nothing end
         r === nothing && continue
         r = _ode_explicit(r, Y0, C)
@@ -1096,6 +1357,25 @@ function _ode_exact(P::_ODE, f::Sym, a::Sym, C::Sym)
     hp = _ode_tidy(N - diff(I, Y0))
     has(hp, x) && return nothing
     (:implicit, _ode_tidy(I + _integrate(hp, Y0)))
+end
+
+# f(x, y) = F(r x + y) (f_x = r f_y, r a constant): u = r x + y has u′ = r + F(u),
+# separable: ∫ du/(r + F(u)) = x + C (y′ = sin(x + y); y′ = (x + y)² is tan(x + C) - x)
+function _ode_linear_arg(P::_ODE, f::Sym, a::Sym, C::Sym)
+    Y0, x = P.ys[1], P.x
+    (has(f, x) && has(f, Y0)) || return nothing
+    fy = diff(f, Y0)
+    iszero(fy) && return nothing
+    r = _ode_tidy(simplify(diff(f, x) / fy))
+    (has(r, x) || has(r, Y0)) && return nothing
+    u = Sym(:_ode_u)
+    Fu = _ode_tidy(subs(f, Y0 => u - r * x))
+    has(Fu, x) && return nothing
+    d = _ode_tidy(r + Fu)
+    iszero(d) && return (:explicit, C - r * x)
+    I = _integrate(_ode_tidy(1 / d), u)
+    _hasfn(I, :Integral) && return nothing           # (an Integral's variable stays a symbol)
+    (:implicit, _ode_tidy(subs(I, u => r * x + Y0) - x))
 end
 
 # f(x, y) = F(y/x): y = v x, x v' + v = F(v) is separable, ∫ dv/(F(v) - v) = log(x) + C

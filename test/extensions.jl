@@ -484,6 +484,13 @@ import PolyLog as PL
         @syms y()
         C1, C2 = Sym(:C1), Sym(:C2)
         D = SymJ.dsolve
+        # nonlinear in y′: the singular solutions y = ±1; y′ = f(ax + y + c), separable in
+        # u = ax + y + c
+        @test D(y'(x)^2 + y(x)^2 ~ 1, y(x)) == [y(x) ~ -sin(C1 + x), y(x) ~ sin(C1 + x), y(x) ~ -1, y(x) ~ 1]
+        @test D(y'(x)^2 + y(x)^2 ~ 1, y(x), y(0) => 0) == [y(x) ~ -sin(x), y(x) ~ sin(x)]
+        @test D(y'(x) ~ (x + y(x))^2, y(x)).rhs == tan(C1 + x) - x                   # SymPy #21503
+        @test D(y'(x) ~ (2x + y(x) + 1)^2, y(x)).rhs == sqrt(Sym(2)) * tan(sqrt(Sym(2)) * (C1 + x)) - 2x - 1
+        @test string(D(y'(x) ~ sin(x + y(x)), y(x)).rhs) == "-x + 2*atan((-C1 - x - 1)/(C1 + x - 1))"
         # Lie symmetries: with no other method, the integrating factor 1/(η - f ξ) of a
         # symmetry (rotations; linear or Bernoulli in x(y))
         let rot = y'(x) ~ (y(x) - x * (x^2 + y(x)^2)) / (x + y(x) * (x^2 + y(x)^2))
