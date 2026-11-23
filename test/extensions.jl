@@ -558,6 +558,19 @@ import PolyLog as PL
             @test iszero(simplify(r.lhs - (x * y(x) + Sym(1) // 2) / ((x * y(x) + 1)^2 * exp(2x^3 / 3))))
         end
         @test_throws ArgumentError D(y'(x) ~ y(x)^3 + x, y(x))                    # Φ not constant
+        # Riccati in x(y): x′ = x² + y, Airy functions of -y
+        @test SymJ._hasfn(D(y'(x) ~ 1 / (x^2 + y(x)), y(x)).lhs, :airyai)
+        # a scaling symmetry, f(λx, λᵏy) = λ^(k-1) f: separable in u = y/xᵏ
+        let r = D(y'(x) ~ (sin(x^2 * y(x)) - 2x^2 * y(x)) / x^3, y(x))          # k = -2
+            @test r.rhs == C1
+            @test !has(simplify(r.lhs - (log(2 - 2cos(x^2 * y(x))) / 2 - log(2cos(x^2 * y(x)) + 2) / 2 - log(x))), x)   # up to a constant
+        end
+        let r = D(y'(x) ~ y(x)^4 + x^(-Sym(4) // 3), y(x)).lhs                   # Chini, k = -1/3
+            @test SymJ._hasfn(r, :Integral)
+            @test has(r, x^(Sym(1) // 3) * y(x))
+        end
+        # no antiderivative for a homogeneous equation: a definite Integral up to y/x
+        @test has(D(y'(x) ~ (y(x) / x)^4 + 1, y(x)).lhs, y(x) / x)
         @test D(y'(x) ~ 1 / (1 + x^2), y(x)) == (y(x) ~ atan(x) + C1)
         @test D(y''(x) ~ sin(x), y(x)) == (y(x) ~ C1 * x + C2 - sin(x))
         @test D(y'(x) ~ (x^2 + y(x)^2) / (x * y(x)), y(x)) == (y(x) ~ sqrt((C1 + 2log(x)) * x^2))   # homogeneous
