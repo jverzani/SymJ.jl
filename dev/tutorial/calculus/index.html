@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Calculus — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=8205ec3d">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=2ecea939">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Calculus — SymJ.jl">
   <meta property="og:title" content="Calculus — SymJ.jl">
@@ -594,6 +594,20 @@ SymJ.dsolve(y&#39;&#39;(x) + y(x) ~ sin(x), y(x))
 \[y\left( x \right) = C2 \cdot x^{2} + \frac{C1}{x}\]
 </div>
 </div>
+<p>Equations that reduce to Bessel&#39;s or Airy&#39;s equation have solutions in those functions, or in elementary ones for Bessel functions of half-integer order:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">(
+SymJ.dsolve(x * y&#39;&#39;(x) + y&#39;(x) + y(x) ~ 0, y(x)),
+SymJ.dsolve(y&#39;&#39;(x) - x * y(x) ~ 0, y(x)),
+SymJ.dsolve(y&#39;&#39;(x) + 3 / (2x) * y&#39;(x) + y(x) / (4x^3) ~ 0, y(x))
+)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( y\left( x \right) = C1 \cdot \mathrm{besselj}\left( 0, 2 \cdot \sqrt{x} \right) + C2 \cdot \mathrm{bessely}\left( 0, 2 \cdot \sqrt{x} \right), \; y\left( x \right) = C1 \cdot \mathrm{airyai}\left( x \right) + C2 \cdot \mathrm{airybi}\left( x \right), \; y\left( x \right) = C1 \cdot \sin\left( \frac{1}{\sqrt{x}} \right) + C2 \cdot \cos\left( \frac{1}{\sqrt{x}} \right) \right)\]
+</div>
+</div>
 <p>An equation of second order without <code class="md-code-inline">x</code>, <code class="md-code-inline">y&#39;&#39; = f(y, y&#39;)</code>, is reduced to first order with <code class="md-code-inline">p = y&#39;</code> as a function of <code class="md-code-inline">y</code>:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -1004,6 +1018,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=8205ec3d"></script>
+  <script src="../../assets/materialdocs.js?v=2ecea939"></script>
 </body>
 </html>
