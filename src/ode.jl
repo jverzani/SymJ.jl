@@ -1398,15 +1398,25 @@ end
 ## Lie symmetries: y' = f(x, y)
 
 """
-    SymJ.infinitesimals(eq, y(x); degree = 2)
+    SymJ.infinitesimals(eq, y(x); degree = 2, heuristic = :all)
 
 Infinitesimals `(ξ, η)` of Lie point symmetries of the first-order equation `eq`: the
 flow `x ↦ x + ε ξ(x, y)`, `y ↦ y + ε η(x, y)` maps solutions to solutions, that is
-`η_x + (η_y - ξ_x) f - ξ_y f² - ξ f_x - η f_y = 0` for `y' = f(x, y)`. Found by
-SymPy's first heuristics (one of `ξ`, `η` zero, the other a function of `x` or of `y`
-alone, or a power times such a function: `ξ = xᵏ B(y)`, `η = yᵏ A(x)`, as for an equation
-linear or Bernoulli in `x(y)`), and among polynomials in `x` and `y` of total degree at
-most `degree` (`f` rational in `x` and `y`), leaving out the trivial ones (`η = f ξ`). A vector of pairs, in `x` and `y(x)`;
+`η_x + (η_y - ξ_x) f - ξ_y f² - ξ f_x - η f_y = 0` for `y' = f(x, y)`. Found by SymPy's
+heuristics, each also applied to the equation for `x(y)`, every candidate checked against
+the determining equation, the trivial ones (`η = f ξ`) left out:
+
+- `:abaco1_simple`: one of `ξ`, `η` zero, the other a function of `x` or of `y` alone,
+  or a power times one (`ξ = xᵏ B(y)`: an equation linear or Bernoulli in `x(y)`);
+- `:abaco1_product`: one zero, the other `F(x) G(y)`;
+- `:bivariate`: polynomials in `x` and `y` of total degree at most `degree`;
+- `:chi`: `η - f ξ` a polynomial of degree at most `degree + 1`;
+- `:function_sum`: one zero, the other `F(x) + G(y)`;
+- `:abaco2_similar`, `:abaco2_unique_unknown`, `:abaco2_unique_general`: `ξ` a
+  function of `x`, `η` of `x` or `y`, from patterns in `f` (`f = A(x) + B(x) e^(y/C)`;
+  powers of expressions in `x` and `y`; invariants of `f`).
+
+With `heuristic`, that one alone. A vector of pairs, in `x` and `y(x)`;
 empty when none is found. [`SymJ.dsolve`](@ref) uses one when its other first-order
 methods fail: `1/(η - f ξ)` is an integrating factor.
 
@@ -1418,7 +1428,9 @@ SymJ.infinitesimals(y'(x) ~ (y(x)^3 + x^2*y(x) - x - y(x)) / (x*y(x)^2 + x^3 + y
 # [(-y(x), x)]: rotations
 ```
 """
-function infinitesimals(eq::Relation, yx::Sym; degree::Integer = 2)
+function infinitesimals(eq::Relation, yx::Sym; degree::Integer = 2, heuristic::Symbol = :all)
+    heuristic in (:all, _LIE_HEURISTICS...) ||
+        throw(ArgumentError("infinitesimals: heuristic is :all or one of $(join(_LIE_HEURISTICS, ", ")), not $heuristic"))
     P = _ode_parse(eq, yx)
     P.n == 1 || throw(ArgumentError("infinitesimals: a first-order equation, y' = f(x, y)"))
     Y0, Y1 = P.ys
@@ -1426,11 +1438,243 @@ function infinitesimals(eq::Relation, yx::Sym; degree::Integer = 2)
     has(a, Y1) && throw(ArgumentError("infinitesimals: an equation solved for y', y' = f(x, y)"))
     f = _ode_tidy(-subs(P.F, Y1 => ZERO) / a)
     out = Tuple{Sym,Sym}[]
-    for (ξ, η) in [_lie_simple(f, P.x, Y0); [q for d in 1:degree for q in _lie_polynomial(f, P.x, Y0, d)]]
-        q = (subs(ξ, Y0 => yx), subs(η, Y0 => yx))
-        any(r -> _eq(r[1], q[1]) && _eq(r[2], q[2]), out) || push!(out, q)
+    for (_, gen) in _lie_generators(f, P.x, Y0, degree; only = heuristic)
+        for (ξ, η) in gen()
+            q = (subs(ξ, Y0 => yx), subs(η, Y0 => yx))
+            any(r -> _eq(r[1], q[1]) && _eq(r[2], q[2]), out) || push!(out, q)
+        end
     end
     out
+end
+
+# SymPy's heuristics, in the order tried (bivariate: the polynomial ansatz)
+const _LIE_HEURISTICS = (:abaco1_simple, :abaco1_product, :bivariate, :chi, :function_sum, :abaco2_similar,
+                         :abaco2_unique_unknown, :abaco2_unique_general)
+
+# (name, () -> candidates) for each heuristic; the inverse forms (the equation for x(y),
+# 1/f with x and y exchanged, its infinitesimals exchanged back) within each
+function _lie_generators(f::Sym, x::Sym, Y::Sym, degree::Int = 2; only::Symbol = :all)
+    finv = () -> _ode_tidy(_lie_swap(1 / f, x, Y))
+    both(H) = () -> begin
+        out = Tuple{Sym,Sym}[]
+        append!(out, _lie_try(H, f, x, Y))
+        for (ξ, η) in _lie_try(H, finv(), x, Y)
+            push!(out, (_lie_swap(η, x, Y), _lie_swap(ξ, x, Y)))
+        end
+        _lie_verified(out, f, x, Y)
+    end
+    gens = Pair{Symbol,Function}[
+        :abaco1_simple => () -> _lie_simple(f, x, Y),
+        :abaco1_product => both(_lie_product),
+        :bivariate => () -> Tuple{Sym,Sym}[q for d in 1:degree for q in _lie_polynomial(f, x, Y, d)],
+        :chi => () -> _lie_verified(_lie_try((g, x, Y) -> _lie_chi(g, x, Y, degree + 1), f, x, Y), f, x, Y),
+        :function_sum => both(_lie_fsum),
+        :abaco2_similar => both(_lie_similar),
+        :abaco2_unique_unknown => () -> _lie_verified(_lie_try(_lie_unknown, f, x, Y), f, x, Y),
+        :abaco2_unique_general => () -> _lie_verified(_lie_try(_lie_general, f, x, Y), f, x, Y)]
+    only === :all ? gens : filter(g -> g.first === only, gens)
+end
+
+# e with x and y exchanged
+_lie_swap(e::Sym, x::Sym, Y::Sym) = (t = Sym(:_lie_t); subs(subs(subs(e, x => t), Y => x), t => Y))
+
+# a heuristic's candidates, none when it fails on the way (an integral it cannot do, a
+# division by zero)
+function _lie_try(H, f::Sym, x::Sym, Y::Sym)
+    try
+        H(f, x, Y)
+    catch err
+        err isa Union{ArgumentError,DivisionByZero,DomainError,MethodError} || rethrow()
+        Tuple{Sym,Sym}[]
+    end
+end
+
+# the candidates that satisfy the determining equation and are not trivial (η ≢ f ξ)
+function _lie_verified(cands, f::Sym, x::Sym, Y::Sym)
+    out = Tuple{Sym,Sym}[]
+    for (ξ, η) in cands
+        (ξ === nothing || η === nothing) && continue
+        ξ, η = _ode_tidy(ξ), _ode_tidy(η)
+        (_hasfn(ξ, :Integral) || _hasfn(η, :Integral)) && continue
+        iszero(_ode_tidy(η - f * ξ)) && continue
+        ok = try iszero(_lie_determining(ξ, η, f, x, Y)) catch err; err isa InterruptException && rethrow(); false end
+        ok && !any(p -> _eq(p[1], ξ) && _eq(p[2], η), out) && push!(out, (ξ, η))
+    end
+    out
+end
+
+# exp(∫ r dv), or nothing (r depends on the other variable, or no closed form)
+function _lie_quad(r::Sym, v::Sym, other::Sym)
+    has(r, other) && return nothing
+    I = _integrate(r, v)
+    _hasfn(I, :Integral) ? nothing : _ode_tidy(exp(I))
+end
+
+# abaco1_product: η = 0, ξ = F(x) G(y) when ∂x∂y log f / f² = F(x) × (a function of y);
+# G = exp(∫ F ∂x(1/(F f)) dy) (Cheb-Terrab and Roche, Symmetries and first order ODE
+# patterns, pp. 7–8)
+function _lie_product(f::Sym, x::Sym, Y::Sym)
+    s = _ode_tidy(simplify(diff(diff(log(f), Y), x) / f^2))
+    iszero(s) && return Tuple{Sym,Sym}[]
+    F, _ = _ode_split(s, x, Y)
+    F === nothing && return Tuple{Sym,Sym}[]
+    gy = _ode_tidy(simplify(F * diff(1 / (F * f), x)))
+    G = _lie_quad(gy, Y, x)
+    G === nothing ? Tuple{Sym,Sym}[] : [(_ode_tidy(F * G), ZERO)]
+end
+
+# function_sum: η = 0, ξ = F(x) + G(y) when ∂y[1/(f ∂²x(1/f))] separates as
+# G'(y) × (something in x); F'' = 1/(k × that), F = F''/(f ∂²x(1/f)) - k G, k fixed by F
+# having that F'' (Cheb-Terrab and Roche, pp. 7–8)
+function _lie_fsum(f::Sym, x::Sym, Y::Sym)
+    d2 = diff(1 / f, x, 2)
+    _nodes(d2) > 200 && return Tuple{Sym,Sym}[]       # (as in _lie_similar)
+    fac = _ode_tidy(simplify(f * d2))
+    iszero(fac) && return Tuple{Sym,Sym}[]
+    sx, sy = _ode_split(_ode_tidy(simplify(diff(1 / fac, Y))), x, Y)
+    (sx === nothing || !has(sx, x) || !has(sy, Y)) && return Tuple{Sym,Sym}[]
+    k = Sym(:_lie_k)
+    I = _integrate(sy, Y)
+    _hasfn(I, :Integral) && return Tuple{Sym,Sym}[]
+    gy = k * I
+    fdd = 1 / (k * sx)
+    fx = _ode_tidy(simplify(fdd / fac - gy))
+    iszero(fx) && return Tuple{Sym,Sym}[]
+    check = _ode_tidy(simplify(diff(fx, x, 2) - fdd))
+    kv = if iszero(check)
+        ONE
+    else
+        ks = try _solve_generic(numer_denom(check)[1] ~ 0, k) catch err; err isa ArgumentError || rethrow(); Sym[] end
+        ks = ks isa AbstractVector ? [v for v in ks if !has(v, x) && !has(v, Y) && !iszero(v)] : Sym[]
+        isempty(ks) && return Tuple{Sym,Sym}[]
+        ks[1]
+    end
+    [(_ode_tidy(subs(fx + gy, k => kv)), ZERO)]
+end
+
+# abaco2_similar: ξ = τ(x), η = g(x) when f_y/f_yy is a constant C and f = A(x) +
+# B(x) e^(y/C) (τ = e^(-∫A/C)/B, g = A τ), or else γ = ∂x(f_y/f_yy)/∂y(f_y/f_yy) is a
+# function of x and (γ f_y - γ' - f_x)/(f + γ) = G(x) (τ = e^∫G, g = -γ τ)
+# (Cheb-Terrab and Roche, pp. 10–12)
+function _lie_similar(f::Sym, x::Sym, Y::Sym)
+    fy, fyy = diff(f, Y), diff(f, Y, 2)
+    # (not for large derivatives: cancelling those of -tan(√(x² + y²) + atan(x/y)) took
+    # minutes)
+    _nodes(fy) + _nodes(fyy) > 150 && return Tuple{Sym,Sym}[]
+    iszero(_ode_tidy(fyy)) && return Tuple{Sym,Sym}[]
+    fac = _ode_tidy(cancel(fy / fyy))
+    if !has(fac, x) && !has(fac, Y)
+        Cc = fac
+        B = _ode_tidy(simplify(fy * Cc * exp(-Y / Cc)))
+        has(B, Y) && return Tuple{Sym,Sym}[]
+        A = _ode_tidy(simplify(f - B * exp(Y / Cc)))
+        has(A, Y) && return Tuple{Sym,Sym}[]
+        I = _integrate(_ode_tidy(A / Cc), x)
+        _hasfn(I, :Integral) && return Tuple{Sym,Sym}[]
+        τ = _ode_tidy(exp(-I) / B)
+        return [(τ, _ode_tidy(A * τ))]
+    end
+    γ = _ode_tidy(cancel(diff(fac, x) / diff(fac, Y)))
+    has(γ, Y) && return Tuple{Sym,Sym}[]
+    G = _ode_tidy(cancel((γ * fy - diff(γ, x) - diff(f, x)) / (f + γ)))
+    τ = _lie_quad(G, x, Y)
+    τ === nothing ? Tuple{Sym,Sym}[] : [(τ, _ode_tidy(-τ * γ))]
+end
+
+# abaco2_unique_unknown: for each non-integer power u of an expression in x and y in f,
+# R = u_y/u_x; symmetries tangent to u's level sets: (1, -1/R), (-R, 1), and with R =
+# X(x) Y(y), (X, -1/Y) and (-Y, 1/X) (Cheb-Terrab and Roche, pp. 10–12)
+function _lie_unknown(f::Sym, x::Sym, Y::Sym)
+    us = Sym[]
+    _replace_walk(f) do t
+        if t.kind == POW && has(t.args[1], x) && has(t.args[1], Y) && !(t.args[2].kind == NUMBER && _isint(t.args[2].num))
+            any(u -> _eq(u, t), us) || push!(us, t)
+        elseif t.kind == MUL
+            for (b, e) in zip(t.args, t.exps)
+                if has(b, x) && has(b, Y) && !(e.kind == NUMBER && _isint(e.num))
+                    u = b^e
+                    any(v -> _eq(v, u), us) || push!(us, u)
+                end
+            end
+        end
+        nothing
+    end
+    out = Tuple{Sym,Sym}[]
+    for u in us
+        ux = diff(u, x)
+        iszero(ux) && continue
+        R = _ode_tidy(cancel(diff(u, Y) / ux))
+        iszero(R) && continue
+        push!(out, (ONE, _ode_tidy(-1 / R)), (_ode_tidy(-R), ONE))
+        X, Yp = _ode_split(R, x, Y)
+        X === nothing || push!(out, (X, _ode_tidy(-1 / Yp)), (_ode_tidy(-Yp), 1 / X))
+    end
+    out
+end
+
+# abaco2_unique_general: ξ = ξ(x)… η = η(y) found with no assumption on f, from the
+# invariants A = f_xy, B = f_yy + f_y², C = f_xx - f_x² (Cheb-Terrab and Roche, pp. 10–12,
+# as SymPy has it)
+function _lie_general(f::Sym, x::Sym, Y::Sym)
+    # (f rational and small only: simplifying the invariants of y' = y²/(sin(y - x) - x² +
+    # 2xy) took 20 minutes; for a rational f, cancel suffices)
+    n, d = numer_denom(cancel(together(f)))
+    (_nodes(f) <= 40 && _ispoly_in_all(n) && _ispoly_in_all(d)) || return Tuple{Sym,Sym}[]
+    t(e) = cancel(together(e))
+    hx, hy = diff(f, x), diff(f, Y)
+    A, B, C = t(diff(hx, Y)), t(diff(hy, Y) + hy^2), t(diff(hx, x) - hx^2)
+    (iszero(A) || iszero(B) || iszero(C)) && return Tuple{Sym,Sym}[]
+    Ax, Ay = diff(A, x), diff(A, Y)
+    Axy, Axx, Ayy = diff(Ax, Y), diff(Ax, x), diff(Ay, Y)
+    D = t((2Axy + hx * Ay - Ax * hy + (hx * hy + 2A) * A) * A - 3Ax * Ay)
+    if iszero(D)
+        E1 = t(3Ax^2 + ((hx^2 + 2C) * A - 2Axx) * A)
+        iszero(E1) && return Tuple{Sym,Sym}[]
+        iszero(t((2Ayy + (2B - hy^2) * A) * A - 3Ay^2)) || return Tuple{Sym,Sym}[]
+        iszero(t(E1 * ((28Ax + 4hx * A) * A^3 - E1 * (hy * A + Ay)) - diff(E1, x) * 8A^4)) || return Tuple{Sym,Sym}[]
+        e = _ode_tidy(cancel((4A^3 * (Ax - hx * A) + E1 * (hy * A - Ay)) / (2A * E1)))
+        η = _lie_quad(e, Y, x)
+        η === nothing && return Tuple{Sym,Sym}[]
+        ξ = _ode_tidy(-4A^3 * η / E1)
+        return has(ξ, Y) ? Tuple{Sym,Sym}[] : [(ξ, η)]
+    end
+    E1 = t((2Ayy + (2B - hy^2) * A) * A - 3Ay^2)
+    iszero(E1) && return Tuple{Sym,Sym}[]
+    iszero(t(4A^3 * D - D^2 + E1 * ((2Axx - (hx^2 + 2C) * A) * A - 3Ax^2))) || return Tuple{Sym,Sym}[]
+    iszero(t(-(A * D) * diff(E1, Y) + ((diff(E1, x) - hy * D) * A + 3Ay * D + (A * hx - 3Ax) * E1) * E1)) ||
+        return Tuple{Sym,Sym}[]
+    e = _ode_tidy(cancel(((A * hx - Ax) * E1 - (Ay + A * hy) * D) / (2A * D)))
+    η = _lie_quad(e, Y, x)
+    η === nothing && return Tuple{Sym,Sym}[]
+    ξ = _ode_tidy(-E1 * η / D)
+    has(ξ, Y) ? Tuple{Sym,Sym}[] : [(ξ, η)]
+end
+
+# chi: χ = η - f ξ a polynomial in x and y of degree ≤ d with χ_x + f χ_y - f_y χ = 0
+# (f rational); then (0, χ) is a symmetry, and 1/χ an integrating factor (Cheb-Terrab,
+# Duarte and da Mota, Computer algebra solving of first order ODEs using symmetry
+# methods, p. 8)
+function _lie_chi(f::Sym, x::Sym, Y::Sym, d::Int)
+    ms = Sym[x^i * Y^j for i in 0:d for j in 0:(d - i)]
+    cs = [Sym(Symbol("_lie_c", k)) for k in eachindex(ms)]
+    χ = _add_many(c * m for (c, m) in zip(cs, ms))
+    E = diff(χ, x) + f * diff(χ, Y) - diff(f, Y) * χ
+    n = numer_denom(cancel(together(E)))[1]
+    Pn = try Poly{Sym}(expand(n), [x, Y]) catch; return Tuple{Sym,Sym}[] end
+    eqs = Relation[Relation(:eq, c, ZERO) for c in coefficients(Pn) if !iszero(c)]
+    (isempty(eqs) || any(e -> has(e.lhs, x) || has(e.lhs, Y), eqs)) && return Tuple{Sym,Sym}[]
+    sols = try _solve_generic(eqs, cs) catch err; err isa ArgumentError || rethrow(); return Tuple{Sym,Sym}[] end
+    (sols isa AbstractVector && !isempty(sols) && sols[1] isa AbstractDict) || return Tuple{Sym,Sym}[]
+    s = sols[1]
+    free = [c for c in cs if _eq(get(s, c, c), c)]
+    out = Tuple{Sym,Sym}[]
+    for c0 in free
+        vals = [c => (_eq(c, c0) ? ONE : ZERO) for c in free]
+        sub = [c => (_eq(get(s, c, c), c) ? (_eq(c, c0) ? ONE : ZERO) : subs(s[c], vals...)) for c in cs]
+        χv = _ode_tidy(subs(χ, sub...))
+        iszero(χv) || push!(out, (ZERO, χv))
+    end
+    sort!(out; by = q -> _nodes(q[2]))
 end
 
 # the determining equation η_x + (η_y - ξ_x) f - ξ_y f² - ξ f_x - η f_y = 0, simplified
@@ -1517,11 +1761,13 @@ end
 # η = x: φ = atan(y/x) - (x² + y²)/2 … a constant)
 function _ode_lie(P::_ODE, f::Sym, a::Sym, C::Sym)
     Y0, x = P.ys[1], P.x
-    for cands in (() -> _lie_simple(f, x, Y0), () -> _lie_polynomial(f, x, Y0, 1), () -> _lie_polynomial(f, x, Y0, 2))
-        for (ξ, η) in cands()
+    for (_, gen) in _lie_generators(f, x, Y0)
+        for (ξ, η) in gen()
+            # (μ is an integrating factor of any symmetry the determining equation holds for;
+            # a large integrand is not tried: integrating it can take minutes)
             μ = _ode_tidy(1 / (η - f * ξ))
             M, N = _ode_tidy(-f * μ), μ
-            iszero(_ode_tidy(simplify(diff(M, Y0) - diff(N, x)))) || continue
+            _nodes(M) > 300 && continue
             I = _integrate(M, x)
             hp = _ode_tidy(simplify(N - diff(I, Y0)))
             has(hp, x) && continue
