@@ -136,6 +136,26 @@
           "(-C1*besselj(-3/4, x^2/2) - bessely(-3/4, x^2/2))*x/(C1*besselj(1/4, x^2/2) + bessely(1/4, x^2/2))"
     @test string(D(y'(x) ~ (12x + y(x)^2 + 8y(x)) / x, y(x)).rhs) ==
           "-2*sqrt(3)*(C1*besselj(7, 4*sqrt(3)*sqrt(x)) + bessely(7, 4*sqrt(3)*sqrt(x)))*sqrt(x)/(C1*besselj(8, 4*sqrt(3)*sqrt(x)) + bessely(8, 4*sqrt(3)*sqrt(x)))"
+    # nonlinear in y′: Clairaut (the lines and the envelope), singular solutions, d'Alembert
+    # and x = h(y′) parametric (with antiderivatives: test/extensions.jl)
+    @test D(y(x) ~ x * y'(x) + y'(x)^2, y(x)) == [y(x) ~ C1 * x + C1^2, y(x) ~ -x^2 / 4]
+    @test D(y(x) ~ x * y'(x) + exp(y'(x)), y(x)) == [y(x) ~ C1 * x + exp(C1), y(x) ~ x * log(-x) - x]
+    @test D(y(x) ~ x * y'(x) + y'(x)^2, y(x), y(0) => 1) == [y(x) ~ 1 - x, y(x) ~ 1 + x]
+    # (the branches' order and the constant's sign differ between Julia versions)
+    r = D(y'(x)^2 ~ 4y(x), y(x))
+    @test r[1].rhs in ((C1 - x)^2, (C1 + x)^2)
+    @test r[2:end] == [y(x) ~ 0]
+    @test issetequal(D(y'(x)^2 ~ y(x)^2, y(x)), [y(x) ~ C1 / exp(x), y(x) ~ C1 * exp(x)])   # y = 0 is C1 = 0
+    p = Sym(:p)
+    r = D(y(x) ~ 2x * y'(x) + y'(x)^2, y(x))
+    @test r[1] == SymJ.ParametricSolution(C1 / p^2 - 2p / 3, (6C1 - p^3) / (3p), p, (x, y(x)))
+    @test r[2] == (y(x) ~ 0)
+    @test string(r[1]) == "{x = -2*p/3 + C1/p^2, y(x) = (-p^3 + 6*C1)/(3*p); p}"
+    r = D(y(x) ~ x * y'(x)^2 + y'(x)^3, y(x))
+    @test r[2:3] == [y(x) ~ 0, y(x) ~ x + 1]
+    s = D(x ~ y'(x)^3 + y'(x), y(x))
+    @test s == SymJ.ParametricSolution(p^3 + p, 3p^4 / 4 + p^2 / 2 + C1, p, (x, y(x)))
+    @test lambdify(subs(s, C1 => 0))(1.0) == (2.0, 1.25)
     @test_throws ArgumentError D(y'(x) ~ y(x), y(x), y(0) => 1, y(1) => 2)
     @test_throws ArgumentError D(y(x) + x ~ 0, y(x))
     @test_throws ArgumentError D(y'(x) - y(x), y(x))
