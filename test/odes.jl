@@ -129,6 +129,16 @@
     @test string(D(y''(x) - x * y(x) ~ 0, y(x)).rhs) == "C1*airyai(x) + C2*airybi(x)"
     @test string(D(y''(x) + x * y(x) ~ 0, y(x)).rhs) == "C1*airyai(-x) + C2*airybi(-x)"
     @test string(D(y''(x) - (2x + 1) * y(x) ~ 0, y(x)).rhs) == "C1*airyai(2^(1/3)*(x + 1/2)) + C2*airybi(2^(1/3)*(x + 1/2))"
+    # hypergeometric equations: Kummer's (₁F₁), Gauss's (₂F₁), Whittaker's normal form;
+    # for c an integer and no polynomial solution, no method (no Kummer U or Legendre Q)
+    @syms a b c
+    @test string(D(x * y''(x) + (b - x) * y'(x) - a * y(x) ~ 0, y(x)).rhs) == "C2*_₁F₁(a - b + 1, -b + 2, x)*x^(-b + 1) + C1*_₁F₁(a, b, x)"
+    @test string(D(2x * y''(x) + (3 + 4x) * y'(x) + y(x) ~ 0, y(x)).rhs) == "C1*_₁F₁(1/4, 3/2, -2*x) + C2*_₁F₁(-1/4, 1/2, -2*x)/sqrt(x)"
+    @test string(D(x * (1 - x) * y''(x) + (c - (a + b + 1) * x) * y'(x) - a * b * y(x) ~ 0, y(x)).rhs) ==
+          "C2*_₂F₁(a - c + 1, b - c + 1, -c + 2, x)*x^(-c + 1) + C1*_₂F₁(a, b, c, x)"
+    @test string(D(y''(x) + (-1 // 4 + 2 / x + (1 // 4 - 1 // 9) / x^2) * y(x) ~ 0, y(x)).rhs) ==
+          "C1*_₁F₁(-7/6, 5/3, x)*x^(5/6)/exp(x/2) + C2*_₁F₁(-11/6, 1/3, x)*x^(1/6)/exp(x/2)"
+    @test_throws ArgumentError D((1 - x^2) * y''(x) - 2x * y'(x) + (4 // 9) * y(x) ~ 0, y(x))   # Legendre, ν = 1/3
     # Riccati equations whose linear form is of these kinds (SymPy #25819); derivatives of
     # the Bessel functions in the two lowest orders
     @test string(D(y'(x) ~ x + y(x)^2, y(x)).rhs) == "(C1*airyaiprime(-x) + airybiprime(-x))/(C1*airyai(-x) + airybi(-x))"
