@@ -577,6 +577,100 @@ end
     @test SymJ._isreal(x^y, Assumptions(x ≪ 0, y ∈ ℚ)) === nothing
 end
 
+@testset "solveset" begin
+    SS, PI, IM = SymJ.solveset, SymJ.PI, SymJ.IM
+    S(eq; kw...) = string(SS(eq, x; kw...))
+    # periodic: families {a + Pn}, merged where their offsets are equally spaced
+    @test S(sin(x) ~ 1 // 2) == "{2*n*π + π/6 | n ∈ ℤ} ∪ {2*n*π + 5*π/6 | n ∈ ℤ}"
+    @test S(cos(x) ~ 0) == "{n*π + π/2 | n ∈ ℤ}"
+    @test S(tan(x) ~ 1) == "{n*π + π/4 | n ∈ ℤ}"
+    @test S(sin(x)^2 ~ 1 // 4) == "{n*π + π/6 | n ∈ ℤ} ∪ {n*π + 5*π/6 | n ∈ ℤ}"
+    let T = SS(sin(2x) ~ cos(x), x)                       # every solution, once
+        @test collect(T ∩ solve([x ≧ 0, x ≪ 2PI], [x])) == [PI / 6, PI / 2, 5PI / 6, 3PI / 2]
+    end
+    # over ℝ against ℂ
+    @test isempty(SS(cos(x) ~ 2, x))
+    @test S(cos(x) ~ 2; domain = ℂ) == "{2*n*π + acos(2) | n ∈ ℤ} ∪ {2*n*π - acos(2) | n ∈ ℤ}"
+    @test S(exp(x) ~ 2) == "{log(2)}"
+    @test S(exp(x) ~ 2; domain = ℂ) == "{2*im*n*π + log(2) | n ∈ ℤ}"
+    @test isempty(SS(exp(x) ~ -1, x))
+    @test S(exp(x) ~ -1; domain = ℂ) == "{2*im*n*π + im*π | n ∈ ℤ}"
+    @test S(x^2 ~ -4; domain = ℂ) == "{-2*im, 2*im}"
+    @test S(cosh(x) ~ 1) == "{0}"
+    # nested: each function inverted in turn
+    @test S(sin(sin(x)) ~ 0) == "{n*π | n ∈ ℤ}"
+    @test S(sin(sin(x)) ~ 0; domain = ℂ) == "{2*m*π + asin(n*π) | n, m ∈ ℤ} ∪ {2*m*π - asin(n*π) + π | n, m ∈ ℤ}"
+    @test S(sin(x^2) ~ 0) == "{-sqrt(n*π) | n ∈ ℤ, n >= 0} ∪ {sqrt(n*π) | n ∈ ℤ, n >= 0}"
+    @test S(exp(sin(x)) ~ 1) == "{n*π | n ∈ ℤ}"
+    # finite, unsolved, inequalities
+    @test collect(SS(x^2 ~ 4, x)) == [-2, 2]
+    @test SS(x ~ sin(x), x).unsolved[1] isa SymJ.ConditionSet
+    @test string(SS(x^2 ≪ 1, x)) == "(-1, 1)"
+    # membership and cutting to an interval
+    C0 = SS(cos(x) ~ 0, x)
+    @test 3PI / 2 in C0
+    @test -PI / 2 in C0
+    @test !(1 in C0)
+    @test collect(C0 ∩ solve([x ≧ 0, x ≦ 2PI], [x])) == [PI / 2, 3PI / 2]
+    @test_throws ArgumentError collect(C0)
+    @test_throws ArgumentError SS(x ~ 1, x; domain = ℚ)
+    # parameters over ℝ: real, the answer by cases on them, equal neighbours merged
+    let a = Sym(:a)
+        @test string(SS(sin(x) ~ a, x)) == "Pair{Vector{Any}, SymJ.SolutionSet}[[a ≪ -1] => ∅, " *
+              "[a ≧ -1, a ≦ 1] => {2*n*π + asin(a) | n ∈ ℤ} ∪ {2*n*π - asin(a) + π | n ∈ ℤ}, [a ≫ 1] => ∅]"
+        cs = SS(exp(x) ~ a, x)
+        @test isempty(cs(a => -1))
+        @test collect(cs(a => 2)) == [log(Sym(2))]
+        @test S(log(x) ~ a) == "{exp(a)}"
+        @test collect(SS(x^2 ~ a, x)(a => 0)) == [0]
+        @test S(tan(x) ~ a) == "{n*π + atan(a) | n ∈ ℤ}"
+        @test S(sin(x) ~ a; domain = ℂ) == "{2*n*π + asin(a) | n ∈ ℤ} ∪ {2*n*π - asin(a) + π | n ∈ ℤ}"
+        # Lambert's W: the real branches, W₀ and W₋₁ on [-1/e, 0), by cases for a parameter
+        cw = SS(x * exp(x) ~ a, x)
+        @test isempty(cw(a => -1))
+        @test length(collect(cw(a => -Sym(1) // 10))) == 2
+        @test collect(cw(a => 1)) == [lambertw(Sym(1))]
+        @test S(x * exp(x) ~ a; domain = ℂ) == "{lambertw(a, n) | n ∈ ℤ}"
+    end
+    @test collect(SS(x * exp(x) ~ -Sym(1) // 10, x)) == [lambertw(-Sym(1) // 10, -1), lambertw(-Sym(1) // 10)]
+    @test isempty(SS(x * exp(x) ~ -1, x))
+    @test S(x * exp(x) ~ 1; domain = ℂ) == "{lambertw(1, n) | n ∈ ℤ}"
+    @test S(2^x ~ 4x; domain = ℂ) == "{-lambertw(-log(2)/4, n)/log(2) | n ∈ ℤ}"
+    @test S(x^2 * exp(x) ~ 1; domain = ℂ) == "{2*lambertw(1/2, n) | n ∈ ℤ} ∪ {2*lambertw(-1/2, n) | n ∈ ℤ}"
+    # membership in families not linear in their variable: n solved for, or Lambert's
+    # branch found numerically
+    L = SS(x * exp(x) ~ 1, x; domain = ℂ)
+    @test SymJ.apply_function(:lambertw, Sym[1, -1]) in L
+    @test SymJ.apply_function(:lambertw, Sym[1, 3]) in L
+    @test !(Sym(2) in L)
+    R = SS(sin(x^2) ~ 0, x)
+    @test sqrt(2PI) in R
+    @test !(sqrt(Sym(2)) in R)
+    # several trigonometric functions of one angle with a parameter: by cases, through one
+    # of them or tan(x/2); u = π apart (a = -1 for sin + cos)
+    let a = Sym(:a)
+        cs = SS(sin(x) + cos(x) ~ a, x)
+        @test length(cs.cases) == 4
+        @test PI / 2 in cs(a => 1)
+        @test Sym(0) in cs(a => 1)
+        @test isempty(cs(a => 2))
+        @test PI in cs(a => -1)
+        @test 3PI / 2 in cs(a => -1)
+        @test !(PI / 2 in cs(a => -1))
+        ct = SS(tan(x) + cot(x) ~ a, x)
+        @test isempty(ct(a => 1))
+        @test PI / 4 in ct(a => 2)
+        c2 = SS(sin(x)^2 + cos(x) ~ a, x)
+        @test isempty(c2(a => 2))
+        @test PI / 2 in c2(a => 1)
+        @test Sym(0) in c2(a => 1)
+        @test length(c2.cases) == 4
+        c3 = SS(sin(x) - a * cos(x) ~ 0, x)
+        @test PI / 4 in c3(a => 1)
+        @test PI in c3(a => 0)
+    end
+end
+
 @testset "fsolve" begin
     @syms x y
     F = SymJ.fsolve

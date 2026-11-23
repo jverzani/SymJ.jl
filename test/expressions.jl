@@ -405,6 +405,11 @@ end
         @test String(latexify(Sym(1.0e20) * x)) == raw"$1.0 \cdot 10^{20} \cdot x$"
         @test String(latexify(SymJ._mkfn_node(:Integral, Sym[u(x), x, Sym(0), Sym(1)]))) == raw"$\int_{0}^{1} u\left( x \right) \, dx$"
     end
+    # solveset's sets: families over ℤ, points, ConditionSet, ∅
+    @test L(SymJ.solveset(tan(x) ~ 1, x)) == raw"$\left\{ n \cdot \pi + \frac{\pi}{4} \;\middle|\; n \in \mathbb{Z} \right\}$"
+    @test L(SymJ.solveset(x^2 ~ 4, x)) == raw"$\left\{ -2, 2 \right\}$"
+    @test L(SymJ.solveset(exp(x) ~ -1, x)) == raw"$\emptyset$"
+    @test L(SymJ.solveset(x ~ sin(x), x)) == raw"$\left\{ x \in \mathbb{R} \;\middle|\; x = \sin\left( x \right) \right\}$"
     # Julia's numbers and mixed tuples are left to their own display
     @test !showable(MIME"text/latex"(), 1.5) && !showable(MIME"text/latex"(), (x, 1.0)) &&
           !showable(MIME"text/latex"(), [1, 2])
