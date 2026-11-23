@@ -194,7 +194,28 @@ end
     # errors
     @test_throws ArgumentError D([u'(t) ~ v(t)^2, v'(t) ~ u(t)], [u(t), v(t)])           # nonlinear
     @test_throws ArgumentError D([u'(t) ~ t * v(t), v'(t) ~ u(t)], [u(t), v(t)])         # variable coefficients
-    @test_throws ArgumentError D([u'(t) + v'(t) ~ u(t), u'(t) + v'(t) ~ v(t)], [u(t), v(t)])   # not in normal form
+    # differential-algebraic systems: an unknown without derivatives (index 1), or a
+    # combination free of the highest derivatives, G = 0, differentiated, with G = 0 fixing
+    # constants; more initial conditions than constants when consistent
+    @test rhs_(D([u'(t) + v'(t) ~ u(t), u'(t) + v'(t) ~ v(t)], [u(t), v(t)])) == [C1 * exp(t / 2), C1 * exp(t / 2)]
+    @test rhs_(D([u'(t) ~ v(t), u(t) ~ exp(t)], [u(t), v(t)])) == [exp(t), exp(t)]
+    let A = SymFunction(:A), B = SymFunction(:B)                                 # SymPy #9251
+        @syms c d
+        @test rhs_(D([A'(t) ~ B(t) - B'(t) + c, A(t) ~ B'(t) + A'(t) + d], [A(t), B(t)])) == [C1 * exp(t / 2) + d, C1 * exp(t / 2) - c]
+    end
+    let IC = SymFunction(:IC), IL = SymFunction(:IL), UC = SymFunction(:UC), UL = SymFunction(:UL)   # SymPy #26717
+        lc = [IC(t) - IL(t) ~ 0, UC(t) + UL(t) ~ 0, UC'(t) ~ IC(t), UL(t) ~ IL'(t)]
+        @test rhs_(D(lc, [IC(t), IL(t), UC(t), UL(t)], IC(0) => 0, IL(0) => 0, UC(0) => 1, UL(0) => -1)) == [-sin(t), -sin(t), cos(t), -cos(t)]
+        @test_throws ArgumentError D(lc, [IC(t), IL(t), UC(t), UL(t)], IC(0) => 1, IL(0) => 0, UC(0) => 1)   # inconsistent
+    end
+    let Vin = SymFunction(:Vin), Vmid = SymFunction(:Vmid), Ic1 = SymFunction(:Ic1), Il1 = SymFunction(:Il1)   # SymPy #28390
+        @syms c1 l1 c2 I0 Vin0
+        r = D([Vin'(t) - I0 / c2 - Ic1(t) / c1 ~ 0, Vmid'(t) - I0 / c2 ~ 0, Il1'(t) - (Vin(t) - Vmid(t)) / l1 ~ 0, Ic1(t) + Il1(t) - I0 ~ 0],
+              [Ic1(t), Il1(t), Vmid(t), Vin(t)], Ic1(0) => I0, Il1(0) => 0, Vmid(0) => Vin0, Vin(0) => Vin0; assume = (c1 ≫ 0, l1 ≫ 0))
+        @test r[1].rhs == I0 * cos(t / sqrt(c1 * l1))
+    end
+    @test_throws ArgumentError D([u'(t) + v'(t) ~ u(t), u'(t) + v'(t) ~ u(t) + 1], [u(t), v(t)])   # inconsistent
+    @test_throws ArgumentError D([u'(t) + v'(t) ~ u(t), 2u'(t) + 2v'(t) ~ 2u(t)], [u(t), v(t)])   # dependent
     @test_throws ArgumentError D([u'(t) ~ v(t)], [u(t), v(t)])
     @test_throws ArgumentError D([u'(t) ~ v(t), v'(t) ~ -u(t)], [u(t), v(t)], u(0) => 1)
     @test_throws ArgumentError D([u'(t) ~ v(t), v'(t) ~ -u(t)], [u(t), v(t)], u(0) => 1, w(0) => 1)
