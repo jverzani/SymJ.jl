@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Differential equations — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=6e9d9d9f">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=20a18050">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Differential equations — SymJ.jl">
   <meta property="og:title" content="Differential equations — SymJ.jl">
@@ -80,7 +80,7 @@
 <div class="md-docstring" id="SymJ.ParametricSolution">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.ParametricSolution</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/d8cd001273ed108eed6d130dd3b47f93819a06cb/src/ode.jl#L995-L1006" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/c2356bd03efd2a8bb5250ab6e86ca38a4a2484af/src/ode.jl#L999-L1010" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -94,7 +94,7 @@
 <div class="md-docstring" id="SymJ.dsolve-Tuple{Relation, Sym, Vararg{Pair}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.dsolve</code> — <span class="md-docstring-sig">Tuple{Relation, Sym, Vararg{Pair}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/d8cd001273ed108eed6d130dd3b47f93819a06cb/src/ode.jl#L91-L182" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/c2356bd03efd2a8bb5250ab6e86ca38a4a2484af/src/ode.jl#L92-L186" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -108,7 +108,7 @@
 <p>An autonomous equation <code class="md-code-inline">y&#39;&#39; = f(y, y&#39;)</code> whose <code class="md-code-inline">y&#39;</code> has several branches (<code class="md-code-inline">y&#39; = ±sqrt(…)</code>, as for <code class="md-code-inline">y&#39;&#39; = -sin(y)</code>) gives a vector of solutions, one for each branch; with initial conditions, the branch through them (<code class="md-code-inline">∫ᵥʸ dy/y&#39; = x - a</code>, a definite <code class="md-code-inline">Integral(f, (y, v, y(x)))</code>, when the integral has no closed form).</p>
 <p>With <code class="md-code-inline">method = :laplace</code>, a linear equation with constant coefficients is solved by Laplace transforms (<a href="../../reference/calculus/#SymJ.laplace_transform-Tuple{Any, Sym, Sym}"><code class="md-code-inline">SymJ.laplace_transform</code></a>); this is the method used, without asking, when the right side has <a href="../../reference/piecewise/#SymJ.heaviside-Tuple{Any}"><code class="md-code-inline">SymJ.heaviside</code></a> or <a href="../../reference/piecewise/#SymJ.dirac-Tuple{Any}"><code class="md-code-inline">SymJ.dirac</code></a>. The initial conditions (constants for those not given) are at one point, and the solution holds from there on.</p>
 <p>With <code class="md-code-inline">series = n</code>, the solution is a series about <code class="md-code-inline">x0</code> (the point of the initial conditions, else <code class="md-code-inline">0</code>) with error <code class="md-code-inline">O((x - x0)^n)</code>, returned as the truncated sum. At an ordinary point it is the Taylor series, for any equation that can be solved for its highest derivative, nonlinear ones included; a linear one is grouped by constant, <code class="md-code-inline">C1*(…) + C2*(…)</code>. At a regular singular point of a second-order linear homogeneous equation it is the Frobenius series, with a <code class="md-code-inline">log</code> term when the indicial roots are equal or an integer apart.</p>
-<p>Methods: first order linear, separable, Bernoulli, exact (with an integrating factor in <code class="md-code-inline">x</code> or <code class="md-code-inline">y</code> alone), homogeneous, Riccati, and else a Lie point symmetry (from <a href="../../reference/ode/#SymJ.infinitesimals-Tuple{Relation, Sym}"><code class="md-code-inline">SymJ.infinitesimals</code></a>; its integrating factor <code class="md-code-inline">1/(η - f ξ)</code>); linear with constant coefficients, of any order (undetermined coefficients, else variation of parameters, for the right side); Cauchy–Euler; Bessel&#39;s equation <code class="md-code-inline">x²y&#39;&#39; + xy&#39; + (α²x² - ν²)y = 0</code> (<code class="md-code-inline">C1 besselj(ν, αx) + C2 bessely(ν, αx)</code>) and the second-order homogeneous equations that reduce to it or to Airy&#39;s: <code class="md-code-inline">y = e^(-∫p/2) v</code> turns <code class="md-code-inline">y&#39;&#39; + p y&#39; + q y = 0</code> into <code class="md-code-inline">v&#39;&#39; + I v = 0</code>, and `I = A xᵐ</p>
+<p>Methods: first order linear, separable, Bernoulli, exact (with an integrating factor in <code class="md-code-inline">x</code> or <code class="md-code-inline">y</code> alone), homogeneous, Riccati, and else a Lie point symmetry (from <a href="../../reference/ode/#SymJ.infinitesimals-Tuple{Relation, Sym}"><code class="md-code-inline">SymJ.infinitesimals</code></a>; its integrating factor <code class="md-code-inline">1/(η - f ξ)</code>, or its canonical coordinates <code class="md-code-inline">r</code>, <code class="md-code-inline">s</code>, in which the equation is <code class="md-code-inline">ds/dr = F(r)</code>: <code class="md-code-inline">s - ∫ F dr = C1</code>, a definite <code class="md-code-inline">Integral</code> from a point when <code class="md-code-inline">∫ F</code> has no closed form; local, on one branch of <code class="md-code-inline">r = R</code>: <code class="md-code-inline">y&#39; = y²/(sin(y - x) - x² + 2xy)</code> is <code class="md-code-inline">-1/y - ∫₁^(y-x) dr/(r² - sin r) = C1</code>); linear with constant coefficients, of any order (undetermined coefficients, else variation of parameters, for the right side); Cauchy–Euler; Bessel&#39;s equation <code class="md-code-inline">x²y&#39;&#39; + xy&#39; + (α²x² - ν²)y = 0</code> (<code class="md-code-inline">C1 besselj(ν, αx) + C2 bessely(ν, αx)</code>) and the second-order homogeneous equations that reduce to it or to Airy&#39;s: <code class="md-code-inline">y = e^(-∫p/2) v</code> turns <code class="md-code-inline">y&#39;&#39; + p y&#39; + q y = 0</code> into <code class="md-code-inline">v&#39;&#39; + I v = 0</code>, and `I = A xᵐ</p>
 <ul class="md-list-tight">
 <li><p>B/x²<code class="md-code-inline">gives</code>√x Z<em>ν(β x^γ)<code class="md-code-inline">,</code>I = A e^(λx) + B<code class="md-code-inline">gives</code>Z</em>ν(β e^(λx/2))<code class="md-code-inline">(</code>Z<code class="md-code-inline">is</code>besselj`</p>
 </li>
@@ -142,7 +142,7 @@ SymJ.dsolve([u&#39;(t) ~ v(t), v&#39;(t) ~ -u(t)], [u(t), v(t)], u(0) =&gt; 1, v
 <div class="md-docstring" id="SymJ.infinitesimals-Tuple{Relation, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.infinitesimals</code> — <span class="md-docstring-sig">Tuple{Relation, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/d8cd001273ed108eed6d130dd3b47f93819a06cb/src/ode.jl#L1400-L1430" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/c2356bd03efd2a8bb5250ab6e86ca38a4a2484af/src/ode.jl#L1404-L1435" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -164,7 +164,7 @@ SymJ.dsolve([u&#39;(t) ~ v(t), v&#39;(t) ~ -u(t)], [u(t), v(t)], u(0) =&gt; 1, v
 <li><p><code class="md-code-inline">:abaco2_similar</code>, <code class="md-code-inline">:abaco2_unique_unknown</code>, <code class="md-code-inline">:abaco2_unique_general</code>: <code class="md-code-inline">ξ</code> a function of <code class="md-code-inline">x</code>, <code class="md-code-inline">η</code> of <code class="md-code-inline">x</code> or <code class="md-code-inline">y</code>, from patterns in <code class="md-code-inline">f</code> (<code class="md-code-inline">f = A(x) + B(x) e^(y/C)</code>; powers of expressions in <code class="md-code-inline">x</code> and <code class="md-code-inline">y</code>; invariants of <code class="md-code-inline">f</code>).</p>
 </li>
 </ul>
-<p>With <code class="md-code-inline">heuristic</code>, that one alone. A vector of pairs, in <code class="md-code-inline">x</code> and <code class="md-code-inline">y(x)</code>; empty when none is found. <a href="../../reference/ode/#SymJ.dsolve-Tuple{Relation, Sym, Vararg{Pair}}"><code class="md-code-inline">SymJ.dsolve</code></a> uses one when its other first-order methods fail: <code class="md-code-inline">1/(η - f ξ)</code> is an integrating factor.</p>
+<p>With <code class="md-code-inline">heuristic</code>, that one alone. A vector of pairs, in <code class="md-code-inline">x</code> and <code class="md-code-inline">y(x)</code>; empty when none is found. <a href="../../reference/ode/#SymJ.dsolve-Tuple{Relation, Sym, Vararg{Pair}}"><code class="md-code-inline">SymJ.dsolve</code></a> uses one when its other first-order methods fail: <code class="md-code-inline">1/(η - f ξ)</code> is an integrating factor, else canonical coordinates <code class="md-code-inline">r</code>, <code class="md-code-inline">s</code> (<code class="md-code-inline">ξ r_x + η r_y = 0</code>, <code class="md-code-inline">ξ s_x + η s_y = 1</code>) make the equation <code class="md-code-inline">ds/dr = F(r)</code>.</p>
 <p>Not exported.</p>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -191,6 +191,6 @@ SymJ.infinitesimals(y&#39;(x) ~ (y(x)^3 + x^2*y(x) - x - y(x)) / (x*y(x)^2 + x^3
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=6e9d9d9f"></script>
+  <script src="../../assets/materialdocs.js?v=20a18050"></script>
 </body>
 </html>
