@@ -8,6 +8,9 @@
 # - linear (F affine in the Yₖ): first order by an integrating factor; constant
 #   coefficients by the roots of the characteristic polynomial, a particular solution by
 #   undetermined coefficients or variation of parameters; Cauchy–Euler through x = eᵗ;
+#   second order: Kummer's and Gauss's hypergeometric equations (a polynomial solution
+#   and reduction of order, or ₁F₁ and ₂F₁), Bessel's, Airy's and Whittaker's through
+#   the normal form;
 # - first order, y' = f(x, y): separable, Bernoulli, exact (or with an integrating factor
 #   in x or in y alone), homogeneous (f a function of y/x), Riccati (made linear, or
 #   from a particular solution); else a Lie point symmetry (ξ, η), whose integrating
@@ -149,7 +152,16 @@ Airy's: `y = e^(-∫p/2) v` turns `y'' + p y' + q y = 0` into `v'' + I v = 0`, a
 + B/x²` gives `√x Z_ν(β x^γ)`, `I = A e^(λx) + B` gives `Z_ν(β e^(λx/2))` (`Z` is `besselj`
 and `bessely`, or `besseli` and `besselk` when `A < 0`; elementary for half-integer `ν`:
 `x y'' + y' + y = 0` is `C1 besselj(0, 2√x) + C2 bessely(0, 2√x)`), `I` linear in `x` gives
-`airyai` and `airybi` (also Riccati equations made linear: `y' = x + y²`); equations
+`airyai` and `airybi` (also Riccati equations made linear: `y' = x + y²`), and
+`I = A + B/x + D/x²` Whittaker's functions (in `_₁F₁`); hypergeometric equations,
+`a₂ y'' + a₁ y' + a₀ y = 0` with `a₀` constant, `a₁` linear and `a₂` linear (Kummer's,
+`x y'' + (b - x) y' - a y = 0`: `C1 ₁F₁(a, b, x) + C2 x^(1-b) ₁F₁(a - b + 1, 2 - b, x)`),
+constant (Hermite's) or quadratic with two roots (Gauss's, `₂F₁`), after a linear change
+of variable: a polynomial solution when the series terminates (Legendre's, Laguerre's,
+Hermite's, Chebyshev's polynomials) and the second by reduction of order when that is
+elementary (Legendre's `Q₆` in logarithms), else the two hypergeometric solutions; when
+they coincide (`b` or `c` an integer), only reduction of order (Legendre's equation for
+`ν = 1/3` has no method: no Kummer `U` or Legendre `Q`); equations
 without `y` (reduced to a lower order); second order without
 `x` (autonomous: `p = y'` as a function of `y`). Integrals are done by
 the RischIntegrate extension when it is loaded (an unevaluated `Integral` otherwise, or
@@ -614,6 +626,10 @@ function _ode_linear(P::_ODE, Cs)
         r === nothing || return r
         r = n == 2 ? _ode_normal_form(a, g, x, Cs) : nothing
         r === nothing || return r
+        # (Kummer's and Gauss's forms before the normal form's Bessel and Whittaker
+        # reductions: ₁F₁(a, b, x) itself, not e^(-x/2) x^(b/2) M_{κ,μ}(x))
+        r = n == 2 && iszero(g) ? _ode_hypergeometric(a, x, Cs) : nothing
+        r === nothing || return r
         r = n == 2 && iszero(g) ? _ode_bessel(a, x, Cs) : nothing
         r === nothing || return r
         n == 2 && return _ode_reduction_of_order(a, g, x, Cs)
@@ -643,7 +659,7 @@ function _ode_bessel(a::Vector{Sym}, x::Sym, Cs)
     _hasfn(w, :Integral) && return nothing
     v = _ode_airy(I, x, Cs)
     v === nothing && (v = _ode_bessel_v(I, x, Cs))
-    v === nothing && return nothing
+    v === nothing && return _ode_whittaker(a, I, w, x, Cs)
     (:explicit, _ode_tidy(w * v))
 end
 
@@ -757,14 +773,158 @@ function _ode_normal_form(a::Vector{Sym}, g::Sym, x::Sym, Cs)
     (:explicit, _ode_tidy(expand(w * x * subs(U, t => 1 / x))))
 end
 
+## hypergeometric equations: Kummer's, Gauss's, Whittaker's
+
+# a₂ y'' + a₁ y' + a₀ y = 0 with, up to a common factor, a₀ constant, a₁ linear and a₂
+# linear (Kummer's equation z w'' + (b - z) w' - A w = 0 in z = -μ(x - x₀)), constant
+# (Hermite's type, Kummer's in z = -k u²/2, u = x + β/γ) or quadratic with two roots
+# (Gauss's t(1 - t) w'' + (c - (A + B + 1) t) w' - AB w = 0 in t = (x - r₁)/(r₂ - r₁)).
+# Two solutions in ₁F₁ or ₂F₁ for c not an integer, a terminating one a polynomial
+# (Laguerre, Legendre, Hermite, Chebyshev); a polynomial solution first, the second from
+# it by reduction of order when that is elementary (P₂ and Q₂ for Legendre's equation),
+# else the hypergeometric pair; for c an integer, reduction of order only (an
+# unevaluated integral; Kummer's U and Legendre's Q not here)
+function _ode_hypergeometric(a::Vector{Sym}, x::Sym, Cs)
+    m = _ode_hyper_match(a, x)
+    m === nothing && return nothing
+    c, sols = m                                    # sols: (prefactor, as, bs, z) twice
+    fallback = nothing
+    for (pre, as, bs, z) in sols
+        P = _ode_hyper_poly(as, bs, z)
+        P === nothing && continue
+        y1 = _ode_tidy(expand(pre * P))
+        iszero(y1) && continue
+        # (monic, as the polynomial guess of reduction of order gives it)
+        q = try Poly{Sym}(y1, [x]) catch; nothing end
+        q === nothing || (y1 = _ode_tidy(expand(y1 / coeff(y1, x, degree(q, x)))))
+        r = _ode_reduction_of_order(a, ZERO, x, Cs; y1 = y1)
+        r === nothing && continue
+        _hasfn(r[2], :Integral) || return r
+        fallback === nothing && (fallback = r)
+    end
+    _ode_isint(c) && return fallback
+    F = [_ode_tidy(pre * something(_ode_hyper_poly(as, bs, z), _ode_hyper_fn(as, bs, z))) for (pre, as, bs, z) in sols]
+    (:explicit, Cs[1] * F[1] + Cs[2] * F[2])
+end
+
+_ode_isint(c::Sym) = c.kind == NUMBER && _isint(c.num)
+
+# (c, [(pre₁, as₁, bs₁, z), (pre₂, as₂, bs₂, z)]) for the forms above, or nothing
+function _ode_hyper_match(a::Vector{Sym}, x::Sym)
+    a0, a1, a2 = a
+    iszero(a0) && return nothing
+    n1, d1 = numer_denom(_ode_tidy(cancel(a1 / a2)))
+    n0, d0 = numer_denom(_ode_tidy(cancel(a0 / a2)))
+    A2 = _ode_tidy(lcm(d1, d0))
+    A1, A0 = _ode_tidy(cancel(n1 * A2 / d1)), _ode_tidy(cancel(n0 * A2 / d0))
+    polys = try [Poly{Sym}(expand(e), [x]) for e in (A0, A1, A2)] catch; return nothing end
+    d = [degree(p, x) for p in polys]
+    (d[1] == 0 && d[2] == 1 && d[3] <= 2) || return nothing
+    A0, A1, A2 = expand(A0), expand(A1), expand(A2)
+    any(e -> any(k -> has(coeff(e, x, k), x), 0:2), (A0, A1, A2)) && return nothing
+    γ, β = coeff(A1, x, 1), coeff(A1, x, 0)
+    if d[3] == 0                                   # Hermite's type
+        α = A2
+        u = _ode_tidy(x + β / γ)
+        k, dd = _ode_tidy(γ / α), _ode_tidy(A0 / α)
+        z = _ode_tidy(-k * u^2 / 2)
+        A = _ode_tidy(dd / (2k))
+        return (Sym(1 // 2), [(ONE, Sym[A], Sym[Sym(1 // 2)], z), (u, Sym[_ode_tidy(A + 1 // 2)], Sym[Sym(3 // 2)], z)])
+    elseif d[3] == 1                               # Kummer's
+        α = coeff(A2, x, 1)
+        x0 = _ode_tidy(-coeff(A2, x, 0) / α)
+        b = _ode_tidy((β + γ * x0) / α)
+        μ = _ode_tidy(γ / α)
+        z = _ode_tidy(-μ * (x - x0))
+        A = _ode_tidy(A0 / (α * μ))
+        return (b, [(ONE, Sym[A], Sym[b], z),
+                    (_ode_tidy((x - x0)^(1 - b)), Sym[_ode_tidy(A - b + 1)], Sym[_ode_tidy(2 - b)], z)])
+    end
+    α = coeff(A2, x, 2)                            # Gauss's
+    rs = try _solve_generic(A2 ~ 0, x) catch err; err isa InterruptException && rethrow(); return nothing end
+    (rs isa AbstractVector && !(rs isa Cases) && length(rs) == 2) || return nothing
+    r1, r2 = rs
+    _eq(r1, r2) && return nothing
+    # (a root 0 first, Gauss's own t = x; else the larger: Legendre's t = (1 - x)/2)
+    lt = try _evalc(r1 - r2) catch; ComplexF64(0) end
+    if iszero(r2) || (!iszero(r1) && imag(lt) == 0 && real(lt) < 0)
+        r1, r2 = r2, r1
+    end
+    h = _ode_tidy(r2 - r1)
+    t = _ode_tidy((x - r1) / h)
+    c = _ode_tidy(-subs(A1, x => r1) / (α * h))
+    sm = _ode_tidy(γ / α)                          # A + B + 1
+    AB = _ode_tidy(A0 / α)
+    disc = _ode_tidy(factor(expand((sm - 1)^2 - 4AB)))
+    # (a square's base: (b - a)² gives ₂F₁(a, b; c; x) itself)
+    sq = disc.kind == POW && _eq(disc.args[2], Sym(2)) ? disc.args[1] : _ode_tidy(sqrt(disc))
+    A, B = _ode_tidy((sm - 1 + sq) / 2), _ode_tidy((sm - 1 - sq) / 2)
+    string(A) > string(B) && ((A, B) = (B, A))     # (₂F₁(a, b; …), not (b, a))
+    (c, [(ONE, Sym[A, B], Sym[c], t),
+         (_ode_tidy((x - r1)^(1 - c)), Sym[_ode_tidy(A - c + 1), _ode_tidy(B - c + 1)], Sym[_ode_tidy(2 - c)], t)])
+end
+
+# pFq(as; bs; z) as a polynomial when it terminates (a numerator parameter -m, m ≥ 0, no
+# denominator parameter in -m+1, …, 0), else nothing
+function _ode_hyper_poly(as::Vector{Sym}, bs::Vector{Sym}, z::Sym)
+    ms = [-_toint(q.num) for q in as if _ode_isint(q) && q.num <= N0]
+    isempty(ms) && return nothing
+    m = minimum(ms)
+    any(q -> _ode_isint(q) && q.num <= N0 && -_toint(q.num) < m, bs) && return nothing
+    term, total = ONE, ONE
+    for k in 0:(m - 1)
+        term = term * prod(q + k for q in as) / (prod(q + k for q in bs) * (k + 1)) * z
+        total += term
+    end
+    _ode_tidy(expand(total))
+end
+
+# ₁F₁ or ₂F₁; nothing for a denominator parameter a nonpositive integer
+_ode_hyper_fn(as::Vector{Sym}, bs::Vector{Sym}, z::Sym) =
+    apply_function(length(as) == 1 ? :_₁F₁ : :_₂F₁, Sym[as..., bs..., z])
+
+# v'' + I v = 0, I = A + B/x + D/x² (A, B ≠ 0), y = w v: Whittaker's equation in z = k x,
+# k = 2√(-A), κ = B/k, μ = √(1/4 - D); M_{κ,±μ}(z) = e^(-z/2) z^(1/2 ± μ) ₁F₁(1/2 ± μ - κ;
+# 1 ± 2μ; z), independent for 2μ not an integer; else a terminating one and reduction of
+# order (the hydrogen atom's radial equation)
+function _ode_whittaker(a::Vector{Sym}, I::Sym, w::Sym, x::Sym, Cs)
+    J = expand(_ode_tidy(x^2 * I))
+    P = try Poly{Sym}(J, [x]) catch; return nothing end
+    degree(P, x) == 2 || return nothing
+    D, B, A = coeff(J, x, 0), coeff(J, x, 1), coeff(J, x, 2)
+    (iszero(B) || any(e -> has(e, x), (A, B, D))) && return nothing
+    # (A > 0: an imaginary argument, Coulomb wave functions; not here)
+    (A.kind == NUMBER && A.num > N0) && return nothing
+    k = _ode_tidy(2sqrt(-A))
+    κ = _ode_tidy(B / k)
+    μ = _ode_tidy(sqrt(_ode_tidy(1 // 4 - D)))
+    z = _ode_tidy(k * x)
+    # (x^(1/2 ± μ) for z^(1/2 ± μ): the constant factor is the constants')
+    sols = [(_ode_tidy(exp(-z / 2) * x^(1 // 2 + σ * μ)), Sym[_ode_tidy(1 // 2 + σ * μ - κ)], Sym[_ode_tidy(1 + 2σ * μ)], z) for σ in (1, -1)]
+    fallback = nothing
+    for (pre, as, bs, zz) in sols
+        Q = _ode_hyper_poly(as, bs, zz)
+        Q === nothing && continue
+        y1 = _ode_tidy(expand(w * pre * Q))
+        q = try Poly{Sym}(y1, [x]) catch; nothing end
+        q === nothing || (y1 = _ode_tidy(expand(y1 / coeff(y1, x, degree(q, x)))))
+        r = _ode_reduction_of_order(a, ZERO, x, Cs; y1 = y1)
+        r === nothing && continue
+        _hasfn(r[2], :Integral) || return r
+        fallback === nothing && (fallback = r)
+    end
+    _ode_isint(_ode_tidy(2μ)) && return fallback
+    F = [_ode_tidy(w * pre * something(_ode_hyper_poly(as, bs, zz), _ode_hyper_fn(as, bs, zz))) for (pre, as, bs, zz) in sols]
+    (:explicit, Cs[1] * F[1] + Cs[2] * F[2])
+end
+
 # a₂y'' + a₁y' + a₀y = g with a homogeneous solution y₁ found (a polynomial of degree at
 # most 4, or e^(±x)): y = y₁ v, w = v' then solves the first-order linear
 # a₂ y₁ w' + (2a₂ y₁' + a₁ y₁) w = g, by its integrating factor μ = y₁² e^(∫a₁/a₂)
 # (x²(2 - x)y'' + 2xy' - 2y = e^(-x)x²(2 - x)², y₁ = x; SymPy #23351). nothing when no
 # y₁ is found or an integral is not.
-function _ode_reduction_of_order(a::Vector{Sym}, g::Sym, x::Sym, Cs)
+function _ode_reduction_of_order(a::Vector{Sym}, g::Sym, x::Sym, Cs; y1 = _ode_homogeneous_guess(a, x))
     a0, a1, a2 = a
-    y1 = _ode_homogeneous_guess(a, x)
     y1 === nothing && return nothing
     μ = _ode_tidy(y1^2 * exp(_integrate(_ode_tidy(a1 / a2), x)))
     w = (_integrate(_ode_tidy(μ * g / (a2 * y1)), x) + Cs[1]) / μ
