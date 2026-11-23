@@ -50,8 +50,14 @@ jobs:
       - uses: julia-actions/cache@v3
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
+        with:
+          # no coverage on 1.12: compiling the extensions with coverage instrumentation
+          # takes over an hour there (fine without it, and with it on 1.13)
+          coverage: ${{ matrix.version != '1.12' }}
       - uses: julia-actions/julia-processcoverage@v1
+        if: matrix.version != '1.12'
       - uses: codecov/codecov-action@v7
+        if: matrix.version != '1.12'
         with:
           files: lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
