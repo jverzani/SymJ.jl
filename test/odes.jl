@@ -141,8 +141,11 @@
     @test D(y(x) ~ x * y'(x) + y'(x)^2, y(x)) == [y(x) ~ C1 * x + C1^2, y(x) ~ -x^2 / 4]
     @test D(y(x) ~ x * y'(x) + exp(y'(x)), y(x)) == [y(x) ~ C1 * x + exp(C1), y(x) ~ x * log(-x) - x]
     @test D(y(x) ~ x * y'(x) + y'(x)^2, y(x), y(0) => 1) == [y(x) ~ 1 - x, y(x) ~ 1 + x]
-    @test D(y'(x)^2 ~ 4y(x), y(x)) == [y(x) ~ (C1 - x)^2, y(x) ~ 0]
-    @test D(y'(x)^2 ~ y(x)^2, y(x)) == [y(x) ~ C1 / exp(x), y(x) ~ C1 * exp(x)]   # y = 0 is C1 = 0
+    # (the branches' order and the constant's sign differ between Julia versions)
+    r = D(y'(x)^2 ~ 4y(x), y(x))
+    @test r[1].rhs in ((C1 - x)^2, (C1 + x)^2)
+    @test r[2:end] == [y(x) ~ 0]
+    @test issetequal(D(y'(x)^2 ~ y(x)^2, y(x)), [y(x) ~ C1 / exp(x), y(x) ~ C1 * exp(x)])   # y = 0 is C1 = 0
     p = Sym(:p)
     r = D(y(x) ~ 2x * y'(x) + y'(x)^2, y(x))
     @test r[1] == SymJ.ParametricSolution(C1 / p^2 - 2p / 3, (6C1 - p^3) / (3p), p, (x, y(x)))
