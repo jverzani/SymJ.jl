@@ -336,8 +336,10 @@ function _solve_inequality_continuous(r::Relation, x::Sym, atoms)
         (_poly_atoms!(as, n) && _poly_atoms!(as, d)) || return false
         all(ok, as)
     end
+    # (exp(u) is stored as ℯ^u: a positive constant base to a power in x, as 2^x)
     ok(a) = _eq(a, x) || !has(a, x) ||
         (a.kind == POW && a.args[2].kind == NUMBER && isexact(a.args[2].num) && _ispolyin(a.args[1], [x])) ||
+        (a.kind == POW && !has(a.args[1], x) && _ispositive_const(a.args[1]) && okexpr(a.args[2])) ||
         (a.kind == FN && a.name in (:log, :exp, :cbrt) && length(a.args) == 1 && _ispolyin(a.args[1], [x])) ||
         (a.kind == FN && a.name in (:log, :exp, :cbrt, :atan) && length(a.args) == 1 && okexpr(a.args[1]))
     n0, d0 = numer_denom(cancel(e))
