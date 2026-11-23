@@ -1,6 +1,18 @@
 # Scope: a `solveset`-like function beside `solve`
 
-Status: scoped (2026-11-21); decisions made (below); nothing built yet.
+Status: a first version built (2026-11-22, `src/solveset.jl`); decisions below. In it:
+finite sets, image sets (several bound variables, conditions on them), ConditionSet;
+periodic equations through `solve`'s one period; exp, bᵘ, log, sin, cos, tan, cot, sec,
+csc, sinh, cosh, tanh inverted with every branch, nested; `in`, `∩` with an interval
+set, `collect`. Added the same day: parameters over ℝ, real, by cases (equal neighbouring
+cases merged into one interval); Lambert's W with every branch over ℂ (checked at
+k = -2…2 without parameters) and W₀, W₋₁ over ℝ; LaTeX through Latexify. Then (2026-11-22): membership in a
+family not linear in its variable (n solved for, `√(πn)`; Lambert's branch found
+numerically, `lambertw(1, n)`); periodic equations with parameters through several
+trigonometric functions of one angle (through one of them, `tan x + cot x = a`, or
+tan(u/2), with u = π decided apart: `sin x + cos x = a` at a = -1), the cases' conditions
+as intervals in the parameter (`-√2 ≤ a ≤ √2, a ≠ -1`). Not yet: several angles with
+parameters (`sin x + cos 2x = a`), intersections of nonlinear families with intervals.
 
 ## Why
 
