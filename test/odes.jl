@@ -109,7 +109,33 @@
     @test string(I4) == "Integral(a*cos(u), (u, 0, b))" && free_symbols(I4) == [a, b]
     @test subs(I4, Sym(:u) => 2, a => 3, b => x) == SymJ._mkfn_node(:Integral, Sym[3cos(Sym(:u)), Sym(:u), Sym(0), x])
     @test diff(I4, b) == a * cos(b)
-    @test_throws ArgumentError D(y'(x) ~ y(x)^2 + x, y(x))                                  # Riccati to Airy: no method
+    # Bessel and Airy functions through the normal form v'' + I v = 0: I = A xᵐ + B/x²,
+    # A e^(λx) + B, or linear in x
+    J(ν, z) = SymJ.apply_function(:besselj, Sym[ν, z])
+    Y(ν, z) = SymJ.apply_function(:bessely, Sym[ν, z])
+    @test D(x * y''(x) + y'(x) + y(x) ~ 0, y(x)).rhs == C1 * J(0, 2sqrt(x)) + C2 * Y(0, 2sqrt(x))
+    @test D(x * y''(x) - y'(x) + x * y(x) ~ 0, y(x)).rhs == x * (C1 * J(1, x) + C2 * Y(1, x))
+    @test D(y''(x) + x^2 * y(x) ~ 0, y(x)).rhs == sqrt(x) * (C1 * J(1 // 4, x^2 / 2) + C2 * Y(1 // 4, x^2 / 2))
+    @test D(y''(x) + exp(2x) * y(x) ~ 0, y(x)).rhs == C1 * J(0, exp(x)) + C2 * Y(0, exp(x))
+    @test string(D(y''(x) - exp(2x) * y(x) ~ 0, y(x)).rhs) == "C1*besseli(0, exp(x)) + C2*besselk(0, exp(x))"
+    @test string(D(x^2 * y''(x) + x * y'(x) - (x^2 + 1) * y(x) ~ 0, y(x)).rhs) == "C1*besseli(1, x) + C2*besselk(1, x)"
+    @syms a
+    @test string(D(y''(x) - a^2 * x^2 * y(x) ~ 0, y(x); assume = (a ≫ 0,)).rhs) ==
+          "(C1*besseli(1/4, a*x^2/2) + C2*besselk(1/4, a*x^2/2))*sqrt(x)"
+    # half-integer orders: elementary (SymPy #26275)
+    @test D(y''(x) + 3 / (2x) * y'(x) + y(x) / (4x^3) ~ 0, y(x)).rhs == C1 * sin(1 / sqrt(x)) + C2 * cos(1 / sqrt(x))
+    @test D(y''(x) + y'(x) + exp(2x) * y(x) ~ 0, y(x)).rhs == (C1 * sin(exp(x)) + C2 * cos(exp(x))) / exp(x)
+    @test D(y''(x) + 3 / (2x) * y'(x) + y(x) / (4x^3) ~ 0, y(x), y(1) => 0, y'(1) => 1).rhs == -2sin(1 / sqrt(x) - 1)
+    @test string(D(y''(x) - x * y(x) ~ 0, y(x)).rhs) == "C1*airyai(x) + C2*airybi(x)"
+    @test string(D(y''(x) + x * y(x) ~ 0, y(x)).rhs) == "C1*airyai(-x) + C2*airybi(-x)"
+    @test string(D(y''(x) - (2x + 1) * y(x) ~ 0, y(x)).rhs) == "C1*airyai(2^(1/3)*(x + 1/2)) + C2*airybi(2^(1/3)*(x + 1/2))"
+    # Riccati equations whose linear form is of these kinds (SymPy #25819); derivatives of
+    # the Bessel functions in the two lowest orders
+    @test string(D(y'(x) ~ x + y(x)^2, y(x)).rhs) == "(C1*airyaiprime(-x) + airybiprime(-x))/(C1*airyai(-x) + airybi(-x))"
+    @test string(D(y'(x) ~ x^2 + y(x)^2, y(x)).rhs) ==
+          "(-C1*besselj(-3/4, x^2/2) - bessely(-3/4, x^2/2))*x/(C1*besselj(1/4, x^2/2) + bessely(1/4, x^2/2))"
+    @test string(D(y'(x) ~ (12x + y(x)^2 + 8y(x)) / x, y(x)).rhs) ==
+          "-2*sqrt(3)*(C1*besselj(7, 4*sqrt(3)*sqrt(x)) + bessely(7, 4*sqrt(3)*sqrt(x)))*sqrt(x)/(C1*besselj(8, 4*sqrt(3)*sqrt(x)) + bessely(8, 4*sqrt(3)*sqrt(x)))"
     # nonlinear in y′: Clairaut (the lines and the envelope), singular solutions, d'Alembert
     # and x = h(y′) parametric (with antiderivatives: test/extensions.jl)
     @test D(y(x) ~ x * y'(x) + y'(x)^2, y(x)) == [y(x) ~ C1 * x + C1^2, y(x) ~ -x^2 / 4]
