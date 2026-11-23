@@ -501,6 +501,29 @@ import PolyLog as PL
         @test D(y'(x) ~ (y(x)^3 + x^2 * y(x) - x - y(x)) / (x * y(x)^2 + x^3 + y(x) - x), y(x)) isa Relation
         @test D(y'(x) ~ 1 / (x * y(x) + x^3 * y(x)^3), y(x)) isa Relation       # Bernoulli in x(y)
         @test D(y'(x) ~ x / (x^2 + y(x)), y(x)) isa Relation
+        # SymPy's other Lie heuristics, on its own examples (test_lie_group.py); each
+        # infinitesimal is checked against the determining equation
+        let I = SymJ.infinitesimals, Y = y(x)
+            @test I(y'(x) ~ (Y / x) * (x * log(x^2 / Y) + 2), y(x); heuristic = :abaco1_product) == [(Sym(0), 2Y * exp(-x))]
+            @test I(x * y'(x) + 1 - Y^2 ~ 0, y(x); heuristic = :chi) == [(Sym(0), Y^2 - 1)]
+            @test I(x^2 * y'(x) + x * Y + Y^2 + x^2 ~ 0, y(x); heuristic = :bivariate) == [(x, Y)]
+            fs = y'(x) ~ 3 * (1 + x^2 / Y^2) * atan(Y / x) + (1 - 2Y) / x + (1 - 3Y) * x / Y^2
+            @test I(fs, y(x); heuristic = :function_sum) == [(Sym(0), -1 / (2Y^2) - 1 / (2x^2))]
+            @test I(y'(x) ~ x + exp(Y), y(x); heuristic = :abaco2_similar) == [(exp(-x^2 / 2), x * exp(-x^2 / 2))]
+            @test I(y'(x) ~ 1 / (Y + exp(x)), y(x); heuristic = :abaco2_similar) == [(Y * exp(-Y^2 / 2), exp(-Y^2 / 2))]
+            @test I(y'(x) ~ -tan(sqrt(x^2 + Y^2) + atan(x / Y)), y(x); heuristic = :abaco2_unique_unknown) == [(-Y, x)]
+            @test I(y'(x) ~ x / Y, y(x); heuristic = :abaco2_unique_general) == [(x, Y)]
+            # solved through them
+            @test D(y'(x) ~ (Y / x) * (x * log(x^2 / Y) + 2), y(x)) == (y(x) ~ x^2 * exp(C1 * exp(-x)))
+            @test D(fs, y(x)) == ((2x * atan(Y / x) - 2Y + 1) * x^2 ~ C1)
+            @test string(D(y'(x) ~ x + exp(Y), y(x)).rhs) == "x^2/2 - log(C1 - sqrt(2)*erfi(sqrt(2)*x/2)*sqrt(π)/2)"
+            @test D(y'(x) ~ 1 / (Y + exp(x)), y(x)) isa Relation
+            # no elementary solution (∫ dr/(r² - sin r) in canonical coordinates): no method,
+            # and quickly
+            t = time()
+            @test_throws ArgumentError D(y'(x) ~ Y^2 / (sin(Y - x) - x^2 + 2x * Y), y(x))
+            @test time() - t < 60
+        end
         # an unknown forcing: its integral from the conditions' point (SymPy #27479)
         let t = Sym(:t), P = SymFunction(:P), S = SymFunction(:S)
             r = D(diff(S(t), t) ~ P(t) - S(t), S(t), S(0) => 10)
