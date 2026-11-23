@@ -55,6 +55,18 @@
     @test_throws ArgumentError solve(x^5 - x - 1 ~ 0, x)
     @test_throws ArgumentError solve((x^5 - x - 1) * (x - 2) ~ 0, x)
     @test length(SymJ.fsolve(x^5 - x - 1 ~ 0, x; domain = ℂ)) == 5
+    @test_throws ArgumentError solve(x^5 + x + 3 ~ 0, x)               # S₅ too
+    # a solvable quintic (Galois group in F₂₀): its roots in radicals, each one a root
+    for f in (x^5 - 5x + 12, x^5 + 15x + 12, 2x^5 - 10x + 24, x^5 - 5x^3 + 5x - 3, x^5 - 10x^3 + 20x - 12)
+        r = solve(f ~ 0, x)
+        @test length(r) == 5
+        @test all(q -> abs(N(subs(f, x => q))) < 1e-9, r)
+        @test length(unique(round.(ComplexF64.(N.(r)); digits = 8))) == 5
+    end
+    let r = solve(x^5 - 5x + 12 ~ 0, x)
+        @test N(r[1]) ≈ -1.8420859661902544                              # the real root, first
+        @test SymJ._nodes(r[1]) < 200
+    end
     @test solve(x^2 - 2 ~ 0, x) == [-sqrt(Sym(2)), sqrt(Sym(2))]      # exact, sorted
     @test solve(x^2 ~ -1, x) == [-IM, IM]
     @test solve(2x^2 ~ x + 1, x) == [Sym(-1 // 2), Sym(1)]
@@ -260,6 +272,33 @@
     @test isempty(solve([x^2 + y^2 ~ 1, x^2 + y^2 ~ 4], [x, y]))
     @test sameset(solve([x^2 + y^2 ~ 1], [x, y]), [Dict(x => sqrt(1 - y^2), y => y), Dict(x => -sqrt(1 - y^2), y => y)])   # y free
     @test sameset(solve([1 / x + 1 / y ~ 1, x ~ y], [x, y]), [Dict(x => 2, y => 2)])         # rational
+    # transcendental systems: unknowns through generators of their own, or given explicitly
+    @test sameset(solve([x + y ~ 4, 2^x + 2^y ~ 10], [x, y]), [Dict(x => 1, y => 3), Dict(x => 3, y => 1)])   # SymPy #29315
+    @test solve([2^x * 3^y ~ 12, x + y ~ 3], [x, y]) == [Dict(x => 2, y => 1)]
+    @test sameset(solve([2^x + 2^y ~ 6, 2^(x + y) ~ 8], [x, y]), [Dict(x => 1, y => 2), Dict(x => 2, y => 1)])
+    let (p, q) = Sym.((:p, :q))
+        d = only(solve([p * exp(-90q) ~ 33, p * exp(-92q) ~ 66], [p, q]))   # SymPy #24060
+        @test d[p] == Sym(33) / 2^45
+        @test simplify(d[q] + log(Sym(2)) / 2) == 0
+    end
+    @test sameset(solve([sin(x) + cos(y) ~ 1, sin(x) - cos(y) ~ 0], [x, y]),
+                  [Dict(x => PI / 6, y => PI / 3), Dict(x => PI / 6, y => 5PI / 3), Dict(x => 5PI / 6, y => PI / 3), Dict(x => 5PI / 6, y => 5PI / 3)])
+    @test sameset(solve([sin(x) + cos(x) ~ 1, y ~ sin(x)], [x, y]), [Dict(x => 0, y => 0), Dict(x => PI / 2, y => 1), Dict(x => 2PI, y => 0)])   # [0, 2π], as for one equation
+    @test solve([log(x) + log(y) ~ 1, log(x) - log(y) ~ 0], [x, y]) == [Dict(x => exp(Sym(1) // 2), y => exp(Sym(1) // 2))]
+    @test sameset(solve([x * exp(y) ~ 2, y ~ log(x)], [x, y]),
+                  [Dict(x => sqrt(Sym(2)), y => log(sqrt(Sym(2)))), Dict(x => -sqrt(Sym(2)), y => log(-sqrt(Sym(2))))])
+    @test solve([x + y ~ PI / 2, sin(x) ~ cos(y)], [x, y]) == [Dict(x => PI / 2 - y, y => y)]
+    let (s, c) = Sym.((:s, :c))
+        # a free unknown's special values: the component where a basis element's content
+        # (c - s) vanishes (the points were lost; SymPy #26070)
+        sols = solve([x^2 + y^2 + 2x * y * s ~ 25, y^2 + 2x^2 - 2x * y * c + 2x * y * s ~ 25, 4x^2 + y^2 - 4x * y * c ~ 25, s^2 + c^2 ~ 1], [x, y, s, c])
+        @test count(d -> d[c] == sqrt(Sym(2)) / 2, sols) == 2
+        @test count(d -> d[y] == sqrt(Sym(5)), sols) == 2
+        sols = solve([x^2 + y^2 + 2x * y * sin(a) ~ 25, y^2 + 2x^2 - 2x * y * cos(a) + 2x * y * sin(a) ~ 25, 4x^2 + y^2 - 4x * y * cos(a) ~ 25], [x, y, a])
+        @test Dict(x => sqrt(Sym(10)), y => sqrt(Sym(5)), a => PI / 4) in map(d -> Dict(k => simplify(v) for (k, v) in d), sols)
+        @test Dict(x => 0, y => 5, a => a) in sols                         # any a
+        @test length(sols) == 6
+    end
     @test sameset(solve([y ~ x^2 / (x - 1), x * (x - 1) ~ 0], [x, y]), [Dict(x => 0, y => 0)])   # pole dropped
     @test length(solve([x + y + z ~ 0, x * y + y * z + z * x ~ 0, x * y * z ~ 1], [x, y, z])) == 6
     @test length(solve([x^2 + y^2 ~ a^2, x ~ y], [x, y])) == 2                # a parameter
@@ -345,7 +384,41 @@
     @test P2s.intervals[1] ⊆ P2s
     @test !(solve(x ≦ 1, x) ⊆ P2s.intervals[1])
     @test sqrt(Sym(2)) in solve(x^2 ≦ 2, x) && !(sqrt(Sym(2)) in solve(x^2 ≪ 2, x))
-    @test_throws ArgumentError solve(a * x ≫ 1, x)               # parameters: not yet
+    # exponentials (stored as ℯ^u) and other positive bases to a power in x
+    @test S(exp(x) ≫ 2) == "(log(2), ∞)"
+    @test S(Sym(2)^x ≫ 3) == "(log(3)/log(2), ∞)"
+    @test S((Sym(1) // 2)^x ≪ Sym(1) // 8) == "(3, ∞)"
+    @test S(Sym(2)^x + Sym(4)^x ≪ 6) == "(-∞, 1)"
+    @test S(exp(-x^2) ≫ Sym(1) // 2) == "(-sqrt(log(2)), sqrt(log(2)))"
+    @test S(exp(1 / x) ≫ 2) == "(0, 1/log(2))"
+    @test S(exp(sqrt(x)) ≫ 2) == "(log(2)^2, ∞)"
+    @test S(x * exp(x) ≪ 1) == "(-∞, lambertw(1))"
+    @test S(exp(x) ≪ 0) == "∅"
+    # parameters (real, generic): by cases on the facts that decide the set
+    let b = Sym(:b), cs = solve(a * x ≫ 1, x)
+        @test cs isa SymJ.Cases
+        @test length(cs) == 2                                      # (no case a = 0)
+        @test string(cs(a => 2)) == "(1/2, ∞)"
+        @test string(cs(a => -2)) == "(-∞, -1/2)"
+        @test string(solve(a * x ≫ 1, x; assume = @assume(a > 0))) == "(1/a, ∞)"
+        @test S(x ≫ a) == "(a, ∞)"
+        @test S(1 / (x - a) ≫ 0) == "(a, ∞)"
+        q = solve(x^2 ≦ a, x)
+        @test length(q) == 3
+        @test string(q(a => 0)) == "{0}"
+        @test string(q(a => 4)) == "[-2, 2]"
+        @test isempty(q(a => -1))
+        @test length(solve(x^2 ≪ a, x)) == 2                       # a ≤ 0 merged: ∅
+        r = solve((x - a) * (x - b) ≪ 0, x)
+        @test string(r(a => 1, b => 3)) == "(1, 3)"
+        @test isempty(r(a => 2, b => 2))
+        u = solve(x^2 + a * x + 1 ≫ 0, x)
+        @test string(u(a => 2)) == "(-∞, -1) ∪ (-1, ∞)"            # the double root
+        @test string(u(a => 1)) == "(-∞, ∞)"
+        @test string(solve((x - a) / (x - 1) ≧ 0, x)(a => 3)) == "(-∞, 1) ∪ [3, ∞)"
+        @test_throws ArgumentError solve(x^3 ≫ a, x)               # odd roots: not yet
+        @test_throws ArgumentError solve(exp(x) ≫ a, x)            # rational in x only
+    end
     @test_throws ArgumentError solve(sin(x) ≫ 0, x)
     @test_throws ArgumentError solve(x^5 + a * x + 1 ~ 0, x)  # degree 5, symbolic
 

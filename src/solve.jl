@@ -29,8 +29,9 @@ degree 4 and for equations that factor into such pieces (and for higher degrees 
 special forms: `a xⁿ + b`, cyclotomic polynomials, compositions); an irreducible factor
 of higher degree that `solve` finds no roots in radicals for is an error, as `solve` gives
 only exact solutions: [`SymJ.fsolve`](@ref) gives its roots numerically. (Most such
-factors have no roots in radicals; the solvable quintics, as `x^5 - 5x + 12`, are not
-recognized yet.) Solutions are sorted, real
+factors have no roots in radicals. A quintic over the rationals that has them, its
+Galois group solvable, as `x^5 - 5x + 12`, gets them, through its Lagrange resolvents;
+they are large expressions.) Solutions are sorted, real
 ones first. An equation with no solution gives an empty
 vector. A solution must be in the equation's domain: `(x^2 - 1)/(x - 1) ~ 2` has none,
 though cancelling gives `x + 1 = 2`. For a system, `solve([eqs...], [vars...])`, giving a vector of `Dict`s;
@@ -40,7 +41,11 @@ differentiation; other derivatives of it are held as they are. In a system, `abs
 `real`, `imag` and `conj` of the unknowns are solved over the complex numbers, through
 each unknown's real and imaginary parts (`[I*R ~ 220, abs(I) ~ 2]`: a family written
 with a free part such as `R_im`); with the unknowns assumed real (`assume = (I ∈ ℝ,)`),
-`abs` is `±` its argument and only real solutions are kept (`I = ±2`).
+`abs` is `±` its argument and only real solutions are kept (`I = ±2`). Unknowns
+that appear only through exponentials (`2^x + 2^y ~ 10`), one function (`log(x)`,
+`sin(2y)`), or `sin` and `cos` of one argument are solved for those first, the
+others polynomially (`[x^2 + y^2 + 2x*y*sin(a) ~ 25, …]`); an unknown an equation
+gives explicitly (`y ~ log(x)`) is substituted into the others.
 
 An equation through `sin` or `cos` gives the solutions for its argument in `[0, 2π]`,
 each once: `cos(x) ~ 0` gives `[π/2, 3π/2]`, `sin(x) ~ -1//2` gives `[7π/6, 11π/6]`, and
@@ -89,6 +94,17 @@ depends on something the assumptions leave open, the result is again a `Cases` v
 solve(x^2 ~ 4, x; assume = (x ≫ 0,))                # [2]
 solve(x^2 ~ a, x; assume = (x ∈ ℝ, a ∈ ℝ))         # a < 0 => [], a == 0 => [0], a > 0 => [-√a, √a]
 solve(x^2 ~ a, x; assume = (x ≫ 0,))                # a > 0 => [√a], !(a > 0) => []
+```
+
+An inequality (`≪`, `≦`, `≫`, `≧`, `≶`) gives its set of solutions, a union of
+intervals. With parameters, which an order takes to be real, an inequality rational in
+`x` gives its set by cases on them: on the realness of its roots and poles in `x`, their
+order, and the sign between them. The parameters are generic, as for equations, so
+`a*x ≫ 1` has no case `a = 0`.
+
+```julia
+solve(a*x ≫ 1, x)        # a < 0 => (-∞, 1/a), a > 0 => (1/a, ∞)
+solve(x^2 ≦ a, x)        # a < 0 => ∅, a == 0 => {0}, a > 0 => [-√a, √a]
 ```
 
 A linear system in integer unknowns (`x ∈ ℤ`) has its integer solutions: a family of
@@ -1754,10 +1770,19 @@ function _solve_irreducible(c::Vector{Sym}, f)
     r === nothing || return r
     all(ci -> !_hassymbol(ci), c) || throw(ArgumentError(
         "solve: an irreducible factor of degree $d with symbolic coefficients"))
+    # a solvable quintic (Galois group in F₂₀): its roots in radicals (x⁵ - 5x + 12), for
+    # a solve the user called (internal callers keep the numeric roots: the radicals are
+    # large)
+    if d == 5 && _SOLVE_STRICT[] === true
+        r = _solvable_quintic(c)
+        r === nothing || return r
+    end
     if _SOLVE_STRICT[] === true
         p = f === nothing ? _add_many(Sym[c[k] * Sym(:x)^(k - 1) for k in eachindex(c)]) : Sym(f)
         throw(ArgumentError("solve: no roots in radicals found for the irreducible factor $p of degree $d " *
-                            "(most such factors have none; some solvable quintics are not covered either); " *
+                            (d == 5 && all(ci -> ci.kind == NUMBER && isexact(ci.num), c) ?
+                             "(it has none: its Galois group is not solvable); " :
+                             "(most such factors have none; solvable ones of degree above 5 are not recognized); ") *
                             "for numeric roots use SymJ.fsolve (fsolve(eq, x) for the real ones, " *
                             "fsolve(eq, x; domain = ℂ) for all; fsolve(eqs, vars) for a system)"))
     end
