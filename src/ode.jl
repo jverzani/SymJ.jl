@@ -14,9 +14,9 @@
 # - first order, y' = f(x, y): separable, Bernoulli, exact (or with an integrating factor
 #   in x or in y alone), homogeneous (f a function of y/x), Riccati (made linear, or
 #   from a particular solution), Abel (cubic in y, or of the second kind, with a constant
-#   invariant); else a Lie point symmetry (ξ, η), whose integrating
+#   invariant), Riccati or Abel in x(y); else a Lie point symmetry (ξ, η), whose integrating
 #   factor 1/(η - f ξ) makes it exact, or whose canonical coordinates (r, s) make it
-#   ds/dr = F(r);
+#   ds/dr = F(r); else a scaling symmetry, u = y/xᵏ;
 # - autonomous, y'' = f(y, y'): p = y' as a function of y, then ∫ dy/p = x + C₂.
 #
 # With `series = n`, a series solution instead ("series solutions", at the end); with
@@ -144,11 +144,14 @@ Methods: first order linear, separable, Bernoulli, exact (with an integrating fa
 `x` or `y` alone), homogeneous, Riccati, Abel (`y' = f₃y³ + f₂y² + f₁y + f₀`, or
 `(y + g) y' = f₂y² + f₁y + f₀` through `y + g = 1/u`, when the invariant `Φ` of the
 canonical form `dz/dξ = z³ + Φ` is constant: `y' = y³ + y + e^(3x)` is
-`∫ dz/(z³ + 1) = e^(2x)/2 + C1`, `z = e^(-x) y`), and else a Lie point symmetry (from
+`∫ dz/(z³ + 1) = e^(2x)/2 + C1`, `z = e^(-x) y`), Riccati or Abel in `x(y)` (`y' = 1/(x² + y)`,
+in Airy functions of `-y`), and else a Lie point symmetry (from
 [`SymJ.infinitesimals`](@ref); its integrating factor `1/(η - f ξ)`, or its canonical
 coordinates `r`, `s`, in which the equation is `ds/dr = F(r)`: `s - ∫ F dr = C1`, a
 definite `Integral` from a point when `∫ F` has no closed form; local, on one branch of
-`r = R`: `y' = y²/(sin(y - x) - x² + 2xy)` is `-1/y - ∫₁^(y-x) dr/(r² - sin r) = C1`); linear with constant coefficients, of any order
+`r = R`: `y' = y²/(sin(y - x) - x² + 2xy)` is `-1/y - ∫₁^(y-x) dr/(r² - sin r) = C1`), or a
+scaling symmetry (`f(λx, λᵏy) = λ^(k-1) f`, separable in `u = y/xᵏ`: `y' = y⁴ + x^(-4/3)` is
+`∫₀^(x^(1/3) y) du/(u⁴ + u/3 + 1) - log(x) = C1`); linear with constant coefficients, of any order
 (undetermined coefficients, else variation of parameters, for the right side);
 Cauchy–Euler; Bessel's equation `x²y'' + xy' + (α²x² - ν²)y = 0` (`C1 besselj(ν, αx) +
 C2 bessely(ν, αx)`) and the second-order homogeneous equations that reduce to it or to
@@ -1414,7 +1417,7 @@ function _ode_first_order(P::_ODE, Cs)
     f = _ode_tidy(f)
     C = Cs[1]
     fallback = nothing             # a solution with an unevaluated integral, if no other
-    for m in (_ode_separable, _ode_bernoulli, _ode_exact, _ode_homogeneous, _ode_linear_arg, _ode_riccati, _ode_abel, _ode_lie)
+    for m in (_ode_separable, _ode_bernoulli, _ode_exact, _ode_homogeneous, _ode_linear_arg, _ode_riccati, _ode_abel, _ode_inverse, _ode_lie, _ode_scaling)
         r = try m(P, f, a, C) catch err; err isa InterruptException && rethrow(); nothing end
         r === nothing && continue
         r = _ode_explicit(r, Y0, C)
@@ -1566,8 +1569,67 @@ function _ode_homogeneous(P::_ODE, f::Sym, a::Sym, C::Sym)
     has(Fv, x) && return nothing
     d = _ode_tidy(Fv - v)
     iszero(d) && return nothing
-    φ = _integrate(_ode_tidy(1 / d), v) - log(x)
-    (:implicit, _ode_tidy(subs(φ, v => Y0 / x)))
+    I = _ode_antider_to(P, _ode_tidy(1 / d), v, Y0 / x, :v)
+    I === nothing ? nothing : (:implicit, _hasfn(I, :Integral) ? I - log(x) : _ode_tidy(I - log(x)))
+end
+
+# G(upper) for an antiderivative G of g in v; without a closed form, the definite
+# Integral(g, (u, p, upper)) from a point p where g is finite, the variable u named `name`
+# (unless the equation has that name). nothing if there is no such point.
+function _ode_antider_to(P::_ODE, g::Sym, v::Sym, upper::Sym, name::Symbol)
+    G = _integrate(g, v)
+    _hasfn(G, :Integral) || return _ode_tidy(subs(G, v => upper))
+    u = Sym(name)
+    any(z -> _eq(z, u), free_symbols(P.F)) && (u = Sym(Symbol(:_ode_, name)))
+    for p in (ZERO, ONE, Sym(2), -ONE)
+        val = try _evalc(subs(g, v => p)) catch; continue end
+        (val isa Number && isfinite(val)) || continue
+        return _mkfn_node(:Integral, Sym[subs(g, v => u), u, p, upper])
+    end
+    nothing
+end
+
+# f(λx, λᵏy) = λ^(k-1) f(x, y) for a constant k ≠ 1 (generalized homogeneous: the scaling
+# symmetry ξ = x, η = k y): u = y/xᵏ has x u' = F(u) - k u, F(u) = x^(1-k) f(x, u xᵏ),
+# separable: ∫ du/(F(u) - k u) = log(x) + C (y′ = y⁴ + x^(-4/3), a Chini equation, has
+# k = -1/3; y′ = y(1 + sin(x²y))/x has k = -2). k from x f_x + k y f_y = (k - 1) f.
+function _ode_scaling(P::_ODE, f::Sym, a::Sym, C::Sym)
+    Y0, x = P.ys[1], P.x
+    (has(f, x) && has(f, Y0)) || return nothing
+    _nodes(f) > 200 && return nothing
+    den = _ode_tidy(Y0 * diff(f, Y0) - f)
+    iszero(den) && return nothing
+    k = _ode_tidy(simplify(-(x * diff(f, x) + f) / den))
+    (has(k, x) || has(k, Y0) || isone(k) || iszero(k)) && return nothing
+    u = Sym(:_ode_u)
+    Fu = _ode_tidy(x^(1 - k) * subs(f, Y0 => u * x^k))
+    has(Fu, x) && (Fu = _ode_tidy(simplify(Fu)))
+    has(Fu, x) && return nothing
+    d = _ode_tidy(Fu - k * u)
+    iszero(d) && return nothing
+    I = _ode_antider_to(P, _ode_tidy(1 / d), u, _ode_tidy(Y0 / x^k), :u)
+    I === nothing ? nothing : (:implicit, _hasfn(I, :Integral) ? I - log(x) : _ode_tidy(I - log(x)))
+end
+
+# The equation for x(y), dx/dy = 1/f, by the methods for y(x) that need its form (Riccati,
+# Abel): y′ = 1/(x² + y) is the Riccati equation x′ = x² + y, in Airy functions. The
+# solution x = X(y, C) solved for C.
+function _ode_inverse(P::_ODE, f::Sym, a::Sym, C::Sym)
+    Y0, x = P.ys[1], P.x
+    (has(f, x) && has(f, Y0)) || return nothing
+    t, X0, X1 = Sym(:_ode_t), Sym(:_ode_X0), Sym(:_ode_X1)
+    g = _ode_tidy(1 / subs(f, x => X0, Y0 => t))
+    P2 = _ODE(X1 - g, [X0, X1], t, P.yx, 1)
+    for m in (_ode_riccati, _ode_abel)
+        r = try m(P2, g, ONE, C) catch err; err isa InterruptException && rethrow(); nothing end
+        r === nothing && continue
+        kind, S = r
+        S = _ode_tidy(subs(S, X0 => x, t => Y0))
+        kind === :implicit && return (:implicit, S)
+        cs = try _solve_generic(S ~ x, C) catch; Sym[] end
+        length(cs) == 1 && return (:implicit, _ode_tidy(cs[1]))
+    end
+    nothing
 end
 
 ## Lie symmetries: y' = f(x, y)
@@ -1975,17 +2037,9 @@ function _lie_canonical_solution(P::_ODE, f::Sym, ξ::Sym, η::Sym)
     _nodes(F) > 300 && return nothing
     Fr = _lie_on_level(F, r, R, x, Y, branch)
     Fr === nothing && return nothing
-    G = _integrate(Fr, R)
-    _hasfn(G, :Integral) || return (:implicit, _ode_tidy(s - subs(G, R => r)))
     # (no antiderivative: ∫ from a point r₀ where F is finite, the variable named r)
-    u = Sym(:r)
-    any(z -> _eq(z, u), free_symbols(P.F)) && (u = Sym(:_ode_r))
-    for r0 in (ZERO, ONE, Sym(2), -ONE)
-        v = try _evalc(subs(Fr, R => r0)) catch; continue end
-        (v isa Number && isfinite(v)) || continue
-        return (:implicit, s - _mkfn_node(:Integral, Sym[subs(Fr, R => u), u, r0, r]))
-    end
-    nothing
+    G = _ode_antider_to(P, Fr, R, r, :r)
+    G === nothing ? nothing : (:implicit, _hasfn(G, :Integral) ? s - G : _ode_tidy(s - G))
 end
 
 # canonical coordinates (r, s, branch) of the symmetry (ξ, η), ξ r_x + η r_y = 0 and
