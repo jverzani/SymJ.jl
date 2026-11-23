@@ -136,6 +136,12 @@
           "(-C1*besselj(-3/4, x^2/2) - bessely(-3/4, x^2/2))*x/(C1*besselj(1/4, x^2/2) + bessely(1/4, x^2/2))"
     @test string(D(y'(x) ~ (12x + y(x)^2 + 8y(x)) / x, y(x)).rhs) ==
           "-2*sqrt(3)*(C1*besselj(7, 4*sqrt(3)*sqrt(x)) + bessely(7, 4*sqrt(3)*sqrt(x)))*sqrt(x)/(C1*besselj(8, 4*sqrt(3)*sqrt(x)) + bessely(8, 4*sqrt(3)*sqrt(x)))"
+    # Lie symmetries: infinitesimals by the one-variable heuristics and polynomial ansatz
+    rot = y'(x) ~ (y(x) - x * (x^2 + y(x)^2)) / (x + y(x) * (x^2 + y(x)^2))
+    @test SymJ.infinitesimals(rot, y(x)) == [(-y(x), x)]                       # rotations
+    @test SymJ.infinitesimals(y'(x) ~ 1 / (exp(y(x)) - x), y(x)) == [(exp(-y(x)), Sym(0))]
+    @test isempty(SymJ.infinitesimals(y'(x) ~ sin(x * y(x)) + x, y(x); degree = 1))
+    @test_throws ArgumentError SymJ.infinitesimals(y''(x) ~ y(x), y(x))
     @test_throws ArgumentError D(y'(x) ~ y(x), y(x), y(0) => 1, y(1) => 2)
     @test_throws ArgumentError D(y(x) + x ~ 0, y(x))
     @test_throws ArgumentError D(y'(x) - y(x), y(x))

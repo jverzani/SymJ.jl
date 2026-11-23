@@ -10,7 +10,8 @@
 #   undetermined coefficients or variation of parameters; Cauchy–Euler through x = eᵗ;
 # - first order, y' = f(x, y): separable, Bernoulli, exact (or with an integrating factor
 #   in x or in y alone), homogeneous (f a function of y/x), Riccati (made linear, or
-#   from a particular solution);
+#   from a particular solution); else a Lie point symmetry (ξ, η), whose integrating
+#   factor 1/(η - f ξ) makes it exact;
 # - autonomous, y'' = f(y, y'): p = y' as a function of y, then ∫ dy/p = x + C₂.
 #
 # With `series = n`, a series solution instead ("series solutions", at the end); with
@@ -126,7 +127,8 @@ equation it is the Frobenius series, with a `log` term when the indicial roots a
 or an integer apart.
 
 Methods: first order linear, separable, Bernoulli, exact (with an integrating factor in
-`x` or `y` alone), homogeneous, Riccati; linear with constant coefficients, of any order
+`x` or `y` alone), homogeneous, Riccati, and else a Lie point symmetry (from
+[`SymJ.infinitesimals`](@ref); its integrating factor `1/(η - f ξ)`); linear with constant coefficients, of any order
 (undetermined coefficients, else variation of parameters, for the right side);
 Cauchy–Euler; Bessel's equation `x²y'' + xy' + (α²x² - ν²)y = 0` (`C1 besselj(ν, αx) +
 C2 bessely(ν, αx)`) and the second-order homogeneous equations that reduce to it or to
@@ -976,7 +978,7 @@ function _ode_first_order(P::_ODE, Cs)
     f = _ode_tidy(f)
     C = Cs[1]
     fallback = nothing             # a solution with an unevaluated integral, if no other
-    for m in (_ode_separable, _ode_bernoulli, _ode_exact, _ode_homogeneous, _ode_riccati)
+    for m in (_ode_separable, _ode_bernoulli, _ode_exact, _ode_homogeneous, _ode_riccati, _ode_lie)
         r = try m(P, f, a, C) catch err; err isa InterruptException && rethrow(); nothing end
         r === nothing && continue
         r = _ode_explicit(r, Y0, C)
@@ -1111,6 +1113,142 @@ function _ode_homogeneous(P::_ODE, f::Sym, a::Sym, C::Sym)
     iszero(d) && return nothing
     φ = _integrate(_ode_tidy(1 / d), v) - log(x)
     (:implicit, _ode_tidy(subs(φ, v => Y0 / x)))
+end
+
+## Lie symmetries: y' = f(x, y)
+
+"""
+    SymJ.infinitesimals(eq, y(x); degree = 2)
+
+Infinitesimals `(ξ, η)` of Lie point symmetries of the first-order equation `eq`: the
+flow `x ↦ x + ε ξ(x, y)`, `y ↦ y + ε η(x, y)` maps solutions to solutions, that is
+`η_x + (η_y - ξ_x) f - ξ_y f² - ξ f_x - η f_y = 0` for `y' = f(x, y)`. Found by
+SymPy's first heuristics (one of `ξ`, `η` zero, the other a function of `x` or of `y`
+alone, or a power times such a function: `ξ = xᵏ B(y)`, `η = yᵏ A(x)`, as for an equation
+linear or Bernoulli in `x(y)`), and among polynomials in `x` and `y` of total degree at
+most `degree` (`f` rational in `x` and `y`), leaving out the trivial ones (`η = f ξ`). A vector of pairs, in `x` and `y(x)`;
+empty when none is found. [`SymJ.dsolve`](@ref) uses one when its other first-order
+methods fail: `1/(η - f ξ)` is an integrating factor.
+
+Not exported.
+
+```julia
+@syms x y()
+SymJ.infinitesimals(y'(x) ~ (y(x)^3 + x^2*y(x) - x - y(x)) / (x*y(x)^2 + x^3 + y(x) - x), y(x))
+# [(-y(x), x)]: rotations
+```
+"""
+function infinitesimals(eq::Relation, yx::Sym; degree::Integer = 2)
+    P = _ode_parse(eq, yx)
+    P.n == 1 || throw(ArgumentError("infinitesimals: a first-order equation, y' = f(x, y)"))
+    Y0, Y1 = P.ys
+    a = diff(P.F, Y1)
+    has(a, Y1) && throw(ArgumentError("infinitesimals: an equation solved for y', y' = f(x, y)"))
+    f = _ode_tidy(-subs(P.F, Y1 => ZERO) / a)
+    out = Tuple{Sym,Sym}[]
+    for (ξ, η) in [_lie_simple(f, P.x, Y0); [q for d in 1:degree for q in _lie_polynomial(f, P.x, Y0, d)]]
+        q = (subs(ξ, Y0 => yx), subs(η, Y0 => yx))
+        any(r -> _eq(r[1], q[1]) && _eq(r[2], q[2]), out) || push!(out, q)
+    end
+    out
+end
+
+# the determining equation η_x + (η_y - ξ_x) f - ξ_y f² - ξ f_x - η f_y = 0, simplified
+_lie_determining(ξ, η, f, x, Y) = _ode_tidy(simplify(diff(η, x) + (diff(η, Y) - diff(ξ, x)) * f -
+                                                     diff(ξ, Y) * f^2 - ξ * diff(f, x) - η * diff(f, Y)))
+
+# infinitesimals with one of ξ, η zero, the other a quadrature (abaco1 in SymPy):
+# ξ = 0: η(x) with η'/η = f_y, η(y) with η'/η = f_y/f, η = yᵏ A(x) with A'/A = f_y - k f/y
+# (k = f_yy/∂_y(f/y) a constant); η = 0: ξ(x) with ξ'/ξ = -f_x/f, ξ(y) with ξ'/ξ = h_x
+# (h = 1/f), ξ = xᵏ B(y) with B'/B = h_x - k h/x (k = h_xx/∂_x(h/x)): an equation linear or
+# Bernoulli in x(y), y' = 1/(eʸ - x), has ξ = e^(-y)
+function _lie_simple(f::Sym, x::Sym, Y::Sym)
+    out = Tuple{Sym,Sym}[]
+    q(e) = _ode_tidy(simplify(e))
+    function quad(r, v)                       # exp(∫ r dv), or nothing
+        (has(r, v === x ? Y : x)) && return nothing
+        I = _integrate(r, v)
+        _hasfn(I, :Integral) ? nothing : _ode_tidy(exp(I))
+    end
+    function add(ξ, η)
+        (ξ === nothing || η === nothing) && return
+        iszero(_ode_tidy(η - f * ξ)) && return
+        iszero(_lie_determining(ξ, η, f, x, Y)) || return
+        any(p -> _eq(p[1], ξ) && _eq(p[2], η), out) || push!(out, (ξ, η))
+    end
+    h = q(1 / f)
+    fy, hx = q(diff(f, Y)), q(diff(h, x))
+    try
+        add(ZERO, quad(fy, x))
+        add(ZERO, quad(q(fy / f), Y))
+        add(quad(q(-diff(f, x) / f), x), ZERO)
+        add(quad(hx, Y), ZERO)
+        k = q(diff(f, Y, 2) / diff(f / Y, Y))
+        if !has(k, x) && !has(k, Y)
+            A = quad(q(fy - k * f / Y), x)
+            A === nothing || add(ZERO, _ode_tidy(Y^k * A))
+        end
+        k = q(diff(h, x, 2) / diff(h / x, x))
+        if !has(k, x) && !has(k, Y)
+            B = quad(q(hx - k * h / x), Y)
+            B === nothing || add(_ode_tidy(x^k * B), ZERO)
+        end
+    catch err
+        err isa Union{ArgumentError,DivisionByZero,DomainError} || rethrow()
+    end
+    out
+end
+
+# polynomial infinitesimals of degree d: the determining equation's numerator, a
+# polynomial in x and y, vanishes; its coefficients are linear in those of ξ and η. One
+# pair for each free coefficient (set to 1, the others 0), η - f ξ ≢ 0, the simplest
+# first
+function _lie_polynomial(f::Sym, x::Sym, Y::Sym, d::Int)
+    ms = Sym[x^i * Y^j for i in 0:d for j in 0:(d - i)]
+    A = [Sym(Symbol("_lie_a", k)) for k in eachindex(ms)]
+    B = [Sym(Symbol("_lie_b", k)) for k in eachindex(ms)]
+    ξ, η = _add_many(c * m for (c, m) in zip(A, ms)), _add_many(c * m for (c, m) in zip(B, ms))
+    fx, fy = diff(f, x), diff(f, Y)
+    E = diff(η, x) + (diff(η, Y) - diff(ξ, x)) * f - diff(ξ, Y) * f^2 - ξ * fx - η * fy
+    n = numer_denom(cancel(together(E)))[1]
+    Pn = try Poly{Sym}(expand(n), [x, Y]) catch; return Tuple{Sym,Sym}[] end
+    eqs = Relation[Relation(:eq, c, ZERO) for c in coefficients(Pn) if !iszero(c)]
+    any(e -> has(e.lhs, x) || has(e.lhs, Y), eqs) && return Tuple{Sym,Sym}[]
+    cs = [A; B]
+    sols = isempty(eqs) ? [Dict{Sym,Sym}()] :
+           (try _solve_generic(eqs, cs) catch err; err isa ArgumentError || rethrow(); return Tuple{Sym,Sym}[] end)
+    (sols isa AbstractVector && !isempty(sols)) || return Tuple{Sym,Sym}[]
+    s = sols[1]
+    s isa AbstractDict || return Tuple{Sym,Sym}[]
+    free = [c for c in cs if _eq(get(s, c, c), c)]
+    out = Tuple{Sym,Sym}[]
+    for c0 in free
+        vals = [c => (_eq(c, c0) ? ONE : ZERO) for c in free]
+        sub = [c => (_eq(get(s, c, c), c) ? (_eq(c, c0) ? ONE : ZERO) : subs(s[c], vals...)) for c in cs]
+        ξv, ηv = _ode_tidy(subs(ξ, sub...)), _ode_tidy(subs(η, sub...))
+        iszero(_ode_tidy(ηv - f * ξv)) && continue
+        push!(out, (ξv, ηv))
+    end
+    sort!(out; by = q -> _nodes(_ode_tidy(q[2] - f * q[1])))
+end
+
+# a symmetry (ξ, η) gives the integrating factor μ = 1/(η - f ξ) of dy - f dx: φ = ∫ M dx +
+# h(y) with M = -f μ, N = μ (y' = (y³ + x²y - x - y)/(xy² + x³ + y - x), rotations ξ = -y,
+# η = x: φ = atan(y/x) - (x² + y²)/2 … a constant)
+function _ode_lie(P::_ODE, f::Sym, a::Sym, C::Sym)
+    Y0, x = P.ys[1], P.x
+    for cands in (() -> _lie_simple(f, x, Y0), () -> _lie_polynomial(f, x, Y0, 1), () -> _lie_polynomial(f, x, Y0, 2))
+        for (ξ, η) in cands()
+            μ = _ode_tidy(1 / (η - f * ξ))
+            M, N = _ode_tidy(-f * μ), μ
+            iszero(_ode_tidy(simplify(diff(M, Y0) - diff(N, x)))) || continue
+            I = _integrate(M, x)
+            hp = _ode_tidy(simplify(N - diff(I, Y0)))
+            has(hp, x) && continue
+            return (:implicit, _ode_tidy(I + _integrate(hp, Y0)))
+        end
+    end
+    nothing
 end
 
 ## Riccati: y' = q₀ + q₁ y + q₂ y²

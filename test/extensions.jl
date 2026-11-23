@@ -484,6 +484,16 @@ import PolyLog as PL
         @syms y()
         C1, C2 = Sym(:C1), Sym(:C2)
         D = SymJ.dsolve
+        # Lie symmetries: with no other method, the integrating factor 1/(η - f ξ) of a
+        # symmetry (rotations; linear or Bernoulli in x(y))
+        let rot = y'(x) ~ (y(x) - x * (x^2 + y(x)^2)) / (x + y(x) * (x^2 + y(x)^2))
+            @test D(rot, y(x)) == (x^2 / 2 + y(x)^2 / 2 - atan(x / y(x)) ~ C1)
+        end
+        @test D(y'(x) ~ 1 / (exp(y(x)) - x), y(x)) == (x * exp(y(x)) - exp(2y(x)) / 2 ~ C1)
+        @test D(y'(x) ~ y(x) / (x + y(x)^2), y(x)) == (x / y(x) - y(x) ~ C1)
+        @test D(y'(x) ~ (y(x)^3 + x^2 * y(x) - x - y(x)) / (x * y(x)^2 + x^3 + y(x) - x), y(x)) isa Relation
+        @test D(y'(x) ~ 1 / (x * y(x) + x^3 * y(x)^3), y(x)) isa Relation       # Bernoulli in x(y)
+        @test D(y'(x) ~ x / (x^2 + y(x)), y(x)) isa Relation
         # an unknown forcing: its integral from the conditions' point (SymPy #27479)
         let t = Sym(:t), P = SymFunction(:P), S = SymFunction(:S)
             r = D(diff(S(t), t) ~ P(t) - S(t), S(t), S(0) => 10)
