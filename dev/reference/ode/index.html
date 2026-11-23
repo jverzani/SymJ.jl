@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Differential equations — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=261075cd">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=74496aee">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Differential equations — SymJ.jl">
   <meta property="og:title" content="Differential equations — SymJ.jl">
@@ -80,7 +80,7 @@
 <div class="md-docstring" id="SymJ.ParametricSolution">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.ParametricSolution</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/67ea608cbde0b977294eef20d2c6e578559f6fd4/src/ode.jl#L1159-L1170" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/e13eb2b17449d7712b9fd27068ccf0e484a63f85/src/ode.jl#L1166-L1177" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -94,7 +94,7 @@
 <div class="md-docstring" id="SymJ.dsolve-Tuple{Relation, Sym, Vararg{Pair}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.dsolve</code> — <span class="md-docstring-sig">Tuple{Relation, Sym, Vararg{Pair}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/67ea608cbde0b977294eef20d2c6e578559f6fd4/src/ode.jl#L95-L198" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/e13eb2b17449d7712b9fd27068ccf0e484a63f85/src/ode.jl#L95-L205" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -128,7 +128,7 @@ SymJ.dsolve(y&#39;&#39;(x) - x * y(x) ~ 0, y(x); series = 6)      # C1*(1 + x^3/
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">SymJ.dsolve([eq₁, eq₂, …], [y₁(t), y₂(t), …], ics...; assume = nothing)</code></pre>
 </div>
-<p>A system of linear equations with constant coefficients, of any order, in normal form (the highest derivatives can be solved for). The result is a vector of equations, with as many constants as the unknowns&#39; orders add up to; the initial conditions fix them, one for each unknown and each order below its highest. A right side <code class="md-code-inline">F(t)</code> is integrated in closed form when it is made of polynomials, exponentials, sines and cosines. With <code class="md-code-inline">assume</code>, as for one equation, eigenvalues the facts show complex give cosines and sines (<code class="md-code-inline">v&#39; = -k u</code> with <code class="md-code-inline">k ≫ 0</code>).</p>
+<p>A system of linear equations with constant coefficients, of any order. When the highest derivatives can&#39;t be solved for, a differential-algebraic system: an unknown may appear without derivatives (<code class="md-code-inline">I_C + I_L = I</code>), and a combination of the equations free of the highest derivatives, <code class="md-code-inline">G = 0</code>, is differentiated in place of one of them until they can be (Luenberger&#39;s shuffle), <code class="md-code-inline">G = 0</code> fixing constants (<code class="md-code-inline">A&#39; = B - B&#39; + c</code>, <code class="md-code-inline">A = B&#39; + A&#39; + d</code> gives <code class="md-code-inline">A = C1 e^(t/2) + d</code>, <code class="md-code-inline">B = C1 e^(t/2) - c</code>); inconsistent or dependent equations are an error. The result is a vector of equations, with as many constants as the unknowns&#39; orders add up to (fewer for a differential-algebraic system); the initial conditions fix them, one for each unknown and each order below its highest (at least as many as the constants for a differential-algebraic system, the others checked against the solution). A right side <code class="md-code-inline">F(t)</code> is integrated in closed form when it is made of polynomials, exponentials, sines and cosines. With <code class="md-code-inline">assume</code>, as for one equation, eigenvalues the facts show complex give cosines and sines (<code class="md-code-inline">v&#39; = -k u</code> with <code class="md-code-inline">k ≫ 0</code>).</p>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
 <pre><code class="language-julia">@syms t u() v()
@@ -142,7 +142,7 @@ SymJ.dsolve([u&#39;(t) ~ v(t), v&#39;(t) ~ -u(t)], [u(t), v(t)], u(0) =&gt; 1, v
 <div class="md-docstring" id="SymJ.infinitesimals-Tuple{Relation, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.infinitesimals</code> — <span class="md-docstring-sig">Tuple{Relation, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/67ea608cbde0b977294eef20d2c6e578559f6fd4/src/ode.jl#L1564-L1595" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/e13eb2b17449d7712b9fd27068ccf0e484a63f85/src/ode.jl#L1571-L1602" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -191,6 +191,6 @@ SymJ.infinitesimals(y&#39;(x) ~ (y(x)^3 + x^2*y(x) - x - y(x)) / (x*y(x)^2 + x^3
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=261075cd"></script>
+  <script src="../../assets/materialdocs.js?v=74496aee"></script>
 </body>
 </html>
