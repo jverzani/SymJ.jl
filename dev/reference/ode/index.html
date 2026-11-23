@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Differential equations — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=d474caa4">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=6e9d9d9f">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Differential equations — SymJ.jl">
   <meta property="og:title" content="Differential equations — SymJ.jl">
@@ -80,7 +80,7 @@
 <div class="md-docstring" id="SymJ.ParametricSolution">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.ParametricSolution</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/a561ef24c693d6e1820d8f85617657f88a0f9ff5/src/ode.jl#L995-L1006" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/d8cd001273ed108eed6d130dd3b47f93819a06cb/src/ode.jl#L995-L1006" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -94,7 +94,7 @@
 <div class="md-docstring" id="SymJ.dsolve-Tuple{Relation, Sym, Vararg{Pair}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.dsolve</code> — <span class="md-docstring-sig">Tuple{Relation, Sym, Vararg{Pair}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/a561ef24c693d6e1820d8f85617657f88a0f9ff5/src/ode.jl#L91-L182" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/d8cd001273ed108eed6d130dd3b47f93819a06cb/src/ode.jl#L91-L182" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -142,14 +142,29 @@ SymJ.dsolve([u&#39;(t) ~ v(t), v&#39;(t) ~ -u(t)], [u(t), v(t)], u(0) =&gt; 1, v
 <div class="md-docstring" id="SymJ.infinitesimals-Tuple{Relation, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.infinitesimals</code> — <span class="md-docstring-sig">Tuple{Relation, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/a561ef24c693d6e1820d8f85617657f88a0f9ff5/src/ode.jl#L1400-L1420" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/d8cd001273ed108eed6d130dd3b47f93819a06cb/src/ode.jl#L1400-L1430" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">SymJ.infinitesimals(eq, y(x); degree = 2)</code></pre>
+<pre><code class="language-julia">SymJ.infinitesimals(eq, y(x); degree = 2, heuristic = :all)</code></pre>
 </div>
-<p>Infinitesimals <code class="md-code-inline">(ξ, η)</code> of Lie point symmetries of the first-order equation <code class="md-code-inline">eq</code>: the flow <code class="md-code-inline">x ↦ x + ε ξ(x, y)</code>, <code class="md-code-inline">y ↦ y + ε η(x, y)</code> maps solutions to solutions, that is <code class="md-code-inline">η_x + (η_y - ξ_x) f - ξ_y f² - ξ f_x - η f_y = 0</code> for <code class="md-code-inline">y&#39; = f(x, y)</code>. Found by SymPy&#39;s first heuristics (one of <code class="md-code-inline">ξ</code>, <code class="md-code-inline">η</code> zero, the other a function of <code class="md-code-inline">x</code> or of <code class="md-code-inline">y</code> alone, or a power times such a function: <code class="md-code-inline">ξ = xᵏ B(y)</code>, <code class="md-code-inline">η = yᵏ A(x)</code>, as for an equation linear or Bernoulli in <code class="md-code-inline">x(y)</code>), and among polynomials in <code class="md-code-inline">x</code> and <code class="md-code-inline">y</code> of total degree at most <code class="md-code-inline">degree</code> (<code class="md-code-inline">f</code> rational in <code class="md-code-inline">x</code> and <code class="md-code-inline">y</code>), leaving out the trivial ones (<code class="md-code-inline">η = f ξ</code>). A vector of pairs, in <code class="md-code-inline">x</code> and <code class="md-code-inline">y(x)</code>; empty when none is found. <a href="../../reference/ode/#SymJ.dsolve-Tuple{Relation, Sym, Vararg{Pair}}"><code class="md-code-inline">SymJ.dsolve</code></a> uses one when its other first-order methods fail: <code class="md-code-inline">1/(η - f ξ)</code> is an integrating factor.</p>
+<p>Infinitesimals <code class="md-code-inline">(ξ, η)</code> of Lie point symmetries of the first-order equation <code class="md-code-inline">eq</code>: the flow <code class="md-code-inline">x ↦ x + ε ξ(x, y)</code>, <code class="md-code-inline">y ↦ y + ε η(x, y)</code> maps solutions to solutions, that is <code class="md-code-inline">η_x + (η_y - ξ_x) f - ξ_y f² - ξ f_x - η f_y = 0</code> for <code class="md-code-inline">y&#39; = f(x, y)</code>. Found by SymPy&#39;s heuristics, each also applied to the equation for <code class="md-code-inline">x(y)</code>, every candidate checked against the determining equation, the trivial ones (<code class="md-code-inline">η = f ξ</code>) left out:</p>
+<ul class="md-list-tight">
+<li><p><code class="md-code-inline">:abaco1_simple</code>: one of <code class="md-code-inline">ξ</code>, <code class="md-code-inline">η</code> zero, the other a function of <code class="md-code-inline">x</code> or of <code class="md-code-inline">y</code> alone, or a power times one (<code class="md-code-inline">ξ = xᵏ B(y)</code>: an equation linear or Bernoulli in <code class="md-code-inline">x(y)</code>);</p>
+</li>
+<li><p><code class="md-code-inline">:abaco1_product</code>: one zero, the other <code class="md-code-inline">F(x) G(y)</code>;</p>
+</li>
+<li><p><code class="md-code-inline">:bivariate</code>: polynomials in <code class="md-code-inline">x</code> and <code class="md-code-inline">y</code> of total degree at most <code class="md-code-inline">degree</code>;</p>
+</li>
+<li><p><code class="md-code-inline">:chi</code>: <code class="md-code-inline">η - f ξ</code> a polynomial of degree at most <code class="md-code-inline">degree + 1</code>;</p>
+</li>
+<li><p><code class="md-code-inline">:function_sum</code>: one zero, the other <code class="md-code-inline">F(x) + G(y)</code>;</p>
+</li>
+<li><p><code class="md-code-inline">:abaco2_similar</code>, <code class="md-code-inline">:abaco2_unique_unknown</code>, <code class="md-code-inline">:abaco2_unique_general</code>: <code class="md-code-inline">ξ</code> a function of <code class="md-code-inline">x</code>, <code class="md-code-inline">η</code> of <code class="md-code-inline">x</code> or <code class="md-code-inline">y</code>, from patterns in <code class="md-code-inline">f</code> (<code class="md-code-inline">f = A(x) + B(x) e^(y/C)</code>; powers of expressions in <code class="md-code-inline">x</code> and <code class="md-code-inline">y</code>; invariants of <code class="md-code-inline">f</code>).</p>
+</li>
+</ul>
+<p>With <code class="md-code-inline">heuristic</code>, that one alone. A vector of pairs, in <code class="md-code-inline">x</code> and <code class="md-code-inline">y(x)</code>; empty when none is found. <a href="../../reference/ode/#SymJ.dsolve-Tuple{Relation, Sym, Vararg{Pair}}"><code class="md-code-inline">SymJ.dsolve</code></a> uses one when its other first-order methods fail: <code class="md-code-inline">1/(η - f ξ)</code> is an integrating factor.</p>
 <p>Not exported.</p>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -176,6 +191,6 @@ SymJ.infinitesimals(y&#39;(x) ~ (y(x)^3 + x^2*y(x) - x - y(x)) / (x*y(x)^2 + x^3
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=d474caa4"></script>
+  <script src="../../assets/materialdocs.js?v=6e9d9d9f"></script>
 </body>
 </html>
