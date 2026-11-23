@@ -180,10 +180,17 @@ SymJ.dsolve(y''(x) - x * y(x) ~ 0, y(x); series = 6)      # C1*(1 + x^3/6) + C2*
 
     SymJ.dsolve([eq₁, eq₂, …], [y₁(t), y₂(t), …], ics...; assume = nothing)
 
-A system of linear equations with constant coefficients, of any order, in normal form
-(the highest derivatives can be solved for). The result is a vector of equations, with
-as many constants as the unknowns' orders add up to; the initial conditions fix them, one
-for each unknown and each order below its highest. A right side `F(t)` is integrated in
+A system of linear equations with constant coefficients, of any order. When the highest
+derivatives can't be solved for, a differential-algebraic system: an unknown may appear
+without derivatives (`I_C + I_L = I`), and a combination of the equations free of the
+highest derivatives, `G = 0`, is differentiated in place of one of them until they can be
+(Luenberger's shuffle), `G = 0` fixing constants (`A' = B - B' + c`, `A = B' + A' + d`
+gives `A = C1 e^(t/2) + d`, `B = C1 e^(t/2) - c`); inconsistent or dependent equations
+are an error. The result is a vector of equations, with as many constants as the
+unknowns' orders add up to (fewer for a differential-algebraic system); the initial
+conditions fix them, one for each unknown and each order below its highest (at least as
+many as the constants for a differential-algebraic system, the others checked against
+the solution). A right side `F(t)` is integrated in
 closed form when it is made of polynomials, exponentials, sines and cosines. With
 `assume`, as for one equation, eigenvalues the facts show complex give cosines and
 sines (`v' = -k u` with `k ≫ 0`).
@@ -2360,10 +2367,15 @@ function dsolve(eqs::AbstractVector, yxs::AbstractVector, ics::Pair...; method::
     yxs = Sym[Sym(y) for y in yxs]
     t = _odesys_var(yxs)
     Fs, Ys = _odesys_parse(eqs, yxs, t)
-    M, F, Z = _odesys_first_order(Fs, Ys, t)
+    # a differential-algebraic system: equations whose highest derivatives cancel in a
+    # combination G = 0 replaced by G' = 0 (Luenberger's shuffle), G kept as a constraint
+    Fr, cons = _odesys_index_reduce(Fs, Ys, t)
+    M, F, Z, top = _odesys_first_order(Fr, Ys, t)
     N = length(Z)
     Cs = _ode_constants(N, eqs)
+    dae = !isempty(cons) || any(Y -> length(Y) == 1, Ys)
     if method === :laplace || any(f -> _hasfn(f, :heaviside) || _hasfn(f, :dirac), F)
+        dae && throw(ArgumentError("dsolve: Laplace transforms for a system with a derivative of each unknown and the highest derivatives solvable"))
         isempty(ics) || length(ics) == N || throw(ArgumentError("dsolve: give $N initial conditions, one for each unknown and order below its highest"))
         S = _odesys_laplace(M, F, Z, Ys, yxs, Cs, t, ics)
         _odesys_verified(Fs, Ys, S, t) || throw(ArgumentError("dsolve: the solution found does not satisfy the equations"))
@@ -2372,11 +2384,18 @@ function dsolve(eqs::AbstractVector, yxs::AbstractVector, ics::Pair...; method::
     Φ, Ψ, ΨinvF = _odesys_fundamental(M, F, t)
     yp = Ψ === nothing ? zeros(Sym, N) : _odesys_particular(Φ, Ψ, ΨinvF, F, t)
     sol = [_ode_tidy(sum(Φ[i, j] * Cs[j] for j in 1:N) + yp[i]) for i in 1:N]
-    S = [sol[findfirst(z -> _eq(z, Ys[j][1]), Z)] for j in eachindex(yxs)]
+    # (an unknown without derivatives: its value solved for with the highest derivatives)
+    zsol = [z => v for (z, v) in zip(Z, sol)]
+    S = [(k = findfirst(z -> _eq(z, Ys[j][1]), Z); k === nothing ? _ode_tidy(subs(top[j], zsol...)) : sol[k]) for j in eachindex(yxs)]
+    isempty(cons) || ((S, Cs) = _odesys_constrain(S, cons, Ys, Cs, t))
+    N = length(Cs)
     _odesys_verified(Fs, Ys, S, t) || throw(ArgumentError("dsolve: the solution found does not satisfy the equations"))
     if !isempty(ics)
-        length(ics) == N || throw(ArgumentError("dsolve: give $N initial conditions, one for each unknown and order below its highest"))
-        S = _odesys_ics(S, yxs, Cs, t, ics)
+        # (a differential-algebraic system: at least N, the others consistent with them, as
+        # I_C(0) = 0 with I_L(0) = 0 for I_C = I_L; SymPy #26717)
+        (dae ? length(ics) >= N : length(ics) == N) || throw(ArgumentError(dae ? "dsolve: give at least $N initial conditions (the constraints fix the others)" :
+                                                "dsolve: give $N initial conditions, one for each unknown and order below its highest"))
+        S = length(ics) > N ? _odesys_ics_over(S, yxs, Cs, t, ics) : _odesys_ics(S, yxs, Cs, t, ics)
     end
     [y ~ s for (y, s) in zip(yxs, S)]
 end
@@ -2415,8 +2434,10 @@ function _odesys_parse(eqs, yxs, t)
     Fs0 = Sym[lhs(eq) - rhs(eq) for eq in eqs]
     foreach(walk, Fs0)
     ns = [isempty(d) ? 0 : maximum(values(d)) for d in ders]
-    for (j, n) in enumerate(ns)
-        n >= 1 || throw(ArgumentError("dsolve: no derivative of $(yxs[j]) in the equations"))
+    # (an unknown may appear without derivatives, an algebraic one, if another has some)
+    all(iszero, ns) && throw(ArgumentError("dsolve: no derivative of an unknown in the equations"))
+    for (j, y) in enumerate(yxs)
+        ns[j] == 0 && !any(F -> _hasfn(F, y.name), Fs0) && throw(ArgumentError("dsolve: $y is not in the equations"))
     end
     Ys = [[Sym(Symbol("_ode_", yxs[j].name, "_", k)) for k in 0:ns[j]] for j in eachindex(yxs)]
     sb = [d => Ys[j][o + 1] for j in eachindex(yxs) for (d, o) in ders[j]]
@@ -2443,7 +2464,7 @@ function _odesys_first_order(Fs, Ys, t)
     iszero(_ode_tidy(LinearAlgebra.det(B))) &&
         throw(ArgumentError("dsolve: the highest derivatives can't be solved for (not in normal form)"))
     top = [expand(v) for v in -(inv(B) * R)]
-    Z = reduce(vcat, [Y[1:(end - 1)] for Y in Ys])
+    Z = reduce(vcat, [Y[1:(end - 1)] for Y in Ys]; init = Sym[])
     N = length(Z)
     M = zeros(Sym, N, N)
     F = zeros(Sym, N)
@@ -2462,7 +2483,57 @@ function _odesys_first_order(Fs, Ys, t)
             end
         end
     end
-    M, F, Z
+    M, F, Z, top
+end
+
+# the equations with their highest derivatives solvable, and the constraints met on the
+# way: while the matrix B of the highest derivatives' coefficients is singular, a left
+# null vector w makes G = Σ wᵢ Fᵢ free of them; one Fᵢ (wᵢ ≠ 0) is replaced by G', of the
+# same orders, and G = 0 kept for the constants (A' = B - B' + c, A = B' + A' + d: G =
+# A - B - c - d; SymPy #9251). Unchanged when not linear with constant coefficients
+# (_odesys_first_order says so).
+function _odesys_index_reduce(Fs, Ys, t)
+    allY = reduce(vcat, Ys)
+    m = length(Fs)
+    tops = [Ys[j][end] for j in 1:m]
+    Fs = copy(Fs)
+    cons = Sym[]
+    for _ in 1:(length(allY) + m)
+        B = Sym[_ode_tidy(diff(Fs[i], tops[j])) for i in 1:m, j in 1:m]
+        any(c -> has(c, t) || any(Y -> has(c, Y), allY), B) && return Fs, cons
+        iszero(_ode_tidy(LinearAlgebra.det(B))) || return Fs, cons
+        W = LinearAlgebra.nullspace(permutedims(B))
+        size(W, 2) >= 1 || return Fs, cons
+        w = W[:, 1]
+        G = _ode_tidy(expand(sum(w[i] * Fs[i] for i in 1:m)))
+        iszero(G) && throw(ArgumentError("dsolve: the equations are dependent (a combination is 0 = 0)"))
+        any(Y -> has(G, Y), allY) || throw(ArgumentError("dsolve: the equations are inconsistent ($G = 0)"))
+        push!(cons, G)
+        i = findlast(c -> !iszero(c), w)
+        # G' along the solutions: the derivatives raised by one, none past the highest
+        dG = diff(G, t) + _add_many(diff(G, Y[k]) * Y[k + 1] for Y in Ys for k in 1:(length(Y) - 1))
+        Fs[i] = _ode_tidy(expand(dG))
+    end
+    throw(ArgumentError("dsolve: the highest derivatives can't be solved for (not in normal form)"))
+end
+
+# the constants fixed by the constraints G = 0: each G is constant along the solutions
+# (G' = 0 is an equation), so G = 0 at t = 0 is enough; the others renamed C1, C2, …
+function _odesys_constrain(S, cons, Ys, Cs, t)
+    sb = [Ys[j][k + 1] => diff(S[j], t, k) for j in eachindex(Ys) for k in 0:(length(Ys[j]) - 1)]
+    eqs = Relation[]
+    for G in cons
+        g0 = _ode_tidy(subs(_ode_tidy(subs(G, sb...)), t => ZERO))
+        iszero(g0) || push!(eqs, g0 ~ 0)
+    end
+    isempty(eqs) && return S, Cs
+    sols = _solve_generic(eqs, Cs)
+    isempty(sols) && throw(ArgumentError("dsolve: the equations are inconsistent (no solution)"))
+    S = [_ode_tidy(subs(v, sols[1]...)) for v in S]
+    left = [c for c in Cs if any(v -> has(v, c), S)]
+    tmp = [Sym(Symbol("_odesys_C", i)) for i in eachindex(left)]
+    S = [_ode_tidy(subs(_ode_tidy(subs(v, (l => u for (l, u) in zip(left, tmp))...)), (u => c for (u, c) in zip(tmp, Cs))...)) for v in S]
+    S, Cs[1:length(left)]
 end
 
 # the real fundamental matrix Φ, and for the particular solution P exp(J t) and
@@ -2655,6 +2726,27 @@ function _odesys_verified(Fs, Ys, S, t)
         ok === false && return false
     end
     true
+end
+
+# more initial conditions than constants (a differential-algebraic system): the
+# constants from N of them, the others checked (solving all at once took √(-c₁l₁) as a
+# fresh symbol, and consistent conditions looked inconsistent; SymPy #28390)
+function _odesys_ics_over(S, yxs, Cs, t, ics)
+    N = length(Cs)
+    subsets(k, from) = k == 0 ? [Int[]] : [vcat(i, r) for i in from:length(ics) for r in subsets(k - 1, i + 1)]
+    for sub in subsets(N, 1)
+        S2 = try _odesys_ics(S, yxs, Cs, t, ics[sub]) catch err; err isa ArgumentError || rethrow(); continue end
+        ok = all(eachindex(ics)) do i
+            i in sub && return true
+            c = _ode_ic_parts(Sym(ics[i].first))
+            j = findfirst(y -> y.name === c[1], yxs)
+            r = subs(diff(S2[j], t, c[2]), t => c[3]) - Sym(ics[i].second)
+            z = try simplify(r) catch; r end
+            iszero(z) || _ode_numzero(r, free_symbols(r)) === true
+        end
+        ok && return S2
+    end
+    throw(ArgumentError("dsolve: no solution satisfies the initial conditions"))
 end
 
 function _odesys_ics(S, yxs, Cs, t, ics)
