@@ -501,6 +501,13 @@ import PolyLog as PL
             @test SymJ._ode_tidy(subs(r2.rhs, t => 1)) == 0
             @test SymJ._ode_tidy(subs(diff(r2.rhs, t), t => 1)) == 2
         end
+        # hypergeometric equations with a polynomial solution (a terminating series), the
+        # second by reduction of order: Legendre's P₆ and Q₆, Laguerre's L₆, Hermite's H₇
+        @test subs(D((1 - x^2) * y''(x) - 2x * y'(x) + 42y(x) ~ 0, y(x)).rhs, C1 => 0) == expand(C2 * (x^6 - 15x^4 / 11 + 5x^2 / 11 - Sym(5) / 231))
+        @test subs(D(x * y''(x) + (1 - x) * y'(x) + 6y(x) ~ 0, y(x)).rhs, C1 => 0) ==
+              expand(C2 * (x^6 - 36x^5 + 450x^4 - 2400x^3 + 5400x^2 - 4320x + 720))
+        @test subs(D(y''(x) - 2x * y'(x) + 14y(x) ~ 0, y(x)).rhs, C1 => 0) == expand(C2 * (x^7 - 21x^5 / 2 + 105x^3 / 4 - 105x / 8))
+        @test has(D((1 - x^2) * y''(x) - 2x * y'(x) + 42y(x) ~ 0, y(x)).rhs, log(x + 1))
         @test D(y'(x) ~ 1 / (1 + x^2), y(x)) == (y(x) ~ atan(x) + C1)
         @test D(y''(x) ~ sin(x), y(x)) == (y(x) ~ C1 * x + C2 - sin(x))
         @test D(y'(x) ~ (x^2 + y(x)^2) / (x * y(x)), y(x)) == (y(x) ~ sqrt((C1 + 2log(x)) * x^2))   # homogeneous
