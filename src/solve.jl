@@ -144,12 +144,40 @@ function solve(eq::Relation, x::Sym; assume = nothing, drop_empty::Bool = false)
             _solve_assumed(eq, x, A)
         end
     catch err
-        (err isa ArgumentError && occursin("inexact coefficients", err.msg)) || rethrow()
-        r = _solve_floats_exactly(eq, x, assume)
+        err isa ArgumentError || rethrow()
+        r = occursin("inexact coefficients", err.msg) ? _solve_floats_exactly(eq, x, assume) :
+            _solve_simplified(eq, x, assume, err)
         r === nothing ? rethrow() : r
     end
     r isa Cases && (r = _merge_eq_cases(r))
     drop_empty ? _drop_empty(r) : r
+end
+
+const _SOLVE_SIMPLIFYING = ScopedValue(false)
+
+# An equation in x the methods do not take (x inside a function or power they cannot
+# invert), simplified under the assumptions and solved again: a rose in polar coordinates,
+# 1 - ((x² + y²)^(7/2) + 18xy⁵ - 60x³y³ + 18x⁵y)/(x² + y²)³ at x = r cos θ, y = r sin θ,
+# is 1 - r - 3 sin 6θ for r > 0. With nothing assumed about x, the error says which
+# assumption (x > 0, or x real) would solve it. nothing when neither helps.
+function _solve_simplified(eq::Relation, x::Sym, assume, err::ArgumentError)
+    (_SOLVE_SIMPLIFYING[] || eq.op !== :eq || !_isnamed(x)) && return nothing
+    startswith(err.msg, "solve: ") && occursin(" involves ", err.msg) || return nothing
+    e = eq.lhs - eq.rhs
+    attempt(B) = with(_SOLVE_SIMPLIFYING => true) do
+        e2 = try simplify(e; assume = B) catch err2; err2 isa ArgumentError || rethrow(); return nothing end
+        (_eq(e2, e) || !has(e2, x)) && return nothing
+        try solve(Relation(:eq, e2, ZERO), x; assume = B) catch err2; err2 isa ArgumentError || rethrow(); nothing end
+    end
+    r = attempt(assume)
+    r === nothing || return r
+    A = _assumptions(assume)
+    (A === nothing || !any(d -> haskey(d, x), (A.dom, A.sets, A.subst, A.excluded))) || return nothing
+    for (B, hint) in (((x ≫ 0,), "$x ≫ 0"), ((x ∈ ℝ,), "$x ∈ ℝ"))
+        attempt(B) === nothing && continue
+        throw(ArgumentError(err.msg * "; with assume = ($hint,) it can be solved"))
+    end
+    nothing
 end
 
 _isinteger_const(r::Sym) = r.kind == NUMBER && isexact(r.num) && isone(_denominator(r.num))

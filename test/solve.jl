@@ -523,6 +523,16 @@ end
     # drop_empty: the cases with no solutions dropped, one left given as its solutions
     @test solve(x^2 ~ a, x; assume = (x ≫ 0,), drop_empty = true) == [sqrt(a)]
     @test solve(x^2 ~ 4, x; assume = (x ≫ 0,), drop_empty = true) == [2]
+    # an equation the methods do not take, simplified under the assumptions and solved
+    # again: a rose in polar coordinates is 1 - r - 3 sin 6θ for r > 0
+    let r = SymJ.Sym(:r), θ = SymJ.Sym(:θ)
+        rose = 1 - ((x^2 + y^2)^(Sym(7) // 2) + 18x * y^5 - 60x^3 * y^3 + 18x^5 * y) / (x^2 + y^2)^3
+        rp = subs(rose, x => r * cos(θ), y => r * sin(θ))
+        @test solve(rp ~ 0, r; assume = (r ≫ 0,), drop_empty = true) == [1 - 3sin(6θ)]
+        # without assumptions, the error says which one helps
+        err = try solve(rp ~ 0, r) catch e; e end
+        @test occursin("with assume = (r ≫ 0,) it can be solved", err.msg)
+    end
     @test solve(x^2 ~ -4, x; assume = (x ∈ ℝ,), drop_empty = true) == Sym[]
     cs = solve(x^2 ~ a, x; assume = (x ∈ ℝ, a ∈ ℝ), drop_empty = true)
     @test cs isa SymJ.Cases
