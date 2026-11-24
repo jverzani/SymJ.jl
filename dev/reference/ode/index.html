@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Differential equations — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=6c8b672d">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=83888404">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Differential equations — SymJ.jl">
   <meta property="og:title" content="Differential equations — SymJ.jl">
@@ -80,7 +80,7 @@
 <div class="md-docstring" id="SymJ.ParametricSolution">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.ParametricSolution</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/b28d6270eb603a50ff27c24f1e97628a87d08568/src/ode.jl#L1173-L1184" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/b806f0e12eac679ed1976d2621a701879b2bb9b1/src/ode.jl#L1179-L1190" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -94,7 +94,7 @@
 <div class="md-docstring" id="SymJ.dsolve-Tuple{Relation, Sym, Vararg{Pair}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.dsolve</code> — <span class="md-docstring-sig">Tuple{Relation, Sym, Vararg{Pair}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/b28d6270eb603a50ff27c24f1e97628a87d08568/src/ode.jl#L96-L212" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/b806f0e12eac679ed1976d2621a701879b2bb9b1/src/ode.jl#L98-L218" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -113,7 +113,7 @@
 <li><p>B/x²<code class="md-code-inline">gives</code>√x Z<em>ν(β x^γ)<code class="md-code-inline">,</code>I = A e^(λx) + B<code class="md-code-inline">gives</code>Z</em>ν(β e^(λx/2))<code class="md-code-inline">(</code>Z<code class="md-code-inline">is</code>besselj`</p>
 </li>
 </ul>
-<p>and <code class="md-code-inline">bessely</code>, or <code class="md-code-inline">besseli</code> and <code class="md-code-inline">besselk</code> when <code class="md-code-inline">A &lt; 0</code>; elementary for half-integer <code class="md-code-inline">ν</code>: <code class="md-code-inline">x y&#39;&#39; + y&#39; + y = 0</code> is <code class="md-code-inline">C1 besselj(0, 2√x) + C2 bessely(0, 2√x)</code>), <code class="md-code-inline">I</code> linear in <code class="md-code-inline">x</code> gives <code class="md-code-inline">airyai</code> and <code class="md-code-inline">airybi</code> (also Riccati equations made linear: <code class="md-code-inline">y&#39; = x + y²</code>), and <code class="md-code-inline">I = A + B/x + D/x²</code> Whittaker&#39;s functions (in <code class="md-code-inline">_₁F₁</code>); hypergeometric equations, <code class="md-code-inline">a₂ y&#39;&#39; + a₁ y&#39; + a₀ y = 0</code> with <code class="md-code-inline">a₀</code> constant, <code class="md-code-inline">a₁</code> linear and <code class="md-code-inline">a₂</code> linear (Kummer&#39;s, <code class="md-code-inline">x y&#39;&#39; + (b - x) y&#39; - a y = 0</code>: <code class="md-code-inline">C1 ₁F₁(a, b, x) + C2 x^(1-b) ₁F₁(a - b + 1, 2 - b, x)</code>), constant (Hermite&#39;s) or quadratic with two roots (Gauss&#39;s, <code class="md-code-inline">₂F₁</code>), after a linear change of variable: a polynomial solution when the series terminates (Legendre&#39;s, Laguerre&#39;s, Hermite&#39;s, Chebyshev&#39;s polynomials) and the second by reduction of order when that is elementary (Legendre&#39;s <code class="md-code-inline">Q₆</code> in logarithms), else the two hypergeometric solutions; when they coincide (<code class="md-code-inline">b</code> or <code class="md-code-inline">c</code> an integer), only reduction of order (Legendre&#39;s equation for <code class="md-code-inline">ν = 1/3</code> has no method: no Kummer <code class="md-code-inline">U</code> or Legendre <code class="md-code-inline">Q</code>); equations without <code class="md-code-inline">y</code> (reduced to a lower order); second order without <code class="md-code-inline">x</code> (autonomous: <code class="md-code-inline">p = y&#39;</code> as a function of <code class="md-code-inline">y</code>). Integrals are done by the RischIntegrate extension when it is loaded (an unevaluated <code class="md-code-inline">Integral</code> otherwise, or when there is no elementary antiderivative).</p>
+<p>and <code class="md-code-inline">bessely</code>, or <code class="md-code-inline">besseli</code> and <code class="md-code-inline">besselk</code> when <code class="md-code-inline">A &lt; 0</code>; elementary for half-integer <code class="md-code-inline">ν</code>: <code class="md-code-inline">x y&#39;&#39; + y&#39; + y = 0</code> is <code class="md-code-inline">C1 besselj(0, 2√x) + C2 bessely(0, 2√x)</code>), <code class="md-code-inline">I</code> linear in <code class="md-code-inline">x</code> gives <code class="md-code-inline">airyai</code> and <code class="md-code-inline">airybi</code> (also Riccati equations made linear: <code class="md-code-inline">y&#39; = x + y²</code>), and <code class="md-code-inline">I = A + B/x + D/x²</code> Whittaker&#39;s functions (in <code class="md-code-inline">_₁F₁</code>); hypergeometric equations, <code class="md-code-inline">a₂ y&#39;&#39; + a₁ y&#39; + a₀ y = 0</code> with <code class="md-code-inline">a₀</code> constant, <code class="md-code-inline">a₁</code> linear and <code class="md-code-inline">a₂</code> linear (Kummer&#39;s, <code class="md-code-inline">x y&#39;&#39; + (b - x) y&#39; - a y = 0</code>: <code class="md-code-inline">C1 ₁F₁(a, b, x) + C2 x^(1-b) ₁F₁(a - b + 1, 2 - b, x)</code>), constant (Hermite&#39;s) or quadratic with two roots (Gauss&#39;s, <code class="md-code-inline">₂F₁</code>), after a linear change of variable: a polynomial solution when the series terminates (Legendre&#39;s, Laguerre&#39;s, Hermite&#39;s, Chebyshev&#39;s polynomials) and the second by reduction of order when that is elementary (Legendre&#39;s <code class="md-code-inline">Q₆</code> in logarithms), else the two hypergeometric solutions; when they coincide (<code class="md-code-inline">b</code> or <code class="md-code-inline">c</code> an integer), only reduction of order (Legendre&#39;s equation for <code class="md-code-inline">ν = 1/3</code> has no method: no Kummer <code class="md-code-inline">U</code> or Legendre <code class="md-code-inline">Q</code>); equations without <code class="md-code-inline">y</code> (reduced to a lower order); second order without <code class="md-code-inline">x</code> (autonomous: <code class="md-code-inline">p = y&#39;</code> as a function of <code class="md-code-inline">y</code>); else a Lie point symmetry of a second-order equation <code class="md-code-inline">y&#39;&#39; = ω(x, y, y&#39;)</code> (<code class="md-code-inline">ξ</code>, <code class="md-code-inline">η</code> polynomials of degree at most 2 in <code class="md-code-inline">x</code> and <code class="md-code-inline">y</code>), whose canonical coordinates <code class="md-code-inline">r</code>, <code class="md-code-inline">s</code> reduce it to a first-order equation for <code class="md-code-inline">v = ds/dr</code>: <code class="md-code-inline">x²y y&#39;&#39; = (y - xy&#39;)²</code> is <code class="md-code-inline">y = C2 x e^(C1/x)</code>, <code class="md-code-inline">y&#39;&#39; + y&#39;/x + eʸ = 0</code> gives two implicit solutions, one for each sign of <code class="md-code-inline">v</code>. Integrals are done by the RischIntegrate extension when it is loaded (an unevaluated <code class="md-code-inline">Integral</code> otherwise, or when there is no elementary antiderivative).</p>
 <p>Not exported.</p>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -142,7 +142,7 @@ SymJ.dsolve([u&#39;(t) ~ v(t), v&#39;(t) ~ -u(t)], [u(t), v(t)], u(0) =&gt; 1, v
 <div class="md-docstring" id="SymJ.infinitesimals-Tuple{Relation, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.infinitesimals</code> — <span class="md-docstring-sig">Tuple{Relation, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/b28d6270eb603a50ff27c24f1e97628a87d08568/src/ode.jl#L1637-L1668" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/b806f0e12eac679ed1976d2621a701879b2bb9b1/src/ode.jl#L1643-L1674" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -191,6 +191,6 @@ SymJ.infinitesimals(y&#39;(x) ~ (y(x)^3 + x^2*y(x) - x - y(x)) / (x*y(x)^2 + x^3
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=6c8b672d"></script>
+  <script src="../../assets/materialdocs.js?v=83888404"></script>
 </body>
 </html>
