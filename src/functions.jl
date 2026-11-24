@@ -80,30 +80,9 @@ function apply_function(name::Symbol, args::Vector{Sym})
         # asin(-u) = -asin(u), which do not hold for Julia's principal values on a
         # branch cut (asin(-17.0 + 0im) is not -asin(17.0 + 0im)).
         if rule.julia !== nothing && _float_args(args)
-            v = _try_numeric(rule.julia, args)
-            if v === nothing
-                v = _try_numeric_complex(rule.julia, args)
-                # no real value and a complex infinity: a pole, as for exact arguments
-                # (gamma(-1.0) gave -Inf - Inf*im; SymPy #16847); at an infinite argument
-                # no pole: left unevaluated, as tan(Inf) is (cos(Inf); SymPy #13499)
-                if v !== nothing
-                    if !all(a -> isfinite(_evalc(a)), args)
-                        v = nothing
-                    elseif !isfinite(try _evalc(v) catch; 0.0 end)
-                        throw(DivisionByZero("$name($(join(args, ", "))): a pole"))
-                    end
-                end
-            end
-            if v !== nothing
-                # at ±∞ (the only float arguments): the limit, exact when it is an integer
-                # or a rational multiple of π (sinint(∞) = π/2, atan(∞), erf(-∞); SymPy #6602)
-                if any(a -> isfloat(a.num) && isinf(_evalc(a)), args) &&
-                   all(a -> !isfloat(a.num) || isinf(_evalc(a)), args)
-                    w = _exact_limit_value(v)
-                    w === nothing || return w
-                end
-                return v
-            end
+            # (behind an inference barrier: see _apply_float)
+            v = Base.inferencebarrier(_apply_float)(rule, name, args)::Union{Nothing,Sym}
+            v === nothing || return v
         end
         # a complex float argument (2.0im, 2.0 + 2.0im): its value too (SymPy #6071)
         if rule.julia !== nothing && length(args) == 1 && (z = _complex_float(args[1])) !== nothing
@@ -116,6 +95,38 @@ function apply_function(name::Symbol, args::Vector{Sym})
         end
     end
     _mkfn_node(name, args)
+end
+
+# the value of a registered function at float arguments, or nothing. Called from
+# apply_function through Base.inferencebarrier: _evalc and _exact_limit_value reach the
+# whole system (limits, signs, solve), and with a direct call every sin(::Sym) inference
+# had to infer it all. The REPL's hint inference does that from scratch, with its own
+# cache, as one types integrate(sin(x), ... : it ran for minutes, and on Julia 1.13 it
+# froze Ctrl-R history search (which waits on the same thread pool).
+function _apply_float(rule::FunctionRule, name::Symbol, args::Vector{Sym})
+    v = _try_numeric(rule.julia, args)
+    if v === nothing
+        v = _try_numeric_complex(rule.julia, args)
+        # no real value and a complex infinity: a pole, as for exact arguments
+        # (gamma(-1.0) gave -Inf - Inf*im; SymPy #16847); at an infinite argument
+        # no pole: left unevaluated, as tan(Inf) is (cos(Inf); SymPy #13499)
+        if v !== nothing
+            if !all(a -> isfinite(_evalc(a)), args)
+                v = nothing
+            elseif !isfinite(try _evalc(v) catch; 0.0 end)
+                throw(DivisionByZero("$name($(join(args, ", "))): a pole"))
+            end
+        end
+    end
+    v === nothing && return nothing
+    # at ±∞ (the only float arguments): the limit, exact when it is an integer
+    # or a rational multiple of π (sinint(∞) = π/2, atan(∞), erf(-∞); SymPy #6602)
+    if any(a -> isfloat(a.num) && isinf(_evalc(a)), args) &&
+       all(a -> !isfloat(a.num) || isinf(_evalc(a)), args)
+        w = _exact_limit_value(v)
+        w === nothing || return w
+    end
+    v::Sym
 end
 
 _float_args(args) = all(a -> a.kind == NUMBER, args) && any(a -> isfloat(a.num), args)
