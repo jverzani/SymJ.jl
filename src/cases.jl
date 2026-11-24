@@ -1269,3 +1269,13 @@ function solve(f::Union{FactAnd,FactOr}, x::Sym; assume = nothing)
     S = reduce(f isa FactAnd ? intersect : union, sets)
     SymSet(S.intervals, x)
 end
+
+# one antiderivative from cases on the parameters alone (see _integrate): the smallest
+function _cases_one_antider(r::Cases, x::Sym)
+    isempty(r.cases) && return nothing
+    for (conds, v) in r.cases
+        v isa Sym || return nothing
+        all(c -> c isa Relation && !(x in free_symbols(c)), conds) || return nothing
+    end
+    argmin(_nodes, Sym[c.second for c in r.cases])
+end

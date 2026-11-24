@@ -89,6 +89,11 @@ function _integrate(f::Sym, x::Sym)
     if g !== nothing
         r = try g(f, x) catch err; err isa InterruptException && rethrow(); nothing end
         r isa Sym && return r
+        # (dsolve's integrals) cases on the signs of the parameters alone, as of an
+        # integration constant (∫ du/√(u² + 2u + 2C1): C1 < 1/2 or > 1/2): each case's form
+        # is an antiderivative where it is defined, and they differ by constants, which the
+        # solution's constants absorb (every solution is checked); the smallest
+        r isa Cases && (G = _cases_one_antider(r, x)) !== nothing && return G
     end
     r = _integrate_linear_fn(f, x)       # before expanding: (2x + 1)^-2 stays a power
     r === nothing || return r

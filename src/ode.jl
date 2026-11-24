@@ -1587,8 +1587,10 @@ function _ode_antider_to(P::_ODE, g::Sym, v::Sym, upper::Sym, name::Symbol)
     _hasfn(G, :Integral) || return _ode_tidy(subs(G, v => upper))
     u = Sym(name)
     any(z -> _eq(z, u), free_symbols(P.F)) && (u = Sym(Symbol(:_ode_, name)))
+    # (the lower limit where g is finite; parameters, as dsolve's constants, at sample values)
+    ps = [q => Sym(_SAMPLE_VALUES[mod1(i, length(_SAMPLE_VALUES))]) for (i, q) in enumerate(_sort_by_name!(collect(free_symbols(g)))) if !_eq(q, v)]
     for p in (ZERO, ONE, Sym(2), -ONE)
-        val = try _evalc(subs(g, v => p)) catch; continue end
+        val = try _evalc(subs(subs(g, v => p), ps...)) catch; continue end
         (val isa Number && isfinite(val)) || continue
         return _mkfn_node(:Integral, Sym[subs(g, v => u), u, p, upper])
     end
@@ -2128,16 +2130,20 @@ function _ode_lie2(P::_ODE, Cs)
     ω = _ode_tidy(-subs(P.F, Y2 => ZERO) / a)
     _nodes(ω) > 150 && return nothing
     tried = Tuple{Sym,Sym}[]
+    fallback = nothing             # an answer with an unevaluated integral, if no other
     for d in 1:2
         for (ξ, η) in _lie2_polynomial(ω, x, Y0, Y1, d)
             any(t -> _eq(t[1], ξ) && _eq(t[2], η), tried) && continue
             push!(tried, (ξ, η))
             r = try _lie2_reduce(P, ω, ξ, η, Cs) catch err; err isa InterruptException && rethrow(); nothing end
-            r === nothing || return r
+            r === nothing && continue
+            _lie2_unevaluated(r) || return r
+            fallback === nothing && (fallback = r)
         end
     end
-    nothing
+    fallback
 end
+_lie2_unevaluated(r) = r[1] === :several ? all(_lie2_unevaluated, r[2]) : _hasfn(r[2], :Integral)
 
 # polynomial infinitesimals of degree d for y'' = ω: the determining equation
 # η⁽²⁾ = ξ ω_x + η ω_y + η⁽¹⁾ ω_p, with η⁽¹⁾ = Dη - p Dξ, η⁽²⁾ = Dη⁽¹⁾ - ω Dξ and
@@ -2238,10 +2244,17 @@ function _lie2_reduce(P::_ODE, ω::Sym, ξ::Sym, η::Sym, Cs)
         Sym[g]
     end
     out = Tuple{Symbol,Sym}[]
+    unevaluated = Tuple{Symbol,Sym}[]
     for gi in gs
-        G = _integrate(gi, R)
-        _hasfn(G, :Integral) && continue
-        S = _ode_tidy(s - subs(G, R => r))
+        # (in closed form, or a definite integral: y'' = y'/x + y³/x⁴ and Lane–Emden's n = 5
+        # are elliptic; those go in `unevaluated`)
+        G = _ode_antider_to(P, gi, R, r, :r)
+        G === nothing && continue
+        S = _ode_tidy(s - G)
+        if _hasfn(G, :Integral)
+            push!(unevaluated, (:implicit, S))
+            continue
+        end
         ys = try _solve_generic(S ~ Cs[2], Y0) catch; Sym[] end
         if ys isa AbstractVector && !(ys isa Cases) && length(ys) == 1 && !has(ys[1], Y0)
             push!(out, (:explicit, _ode_absorb(_ode_tidy(ys[1]), Cs)))
@@ -2249,6 +2262,9 @@ function _lie2_reduce(P::_ODE, ω::Sym, ξ::Sym, η::Sym, Cs)
             push!(out, (:implicit, S))
         end
     end
+    # (branches in closed form when there are any: x²y y'' = (y - xy')² has one, and one
+    # with an integral of a lambertw)
+    isempty(out) && (out = unevaluated)
     isempty(out) ? nothing : length(out) == 1 ? out[1] : (:several, out)
 end
 
