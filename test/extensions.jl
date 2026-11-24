@@ -580,7 +580,13 @@ import PolyLog as PL
         end
         @test length(D(y''(x) + y'(x) / x + exp(y(x)) ~ 0, y(x))) == 2           # ξ = -x/2, η = 1; v = ±…
         @test has(D(x^4 * y''(x) + (x * y'(x) - y(x))^3 ~ 0, y(x)).lhs, sin(2y(x) / x))
-        @test_throws ArgumentError D(y''(x) + 2y'(x) / x + y(x)^5 ~ 0, y(x))     # Lane–Emden, n = 5: elliptic
+        # elliptic (Lane–Emden, n = 5): the reduced equation's quadrature left as a definite
+        # integral, s - ∫ₚʳ g = C2 (y'' = y'/x + y³/x⁴ too, 40 s)
+        let r = D(y''(x) + 2y'(x) / x + y(x)^5 ~ 0, y(x))
+            @test r.rhs == C2
+            @test SymJ._hasfn(r.lhs, :Integral)
+            @test has(r.lhs, log(x))
+        end
         # Riccati in x(y): x′ = x² + y, Airy functions of -y
         @test SymJ._hasfn(D(y'(x) ~ 1 / (x^2 + y(x)), y(x)).lhs, :airyai)
         # a scaling symmetry, f(λx, λᵏy) = λ^(k-1) f: separable in u = y/xᵏ
