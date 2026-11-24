@@ -8,6 +8,20 @@
 
 SymJ is a Claude-programmed computer algebra system for Julia, along the lines of [SymPy](https://www.sympy.org/en/index.html) and [Giac](https://www-fourier.univ-grenoble-alpes.fr/~parisse/giac.html), both of which have Julia interfaces. Unlike SymPy and Giac, which Julia reaches through wrappers, SymJ is written entirely in Julia.
 
+> [!WARNING]
+> **Using SymJ at the REPL on Julia 1.13: Ctrl-R can freeze the session.**
+>
+> As you type a function call, the REPL works out a hint by type-inferring the arguments typed so far, on a background thread. For SymJ expressions, whose methods call one another in one large cycle, this inference can run for many minutes. The history search (Ctrl-R) added in Julia 1.13 waits for that same thread, so the REPL stops responding. See [JuliaLang/julia#65220](https://github.com/JuliaLang/julia/issues/65220).
+>
+> Either workaround avoids the freeze:
+>
+> * Start Julia with at least two threads, so the history search has a free one: `julia -t 2`, or set `JULIA_NUM_THREADS=2`.
+> * Turn off REPL hints by adding this line to `~/.julia/config/startup.jl`:
+>
+>   ```julia
+>   atreplinit(repl -> repl.options.hint_tab_completes = false)
+>   ```
+
 A few ideas run through the package:
 
 * Variables are made with the `@syms` macro or related functions, and generic Julia code (arithmetic operations and mathematical functions) builds symbolic expressions from them.
