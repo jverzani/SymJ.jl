@@ -17,7 +17,9 @@
 #   invariant), Riccati or Abel in x(y); else a Lie point symmetry (ξ, η), whose integrating
 #   factor 1/(η - f ξ) makes it exact, or whose canonical coordinates (r, s) make it
 #   ds/dr = F(r); else a scaling symmetry, u = y/xᵏ;
-# - autonomous, y'' = f(y, y'): p = y' as a function of y, then ∫ dy/p = x + C₂.
+# - autonomous, y'' = f(y, y'): p = y' as a function of y, then ∫ dy/p = x + C₂;
+# - else second order with a Lie point symmetry: v = ds/dr in canonical coordinates is of
+#   first order, s = ∫ v dr + C₂.
 #
 # With `series = n`, a series solution instead ("series solutions", at the end); with
 # method = :laplace, or heaviside or dirac on the right side, Laplace transforms
@@ -170,7 +172,11 @@ elementary (Legendre's `Q₆` in logarithms), else the two hypergeometric soluti
 they coincide (`b` or `c` an integer), only reduction of order (Legendre's equation for
 `ν = 1/3` has no method: no Kummer `U` or Legendre `Q`); equations
 without `y` (reduced to a lower order); second order without
-`x` (autonomous: `p = y'` as a function of `y`). Integrals are done by
+`x` (autonomous: `p = y'` as a function of `y`); else a Lie point symmetry of a second-order
+equation `y'' = ω(x, y, y')` (`ξ`, `η` polynomials of degree at most 2 in `x` and `y`), whose
+canonical coordinates `r`, `s` reduce it to a first-order equation for `v = ds/dr`:
+`x²y y'' = (y - xy')²` is `y = C2 x e^(C1/x)`, `y'' + y'/x + eʸ = 0` gives two implicit
+solutions, one for each sign of `v`. Integrals are done by
 the RischIntegrate extension when it is loaded (an unevaluated `Integral` otherwise, or
 when there is no elementary antiderivative).
 
@@ -445,7 +451,7 @@ end
 ## solving
 
 function _ode_solve(P::_ODE, Cs)
-    for m in (_ode_reduce, _ode_linear, _ode_clairaut, _ode_first_order, _ode_autonomous)
+    for m in (_ode_reduce, _ode_linear, _ode_clairaut, _ode_first_order, _ode_autonomous, _ode_lie2)
         r = try m(P, Cs) catch err; err isa InterruptException && rethrow(); nothing end
         r === nothing || return r
     end
@@ -1976,21 +1982,7 @@ function _lie_polynomial(f::Sym, x::Sym, Y::Sym, d::Int)
     Pn = try Poly{Sym}(expand(n), [x, Y]) catch; return Tuple{Sym,Sym}[] end
     eqs = Relation[Relation(:eq, c, ZERO) for c in coefficients(Pn) if !iszero(c)]
     any(e -> has(e.lhs, x) || has(e.lhs, Y), eqs) && return Tuple{Sym,Sym}[]
-    cs = [A; B]
-    sols = isempty(eqs) ? [Dict{Sym,Sym}()] :
-           (try _solve_generic(eqs, cs) catch err; err isa ArgumentError || rethrow(); return Tuple{Sym,Sym}[] end)
-    (sols isa AbstractVector && !isempty(sols)) || return Tuple{Sym,Sym}[]
-    s = sols[1]
-    s isa AbstractDict || return Tuple{Sym,Sym}[]
-    free = [c for c in cs if _eq(get(s, c, c), c)]
-    out = Tuple{Sym,Sym}[]
-    for c0 in free
-        vals = [c => (_eq(c, c0) ? ONE : ZERO) for c in free]
-        sub = [c => (_eq(get(s, c, c), c) ? (_eq(c, c0) ? ONE : ZERO) : subs(s[c], vals...)) for c in cs]
-        ξv, ηv = _ode_tidy(subs(ξ, sub...)), _ode_tidy(subs(η, sub...))
-        iszero(_ode_tidy(ηv - f * ξv)) && continue
-        push!(out, (ξv, ηv))
-    end
+    out = [q for q in _lie_basis(eqs, [A; B], ξ, η) if !iszero(_ode_tidy(q[2] - f * q[1]))]
     sort!(out; by = q -> _nodes(_ode_tidy(q[2] - f * q[1])))
 end
 
@@ -2093,8 +2085,9 @@ end
 # (y, or x, solved for), at a point of the other variable, checked at another. The branch
 # s came from first (rotations, s = -asin(x/√(x² + y²)) from y = √(2R - x²): on the
 # other branch, y < 0, F has the opposite sign)
-function _lie_on_level(F::Sym, r::Sym, R::Sym, x::Sym, Y::Sym, branch)
+function _lie_on_level(F::Sym, r::Sym, R::Sym, x::Sym, Y::Sym, branch; extra::Vector{Sym} = Sym[])
     v, o = has(r, Y) ? (Y, x) : (x, Y)
+    at = [R => Sym(3 // 2); [e => Sym(5 // 3) for e in extra]]
     vs = if _eq(r, v)
         [R]
     elseif branch !== nothing
@@ -2110,14 +2103,153 @@ function _lie_on_level(F::Sym, r::Sym, R::Sym, x::Sym, Y::Sym, branch)
         has(Fv, o) || return Fv
         for o0 in (ZERO, ONE, Sym(2))
             Fval = try _ode_tidy(subs(Fv, o => o0)) catch err; err isa InterruptException && rethrow(); continue end
-            val = try _evalc(subs(Fval, R => Sym(3 // 2))) catch; continue end
+            val = try _evalc(subs(Fval, at...)) catch; continue end
             (val isa Number && isfinite(val)) || continue
             o1 = o0 + Sym(3 // 7)
             z = Fval - subs(Fv, o => o1)
-            _ode_numzero(z, Sym[R]) === true && return Fval
+            _ode_numzero(z, Sym[R; extra]) === true && return Fval
         end
     end
     nothing
+end
+
+## Lie symmetries of second-order equations: y'' = ω(x, y, y')
+
+# A point symmetry (ξ, η) reduces the order: in its canonical coordinates (r, s) the
+# equation does not contain s, so v = ds/dr satisfies a first-order equation
+# v' = Ω(r, v); its solution v = g(r, C1) gives s - ∫ g dr = C2. (x²y'' = (y - xy')²/y
+# ... ; y'' = y'/x + y³/x⁴ … scaling symmetries ξ = x, η = k y.)
+function _ode_lie2(P::_ODE, Cs)
+    P.n == 2 || return nothing
+    Y0, Y1, Y2 = P.ys
+    x = P.x
+    a = diff(P.F, Y2)
+    (iszero(a) || has(a, Y2)) && return nothing
+    ω = _ode_tidy(-subs(P.F, Y2 => ZERO) / a)
+    _nodes(ω) > 150 && return nothing
+    tried = Tuple{Sym,Sym}[]
+    for d in 1:2
+        for (ξ, η) in _lie2_polynomial(ω, x, Y0, Y1, d)
+            any(t -> _eq(t[1], ξ) && _eq(t[2], η), tried) && continue
+            push!(tried, (ξ, η))
+            r = try _lie2_reduce(P, ω, ξ, η, Cs) catch err; err isa InterruptException && rethrow(); nothing end
+            r === nothing || return r
+        end
+    end
+    nothing
+end
+
+# polynomial infinitesimals of degree d for y'' = ω: the determining equation
+# η⁽²⁾ = ξ ω_x + η ω_y + η⁽¹⁾ ω_p, with η⁽¹⁾ = Dη - p Dξ, η⁽²⁾ = Dη⁽¹⁾ - ω Dξ and
+# D = ∂x + p ∂y + ω ∂p. Its numerator is a polynomial in x, y, p and the other
+# functions in it (taken as further variables, a sufficient condition: eʸ, log x); its
+# coefficients are linear in those of ξ and η. One pair for each free coefficient.
+function _lie2_polynomial(ω::Sym, x::Sym, Y::Sym, p::Sym, d::Int)
+    ms = Sym[x^i * Y^j for i in 0:d for j in 0:(d - i)]
+    A = [Sym(Symbol("_lie_a", k)) for k in eachindex(ms)]
+    B = [Sym(Symbol("_lie_b", k)) for k in eachindex(ms)]
+    ξ, η = _add_many(c * m for (c, m) in zip(A, ms)), _add_many(c * m for (c, m) in zip(B, ms))
+    D(g) = diff(g, x) + p * diff(g, Y) + ω * diff(g, p)
+    Dξ = D(ξ)
+    η1 = D(η) - p * Dξ
+    η2 = D(η1) - ω * Dξ
+    E = η2 - ξ * diff(ω, x) - η * diff(ω, Y) - η1 * diff(ω, p)
+    n = expand(numer_denom(cancel(together(E)))[1])
+    ks = Sym[]
+    n = _lie2_kernels!(ks, n, Sym[x, Y, p])
+    K = [Sym(Symbol("_lie_k", i)) for i in eachindex(ks)]
+    n = subs(n, (k => Kk for (k, Kk) in zip(ks, K))...)
+    Pn = try Poly{Sym}(expand(n), [x, Y, p, K...]) catch; return Tuple{Sym,Sym}[] end
+    eqs = Relation[Relation(:eq, c, ZERO) for c in coefficients(Pn) if !iszero(c)]
+    any(e -> any(v -> has(e.lhs, v), [x, Y, p]), eqs) && return Tuple{Sym,Sym}[]
+    _lie_basis(eqs, [A; B], ξ, η)
+end
+
+# the non-polynomial parts of e in vars (functions, non-integer powers), each once
+function _lie2_kernels!(ks::Vector{Sym}, e::Sym, vars::Vector{Sym})
+    any(v -> has(e, v), vars) || return e
+    k = e.kind
+    (k == SYMBOL || k == PARAMETER) && return e
+    if k == ADD || k == MUL
+        foreach(q -> _lie2_kernels!(ks, q, vars), arguments(e))
+        return e
+    end
+    if k == POW && e.args[2].kind == NUMBER && isinteger(e.args[2].num) && !_eq(e.args[1], E)
+        _lie2_kernels!(ks, e.args[1], vars)
+        return e
+    end
+    any(q -> _eq(q, e), ks) || push!(ks, e)
+    e
+end
+
+# the solutions of the linear equations eqs in the coefficients cs, one pair (ξ, η) for
+# each free coefficient (set to 1, the others 0), the nonzero ones
+function _lie_basis(eqs, cs::Vector{Sym}, ξ::Sym, η::Sym)
+    sols = isempty(eqs) ? [Dict{Sym,Sym}()] :
+           (try _solve_generic(eqs, cs) catch err; err isa ArgumentError || rethrow(); return Tuple{Sym,Sym}[] end)
+    (sols isa AbstractVector && !isempty(sols)) || return Tuple{Sym,Sym}[]
+    s = sols[1]
+    s isa AbstractDict || return Tuple{Sym,Sym}[]
+    free = [c for c in cs if _eq(get(s, c, c), c)]
+    out = Tuple{Sym,Sym}[]
+    for c0 in free
+        vals = [c => (_eq(c, c0) ? ONE : ZERO) for c in free]
+        sub = [c => (_eq(get(s, c, c), c) ? (_eq(c, c0) ? ONE : ZERO) : subs(s[c], vals...)) for c in cs]
+        ξv, ηv = _ode_tidy(subs(ξ, sub...)), _ode_tidy(subs(η, sub...))
+        (iszero(ξv) && iszero(ηv)) && continue
+        push!(out, (ξv, ηv))
+    end
+    out
+end
+
+# the order reduced by the symmetry (ξ, η): canonical coordinates (r, s), v = ds/dr =
+# (s_x + s_y p)/(r_x + r_y p), v' = (v_x + v_y p + v_p ω)/(r_x + r_y p) = Ω(r, v);
+# its solution v = g(r, C1) (or φ(r, v) = C1 with one solution for v), s - ∫ g dr = C2
+function _lie2_reduce(P::_ODE, ω::Sym, ξ::Sym, η::Sym, Cs)
+    Y0, Y1 = P.ys[1], P.ys[2]
+    x = P.x
+    R = Sym(:_lie_R)
+    rs = _lie_canonical(P, ξ, η, R)
+    rs === nothing && return nothing
+    r, s, branch = rs
+    den = _ode_tidy(diff(r, x) + diff(r, Y0) * Y1)
+    iszero(den) && return nothing
+    V = _ode_tidy((diff(s, x) + diff(s, Y0) * Y1) / den)
+    W = _ode_tidy((diff(V, x) + diff(V, Y0) * Y1 + diff(V, Y1) * ω) / den)
+    _nodes(W) > 400 && return nothing
+    v = Sym(:_lie_v)
+    pden = _ode_tidy(diff(s, Y0) - v * diff(r, Y0))
+    iszero(pden) && return nothing
+    pv = _ode_tidy((v * diff(r, x) - diff(s, x)) / pden)
+    Wv = _ode_tidy(subs(W, Y1 => pv))
+    Ω = _lie_on_level(Wv, r, R, x, Y0, branch; extra = Sym[v])
+    Ω === nothing && return nothing
+    V0, V1 = Sym(:_lie_V0), Sym(:_lie_V1)
+    Q = _ODE(V1 - subs(Ω, v => V0), [V0, V1], R, P.yx, 1)
+    sol = _ode_solve(Q, Cs[1:1])
+    sol === nothing && return nothing
+    kind, g = sol
+    kind === :several && return nothing
+    gs = if kind === :implicit
+        # (several branches of v: y'' + y'/x + eʸ = 0 has v = ±1/√(2C1 - eʳ/2))
+        q = try _solve_generic(g ~ Cs[1], V0) catch; Sym[] end
+        (q isa AbstractVector && !(q isa Cases)) ? Sym[_ode_tidy(gi) for gi in q if !has(gi, V0)] : Sym[]
+    else
+        Sym[g]
+    end
+    out = Tuple{Symbol,Sym}[]
+    for gi in gs
+        G = _integrate(gi, R)
+        _hasfn(G, :Integral) && continue
+        S = _ode_tidy(s - subs(G, R => r))
+        ys = try _solve_generic(S ~ Cs[2], Y0) catch; Sym[] end
+        if ys isa AbstractVector && !(ys isa Cases) && length(ys) == 1 && !has(ys[1], Y0)
+            push!(out, (:explicit, _ode_absorb(_ode_tidy(ys[1]), Cs)))
+        else
+            push!(out, (:implicit, S))
+        end
+    end
+    isempty(out) ? nothing : length(out) == 1 ? out[1] : (:several, out)
 end
 
 ## Abel: y' = f₃ y³ + f₂ y² + f₁ y + f₀ (first kind), (y + g) y' = f₂ y² + f₁ y + f₀ (second)

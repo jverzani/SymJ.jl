@@ -558,6 +558,19 @@ import PolyLog as PL
             @test iszero(simplify(r.lhs - (x * y(x) + Sym(1) // 2) / ((x * y(x) + 1)^2 * exp(2x^3 / 3))))
         end
         @test_throws ArgumentError D(y'(x) ~ y(x)^3 + x, y(x))                    # Φ not constant
+        # Lie point symmetries of second-order equations: the order reduced in canonical
+        # coordinates (compared by value: forms differ between Julia versions)
+        let r = D(x^2 * y(x) * y''(x) ~ (y(x) - x * y'(x))^2, y(x))
+            @test r.lhs == y(x)
+            @test iszero(simplify(r.rhs - C2 * x * exp(C1 / x)))
+        end
+        let r = D(y(x) * y''(x) ~ y'(x)^2 + y(x) * y'(x) / x, y(x))
+            @test r.lhs == y(x)
+            @test iszero(simplify(r.rhs - C1 * exp(C2 * x^2)))
+        end
+        @test length(D(y''(x) + y'(x) / x + exp(y(x)) ~ 0, y(x))) == 2           # ξ = -x/2, η = 1; v = ±…
+        @test has(D(x^4 * y''(x) + (x * y'(x) - y(x))^3 ~ 0, y(x)).lhs, sin(2y(x) / x))
+        @test_throws ArgumentError D(y''(x) + 2y'(x) / x + y(x)^5 ~ 0, y(x))     # Lane–Emden, n = 5: elliptic
         # Riccati in x(y): x′ = x² + y, Airy functions of -y
         @test SymJ._hasfn(D(y'(x) ~ 1 / (x^2 + y(x)), y(x)).lhs, :airyai)
         # a scaling symmetry, f(λx, λᵏy) = λ^(k-1) f: separable in u = y/xᵏ
