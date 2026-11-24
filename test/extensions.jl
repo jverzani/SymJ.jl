@@ -109,6 +109,16 @@ import PolyLog as PL
         end
         @test kind(diff(HF._₂F₁(a, b, c, x), a)) == FN
         @test HF._₂F₁(a, b, c, x)(a => 0.5, b => 1, c => 1.5)(0.3) ≈ HF._₂F₁(0.5, 1, 1.5, 0.3)
+        # exact arguments with c - a - b (or b - a) an integer, near z = 1 or ∞: at BigFloat
+        # HypergeometricFunctions lost every digit (1.4228 for 1.3773)
+        for (ps, z) in (((1, 1 // 3, 4 // 3), 3 // 4), ((1 // 3, 2 // 3, 2), 9 // 10), ((1 // 2, 1 // 3, 5 // 6), 3 // 4),
+                        ((2, 1 // 3, 7 // 3), 19 // 20), ((1 // 3, 4 // 3, 5 // 2), -5))
+            @test N(HF._₂F₁(Sym.(ps)..., Sym(z))) ≈ HF._₂F₁(Float64.(ps)..., Float64(z)) rtol = 1e-12
+        end
+        let H = SymJ.HypergeometricSupport._hyp2f1      # (the series agrees at 256 bits)
+            v = setprecision(() -> H(1, big(1) / 3, big(4) / 3, big(3) / 4), BigFloat, 256)
+            @test abs(v - sum(big(3 // 4)^n / (3n + 1) for n in 0:700)) < big(10.0)^-70
+        end
     end
 
     @testset "PolyLog" begin
