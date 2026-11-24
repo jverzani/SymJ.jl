@@ -2,7 +2,14 @@
 
 const P_ADD, P_MUL, P_POW, P_ATOM = 1, 2, 3, 4
 
-Base.show(io::IO, x::Sym) = _SHOW_MEMO[] === nothing ?
+# (behind an inference barrier: error messages all over SymJ interpolate expressions, and
+# with a direct call show tied Base's printing code into SymJ's large recursive cycle. On
+# Julia 1.12 a package loaded before SymJ that adds an AbstractArray method (Test's
+# GenericArray `similar`, JSON) invalidated that printing code in SymJ's package image,
+# and the whole cycle was re-inferred: minutes for the first call, or a dependent
+# package's precompile that never finished; #230. Precompile is faster with it too.)
+Base.show(io::IO, x::Sym) = Base.inferencebarrier(_show_entry)(io, x)
+_show_entry(io::IO, x::Sym) = _SHOW_MEMO[] === nothing ?
     with(() -> _show(io, x, 0), _SHOW_MEMO => (IdDict{Sym,String}(), IdDict{Sym,Float64}())) : _show(io, x, 0)
 
 # within one show: the subexpressions' strings and degrees that order terms, each found
