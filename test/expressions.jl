@@ -414,3 +414,29 @@ end
     @test !showable(MIME"text/latex"(), 1.5) && !showable(MIME"text/latex"(), (x, 1.0)) &&
           !showable(MIME"text/latex"(), [1, 2])
 end
+
+@testset "public names and SymJ.AllCommands" begin
+    cmds = SymJ._COMMANDS
+    @test all(n -> isdefined(SymJ, n), cmds)
+    @test all(n -> Base.ispublic(SymJ, n), cmds)
+    @test !any(n -> Base.isexported(SymJ, n), cmds)                # still qualified by default
+    @test issubset(cmds, names(SymJ.AllCommands))
+    @test SymJ.AllCommands.dsolve === SymJ.dsolve
+    @test SymJ.AllCommands.PI === SymJ.PI
+    # brought into scope by `using`, in a fresh module
+    m = Module()
+    Core.eval(m, :(using SymJ, SymJ.AllCommands))
+    @test Core.eval(m, :(rref(Sym[1 2; 2 4]))) == SymJ.rref(Sym[1 2; 2 4])
+    @test Core.eval(m, :(@isdefined simplify_trig))
+    # every documented name is exported, a command, or deliberately internal: a new
+    # documented function has to be placed (exported, or added to SymJ._COMMANDS)
+    internal = Set([:AbstractSymbolic, :Assumptions, :ConditionSet, :CylindricalSet, :DivisionByZero,
+                    :HugeArgumentError, :ImageSet, :Membership, :NumberSet, :ParametricSolution,
+                    :Pattern, :Rule, :SolutionSet, :SymFunction, :SymInterval, :SymLDLt, :SymNumber,
+                    :SymQR, :SymSeries, :SymSet, :ONE, :ZERO, :HALF, :MINUS_ONE, :add, :kind,
+                    :apply_function, :evaluate, :AllCommands, :SymJ, :eval, :include])
+    documented = [n for n in names(SymJ; all = true)
+                  if !startswith(string(n), '_') && !occursin('#', string(n)) && isdefined(SymJ, n) &&
+                     Base.Docs.hasdoc(SymJ, n)]
+    @test isempty(setdiff(documented, names(SymJ), cmds, internal))
+end
