@@ -2149,3 +2149,10 @@ end
     @test latexify(conj(Sym(:Ψ))) == raw"$\overline{\Psi}$"
 end
 
+
+@testset "limits through GruntzLimit 1.9.1" begin
+    @syms a x
+    # √(a²) is |a| for a parameter of undecided sign, not a (was a: wrong for a < 0)
+    @test limit(sqrt(a^2) + x, x => 0) == abs(a)
+    @test limit(sqrt(4a^2) * x / x, x => 0) == 2abs(a)
+end
