@@ -27,7 +27,7 @@ const REFERENCE = [
     (title = "Rational functions", file = "rational",
      files = ["rational.jl", "apart.jl"]),
     (title = "Simplification", file = "simplification",
-     files = ["simplify.jl", "gammasimp.jl", "rewrite.jl"],
+     files = ["simplify.jl", "gammasimp.jl", "rewrite.jl", "radsimp.jl"],
      first = ["simplify", "refine"]),
     (title = "Assumptions", file = "assumptions",
      files = ["assumptions.jl", "cases.jl"]),

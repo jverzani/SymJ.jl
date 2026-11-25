@@ -54,6 +54,7 @@ series, assumptions, a basic `simplify`, summation, differential equations)
 | Trigonometric | `trigsimp`, `exptrigsimp` | `tlin`, `tcollect`, `texpand` | ✅ through `simplify` (`SymJ.simplify_trig`, `SymJ.simplify_hyperbolic`): normal form modulo `sin² + cos² = 1` (`cosh² - sinh² = 1`), multiple and sum angles, exponentials ↔ trig and hyperbolic; ❌ trigonometric factorization (SymPy #28214) |
 | Powers and logarithms | `powsimp`, `powdenest`, `logcombine` | `lncollect`, `lnexpand` | ✅ through `simplify` and `refine`, under assumptions: powers combined and denested, logarithms combined or expanded (`exp(x)*exp(y) == exp(x + y)` is canonical) |
 | Gamma and combinatorial | `gammasimp`, `combsimp` | — | ✅ `SymJ.simplify_gamma` (also inside `simplify`): integer shifts combined, ratios as binomials, reflection and duplication formulas |
+| Radicals | `radsimp`, `sqrtdenest` | — | ✅ `SymJ.radsimp` (denominators free of radicals and `im`, any root order), `SymJ.simplify_radicals` (square roots of `a + b√c` and of sums of several surds denested) |
 | Rational functions | `cancel`, `together`, `apart`, `ratsimp` | `normal`, `ratnormal`, `partfrac`, `propfrac` | ✅ `cancel`, `apart`, `SymJ.numer_denom`. `cancel` is `together` followed by cancelling: one fraction in lowest terms, the denominator multiplied out (1/x + 1/(x(x − 1)) is 1/(x − 1)). `SymJ.together` is SymPy's form: the lcm of the denominators kept factored, nothing cancelled, the numerator expanded |
 | Expansion | `expand`, `expand_trig`, `expand_log` | `expand`, `texpand`, `lnexpand` | ✅ `expand` (fast, multinomial); `SymJ.expand_trig` (sums and integer multiples, trigonometric and hyperbolic), `SymJ.expand_log` (under assumptions, or `force = true`) |
 
@@ -257,12 +258,14 @@ tables below or in the [gaps by round](sympy_review/README.md#feature-gaps-by-ro
    limits through asymptotic series (#26040); an exponentially small term inside a
    function's argument at ∞ (`sin(1/x + e^(-x))`, #21938); `log(log x)` at 0 (#21227);
    multivariable limits (#30871); limits of unevaluated sums (#14196).
-5. **Simplification.** Trigonometric factorization (#28214); rational functions over an
-   algebraic extension (#20236); denesting square roots of several surds (#21599);
-   denominators with higher roots rationalized (#14184); `√(s - a)√(s + a)` with
-   `s = √(a² + b²)` (#20251); a complex constant as a + bi (#11193); `asinh` of a
-   constant as a logarithm (#10429); real and imaginary parts recombined (#10822);
-   contiguous relations of ₂F₁ (#17702); `min`/`max` shifts (#18643).
+5. **Simplification.** Trigonometric factorization (#28214); contiguous relations of
+   ₂F₁ (#17702). Done 2026-11-24: `SymJ.radsimp` (denominators free of radicals of any
+   order and of `im`; #14184, #11193), and in `simplify` through it a rational function
+   in `√q` cancelled (#20236); square roots of several surds denested in
+   `simplify_radicals` (#21599: √(19 + 3√2 + 6√3 − √10) denests but is larger, so
+   `simplify` keeps it); `u^p v^q` as `(uv)^q u^(p − q)` for `u > 0` (#20251); constant
+   function values inside arguments as wholes, with sinh/cosh of a log through exp
+   (#10429); `u ∓ conj(u)` (#10822); `min`/`max` shifts (#18643).
 6. **Sums and recurrences.** Arithmetic on the recurrence objects `rsolve` returns
    (holonomic closure), and `summation` returning one (it keeps `Sum` for
    `Σ binomial(n, k)^3`); Euler sums (`Σ H_k/k²`); power sums with a symbolic exponent

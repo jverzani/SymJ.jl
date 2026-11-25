@@ -597,7 +597,17 @@ Two canonical-form additions came with it:
   and binomials, or in `gamma` when the input had it.
 - **`simplify_radicals`** denests square roots of `a + b sqrt(c)` when `a² - b²c` is a
   rational square, rationalizes denominators `a + b sqrt(c)` by the conjugate, and
-  factors radicands so that `refine` can take a power out of the root.
+  factors radicands so that `refine` can take a power out of the root. Square roots of
+  sums of several surds denest recursively in the multiquadratic field `Q(√p₁, …, √pₖ)`
+  of their primes: with `b = A + B√p` (`A`, `B` free of `√p`), `√b = √((A + C)/2) ±
+  √((A − C)/2)` when the norm `A² − pB²` has a square root `C` in the field.
+- **`radsimp`** clears radicals (and `im = (-1)^(1/2)`) from a denominator one base at a
+  time, outermost first. With `t = b^(1/L)` for the base's radicals, the denominator is
+  a polynomial `d(t)` modulo `t^L − b`; its multiplication matrix `M` has determinant
+  the norm `N`, free of `t`, and the first column of `adj(M)` is a cofactor `g(t)` with
+  `d g = N`, all without divisions or roots of unity. The numerator's powers of `t` are
+  reduced modulo `t^L − b` too, so that `simplify` can cancel the result as a rational
+  function (`simplify` tries it for denominators up to fourth roots).
 
 ## Linear algebra
 

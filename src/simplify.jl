@@ -1083,8 +1083,8 @@ function _simplify(e::Sym, A::Assumptions)
         end
         return e
     end
-    # function arguments first
-    e = _map_fn_args(a -> _simplify(a, A), e)
+    # function arguments first (and constant function values as wholes)
+    e = _map_fn_args(a -> _simplify(a, A), e; whole = true)
     best, size = e, _nodes(e)
     powers(x) = simplify_powers(x; assume = A)
     logs(x) = simplify_log(x; assume = A)
@@ -1124,6 +1124,9 @@ function _simplify(e::Sym, A::Assumptions)
               x -> (y = _digamma_shift(x); y === nothing ? nothing : simplify_rational(y)),
               x -> huge ? nothing : _conjugate_radical_den(x),
               x -> huge ? nothing : _radical_sum_reduce(x),
+              # radicals out of the denominator (any degree, several bases), then cancelled:
+              # a derivative in s = √(x² + x + 1) is (s - 1)/x (SymPy #20236)
+              x -> huge ? nothing : (r = _radsimp(x, 4); r === x ? nothing : simplify_rational(r)),
               simplify_rational ∘ powers, expansion ∘ simplify_rational, expansion ∘ radicals,
               simplify_rational ∘ radicals,
               x -> (c = expansion(x); c === nothing ? nothing : simplify_rational(c)),
@@ -1167,6 +1170,15 @@ function _simplify(e::Sym, A::Assumptions)
     # (max(2a, 2b) = 2max(a, b), max(a + c, b + c) = c + max(a, b), max(-a, -b) =
     # -min(a, b); SymPy #24578)
     _has_fn(e, (:max, :min)) && consider(_extreme_common)
+    # min(a, b) + min(c, d) with a - c = b - d = s is 2min(c, d) + s (SymPy #18643)
+    _count_fn(e, :max) + _count_fn(e, :min) >= 2 && consider(_extreme_shift_merge)
+    # c u ∓ c conj(u) = 2ic imag(u), 2c real(u): exp(i(k - conj k)) is exp(-2 imag k)
+    # (SymPy #10822)
+    _has_fn(e, (:conj,)) && consider(_conj_sum_parts)
+    # u^p v^q with u > 0 as (uv)^q u^(p - q), uv expanded smaller (SymPy #20251)
+    _has_node(e, t -> t.kind == MUL && count(i -> t.args[i].kind == ADD, eachindex(t.args)) >= 2 &&
+                      any(i -> t.args[i].kind == ADD && t.exps[i].kind == NUMBER && !isinteger(t.exps[i]), eachindex(t.args))) &&
+        consider(x -> _positive_pair_merge(x, A))
     # u(x) δ(x - a) = u(a) δ(x - a): x δ(x) = 0 (SymPy #13996)
     _has_fn(e, (:dirac,)) && consider(_dirac_sift)
     # erfc(u) = 1 - erf(u): erf(x) + erfc(x) = 1 (SymPy #28900)
@@ -1185,6 +1197,11 @@ function _simplify(e::Sym, A::Assumptions)
     # is u (2 sin(i log φ) is i, φ the golden ratio; SymPy #2958)
     _has_node(e, t -> t.kind == FN && t.name in (:sin, :cos, :tan, :sinh, :cosh, :tanh) && length(t.args) == 1 &&
                       _has_fn(t.args[1], (:log,))) && consider(x -> rewrite(x, exp))
+    # … and expanded, exponentials of multiples of logs as powers: sinh and cosh of
+    # (n - 1) log 2 combine to 1/3 - 2^(1 - 2n)/6 (SymPy #10429)
+    _has_node(e, t -> t.kind == FN && t.name in (:sin, :cos, :tan, :sinh, :cosh, :tanh) && length(t.args) == 1 &&
+                      _has_fn(t.args[1], (:log,))) &&
+        consider(x -> (y = expansion(rewrite(x, exp)); y === nothing ? nothing : _exp_log_powers(y)))
     # a power of a constant with a symbolic exponent beside exponentials: all as exp
     # (iⁿ - exp(iπn/2) = 0; SymPy #16797)
     _has_epow(e) && _has_node(e, t -> t.kind == POW && !_hassymbol(t.args[1]) && t.args[1] !== E && _hassymbol(t.args[2])) &&
@@ -1437,9 +1454,15 @@ function _simplify_const(e::Sym, A::Assumptions)
               (x; assume) -> _erfc_to_erf(x), (x; assume) -> simplify_trig(x),
               (x; assume) -> simplify_hyperbolic(x), (x; assume) -> expand_trig(x),
               (x; assume) -> _unit_powers(x), (x; assume) -> cancel(simplify_radicals(x; assume)),
+              # (radicals of numbers merged after denesting: √2(1 + √6/2 + √10/2) is
+              # √2 + √3 + √5)
+              (x; assume) -> simplify_powers(expand(simplify_radicals(x; assume)); assume),
               (x; assume) -> simplify_log(cancel(_log_quotients(x)); assume),
               (x; assume) -> _trig_unity_zero(x), (x; assume) -> _merge_prime_powers(x),
               (x; assume) -> _pow_log_exponent(x; assume),
+              # a denominator with radicals and im rationalized ((1 + √3 i)/(1 + √3 i + 2i)
+              # is 1/2 - i + √3 i/2; SymPy #11193)
+              (x; assume) -> _radsimp(x, 6),
               # inverse hyperbolic functions as logs, the logs combined (log(3/2) -
               # 2atanh(2) + 2atanh(3) is 0; SymPy #16730)
               (x; assume) -> _has_fn(x, (:atanh, :acoth, :asinh, :acosh)) ?
@@ -1533,6 +1556,81 @@ function _extreme_common(e::Sym)
     end
 end
 
+# in a sum, min(a, b) by min(c, d) + s when a - c = b - d = s (or a - d = b - c = s), so
+# the two combine: min(0, n - 1 - c) + min(c, n - 1) is 2min(c, n - 1) - c (SymPy #18643)
+function _extreme_shift_merge(e::Sym)
+    function shift(f::Sym, g::Sym)
+        a, b = f.args
+        for (c, d) in ((g.args[1], g.args[2]), (g.args[2], g.args[1]))
+            s = expand(a - c)
+            _eq(s, expand(b - d)) && return s
+        end
+        nothing
+    end
+    _replace_walk(e) do t
+        t.kind == ADD || return nothing
+        idx = [i for i in eachindex(t.args) if t.args[i].kind == FN && t.args[i].name in (:max, :min) && length(t.args[i].args) == 2]
+        for i in idx, j in idx
+            (i != j && t.args[i].name === t.args[j].name) || continue
+            s = shift(t.args[i], t.args[j])
+            s === nothing && continue
+            ts = Sym[Sym(c) * a for (c, a) in zip(t.coefs, t.args)]
+            ts[i] = Sym(t.coefs[i]) * (t.args[j] + s)
+            return Sym(t.num) + _add_many(ts)
+        end
+        nothing
+    end
+end
+
+# in a sum, c u + c conj(u) as 2c real(u) and c u - c conj(u) as 2ic imag(u)
+_conj_sum_parts(e::Sym) = _replace_walk(e) do t
+    t.kind == ADD || return nothing
+    cs, as = collect(t.coefs), collect(t.args)
+    used, out, changed = falses(length(as)), Sym(t.num), false
+    # (the conj terms first, whatever the order of the sum's terms: u before conj(u) was
+    # taken as an ordinary term)
+    for i in eachindex(as)
+        a = as[i]
+        (!used[i] && a.kind == FN && a.name === :conj && length(a.args) == 1) || continue
+        u = a.args[1]
+        j = findfirst(j -> !used[j] && j != i && _eq(as[j], u) && abs(cs[j]) == abs(cs[i]), eachindex(as))
+        j === nothing && continue
+        used[i] = used[j] = true
+        c = Sym(cs[j])
+        out += cs[j] == cs[i] ? 2c * apply_function(:real, Sym[u]) : 2IM * c * apply_function(:imag, Sym[u])
+        changed = true
+    end
+    changed || return nothing
+    for i in eachindex(as)
+        used[i] || (out += Sym(cs[i]) * as[i])
+    end
+    out
+end
+
+# in a product, u^p v^q (u, v sums, q a fraction, p and q of one sign) as (uv)^q u^(p - q)
+# when u > 0 and uv expanded is smaller: (r + x₁)√(r - x₁) is √(r + x₁)√(x₂²) for
+# r = √(x₁² + x₂²) and x₁, x₂ > 0 (SymPy #20251)
+function _positive_pair_merge(e::Sym, A::Assumptions)
+    _replace_walk(e) do t
+        t.kind == MUL || return nothing
+        bs, ps = collect(t.args), collect(t.exps)
+        for i in eachindex(bs), j in eachindex(bs)
+            i != j || continue
+            u, v, p, q = bs[i], bs[j], ps[i], ps[j]
+            (u.kind == ADD && v.kind == ADD && _nodes(u) + _nodes(v) <= 60) || continue
+            (q.kind == NUMBER && isexact(q.num) && !isinteger(q) && p.kind == NUMBER && isexact(p.num)) || continue
+            (p.num > N0) == (q.num > N0) || continue
+            w = expand(u * v)
+            _nodes(w) < _nodes(u) + _nodes(v) || continue
+            _ispos(u, A) || continue
+            bs[i], ps[i] = u, p - q
+            bs[j], ps[j] = w, q
+            return Sym(t.num) * prod(b^x for (b, x) in zip(bs, ps))
+        end
+        nothing
+    end
+end
+
 # about how many terms e has expanded, numerator and denominator together (saturating)
 const _EXPANSION_MAX = 50_000.0
 function _expansion_estimate(e::Sym)::Float64
@@ -1588,22 +1686,30 @@ _toint_or(x::SymNumber, d::Int) = (x.tag == T_SMALL ? x.n : d)
 _ispolylike(e::Sym) = (atoms = Set{Sym}(); _poly_atoms!(atoms, e) && !isempty(atoms))
 
 # the function applications in e with their arguments transformed, counting exp(u)
-# (stored as ℯ^u) and the radicand of b^(p/q) as arguments
-function _map_fn_args(g, e::Sym)
+# (stored as ℯ^u) and the radicand of b^(p/q) as arguments; with whole = true, a constant
+# function application also transformed as a whole, kept when smaller: asinh(√2/4) in
+# sinh(2(n - 1) asinh(√2/4)) is log(2)/2 (SymPy #10429). (Not where g calls _map_fn_args
+# on the constant itself, as _simplify's constant branch does: whole = false there.)
+function _map_fn_args(g, e::Sym; whole::Bool = false)
     isempty(e.args) && return e
     if e.kind == FN
-        return apply_function(e.name, Sym[g(a) for a in e.args])
+        m = apply_function(e.name, Sym[g(a) for a in e.args])
+        if whole && m.kind == FN && !_hassymbol(m)
+            c = g(m)
+            _nodes(c) < _nodes(m) && return c
+        end
+        return m
     elseif e.kind == MUL
-        return Sym(e.num) * prod((_map_pow_args(g, b, p) for (b, p) in zip(e.args, e.exps)); init = ONE)
+        return Sym(e.num) * prod((_map_pow_args(g, b, p; whole) for (b, p) in zip(e.args, e.exps)); init = ONE)
     elseif e.kind == POW
-        return _map_pow_args(g, e.args[1], e.args[2])
+        return _map_pow_args(g, e.args[1], e.args[2]; whole)
     end
-    _rebuild_node(e, Sym[_map_fn_args(g, a) for a in e.args])
+    _rebuild_node(e, Sym[_map_fn_args(g, a; whole) for a in e.args])
 end
-_map_pow_args(g, b::Sym, p::Sym) =
+_map_pow_args(g, b::Sym, p::Sym; whole::Bool = false) =
     b === E ? b^g(p) :
     p.kind == NUMBER && !isinteger(p) ? g(b)^p :
-    _map_fn_args(g, b)^_map_fn_args(g, p)
+    _map_fn_args(g, b; whole)^_map_fn_args(g, p; whole)
 
 # the size of an expression: its nodes, a product's exponents other than 1 and its
 # coefficient other than ±1, a sum's coefficients other than ±1 and its constant term;
@@ -2310,7 +2416,7 @@ function _radicals(e::Sym, A::Assumptions)
         b, q = _radicals(e.args[1], A), e.args[2]
         if q.kind == NUMBER && isexact(q.num)
             # (and the root's powers: 1/sqrt(2 + √3) too; SymPy #25915)
-            if _denominator(q.num) == 2 && (d = _denest(b)) !== nothing
+            if _denominator(q.num) == 2 && ((d = _denest(b)) !== nothing || (d = _denest_mq(b)) !== nothing)
                 return expand(d^Sym(2q.num))
             end
             # the principal cube root of a positive surd
@@ -2395,6 +2501,133 @@ function _denest(b::Sym)
     x, y = (Sym(p) + s) / 2, (Sym(p) - s) / 2
     (x.num >= N0 && y.num >= N0) || return nothing
     _powers(sqrt(x) + (r > N0 ? 1 : -1) * sqrt(y), Assumptions())   # sqrt(3/2) as sqrt(6)/2
+end
+
+# √b for b in a multiquadratic field Q(√p₁, …, √pₖ) (pᵢ primes), as an element of it,
+# recursively: with b = A + B√p (A, B free of √p) and C = √(A² - pB²) in the field,
+# √b = √((A + C)/2) ± √((A - C)/2). √(19 + 3√2 + 6√3 - √10) denests (SymPy #21599)
+const _MQ = Dict{Vector{Int},Rational{BigInt}}     # Σ c ∏_{p ∈ key} √p
+
+function _denest_mq(b::Sym)
+    X = _mq_parse(b)
+    X === nothing && return nothing
+    count(k -> !isempty(k), keys(X)) >= 2 || return nothing      # (one surd: _denest)
+    allowed = sort!(unique!(reduce(vcat, collect(keys(X)))))
+    length(allowed) <= 5 || return nothing
+    Y = _mq_sqrt(X, allowed, 0)
+    Y === nothing && return nothing
+    y = _add_many(Sym(c) * (isempty(k) ? ONE : sqrt(Sym(prod(big, k)))) for (k, c) in sort!(collect(Y); by = first))
+    v = try _evalc(y) catch; return nothing end
+    real(v) < 0 ? -y : y
+end
+
+# b as Σ c ∏√p, or nothing: rationals, square roots of rationals and their products
+function _mq_parse(b::Sym)
+    X = _MQ()
+    add!(k, c) = (X[k] = get(X, k, 0 // big(1)) + c)
+    function term(t::Sym)::Union{Nothing,Tuple{Vector{Int},Rational{BigInt}}}
+        t.kind == NUMBER && isexact(t.num) && return (Int[], Rational{BigInt}(_rat(t.num)))
+        fs = t.kind == MUL ? collect(zip(t.args, t.exps)) : t.kind == POW ? [(t.args[1], t.args[2])] : return nothing
+        k, c = Int[], t.kind == MUL ? Rational{BigInt}(_rat(t.num)) : big(1) // 1
+        t.kind == MUL && !isexact(t.num) && return nothing
+        for (f, p) in fs
+            (f.kind == NUMBER && isexact(f.num) && p == Sym(1 // 2)) || return nothing
+            r = _mq_sqrt_rat(Rational{BigInt}(_rat(f.num)))
+            r === nothing && return nothing
+            k2, c2 = r
+            k, c = _mq_mulkey(k, c, k2, c2)
+        end
+        (k, c)
+    end
+    if b.kind == ADD
+        isexact(b.num) || return nothing
+        iszero(b.num) || add!(Int[], Rational{BigInt}(_rat(b.num)))
+        for (c, a) in zip(b.coefs, b.args)
+            isexact(c) || return nothing
+            r = term(a)
+            r === nothing && return nothing
+            add!(r[1], Rational{BigInt}(_rat(c)) * r[2])
+        end
+    else
+        r = term(b)
+        r === nothing && return nothing
+        add!(r...)
+    end
+    filter!(kv -> !iszero(kv[2]), X)
+end
+
+# √r for a rational r ≥ 0 as c √(p₁⋯pₖ): (primes, c); nothing if r < 0 or too large to factor
+function _mq_sqrt_rat(r::Rational{BigInt})
+    r < 0 && return nothing
+    iszero(r) && return (Int[], big(0) // 1)
+    m = numerator(r) * denominator(r)                 # √(a/b) = √(ab)/b
+    ks, sq, p = Int[], big(1), 2
+    while p * p <= m
+        p > 10^6 && return nothing
+        e = 0
+        while iszero(m % p)
+            m ÷= p
+            e += 1
+        end
+        isodd(e) && push!(ks, p)
+        sq *= big(p)^(e ÷ 2)
+        p += p == 2 ? 1 : 2
+    end
+    if m > 1
+        m > typemax(Int) && return nothing
+        push!(ks, Int(m))
+    end
+    (sort!(ks), sq // denominator(r))
+end
+
+function _mq_mulkey(k1::Vector{Int}, c1, k2::Vector{Int}, c2)
+    c = c1 * c2
+    for p in k1
+        p in k2 && (c *= p)
+    end
+    (sort!(symdiff(k1, k2)), c)
+end
+function _mq_mul(X::_MQ, Y::_MQ)
+    Z = _MQ()
+    for (k1, c1) in X, (k2, c2) in Y
+        k, c = _mq_mulkey(k1, c1, k2, c2)
+        Z[k] = get(Z, k, 0 // big(1)) + c
+    end
+    filter!(kv -> !iszero(kv[2]), Z)
+end
+function _mq_lin(a, X::_MQ, b, Y::_MQ)
+    Z = _MQ(k => a * c for (k, c) in X)
+    for (k, c) in Y
+        Z[k] = get(Z, k, 0 // big(1)) + b * c
+    end
+    filter!(kv -> !iszero(kv[2]), Z)
+end
+
+function _mq_sqrt(X::_MQ, allowed::Vector{Int}, depth::Int)::Union{Nothing,_MQ}
+    depth > 12 && return nothing
+    isempty(X) && return _MQ()
+    if all(isempty, keys(X))
+        r = _mq_sqrt_rat(X[Int[]])
+        (r === nothing || !all(in(allowed), r[1])) && return nothing
+        return _MQ(r[1] => r[2])
+    end
+    p = maximum(maximum(k) for k in keys(X) if !isempty(k))
+    A = _MQ(k => c for (k, c) in X if !(p in k))
+    B = _MQ(filter(!=(p), k) => c for (k, c) in X if p in k)
+    Nm = _mq_lin(1, _mq_mul(A, A), -p, _mq_mul(B, B))
+    C = _mq_sqrt(Nm, allowed, depth + 1)
+    C === nothing && return nothing
+    for s in (1, -1)
+        U = _mq_sqrt(_mq_lin(1 // 2, A, s // 2, C), allowed, depth + 1)
+        U === nothing && continue
+        V = _mq_sqrt(_mq_lin(1 // 2, A, -s // 2, C), allowed, depth + 1)
+        V === nothing && continue
+        for σ in (1, -1)
+            Y = _mq_lin(1, U, σ, V)
+            _mq_mul(Y, Y) == X && return Y
+        end
+    end
+    nothing
 end
 
 # (p - r sqrt(c), p^2 - r^2 c) for b = p + r sqrt(c)
