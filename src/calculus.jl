@@ -35,6 +35,151 @@ function Base.diff(ex::Sym, x::Sym, y::Sym, zs::Sym...)
 end
 Base.diff(ex::Number, x::Sym, y::Sym, zs::Sym...) = ZERO
 
+## gradient, Jacobian, Hessian, divergence, curl, Laplacian (SymPy #30186), in
+## Cartesian coordinates
+
+# the variables as a vector of symbols (a vector, tuple, matrix or a single symbol)
+function _diff_vars(vars, name)
+    vs = vars isa Sym ? Sym[vars] : Sym[Sym(v) for v in vec(collect(vars))]
+    for v in vs
+        _isnamed(v) || throw(ArgumentError("$name: can only differentiate with respect to symbols, got $v"))
+    end
+    vs
+end
+
+"""
+    SymJ.gradient(f, vars)
+
+The vector of partial derivatives of the expression `f` with respect to each of `vars`
+(a vector or tuple of symbols): `[∂f/∂v for v in vars]`. Not exported.
+
+```julia
+@syms x y
+SymJ.gradient(x^2 * y + sin(y), [x, y])      # [2x*y, x^2 + cos(y)]
+```
+
+See also [`SymJ.jacobian`](@ref), [`SymJ.hessian`](@ref).
+"""
+function gradient(f, vars)
+    vs = _diff_vars(vars, "gradient")
+    f isa Union{AbstractArray,Tuple} && throw(ArgumentError("gradient: f is a scalar expression; use SymJ.jacobian for a vector of them"))
+    Sym[diff(Sym(f), v) for v in vs]
+end
+
+"""
+    SymJ.jacobian(F, vars)
+
+The Jacobian matrix of `F`, a vector of expressions, with respect to `vars`: entry
+`(i, j)` is `∂F[i]/∂vars[j]`, so it is `length(F) × length(vars)`. A scalar `f` gives the
+`1 × n` row, the gradient transposed. Not exported.
+
+```julia
+@syms r θ
+SymJ.jacobian([r * cos(θ), r * sin(θ)], [r, θ])   # [cos(θ) -r*sin(θ); sin(θ) r*cos(θ)]
+```
+
+See also [`SymJ.gradient`](@ref), [`SymJ.hessian`](@ref).
+"""
+function jacobian(F::Union{AbstractArray,Tuple}, vars)
+    vs = _diff_vars(vars, "jacobian")
+    Fs = vec(collect(F))
+    Sym[diff(Sym(Fs[i]), v) for i in eachindex(Fs), v in vs]
+end
+jacobian(f::Union{Sym,Number}, vars) = permutedims(gradient(f, vars))
+
+"""
+    SymJ.hessian(f, vars)
+
+The Hessian matrix of the expression `f`: entry `(i, j)` is `∂²f/∂vars[i]∂vars[j]`. The
+gradient is taken once and each of its entries differentiated only for `j ≥ i`; the
+matrix is symmetric, so the rest is mirrored (half the derivatives of the Jacobian of
+the gradient). Not exported.
+
+```julia
+@syms x y
+SymJ.hessian(x^3 + x * y^2, [x, y])      # [6x 2y; 2y 2x]
+```
+
+See also [`SymJ.gradient`](@ref), [`SymJ.jacobian`](@ref), [`SymJ.laplacian`](@ref).
+"""
+function hessian(f, vars)
+    vs = _diff_vars(vars, "hessian")
+    f isa Union{AbstractArray,Tuple} && throw(ArgumentError("hessian: f is a scalar expression"))
+    g = gradient(f, vs)
+    n = length(vs)
+    H = Matrix{Sym}(undef, n, n)
+    for i in 1:n, j in i:n
+        H[i, j] = diff(g[i], vs[j])
+        H[j, i] = H[i, j]
+    end
+    H
+end
+
+"""
+    SymJ.divergence(F, vars)
+
+The divergence `∑ᵢ ∂F[i]/∂vars[i]` of the vector field `F`, in Cartesian coordinates;
+`F` and `vars` have the same length. Not exported.
+
+```julia
+@syms x y z
+SymJ.divergence([x^2, x * y, y * z], [x, y, z])      # 3x + y
+```
+
+See also [`SymJ.curl`](@ref), [`SymJ.laplacian`](@ref).
+"""
+function divergence(F::Union{AbstractArray,Tuple}, vars)
+    vs = _diff_vars(vars, "divergence")
+    Fs = vec(collect(F))
+    length(Fs) == length(vs) || throw(ArgumentError(
+        "divergence: the field has $(length(Fs)) components and there are $(length(vs)) variables"))
+    _add_many(diff(Sym(Fs[i]), vs[i]) for i in eachindex(vs))
+end
+
+"""
+    SymJ.curl(F, vars)
+
+The curl `∇ × F` of a vector field `F` with three components, in Cartesian coordinates
+`vars = [x, y, z]`:
+`[∂F₃/∂y - ∂F₂/∂z, ∂F₁/∂z - ∂F₃/∂x, ∂F₂/∂x - ∂F₁/∂y]`. Not exported.
+
+```julia
+@syms x y z
+SymJ.curl([-y, x, 0], [x, y, z])        # [0, 0, 2]
+```
+
+See also [`SymJ.divergence`](@ref), [`SymJ.gradient`](@ref).
+"""
+function curl(F::Union{AbstractArray,Tuple}, vars)
+    vs = _diff_vars(vars, "curl")
+    Fs = Sym[Sym(e) for e in vec(collect(F))]
+    length(Fs) == 3 && length(vs) == 3 || throw(ArgumentError(
+        "curl: a field with 3 components in 3 variables (for a plane field [P, Q], " *
+        "diff(Q, x) - diff(P, y) is the curl's z component)"))
+    d(i, j) = diff(Fs[i], vs[j])
+    Sym[d(3, 2) - d(2, 3), d(1, 3) - d(3, 1), d(2, 1) - d(1, 2)]
+end
+
+"""
+    SymJ.laplacian(f, vars)
+
+The Laplacian `∑ᵢ ∂²f/∂vars[i]²` of the expression `f`, in Cartesian coordinates; for an
+array of expressions, the Laplacian of each entry. Not exported.
+
+```julia
+@syms x y
+SymJ.laplacian(x^2 * y + y^3, [x, y])      # 8y
+SymJ.laplacian(log(x^2 + y^2), [x, y])     # 0 after simplify
+```
+
+See also [`SymJ.hessian`](@ref) (whose trace it is), [`SymJ.divergence`](@ref).
+"""
+function laplacian(f, vars)
+    vs = _diff_vars(vars, "laplacian")
+    f isa Union{AbstractArray,Tuple} && return map(e -> laplacian(e, vs), f)
+    _add_many(diff(Sym(f), v, 2) for v in vs)
+end
+
 # Derivative(f, v) evaluates when f has a derivative rule (after a substitution:
 # Derivative(y(x), x) with y(x) => sin(x) is cos(x)); Derivative(f, v, a), the derivative
 # at a, when the derivative has no Derivative left

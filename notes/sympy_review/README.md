@@ -1382,7 +1382,7 @@ Status from the tracker's database; the SymJ fixes without one ("open", 117) or 
 | `function-range` | SymJ | won't fix | 30505, 30499, 30386, 30293 |
 | `hyperexpand` | SymJ | won't fix | 30708 |
 | `imageset` | SymJ | won't fix | 29675, 29435, 29419, 29418, 29416 |
-| `jacobian-hessian` | SymJ | won't fix | 30186 |
+| `jacobian-hessian` | SymJ | fixed | 30186 |
 | `lie-symmetries-ode` | SymJ | won't fix | 30644, 30643 |
 | `matrix-calculus` | SymJ | won't fix | 30902, 30527, 29355 |
 | `matrix-expressions` | SymJ | won't fix | 30900, 30860, 30278, 30272, 29837, 29758, 29292, 28916 |

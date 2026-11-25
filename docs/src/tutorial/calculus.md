@@ -87,6 +87,27 @@ diff(x^2 * y * z, x, x, y, z)
 )
 ```
 
+The gradient, Jacobian and Hessian (not exported):
+
+```@example tut
+@syms r θ
+(
+SymJ.gradient(x^2 * y + sin(y), [x, y]),
+SymJ.jacobian([r * cos(θ), r * sin(θ)], [r, θ]),
+SymJ.hessian(x^3 + x * y^2, [x, y])
+)
+```
+
+and the divergence, curl and Laplacian, in Cartesian coordinates:
+
+```@example tut
+(
+SymJ.divergence([x^2, x * y, y * z], [x, y, z]),
+SymJ.curl([-y, x, 0], [x, y, z]),
+SymJ.laplacian(x^2 * y + y^3, [x, y])
+)
+```
+
 A symbolic function gives an unevaluated derivative:
 
 ```@example tut

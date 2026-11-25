@@ -114,7 +114,7 @@ series, assumptions, a basic `simplify`, summation, differential equations)
 | Laplace, Fourier, Mellin, Z transforms | `laplace_transform`, `inverse_laplace_transform`, `fourier_transform`, `mellin_transform` | `laplace`, `ilaplace`, `fourier`, `ifourier`, `ztrans`, `invztrans` | ◐ `SymJ.laplace_transform`, `SymJ.inverse_laplace_transform`: polynomials, exponentials, sines and cosines, `heaviside`/`dirac` shifts; inverse of rational functions times `e^(-cs)`. Not yet: Fourier (SymPy #26053), Mellin, Z (Z transforms: SymPy #29695, not in 1.14); `floor` (staircase) and held transforms (#26999), a convolution-theorem helper (#26023); round 5 (SymPy #23909–#25408): Fourier transforms (#24101, #25137) |
 | Fourier series | `fourier_series` | `fourier_an`, `fourier_bn`, `fourier_cn` | ❌ (SymPy #30183, #29336); also #28755, #28724 |
 | Residues | `residue` | `residue` | ✅ `SymJ.residue(f, x, x0)`, from the Laurent series; also at ∞ (SymPy #27156) |
-| Vector calculus | `sympy.vector`, `Matrix.jacobian`, `hessian` | `grad`, `divergence`, `curl`, `laplacian`, `hessian` | ◐ `diff` with broadcasting; no named operators, no `jacobian`/`hessian` helpers (SymPy #30186), no coordinate systems (#29107, #27427), no functions of vector arguments (#25644); round 5 (SymPy #23909–#25408): `vector_integrate` over regions, line and flux integrals (#24190, #24123), dyadics and `Del` (#24129) |
+| Vector calculus | `sympy.vector`, `Matrix.jacobian`, `hessian` | `grad`, `divergence`, `curl`, `laplacian`, `hessian` | ◐ `diff` with broadcasting; `SymJ.gradient`, `SymJ.jacobian`, `SymJ.hessian`, `SymJ.divergence`, `SymJ.curl`, `SymJ.laplacian`, Cartesian only (SymPy #30186; done 2026-11-25); no coordinate systems (#29107, #27427), no functions of vector arguments (#25644); round 5 (SymPy #23909–#25408): `vector_integrate` over regions, line and flux integrals (#24190, #24123), dyadics and `Del` (#24129) |
 | Range and monotonicity of a function | `function_range` (`sympy.calculus.util`), `is_increasing`, `is_strictly_increasing` | `maximize`, `minimize`, `fMax`, `fMin` | ❌ (SymPy #30505, #30499, #30386, #30293, #30582); also #28578, #28577, #28571, #28486, #26871, #26742, #26518, #26076; stationary points (`stationary_points`, #26077), convexity (`is_convex`, #26427); round 5 (SymPy #23909–#25408): `maximum`/`minimum` of an expression over a domain (#25187, #24134) |
 | Calculus of variations | `euler_equations` | `euler_lagrange` | ❌ (SymPy #29123) |
 | Memoized derivatives and integrals | — | — | ❌ no user-facing cache for `diff`, `integrate` (SymPy #27640) |
@@ -282,8 +282,9 @@ tables below or in the [gaps by round](sympy_review/README.md#feature-gaps-by-ro
    (#28255), large parametric linear systems by fraction-free Gauss–Jordan (#14694: the
    18-equation chain in under a second, was two minutes).
 9. **Transforms and vector calculus.** Fourier, Mellin and Z transforms (#26053, #29695)
-   and Fourier series (#30183); a table of special-function Laplace transforms; `jacobian`,
-   `hessian` and the vector operators (#30186); ranges, extrema and monotonicity of a
+   and Fourier series (#30183); a table of special-function Laplace transforms; vector
+   operators in other coordinate systems (the Cartesian `gradient`, `jacobian`,
+   `hessian`, `divergence`, `curl`, `laplacian` done 2026-11-25, #30186); ranges, extrema and monotonicity of a
    function (`function_range`, #30505).
 10. **Functions.** Meijer G and `hyperexpand`; associated Legendre functions and spherical
     harmonics; Lerch Φ; Jacobi elliptic functions; combinatorial numbers (`fibonacci`,
