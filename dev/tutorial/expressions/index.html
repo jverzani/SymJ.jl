@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Symbolic expressions — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=36078935">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=7b371e21">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Symbolic expressions — SymJ.jl">
   <meta property="og:title" content="Symbolic expressions — SymJ.jl">
@@ -700,7 +700,21 @@ refine(sin(x + 2n*Sym(π)); assume = @assume(n in Integers))
 </div>
 </div>
 <h3 id="More-fine-grained-simplification" class="md-heading">More fine-grained simplification<a href="#More-fine-grained-simplification" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
-<p>The transformations <code class="md-code-inline">simplify</code> tries are also available on their own, unexported: <code class="md-code-inline">SymJ.simplify_rational</code>, <code class="md-code-inline">SymJ.simplify_powers</code>, <code class="md-code-inline">SymJ.simplify_trig</code>, <code class="md-code-inline">SymJ.simplify_hyperbolic</code>, <code class="md-code-inline">SymJ.simplify_log</code>, <code class="md-code-inline">SymJ.simplify_radicals</code> and <code class="md-code-inline">SymJ.simplify_gamma</code>. The last combines factorials, binomials and gamma functions whose arguments differ by integers, and writes factorial ratios as binomials:</p>
+<p>The transformations <code class="md-code-inline">simplify</code> tries are also available on their own, unexported: <code class="md-code-inline">SymJ.simplify_rational</code>, <code class="md-code-inline">SymJ.simplify_powers</code>, <code class="md-code-inline">SymJ.simplify_trig</code>, <code class="md-code-inline">SymJ.simplify_hyperbolic</code>, <code class="md-code-inline">SymJ.simplify_log</code>, <code class="md-code-inline">SymJ.simplify_radicals</code> and <code class="md-code-inline">SymJ.simplify_gamma</code>. <code class="md-code-inline">SymJ.radsimp</code> writes an expression with a denominator free of radicals, whatever the size:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">(
+SymJ.radsimp(1 / (1 + sqrt(Sym(2)) + sqrt(Sym(3)))),
+SymJ.radsimp(1 / (1 + Sym(2)^(Sym(1)//3))),
+SymJ.radsimp(1 / (sqrt(x) + 1))
+)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \frac{\sqrt{2}}{4} - \frac{\sqrt{2} \cdot \sqrt{3}}{4} + \frac{1}{2}, \;  - \frac{2^{\frac{1}{3}}}{3} + \frac{2^{\frac{2}{3}}}{3} + \frac{1}{3}, \; \frac{\sqrt{x} - 1}{x - 1} \right)\]
+</div>
+</div>
+<p><code class="md-code-inline">SymJ.simplify_gamma</code> combines factorials, binomials and gamma functions whose arguments differ by integers, and writes factorial ratios as binomials:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -1203,6 +1217,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=36078935"></script>
+  <script src="../../assets/materialdocs.js?v=7b371e21"></script>
 </body>
 </html>

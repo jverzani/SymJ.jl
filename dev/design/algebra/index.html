@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Design notes: algebra — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=a66a6561">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=51f343e5">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Design notes: algebra — SymJ.jl">
   <meta property="og:title" content="Design notes: algebra — SymJ.jl">
@@ -685,7 +685,9 @@ end</code></pre>
 </li>
 <li><p><strong><code class="md-code-inline">simplify_gamma</code></strong> writes factorials and binomials as Γ, groups the arguments into classes modulo the integers, and writes each Γ through the one of its class with the smallest shift times a Pochhammer product, so the expression is a rational function in one Γ per class and cancels. The reflection and duplication formulas are tried as substitutions (<code class="md-code-inline">Γ(1 - a) = π/(sin(πa)Γ(a))</code>), and shifting each class by up to ±2 absorbs polynomial factors (<code class="md-code-inline">(n + 1)n! = (n + 1)!</code>). Candidates are ranked by the number of gamma-like functions, then size; the result is written back in factorials and binomials, or in <code class="md-code-inline">gamma</code> when the input had it.</p>
 </li>
-<li><p><strong><code class="md-code-inline">simplify_radicals</code></strong> denests square roots of <code class="md-code-inline">a + b sqrt(c)</code> when <code class="md-code-inline">a² - b²c</code> is a rational square, rationalizes denominators <code class="md-code-inline">a + b sqrt(c)</code> by the conjugate, and factors radicands so that <code class="md-code-inline">refine</code> can take a power out of the root.</p>
+<li><p><strong><code class="md-code-inline">simplify_radicals</code></strong> denests square roots of <code class="md-code-inline">a + b sqrt(c)</code> when <code class="md-code-inline">a² - b²c</code> is a rational square, rationalizes denominators <code class="md-code-inline">a + b sqrt(c)</code> by the conjugate, and factors radicands so that <code class="md-code-inline">refine</code> can take a power out of the root. Square roots of sums of several surds denest recursively in the multiquadratic field <code class="md-code-inline">Q(√p₁, …, √pₖ)</code> of their primes: with <code class="md-code-inline">b = A + B√p</code> (<code class="md-code-inline">A</code>, <code class="md-code-inline">B</code> free of <code class="md-code-inline">√p</code>), <code class="md-code-inline">√b = √((A + C)/2) ± √((A − C)/2)</code> when the norm <code class="md-code-inline">A² − pB²</code> has a square root <code class="md-code-inline">C</code> in the field.</p>
+</li>
+<li><p><strong><code class="md-code-inline">radsimp</code></strong> clears radicals (and <code class="md-code-inline">im = (-1)^(1/2)</code>) from a denominator one base at a time, outermost first. With <code class="md-code-inline">t = b^(1/L)</code> for the base&#39;s radicals, the denominator is a polynomial <code class="md-code-inline">d(t)</code> modulo <code class="md-code-inline">t^L − b</code>; its multiplication matrix <code class="md-code-inline">M</code> has determinant the norm <code class="md-code-inline">N</code>, free of <code class="md-code-inline">t</code>, and the first column of <code class="md-code-inline">adj(M)</code> is a cofactor <code class="md-code-inline">g(t)</code> with <code class="md-code-inline">d g = N</code>, all without divisions or roots of unity. The numerator&#39;s powers of <code class="md-code-inline">t</code> are reduced modulo <code class="md-code-inline">t^L − b</code> too, so that <code class="md-code-inline">simplify</code> can cancel the result as a rational function (<code class="md-code-inline">simplify</code> tries it for denominators up to fourth roots).</p>
 </li>
 </ul>
 <h2 id="Linear-algebra" class="md-heading">Linear algebra<a href="#Linear-algebra" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
@@ -789,6 +791,6 @@ end</code></pre>
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=a66a6561"></script>
+  <script src="../../assets/materialdocs.js?v=51f343e5"></script>
 </body>
 </html>
