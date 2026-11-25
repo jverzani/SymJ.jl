@@ -488,7 +488,18 @@ refine(sin(x + 2n*Sym(π)); assume = @assume(n in Integers))
 The transformations `simplify` tries are also available on their own,
 unexported: `SymJ.simplify_rational`, `SymJ.simplify_powers`,
 `SymJ.simplify_trig`, `SymJ.simplify_hyperbolic`, `SymJ.simplify_log`,
-`SymJ.simplify_radicals` and `SymJ.simplify_gamma`. The last combines
+`SymJ.simplify_radicals` and `SymJ.simplify_gamma`. `SymJ.radsimp` writes an
+expression with a denominator free of radicals, whatever the size:
+
+```@example tut
+(
+SymJ.radsimp(1 / (1 + sqrt(Sym(2)) + sqrt(Sym(3)))),
+SymJ.radsimp(1 / (1 + Sym(2)^(Sym(1)//3))),
+SymJ.radsimp(1 / (sqrt(x) + 1))
+)
+```
+
+`SymJ.simplify_gamma` combines
 factorials, binomials and gamma functions whose arguments differ by
 integers, and writes factorial ratios as binomials:
 

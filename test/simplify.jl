@@ -423,3 +423,61 @@ end
     end
     @test_throws ArgumentError replace(sin(x), sin => cos)                       # use a pattern
 end
+
+@testset "simplify: feature audit, simplification" begin
+    @syms n k c x1 x2
+    # a constant function value inside an argument as a whole, then sinh, cosh of a
+    # multiple of a log through exp (SymPy #10429)
+    w = 2 * (n - 1) * asinh(sqrt(Sym(2)) / 4)
+    @test simplify(w) == log(Sym(2)) * (n - 1)
+    @test simplify(2^(-n) * (5sinh(w) + 3cosh(w)) / 6) == Sym(1) // 3 - Sym(2)^(1 - 2n) / 6
+    # u - conj(u) = 2i imag(u) (SymPy #10822)
+    @test simplify(exp(IM * (k - conj(k))) - exp(-2imag(k))) == 0
+    @test simplify(IM * (k - conj(k))) == -2imag(k)
+    # min(a, b) + min(c, d) with a - c = b - d (SymPy #18643)
+    @test simplify(min(0, -c + n - 1) + min(c, n - 1); assume = (c ∈ ℤ, n ∈ ℤ)) == 2min(c, n - 1) - c
+    @test simplify(min(0, -c + n - 1) - min(c, n - 1)) == -c
+    @test simplify(max(x1 + 1, x2) - max(x1, x2 - 1)) == 1
+    # u^p v^q as (uv)^q u^(p - q) for u > 0 (SymPy #20251)
+    r = sqrt(x1^2 + x2^2)
+    @test simplify(sqrt(r - x1) * (r + x1) / x2; assume = (x1 ≫ 0, x2 ≫ 0)) == sqrt(r + x1)
+    @test simplify(sqrt(r + x1) * sqrt(r - x1); assume = (x1 ≫ 0, x2 ≫ 0)) == x2
+    @test simplify(sqrt(r - x1) * (r + x1) / x2) != sqrt(r + x1)    # x1, x2 of unknown sign
+    # complex constants with radicals over a real denominator (SymPy #11193)
+    @test simplify((1 + sqrt(Sym(3)) * IM) / (1 + sqrt(Sym(3)) * IM + 2IM)) == Sym(1) // 2 - IM + sqrt(Sym(3)) * IM / 2
+    @test simplify((-2 - sqrt(Sym(3)) + IM) / (sqrt(Sym(3)) + 2 + IM)) == IM / 2 - sqrt(Sym(3)) / 2
+    # a rational function in √q cancelled (SymPy #20236)
+    s = sqrt(x^2 + x + 1) - x
+    d = diff(s / 2 - 2log(s + 1) + log(2s - 1) / 2 + Sym(3) // 4 / (2s - 1), x)
+    @test simplify(d) == (sqrt(x^2 + x + 1) - 1) / x
+    # square roots of sums of several surds denested (SymPy #21599)
+    @test simplify(sqrt(10 + 2sqrt(Sym(6)) + 2sqrt(Sym(10)) + 2sqrt(Sym(15)))) == sqrt(Sym(2)) + sqrt(Sym(3)) + sqrt(Sym(5))
+    w2 = sqrt(19 + 3sqrt(Sym(2)) + 6sqrt(Sym(3)) - sqrt(Sym(10)))
+    dn = SymJ.simplify_radicals(w2)
+    @test !SymJ._has_node(dn, t -> t.kind == SymJ.POW && t.args[1].kind == SymJ.ADD)   # no root of a sum left
+    @test N(dn) ≈ N(w2)
+    @test simplify(dn^2 - (19 + 3sqrt(Sym(2)) + 6sqrt(Sym(3)) - sqrt(Sym(10)))) == 0
+end
+
+@testset "radsimp" begin
+    @syms a
+    rs = SymJ.radsimp
+    @test rs(1 / (1 + sqrt(Sym(2)))) == sqrt(Sym(2)) - 1
+    @test rs(1 / (1 + Sym(2)^(Sym(1) // 3))) == (1 - Sym(2)^(Sym(1) // 3) + Sym(2)^(Sym(2) // 3)) / 3
+    @test rs(1 / (a + IM)) == (a - IM) / (a^2 + 1)
+    @test rs(1 / (sqrt(x) + 1)) == (sqrt(x) - 1) / (x - 1)
+    @test rs(x / (x + 1)) == x / (x + 1)                                  # no radicals: as is
+    # higher roots of one base together (SymPy #14184)
+    e = 1 / (Sym(2)^(Sym(1) // 3) + Sym(2)^(Sym(1) // 4))
+    r = rs(e)
+    @test SymJ.isnumber(denominator(r))
+    @test N(r) ≈ N(e)
+    # several bases, im among them, and a nested root (outermost first)
+    @test rs((1 + sqrt(Sym(3)) * IM) / (1 + sqrt(Sym(3)) * IM + 2IM)) == Sym(1) // 2 - IM + sqrt(Sym(3)) * IM / 2
+    f = 1 / (1 + sqrt(Sym(2)) + sqrt(Sym(3)))
+    @test SymJ.isnumber(denominator(rs(f)))
+    @test N(rs(f)) ≈ N(f)
+    g = 1 / (1 + sqrt(1 + sqrt(Sym(2))))
+    @test SymJ.isnumber(denominator(rs(g)))
+    @test N(rs(g)) ≈ N(g)
+end
