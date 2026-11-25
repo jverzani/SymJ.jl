@@ -268,3 +268,44 @@ end
     # an irreducible cubic: an error pointing to the numeric decomposition
     @test_throws ArgumentError LA.schur(Sym[1 2 3; 0 4 5; 1 0 6])
 end
+
+@testset "large parametric linear systems, fraction-free (SymPy #14694)" begin
+    LA = SymJ.LinearAlgebra
+    @syms p q r
+    # a row swap at the first pivot: the determinant's sign kept
+    @test inv(Sym[0 p; q 0]) == Sym[0 1/q; 1/p 0]
+    @test Sym[0 p; q 0] \ Sym[1, 1] == Sym[1/q, 1/p]
+    @test LA.det(Sym[0 p; q 0]) == -p * q
+    # beyond 8 × 8 too (over rational functions, minutes)
+    n = 12
+    T = Sym[i == j ? p : j == i + 1 ? q : j == i - 1 ? r : 0 for i in 1:n, j in 1:n]
+    vals = (p => 3, q => 5, r => 7)
+    X = T \ ones(Sym, n)
+    @test subs.(T, vals...) * subs.(X, vals...) == ones(Sym, n)
+    Ti = inv(T)
+    @test subs.(T, vals...) * subs.(Ti, vals...) == Matrix{Sym}(LA.I(n))
+    S = copy(T)
+    S[n, :] = S[1, :]
+    @test_throws LA.SingularException inv(S)
+    # a chain of 2 × 2 transfer matrices, 14 equations here (18 in the issue: 30 s over
+    # rational functions); each equation holds at a point
+    @syms v11 v12 v21 v22 w11 w12 w21 w22 x11 x12 x21 x22 y11 y12 y21 y22 z11 z12 z21 z22
+    @syms r11 r12 r21 r22 b1 b2
+    K = 7
+    a = [Sym(Symbol(:a, i)) for i in 1:2K]
+    ms = ((v11, v12, v21, v22), (w11, w12, w21, w22), (x11, x12, x21, x22), (y11, y12, y21, y22),
+          (z11, z12, z21, z22))
+    R = (r11, r12, r21, r22)
+    eqs = Relation[]
+    for k in 1:K                         # a_i m₁ + a_{i+1} m₂ = a_{i-1}, a_i m₃ + a_{i+1} m₄ = a_{i+2}
+        m = isodd(k) ? ms[(k + 1) ÷ 2] : R
+        i = 2k - 1
+        push!(eqs, a[i] * m[1] + a[i + 1] * m[2] ~ (k == 1 ? b1 : a[i - 1]))
+        push!(eqs, a[i] * m[3] + a[i + 1] * m[4] ~ (k == K ? b2 : a[i + 2]))
+    end
+    vars = [a[2:(2K - 1)]; b1; b2]
+    sol = only(solve(eqs, vars))
+    pt = [s => Sym(i + 1) // (i + 2) for (i, s) in enumerate(setdiff(free_symbols(eqs), vars))]
+    sv = [v => subs(sol[v], pt...) for v in vars]
+    @test all(e -> iszero(subs(subs(e.lhs - e.rhs, pt...), sv...)), eqs)
+end

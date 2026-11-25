@@ -177,8 +177,9 @@ SymPy #14909–#16408.
 
 SymPy #13409–#14908.
 
-- large symbolic linear systems: the 18-equation chain in 28 parameters (#14694) spends
-  minutes in multivariate gcds during Gauss–Jordan elimination.
+- large symbolic linear systems: the 18-equation chain in 28 parameters (#14694) spent
+  minutes in multivariate gcds during Gauss–Jordan elimination. Done 2026-11-25:
+  fraction-free Gauss–Jordan (Bareiss) for square systems of any size, 3 s.
 - parametric definite integrals whose antiderivative has the parameters in its
   denominators: ∫₀^π 1/(a²cos²x + b²sin²x) with a, b > 0 (#14394) splits into many
   cases, each taking endpoint limits (a = 2, b = 3 gives π/6 in 3 s).
@@ -1343,7 +1344,7 @@ Status from the tracker's database; the SymJ fixes without one ("open", 117) or 
 | `symbolic-det-radical-blowup-r6` | SymJ | hang | fixed | jverzani/SymJ.jl#118 | 23408 | det: im and radicals as generators for Bareiss (a polynomial identity), rows cleared of symbolic denominators (det(DA)/det(D)): 0.002 s |
 | `symbolic-linsolve-gauss-jordan-blowup` | SymJ | hang | fixed | jverzani/SymJ.jl#113 | 25302, 25032, 25009, 24679, 24135 | Cramer/Bareiss for \, inv, square solve (n ≤ 8; rows cleared of denominators; im/√ atoms as generators); quick monomial-gcd test; D factored once for large quotients. #25302 0.6 s, #24679 0.001 s, #2… |
 | `symbolic-linsolve-gauss-jordan-blowup-r11` | SymJ | hang | fixed | jverzani/SymJ.jl#135 | 16245, 16125 | constant zero tests by value; large components uncancelled; radicals as symbols for IVP constants |
-| `symbolic-linsolve-gauss-jordan-blowup-r12` | SymJ | hang | fixed |  | 14694 | Fixed on main (checked 2026-11-21): #14694's 18-equation chain finishes in 117 s (was > 500 s); still slow. |
+| `symbolic-linsolve-gauss-jordan-blowup-r12` | SymJ | hang | fixed |  | 14694 | Fixed on main (checked 2026-11-21): #14694's 18-equation chain finishes in 117 s (was > 500 s). 2026-11-25: 3 s by fraction-free Gauss–Jordan (one Bareiss elimination for all unknowns, no size cap); `inv` and `\` of a sparse 12 × 12 went from minutes to under a second. |
 | `symfunction-builtin-name-not-undefined` | SymJ | missing case | fixed | jverzani/SymJ.jl#144 | 12716 | Docstring: a function named like a built-in is the built-in (name-clash question still deferred). PR open. |
 | `symfunction-builtin-name-not-undefined-r14` | SymJ | missing case | won't fix |  | 11841 | By design: a SymFunction named like a built-in (gamma) is the user's function; use another name for an undefined one. |
 | `symset-no-issubset` | SymJ | crash | fixed | jverzani/SymJ.jl#87 | 29730, 29728 | ⊆ for SymSet and SymInterval |
