@@ -10,7 +10,7 @@ const _COMMANDS = (
     # calculus
     :summation, :harmonic, :residue, :Integral, :laplace_transform,
     :inverse_laplace_transform, :piecewise, :piecewise_fold, :heaviside, :dirac,
-    :fresnels, :fresnelc,
+    :fresnels, :fresnelc, :gradient, :jacobian, :hessian, :divergence, :curl, :laplacian,
     # numbers, simplification and rewriting
     :evalf, :nsimplify, :unwrap_const, :rewrite, :expand_trig, :expand_log, :together,
     :horner, :gather, :cse, :decompose, :radsimp, :simplify_trig, :simplify_hyperbolic,
