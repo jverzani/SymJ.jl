@@ -482,3 +482,15 @@ end
     @test SymJ.isnumber(denominator(rs(g)))
     @test N(rs(g)) ≈ N(g)
 end
+
+@testset "dependent square roots of numbers" begin
+    # √6 = √2√3: a conjugate -√2√3 + √6 is 0, and cancel took √2√3 + √6 to be 0 (found
+    # in Gram–Schmidt for schur)
+    s2, s3, s6 = sqrt(Sym(2)), sqrt(Sym(3)), sqrt(Sym(6))
+    @test !iszero(cancel(s2 * s3 + s6))
+    @test simplify(s2 * s3 + s6) == 2s6
+    @test simplify(s2 * s3 / 12 + s6 / 12) == s6 / 6
+    @test simplify(s2 * s3 - s6) == 0
+    @test cancel(s2^2 - 2) == 0
+    @test N(simplify(sqrt(Sym(10)) + s2 * sqrt(Sym(5)) + sqrt(Sym(15)))) ≈ 2sqrt(10) + sqrt(15)
+end
