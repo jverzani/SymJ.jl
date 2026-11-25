@@ -76,6 +76,24 @@ Q, R = qr(Sym[3 1; 4 2])
 Q, R
 ```
 
+Cholesky and LDLᵀ factorizations of a symmetric matrix, the second without square
+roots:
+
+```@example tut
+@syms a
+C = cholesky(Sym[a 1; 1 a])
+F = ldlt(Sym[a 1; 1 a])
+C.L, F.L, F.D
+```
+
+Rotation matrices (right-handed; about `:x`, `:y`, `:z` or any vector) and the
+permanent:
+
+```@example tut
+@syms θ
+SymJ.rotation_matrix(θ, :z), SymJ.permanent(Sym[1 2; 3 4])
+```
+
 The singular value decomposition, exactly, for small matrices:
 
 ```@example tut
