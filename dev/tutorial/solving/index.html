@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Solving — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=694e37ee">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=ab6e21c9">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Solving — SymJ.jl">
   <meta property="og:title" content="Solving — SymJ.jl">
@@ -439,6 +439,57 @@ end</code></pre>
 </div>
 </div>
 <p>Contradictory facts are an error (<code class="md-code-inline">@assume(x &gt; 1 &amp;&amp; x &lt; 0)</code>), and the <code class="md-code-inline">Assumptions</code> value <code class="md-code-inline">@assume</code> makes can be reused: <code class="md-code-inline">A = @assume(x &gt; 0, n in Integers)</code>, then <code class="md-code-inline">assume = A</code>.</p>
+<h4 id="Defaults" class="md-heading">Defaults<a href="#Defaults" class="md-heading-anchor" aria-label="Link to this section">#</a></h4>
+<p>Without <code class="md-code-inline">assume</code>, each function starts from its own defaults. Below, <code class="md-code-inline">x</code> is the unknown or the variable, and the other symbols are parameters. Everywhere, parameters are <em>generic</em>: an expression in them is taken to be nonzero unless the facts say otherwise (<code class="md-code-inline">solve(a*x ~ 1, x)</code> is <code class="md-code-inline">1/a</code>, with no case <code class="md-code-inline">a = 0</code>).</p>
+<div class="md-table-wrap">
+<table class="md-table">
+<thead>
+<tr>
+<th style="text-align:left">function</th>
+<th style="text-align:left">defaults</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">solve(eq, x)</code></td>
+<td style="text-align:left"><code class="md-code-inline">x ∈ ℂ</code> (<code class="md-code-inline">x^2 ~ -1</code> gives <code class="md-code-inline">±im</code>); <code class="md-code-inline">abs</code>, <code class="md-code-inline">real</code> or <code class="md-code-inline">imag</code> of <code class="md-code-inline">x</code> is an error suggesting <code class="md-code-inline">assume = (x ∈ ℝ,)</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">solve(eqs, xs)</code></td>
+<td style="text-align:left">the unknowns in ℂ, also under <code class="md-code-inline">abs</code>, <code class="md-code-inline">real</code> and <code class="md-code-inline">imag</code>; <code class="md-code-inline">assume = (x ∈ ℝ, …)</code> narrows to ℝ</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">SymJ.solveset</code></td>
+<td style="text-align:left"><code class="md-code-inline">domain = ℝ</code> (<code class="md-code-inline">x^2 ~ -1</code> has no solutions); <code class="md-code-inline">domain = ℂ</code> is an option</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">SymJ.fsolve</code></td>
+<td style="text-align:left"><code class="md-code-inline">domain = ℝ</code>; <code class="md-code-inline">domain = ℂ</code> finds complex roots too</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">SymJ.rsolve</code></td>
+<td style="text-align:left"><code class="md-code-inline">n</code> an integer index, not assumed nonnegative</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">SymJ.dsolve</code></td>
+<td style="text-align:left"><code class="md-code-inline">x</code> real inside integrals, but <code class="md-code-inline">log(x)</code> without <code class="md-code-inline">abs</code>; no cases on the signs of parameters (<code class="md-code-inline">y&#39;&#39; + a*y ~ 0</code> gives exponentials in <code class="md-code-inline">√(-a)*x</code>; <code class="md-code-inline">assume = (a ≫ 0,)</code> gives <code class="md-code-inline">cos</code> and <code class="md-code-inline">sin</code>)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">simplify</code></td>
+<td style="text-align:left">all symbols in ℂ: <code class="md-code-inline">sqrt(x^2)</code> and <code class="md-code-inline">log(exp(x))</code> stay as they are</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">limit</code></td>
+<td style="text-align:left"><code class="md-code-inline">x</code> and the parameters real: <code class="md-code-inline">sqrt(a^2)</code> is <code class="md-code-inline">abs(a)</code>; cases when the limit depends on a parameter&#39;s sign (<code class="md-code-inline">exp(a*x)</code> as <code class="md-code-inline">x → ∞</code>)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code class="md-code-inline">integrate</code></td>
+<td style="text-align:left"><code class="md-code-inline">x</code> and the parameters real: <code class="md-code-inline">1/x</code> integrates to <code class="md-code-inline">log(abs(x))</code>, <code class="md-code-inline">sqrt(a^2)</code> is <code class="md-code-inline">abs(a)</code>; cases on signs when the form depends on them (<code class="md-code-inline">1/(x^2 + a)</code>)</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="Numerically-finding-solutions" class="md-heading">Numerically finding solutions<a href="#Numerically-finding-solutions" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <p>As with polynomials, for an equation <code class="md-code-inline">solve</code> cannot solve exactly, <code class="md-code-inline">SymJ.fsolve</code> (with name and functionality mirroring Maple&#39;s function) finds its roots numerically: the real ones, on the whole line or an interval, and with <code class="md-code-inline">domain = ℂ</code> complex ones too.</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -452,7 +503,7 @@ SymJ.fsolve(log(x) + sin(x) ~ 1, x, (0, 4))
 \[\left( \left[ 0.7390851332151607 \right], \; \left[ 1.1099563755802675, \; 3.3530284715132392 \right] \right)\]
 </div>
 </div>
-<h3 id="External-zero-finding" class="md-heading">External zero finding<a href="#External-zero-finding" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
+<h4 id="External-zero-finding" class="md-heading">External zero finding<a href="#External-zero-finding" class="md-heading-anchor" aria-label="Link to this section">#</a></h4>
 <p>The packages for numerical root finding also take SymJ expressions as they are, since an expression is callable (<code class="md-code-inline">lambdify</code> makes a faster function): <code class="md-code-inline">Roots.find_zero(cos(x) - x, 0.5)</code>, or with Newton&#39;s method and the exact derivative, <code class="md-code-inline">find_zero((lambdify(f, x), lambdify(diff(f, x), x)), x0, Roots.Newton())</code>.</p>
 <h3 id="Systems" class="md-heading">Systems<a href="#Systems" class="md-heading-anchor" aria-label="Link to this section">#</a></h3>
 <p>A system of equations gives a vector of solutions, each a <code class="md-code-inline">Dict</code> from the unknowns to their values. A linear system&#39;s answer is a single solution (possibly in terms of free unknowns), yet a vector is returned:</p>
@@ -548,7 +599,7 @@ solve(eqns, vars)</code></pre>
             <a class="md-toc-link md-toc-h3" href="#Inequalities">Inequalities</a>
             <a class="md-toc-link md-toc-h3" href="#All-solutions">All solutions</a>
             <a class="md-toc-link md-toc-h3" href="#More-on-assumptions">More on assumptions</a>
-            <a class="md-toc-link md-toc-h3" href="#External-zero-finding">External zero finding</a>
+            <a class="md-toc-link md-toc-h3" href="#Numerically-finding-solutions">Numerically finding solutions</a>
             <a class="md-toc-link md-toc-h3" href="#Systems">Systems</a>
       </div>
     </aside>
@@ -567,6 +618,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=694e37ee"></script>
+  <script src="../../assets/materialdocs.js?v=ab6e21c9"></script>
 </body>
 </html>
