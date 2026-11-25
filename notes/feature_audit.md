@@ -132,7 +132,7 @@ series, assumptions, a basic `simplify`, summation, differential equations)
 | LU, QR, SVD | `Matrix` methods `LUdecomposition`, `QRdecomposition` | `lu`, `qr`, `svd` | ✅ `lu` (a `LinearAlgebra.LU`), `qr` (exact Gram–Schmidt), `svd` and `svdvals` (a `LinearAlgebra.SVD`; squared singular values of degree at most 2 over the rationals) |
 | Smith normal form | `smith_normal_form`, `smith_normal_decomp` (`sympy.matrices.normalforms`) | `smith`, `ismith` | ✅ `SymJ.smith_normal_form`, `SymJ.smith_normal_decomp` over ℤ and ℚ[x]; Hermite normal form `SymJ.hermite_normal_form`, `SymJ.hermite_normal_decomp` (row form) (SymPy #29139, #2860) |
 | Pseudoinverse | `Matrix.pinv` | — | ✅ `pinv` from the rank factorization (generic rank, as for `rref`) (SymPy #30759) |
-| Schur, Cholesky decompositions (symbolic) | `Matrix.cholesky`, `LDLdecomposition` | `cholesky` | ✅ `cholesky` (`F.L`, `F.U`, `F \ b`; `check`, `NoPivot`, `Hermitian`) and `ldlt` (`L D Lᴴ` without square roots, a `SymJ.SymLDLt`; SymPy #28477); ❌ `schur` of a `Sym` matrix is a MethodError (SymPy #28255) |
+| Schur, Cholesky decompositions (symbolic) | `Matrix.cholesky`, `LDLdecomposition` | `cholesky` | ✅ `cholesky` (`F.L`, `F.U`, `F \ b`; `check`, `NoPivot`, `Hermitian`) and `ldlt` (`L D Lᴴ` without square roots, a `SymJ.SymLDLt`; SymPy #28477); `schur` (exact `Z T Zᴴ` when the eigenvalues are found in square roots; an error pointing to `schur(N.(A))` for roots of a cubic or higher; SymPy #28255) |
 | Permanent | `Matrix.per` | `permanent` | ✅ `SymJ.permanent` (rectangular and empty too; SymPy #28539) |
 | Rotation matrices | `rot_axis1`, `rot_axis2`, `rot_axis3` | — | ✅ `SymJ.rotation_matrix(θ)` (plane), `SymJ.rotation_matrix(θ, axis)` (`1:3`, `:x`/`:y`/`:z`, or a vector), right-handed (SymPy #24936, #24528) |
 | Rank conditions with parameters | — | — | ✅ `rank(A; generic = false)`: `Cases` where it drops (SymPy #28232, #24613) |
@@ -276,11 +276,11 @@ tables below or in the [gaps by round](sympy_review/README.md#feature-gaps-by-ro
    (#30845, #29715, #3298); gcd and cancel over ℚ(i) and algebraic extensions (#18391,
    #15358); `RootOf`/`CRootOf` objects (#26740); interpolation; orthogonal and cyclotomic
    polynomials; counting complex roots in a region (#26202).
-8. **Linear algebra.** Symbolic Schur (#28255); SVD and matrix functions when the
-   eigenvalues are roots of an irreducible cubic (#10355, #15362); large parametric
+8. **Linear algebra.** SVD, Schur and matrix functions when the eigenvalues are roots
+   of an irreducible cubic (#10355, #15362); large parametric
    linear systems, whose Gauss–Jordan elimination spends about two minutes in
    multivariate gcds (#14694, 18 equations). Done 2026-11-24: Cholesky fixes and LDLᵀ
-   (#28477), permanents (#28539), rotation matrices (#24936, #24528).
+   (#28477), permanents (#28539), rotation matrices (#24936, #24528); 2026-11-25: Schur (#28255).
 9. **Transforms and vector calculus.** Fourier, Mellin and Z transforms (#26053, #29695)
    and Fourier series (#30183); a table of special-function Laplace transforms; `jacobian`,
    `hessian` and the vector operators (#30186); ranges, extrema and monotonicity of a

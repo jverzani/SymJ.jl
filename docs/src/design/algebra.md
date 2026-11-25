@@ -647,6 +647,12 @@ Two canonical-form additions came with it:
   for tridiagonal matrices). **`SymJ.permanent`** recurses over the rows with the used
   columns as a bit set, `m C(n, m)` steps. **`SymJ.rotation_matrix`** is right-handed,
   about a coordinate axis or (Rodrigues' formula) a vector.
+- **`schur`** deflates one column at a time: an eigenvector of the trailing block,
+  completed to an orthonormal basis by Gram–Schmidt, conjugates the block into one with
+  that eigenvalue in its corner. It needs the eigenvalues in closed form; roots of a
+  cubic or higher (cube roots, or `cos(acos(…)/3)` for three real roots) do not simplify
+  through Gram–Schmidt in reasonable time, so they are an error pointing to the numeric
+  `schur(N.(A))`.
 - **`svd`** returns Julia's `LinearAlgebra.SVD`. The singular values are the square
   roots of the eigenvalues of `AᴴA` (entries with `i` conjugated, symbols taken as
   real), largest first when they are numbers; `V` is orthonormal eigenvectors of `AᴴA`

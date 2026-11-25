@@ -247,3 +247,24 @@ end
     @test_throws ArgumentError R(θ, 4)
     @test_throws ArgumentError R(θ, [0, 0, 0])
 end
+
+@testset "schur" begin
+    @syms a b
+    LA = SymJ.LinearAlgebra
+    ad(M) = Sym[(e = M[i, j]; SymJ._has_im(e) ? conj(e) : e) for j in axes(M, 2), i in axes(M, 1)]
+    # A = Z T Zᴴ, Z unitary, T upper triangular (SymPy #28255)
+    for A in (Sym[1 2; 3 4], Sym[0 -1; 1 0], Sym[a b; b a], Sym[2 1 0; 1 2 1; 0 1 2], Sym[1 1; -1 3], Sym[2 0 0; 0 3 4; 0 4 9])
+        F = LA.schur(A)
+        @test all(iszero, simplify.(F.Z * F.T * ad(F.Z) - A))
+        @test all(iszero, simplify.(ad(F.Z) * F.Z - LA.I))
+        @test LA.istriu(F.T)
+    end
+    @test LA.schur(Sym[1 2; 3 4]).T == Sym[(5 - sqrt(Sym(33))) / 2 1; 0 (5 + sqrt(Sym(33))) / 2]
+    @test LA.schur(Sym[a b; b a]).values == Sym[a + b, a - b]
+    T, Z, vals = LA.schur(Sym[0 -1; 1 0])
+    @test vals == Sym[-IM, IM]
+    @test LA.schur(Sym[sin(a) 1; 0 cos(a)]).T == Sym[sin(a) 1; 0 cos(a)]       # triangular: as is
+    @test N(LA.schur(Sym[1.0 2; 3 4]).T[1, 1]) ≈ -0.3722813232690143         # floats: numeric
+    # an irreducible cubic: an error pointing to the numeric decomposition
+    @test_throws ArgumentError LA.schur(Sym[1 2 3; 0 4 5; 1 0 6])
+end

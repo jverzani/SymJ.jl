@@ -1911,3 +1911,61 @@ function rotation_matrix(θ, axis::AbstractVector)
     K = Sym[0 -u[3] u[2]; u[3] 0 -u[1]; -u[2] u[1] 0]
     map(simplify, c * Matrix{Sym}(LinearAlgebra.I(3)) + s * K + (1 - c) * (u * permutedims(u)))
 end
+
+## Schur
+
+"""
+    schur(A::AbstractMatrix{Sym})
+
+The Schur decomposition `A = Z T Zᴴ` of a matrix of expressions: `Z` unitary, `T` upper
+triangular with the eigenvalues on its diagonal (in the order of `eigvals`), with exact
+arithmetic (SymPy #28255). Column by column, an eigenvector of the trailing block is
+completed to an orthonormal basis (Gram–Schmidt, symbols taken to be real as in
+[`qr`](@ref LinearAlgebra.qr)) and the block deflated. The eigenvalues must be found
+exactly; a matrix of floats goes to Julia's numeric `schur` (in complex arithmetic).
+Returns a `LinearAlgebra.Schur` (`F.T`, `F.Z`, `F.values`, `T, Z, values = F`).
+
+```julia
+F = schur(Sym[1 2; 3 4])
+F.T                          # [(5 - √33)/2  1; 0  (5 + √33)/2]
+```
+"""
+function LinearAlgebra.schur(A::AbstractMatrix{Sym})
+    n = LinearAlgebra.checksquare(A)
+    Fl = _float_numeric(A)
+    if Fl !== nothing
+        S = LinearAlgebra.schur(complex(Fl))
+        return LinearAlgebra.Schur(Sym.(S.T), Sym.(S.Z), Sym.(S.values))
+    end
+    T = Sym[Sym(a) for a in A]
+    Z = Matrix{Sym}(LinearAlgebra.I(n))
+    LinearAlgebra.istriu(T) && return LinearAlgebra.Schur(T, Z, Sym[T[i, i] for i in 1:n])
+    λs = LinearAlgebra.eigvals(T)
+    length(λs) == n || throw(ArgumentError("schur: the eigenvalues were not all found exactly"))
+    # roots of an irreducible cubic or higher: cube roots (Cardano) or, for three real
+    # roots, constants through cos(acos(…)/3); Gram–Schmidt on their eigenvectors does not
+    # simplify in reasonable time
+    hard(λ) = _has_node(λ, t -> (t.kind == POW && t.args[2].kind == NUMBER && _denominator(t.args[2].num) >= 3) ||
+                                (t.kind == MUL && any(p -> p.kind == NUMBER && _denominator(p.num) >= 3, t.exps))) ||
+              (!_hassymbol(λ) && _has_node(λ, t -> t.kind == FN))
+    any(hard, λs) &&
+        throw(ArgumentError("schur: the eigenvalues are roots of a cubic or higher; for a numeric decomposition use schur(N.(A))"))
+    for k in 1:(n - 1)
+        m = n - k + 1
+        B = T[k:n, k:n]
+        N = LinearAlgebra.nullspace(map(_qrnorm, B - λs[k] * Matrix{Sym}(LinearAlgebra.I(m))))
+        size(N, 2) == 0 && throw(ArgumentError("schur: no eigenvector found for the eigenvalue $(λs[k])"))
+        Q = _orthonormal(hcat(N[:, 1:1], Matrix{Sym}(LinearAlgebra.I(m))))
+        length(Q) == m || throw(ArgumentError("schur: no orthonormal basis found"))
+        W = Matrix{Sym}(LinearAlgebra.I(n))
+        W[k:n, k:n] = reduce(hcat, Q)
+        T = map(_qrnorm, _adjoint(W) * T * W)
+        Z = map(_qrnorm, Z * W)
+    end
+    for j in 1:n, i in (j + 1):n
+        iszero(T[i, j]) || iszero(simplify(T[i, j])) ||
+            throw(ArgumentError("schur: entry $i,$j of T did not simplify to 0: $(T[i, j])"))
+        T[i, j] = ZERO
+    end
+    LinearAlgebra.Schur(T, Z, Sym[T[i, i] for i in 1:n])
+end
