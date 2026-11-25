@@ -277,10 +277,10 @@ tables below or in the [gaps by round](sympy_review/README.md#feature-gaps-by-ro
    #15358); `RootOf`/`CRootOf` objects (#26740); interpolation; orthogonal and cyclotomic
    polynomials; counting complex roots in a region (#26202).
 8. **Linear algebra.** SVD, Schur and matrix functions when the eigenvalues are roots
-   of an irreducible cubic (#10355, #15362); large parametric
-   linear systems, whose Gauss–Jordan elimination spends about two minutes in
-   multivariate gcds (#14694, 18 equations). Done 2026-11-24: Cholesky fixes and LDLᵀ
-   (#28477), permanents (#28539), rotation matrices (#24936, #24528); 2026-11-25: Schur (#28255).
+   of an irreducible cubic (#10355, #15362). Done 2026-11-24: Cholesky fixes and LDLᵀ
+   (#28477), permanents (#28539), rotation matrices (#24936, #24528); 2026-11-25: Schur
+   (#28255), large parametric linear systems by fraction-free Gauss–Jordan (#14694: the
+   18-equation chain in under a second, was two minutes).
 9. **Transforms and vector calculus.** Fourier, Mellin and Z transforms (#26053, #29695)
    and Fourier series (#30183); a table of special-function Laplace transforms; `jacobian`,
    `hessian` and the vector operators (#30186); ranges, extrema and monotonicity of a
