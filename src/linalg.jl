@@ -307,13 +307,12 @@ function _adjugate_inv(P::Matrix)
     T = eltype(P)
     r = _bareiss_jordan(hcat(P, T[i == j ? one(P[1, 1]) : zero(P[1, 1]) for i in 1:n, j in 1:n]), n)
     r === nothing && throw(LinearAlgebra.SingularException(n))
-    D, X = r
+    D, X, ds = r
     Ds = Sym(D)
     # (0 by sin² + cos² = 1 too: inv divided by sin²x + cos²x - 1; SymPy #10120)
     _circ_nonzero(Ds) || throw(LinearAlgebra.SingularException(n))
     n == 1 && return Sym[1 / Ds;;]
-    red = _QuotientReducer(D)
-    Sym[red(X[i, j]) for i in 1:n, j in 1:n]
+    _bareiss_quotients(X, ds)
 end
 
 # M with each row times the lcm of the denominators in it (M itself when none, or when
@@ -363,52 +362,88 @@ function _cramer_sym(M::AbstractMatrix, n::Int)
         P === nothing && return nothing
         r = _bareiss_jordan(P, n)
         r === nothing && return nothing
-        D, X = r
+        D, X, ds = r
         Ds = expand(Sym(D))
         # (radicals: zero once they are merged, √6√11 - √2√33)
         (iszero(Ds) || (_has_algebraic(Ds) && iszero(_algnorm(Ds)))) && return nothing
         # (0 by sin² + cos² = 1: no unique solution; SymPy #10120)
         _circ_nonzero(Ds) || return nothing
-        red = _QuotientReducer(D)
-        (Sym[red(x) for x in X], Ds)
+        (_bareiss_quotients(X, ds), Ds)
     end
 end
 
-# fraction-free Gauss–Jordan (Bareiss) of P = [A B], polynomials, A n × n: (det A, X) with
-# X = det(A) A⁻¹ B, polynomials, or nothing when A is singular. Each step divides exactly
+# fraction-free Gauss–Jordan (Bareiss) of P = [A B], polynomials, A n × n: (det A, X, ds)
+# with A⁻¹ B = X[i, :] / ds[i] row by row, polynomials, or nothing when A is singular. Each step divides exactly
 # by the previous pivot, so the entries stay minors of P and no gcd is taken. One
 # elimination for all of A \ B: Cramer's rule, a determinant for each unknown, took n
 # times as long, and Gauss–Jordan over rational functions spent minutes in gcds (an
 # 18-equation chain in 28 parameters; SymPy #14694).
+# (a row with 0 in the pivot column is only scaled, by piv/prev, and over consecutive
+# such steps the factors telescope: its true values are the stored ones times
+# pivs[k] / pivs[s], s the step they are current at, brought up to date when the row is
+# next used; scaled at every step, half the work and memory of the 18-equation chain.
+# At the end row i is left as of its step s, over pivs[s] rather than over det A: scaled
+# up to det A, the chain's solutions took half a gigabyte more.)
 function _bareiss_jordan(P::Matrix, n::Int)
     M = copy(P)
     m = size(M, 2)
     sgn = 1
-    prev = one(M[1, 1])
+    pivs = [one(M[1, 1])]                 # pivs[k + 1]: the pivot of step k (step 0: 1)
+    stamp = zeros(Int, n)                 # row i is current as of step stamp[i]
+    # row i as of step t, its columns from c on
+    function current!(i, t, c)
+        s = stamp[i]
+        s == t && return
+        for j in c:m
+            iszero(M[i, j]) && continue
+            a = M[i, j] * pivs[t + 1]
+            M[i, j] = isone(pivs[s + 1]) ? a : divexact(a, pivs[s + 1])
+        end
+        stamp[i] = t
+    end
     for k in 1:n
         if iszero(M[k, k])
             p = findfirst(i -> !iszero(M[i, k]), (k + 1):n)
             p === nothing && return nothing
             p += k
             M[k, :], M[p, :] = M[p, :], M[k, :]
+            stamp[k], stamp[p] = stamp[p], stamp[k]
             sgn = -sgn
         end
+        current!(k, k - 1, k)
         piv = M[k, k]
+        prev = pivs[k]
         for i in 1:n
-            i == k && continue
+            (i == k || iszero(M[i, k])) && continue
+            current!(i, k - 1, k)
             f = M[i, k]
             # (the columns before k are 0 off the diagonal, and the diagonal is not needed)
             for j in (k + 1):m
-                a = piv * M[i, j]
-                iszero(f) || (a -= f * M[k, j])
+                a = piv * M[i, j] - f * M[k, j]
                 M[i, j] = isone(prev) ? a : divexact(a, prev)
             end
             M[i, k] = zero(f)
+            stamp[i] = k
         end
-        prev = piv
+        stamp[k] = k
+        push!(pivs, piv)
     end
-    X = M[:, (n + 1):m]
-    sgn == 1 ? (prev, X) : (-prev, -X)
+    D = pivs[n + 1]
+    (sgn == 1 ? D : -D, M[:, (n + 1):m], [pivs[stamp[i] + 1] for i in 1:n])
+end
+
+# the quotients X[i, j] / ds[i] in lowest terms, a reducer for each distinct divisor
+function _bareiss_quotients(X::Matrix, ds::Vector)
+    reds = Dict{Int,Any}()
+    R = Matrix{Sym}(undef, size(X))
+    for i in axes(X, 1)
+        k = something(findfirst(d -> d == ds[i], ds), i)
+        red = get!(() -> _QuotientReducer(ds[i]), reds, k)
+        for j in axes(X, 2)
+            R[i, j] = red(X[i, j])
+        end
+    end
+    R
 end
 
 # N/D in lowest terms for a fixed denominator D. Tiny ones through cancel, as are those
