@@ -292,6 +292,8 @@ otherwise (`solve(a*x ~ 1, x)` is `1/a`, with no case `a = 0`).
 | `integrate` | `x` and the parameters real: `1/x` integrates to `log(abs(x))`, `sqrt(a^2)` is `abs(a)`; cases on signs when the form depends on them (`1/(x^2 + a)`) |
 
 
+### Numerically finding solutions
+
 As with polynomials, for an equation `solve` cannot solve exactly, `SymJ.fsolve` (with name
 and functionality mirroring Maple's function) finds its roots numerically: the
 real ones, on the whole line or an interval, and with `domain = ℂ`
@@ -304,7 +306,7 @@ SymJ.fsolve(log(x) + sin(x) ~ 1, x, (0, 4))
 )
 ```
 
-### External zero finding
+#### External zero finding
 
 The packages for numerical root finding also take SymJ expressions as
 they are, since an expression is callable (`lambdify` makes a faster
