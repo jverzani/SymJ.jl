@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Calculus — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=6413ec2a">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=1c653754">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Calculus — SymJ.jl">
   <meta property="og:title" content="Calculus — SymJ.jl">
@@ -195,6 +195,45 @@ diff(x^2 * y * z, x, x, y, z)
 </div>
 <div class="md-math md-math-display">
 \[\left( 6 \cdot x^{2} \cdot y, \;  - \sin\left( x \cdot y \right) \cdot x \cdot y + \cos\left( x \cdot y \right), \; 2 \right)\]
+</div>
+</div>
+<p>The gradient, Jacobian and Hessian (not exported):</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms r θ
+(
+SymJ.gradient(x^2 * y + sin(y), [x, y]),
+SymJ.jacobian([r * cos(θ), r * sin(θ)], [r, θ]),
+SymJ.hessian(x^3 + x * y^2, [x, y])
+)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \left[ 2 \cdot x \cdot y, \; x^{2} + \cos\left( y \right) \right], \; \left[
+\begin{array}{cc}
+\cos\left( \theta \right) &amp;  - r \cdot \sin\left( \theta \right) \\
+\sin\left( \theta \right) &amp; \cos\left( \theta \right) \cdot r \\
+\end{array}
+\right], \; \left[
+\begin{array}{cc}
+6 \cdot x &amp; 2 \cdot y \\
+2 \cdot y &amp; 2 \cdot x \\
+\end{array}
+\right] \right)\]
+</div>
+</div>
+<p>and the divergence, curl and Laplacian, in Cartesian coordinates:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">(
+SymJ.divergence([x^2, x * y, y * z], [x, y, z]),
+SymJ.curl([-y, x, 0], [x, y, z]),
+SymJ.laplacian(x^2 * y + y^3, [x, y])
+)</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( 3 \cdot x + y, \; \left[ 0, \; 0, \; 2 \right], \; 8 \cdot y \right)\]
 </div>
 </div>
 <p>A symbolic function gives an unevaluated derivative:</p>
@@ -1029,6 +1068,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=6413ec2a"></script>
+  <script src="../../assets/materialdocs.js?v=1c653754"></script>
 </body>
 </html>
