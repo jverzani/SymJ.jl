@@ -478,10 +478,11 @@ function _solve_linear(eqs, vars::Vector{Sym})
 end
 function _solve_linear0(eqs, vars::Vector{Sym})
     A, b = _linear_system(eqs, vars)
-    # square, with parameters: Cramer's rule, whose one divisor is det A (the pivots of
-    # Gauss–Jordan are divisors too, each a case to decide, and its rational functions
-    # took a gcd at every step: hours for a circuit in 13 parameters; SymPy #24135)
-    if size(A, 1) == size(A, 2) <= _CRAMER_MAX && any(_hassymbol, A)
+    # square, with parameters: Cramer's rule by fraction-free elimination, whose one
+    # divisor is det A (the pivots of Gauss–Jordan are divisors too, each a case to
+    # decide, and its rational functions took a gcd at every step: hours for a circuit in
+    # 13 parameters, SymPy #24135; 30 s for an 18-equation chain, #14694)
+    if size(A, 1) == size(A, 2) && any(_hassymbol, A)
         r = _cramer_sym(hcat(A, b), size(A, 1))
         if r !== nothing
             X, D = r

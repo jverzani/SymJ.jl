@@ -653,7 +653,13 @@ function _degenerate_subst(D, B::Assumptions, unknowns)
     # a large one substituted makes the system's coefficients large (a circuit's
     # determinant solved for one of its 13 parameters took hours; SymPy #24135)
     fs = Sym[]
-    for g in D, f in _param_factors(g, unknowns)
+    # (each expression factored once: the unknowns of a linear system share their
+    # denominator, det A, and 18 factorizations of it took a second; SymPy #14694)
+    gs = Sym[]
+    for g in D
+        any(o -> _eq(o, g), gs) || push!(gs, g)
+    end
+    for g in gs, f in _param_factors(g, unknowns)
         any(o -> _eq(o, f), fs) || push!(fs, f)
     end
     sort!(fs; by = f -> (_nodes(f), string(f)))

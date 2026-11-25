@@ -19,12 +19,15 @@ function numer_denom(ex::Sym)
         return Sym(SymNumber(_numerator(ex.num))), Sym(SymNumber(_denominator(ex.num)))
     elseif k == ADD
         n, d = numer_denom(Sym(ex.num))
-        parts = Tuple{Sym,Sym}[]
+        # (the numerators over each denominator summed at once: added one at a time, a
+        # polynomial of 1800 terms was rebuilt 1800 times, gigabytes; SymPy #14694)
+        groups = Tuple{Vector{Sym},Sym}[]
         for i in eachindex(ex.args)
             ni, di = numer_denom(_with_coef(ex.coefs[i], ex.args[i]))
-            j = findfirst(p -> _eq(p[2], di), parts)
-            j === nothing ? push!(parts, (ni, di)) : (parts[j] = (parts[j][1] + ni, di))
+            j = findfirst(p -> _eq(p[2], di), groups)
+            j === nothing ? push!(groups, (Sym[ni], di)) : push!(groups[j][1], ni)
         end
+        parts = Tuple{Sym,Sym}[(length(ns) == 1 ? ns[1] : _add_many(ns), di) for (ns, di) in groups]
         if length(parts) <= 16
             for (ni, di) in parts
                 if _eq(d, di)
