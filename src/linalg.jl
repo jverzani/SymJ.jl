@@ -1333,29 +1333,32 @@ end
 ## Cholesky
 
 """
-    cholesky(A::AbstractMatrix{Sym})
+    cholesky(A::AbstractMatrix{Sym}, NoPivot(); check = true)
 
 The Cholesky factorization `A = Uᴴ U` of a Hermitian positive definite matrix of
 expressions, with exact arithmetic: `U` upper triangular with the square roots of the
 pivots on its diagonal. Symbols are taken to be real, as in [`qr`](@ref
-LinearAlgebra.qr). A pivot that is known not to be positive throws a `PosDefException`.
-Returns a `LinearAlgebra.Cholesky` (`F.U`, `F.L`).
+LinearAlgebra.qr), for `U` and for `L = Uᴴ` alike (`F.L * F.U == A`). A pivot that is
+known not to be positive throws a `PosDefException` (with `check = false`, the
+factorization stops there and `issuccess(F)` is false). Returns a
+`LinearAlgebra.Cholesky` (`F.U`, `F.L`, `L, U = F`, `F \\ b`). Without square roots:
+[`ldlt`](@ref LinearAlgebra.ldlt).
 
 ```julia
 cholesky(Sym[4 2; 2 3]).U        # [2 1; 0 sqrt(2)]
+cholesky(Sym[a 1; 1 a]).L        # [sqrt(a) 0; 1/sqrt(a) sqrt(a - 1/a)]
 ```
 """
-function LinearAlgebra.cholesky(A::AbstractMatrix{Sym})
+function LinearAlgebra.cholesky(A::AbstractMatrix{Sym}, ::LinearAlgebra.NoPivot = LinearAlgebra.NoPivot(); check::Bool = true)
     n = LinearAlgebra.checksquare(A)
-    H = Sym[Sym(a) for a in A]
-    for i in 1:n, j in (i + 1):n
-        iszero(_qrnorm(H[i, j] - (_has_im(H[j, i]) ? conj(H[j, i]) : H[j, i]))) ||
-            throw(ArgumentError("cholesky: the matrix is not Hermitian (entries $i,$j and $j,$i)"))
-    end
+    H = _sym_hermitian_check(A, "cholesky")
     U = zeros(Sym, n, n)
     for j in 1:n
         p = _qrnorm(H[j, j] - _dot(U[1:(j - 1), j], U[1:(j - 1), j]))
-        (iszero(p) || _decide_const(p ≦ 0)) && throw(LinearAlgebra.PosDefException(j))
+        if iszero(p) || _decide_const(p ≦ 0)
+            check && throw(LinearAlgebra.PosDefException(j))
+            return LinearAlgebra.Cholesky(U, 'U', j)
+        end
         d = simplify(sqrt(p))
         U[j, j] = d
         for i in (j + 1):n
@@ -1364,6 +1367,91 @@ function LinearAlgebra.cholesky(A::AbstractMatrix{Sym})
     end
     LinearAlgebra.Cholesky(U, 'U', 0)
 end
+LinearAlgebra.cholesky(A::LinearAlgebra.Hermitian{Sym,Matrix{Sym}}, p::LinearAlgebra.NoPivot = LinearAlgebra.NoPivot(); check::Bool = true) =
+    LinearAlgebra.cholesky(Matrix(A), p; check)
+LinearAlgebra.cholesky(A::LinearAlgebra.Symmetric{Sym,Matrix{Sym}}, p::LinearAlgebra.NoPivot = LinearAlgebra.NoPivot(); check::Bool = true) =
+    LinearAlgebra.cholesky(Matrix(A), p; check)
+# the entries of A, checked Hermitian (symbols real: the transpose, numbers with im
+# conjugated)
+function _sym_hermitian_check(A::AbstractMatrix, name::String)
+    n = size(A, 1)
+    H = Sym[Sym(a) for a in A]
+    for i in 1:n, j in (i + 1):n
+        iszero(_qrnorm(H[i, j] - (_has_im(H[j, i]) ? conj(H[j, i]) : H[j, i]))) ||
+            throw(ArgumentError("$name: the matrix is not Hermitian (entries $i,$j and $j,$i)"))
+    end
+    H
+end
+# L = Uᴴ with symbols real, as U was found (LinearAlgebra's adjoint conjugated the
+# symbols: conj(sqrt(a)), so F.L * F.U was not A)
+function Base.getproperty(F::LinearAlgebra.Cholesky{Sym,Matrix{Sym}}, d::Symbol)
+    U = getfield(F, :factors)
+    d === :U && return LinearAlgebra.UpperTriangular(getfield(F, :uplo) == 'U' ? U : _adjoint(U))
+    d === :L && return LinearAlgebra.LowerTriangular(getfield(F, :uplo) == 'U' ? _adjoint(U) : U)
+    d === :UL && return getfield(F, :uplo) == 'U' ? F.U : F.L
+    getfield(F, d)
+end
+# A x = b as L y = b, U x = y (LinearAlgebra's ldiv! conjugated the symbols too)
+Base.:\(F::LinearAlgebra.Cholesky{Sym,Matrix{Sym}}, b::AbstractVecOrMat) =
+    (LinearAlgebra.issuccess(F) || throw(LinearAlgebra.PosDefException(F.info));
+     map(_qrnorm, Matrix(F.U) \ map(_qrnorm, Matrix(F.L) \ Sym.(b))))
+
+## LDLᵀ
+
+"""
+    SymJ.SymLDLt
+
+The result of [`ldlt`](@ref LinearAlgebra.ldlt) for a matrix of expressions: `F.L` unit
+lower triangular and `F.D` diagonal with `A = L D Lᴴ`. `L, D = F` destructures it, and
+`F \\ b` solves `A x = b`.
+"""
+struct SymLDLt
+    L::Matrix{Sym}
+    D::Vector{Sym}
+end
+Base.getproperty(F::SymLDLt, d::Symbol) = d === :D ? LinearAlgebra.Diagonal(getfield(F, :D)) :
+    d === :L ? LinearAlgebra.UnitLowerTriangular(getfield(F, :L)) : getfield(F, d)
+Base.iterate(F::SymLDLt, s = 1) = s == 1 ? (F.L, 2) : s == 2 ? (F.D, 3) : nothing
+Base.show(io::IO, ::MIME"text/plain", F::SymLDLt) = (println(io, "SymLDLt, L:"); show(io, MIME"text/plain"(), Matrix(F.L));
+    println(io, "\nD:"); show(io, MIME"text/plain"(), Matrix(F.D)))
+function Base.:\(F::SymLDLt, b::AbstractVecOrMat)
+    L = Matrix(F.L)
+    y = map(_qrnorm, L \ Sym.(b))
+    z = map(_qrnorm, y ./ getfield(F, :D))
+    map(_qrnorm, _adjoint(L) \ z)
+end
+
+"""
+    ldlt(A::AbstractMatrix{Sym})
+
+The factorization `A = L D Lᴴ` of a Hermitian matrix of expressions without square roots
+(the cheaper alternative to [`cholesky`](@ref LinearAlgebra.cholesky) for solving; SymPy
+#28477): `L` unit lower triangular, `D` diagonal. Symbols are taken to be real. A zero
+pivot is an error (`ZeroPivotException`); `D` need not be positive. Returns a
+`SymJ.SymLDLt` (`F.L`, `F.D`, `L, D = F`, `F \\ b`).
+
+```julia
+F = ldlt(Sym[4 2; 2 3])          # L = [1 0; 1/2 1], D = Diagonal([4, 2])
+F \\ Sym[2, 1]                    # [1/2, 0]
+```
+"""
+function LinearAlgebra.ldlt(A::AbstractMatrix{Sym})
+    n = LinearAlgebra.checksquare(A)
+    H = _sym_hermitian_check(A, "ldlt")
+    L = Matrix{Sym}(LinearAlgebra.I(n))
+    D = zeros(Sym, n)
+    for j in 1:n
+        D[j] = _qrnorm(H[j, j] - _add_many(L[j, k] * (_has_im(L[j, k]) ? conj(L[j, k]) : L[j, k]) * D[k] for k in 1:(j - 1)))
+        iszero(D[j]) && throw(LinearAlgebra.ZeroPivotException(j))
+        for i in (j + 1):n
+            L[i, j] = _qrnorm((H[i, j] - _add_many(L[i, k] * (_has_im(L[j, k]) ? conj(L[j, k]) : L[j, k]) * D[k] for k in 1:(j - 1))) / D[j])
+        end
+    end
+    SymLDLt(L, D)
+end
+LinearAlgebra.ldlt(A::LinearAlgebra.Hermitian{Sym,Matrix{Sym}}) = LinearAlgebra.ldlt(Matrix(A))
+LinearAlgebra.ldlt(A::LinearAlgebra.Symmetric{Sym,Matrix{Sym}}) = LinearAlgebra.ldlt(Matrix(A))
+
 # a constant relation known to hold (a pivot -1 ≤ 0); false when not known
 _decide_const(r::Relation) = !_hassymbol(r.lhs - r.rhs) && (v = try _decide(r, Assumptions()) catch; false end; v === true)
 
@@ -1714,6 +1802,8 @@ end
 # undecided sign (a symbol of unknown sign) is an error.
 LinearAlgebra.hermitian_type(::Type{Sym}) = Sym
 LinearAlgebra.hermitian(a::Sym, ::Symbol) = a              # a diagonal entry, as given
+LinearAlgebra.symmetric_type(::Type{Sym}) = Sym
+LinearAlgebra.symmetric(a::Sym, ::Symbol) = a              # (Symmetric(A) and SymTridiagonal printed)
 function LinearAlgebra.isposdef(A::AbstractMatrix{Sym})
     n = LinearAlgebra.checksquare(A)
     LinearAlgebra.ishermitian(A) || return false
@@ -1741,4 +1831,83 @@ function LinearAlgebra.issymmetric(A::AbstractMatrix{Sym})
     m, n = size(A)
     m == n || return false
     all(_sym_same(A[i, j], A[j, i]) for j in 1:n for i in (j + 1):n)
+end
+
+## Permanent
+
+"""
+    SymJ.permanent(A)
+
+The permanent of `A`: `Σ_σ Π_i A[i, σ(i)]` over the injections σ of the rows into the
+columns, like the determinant without signs. A matrix with more rows than columns has
+the permanent of its transpose, and one with no rows (or no columns) has permanent 1
+(SymPy #28539). By recursion over the rows with the used columns as a set, `m C(n, m)`
+steps.
+
+```julia
+SymJ.permanent(Sym[a b; c d])       # a*d + b*c
+```
+"""
+function permanent(A::AbstractMatrix)
+    m, n = size(A)
+    m > n && return permanent(permutedims(A))
+    m == 0 && return ONE
+    n > 30 && throw(ArgumentError("permanent: at most 30 columns"))
+    M = Sym[Sym(a) for a in A]
+    memo = Dict{Int,Sym}()
+    # rows i..m, the columns in `used` (a bit set) taken
+    function per(i::Int, used::Int)
+        i > m && return ONE
+        get(memo, used, nothing) isa Sym && return memo[used]
+        terms = Sym[]
+        for j in 1:n
+            (used >> (j - 1)) & 1 == 1 && continue
+            iszero(M[i, j]) && continue
+            push!(terms, M[i, j] * per(i + 1, used | (1 << (j - 1))))
+        end
+        memo[used] = expand(_add_many(terms))
+    end
+    per(1, 0)
+end
+
+## Rotation matrices
+
+"""
+    SymJ.rotation_matrix(θ)
+    SymJ.rotation_matrix(θ, axis)
+
+The matrix of the rotation by the angle `θ` (counterclockwise, the right-hand rule; SymPy
+#24528), acting on column vectors: in the plane `[cos θ -sin θ; sin θ cos θ]`; in space
+about `axis`, which is `1`, `2`, `3` (or `:x`, `:y`, `:z`) for a coordinate axis, or a
+vector `u` for the axis along it (Rodrigues' formula `cos θ I + sin θ [u]ₓ + (1 - cos θ)
+u uᵀ`, `u` normalized; its components taken to be real).
+
+```julia
+SymJ.rotation_matrix(θ)              # [cos(θ) -sin(θ); sin(θ) cos(θ)]
+SymJ.rotation_matrix(θ, :z)          # [cos(θ) -sin(θ) 0; sin(θ) cos(θ) 0; 0 0 1]
+SymJ.rotation_matrix(PI/2, [1, 1, 1])
+```
+"""
+function rotation_matrix(θ)
+    c, s = cos(Sym(θ)), sin(Sym(θ))
+    Sym[c -s; s c]
+end
+function rotation_matrix(θ, axis::Union{Integer,Symbol})
+    k = axis isa Symbol ? findfirst(==(axis), (:x, :y, :z)) : Int(axis)
+    (k isa Int && 1 <= k <= 3) || throw(ArgumentError("rotation_matrix: the axis is 1, 2, 3, :x, :y, :z or a vector of length 3"))
+    c, s = cos(Sym(θ)), sin(Sym(θ))
+    R = Matrix{Sym}(LinearAlgebra.I(3))
+    i, j = k == 1 ? (2, 3) : k == 2 ? (3, 1) : (1, 2)   # (y, z), (z, x), (x, y): right-handed
+    R[i, i], R[i, j], R[j, i], R[j, j] = c, -s, s, c
+    R
+end
+function rotation_matrix(θ, axis::AbstractVector)
+    length(axis) == 3 || throw(ArgumentError("rotation_matrix: the axis is 1, 2, 3, :x, :y, :z or a vector of length 3"))
+    v = Sym[Sym(a) for a in axis]
+    r2 = _add_many(a^2 for a in v)
+    iszero(r2) && throw(ArgumentError("rotation_matrix: the axis vector is zero"))
+    u = map(a -> simplify(a / sqrt(r2)), v)
+    c, s = cos(Sym(θ)), sin(Sym(θ))
+    K = Sym[0 -u[3] u[2]; u[3] 0 -u[1]; -u[2] u[1] 0]
+    map(simplify, c * Matrix{Sym}(LinearAlgebra.I(3)) + s * K + (1 - c) * (u * permutedims(u)))
 end

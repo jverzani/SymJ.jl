@@ -630,6 +630,13 @@ Two canonical-form additions came with it:
   kernels of `(A - λI)^k`. **Matrix functions** (`exp`, `sin`, `cos`, `A^n` for a
   symbolic `n`) go through the Jordan form: on a block for `λ`, `f(J)` has
   `f^(j)(λ)/j!` on its `j`-th superdiagonal.
+- **`cholesky`** and **`ldlt`** are the textbook column recurrences with exact
+  arithmetic, symbols taken as real as in `qr`. `cholesky` returns Julia's `Cholesky`
+  with `F.L` the transpose of `F.U` (`LinearAlgebra`'s adjoint would conjugate the
+  symbols); `ldlt` avoids square roots and returns a small `SymLDLt` (Julia's `LDLt` is
+  for tridiagonal matrices). **`SymJ.permanent`** recurses over the rows with the used
+  columns as a bit set, `m C(n, m)` steps. **`SymJ.rotation_matrix`** is right-handed,
+  about a coordinate axis or (Rodrigues' formula) a vector.
 - **`svd`** returns Julia's `LinearAlgebra.SVD`. The singular values are the square
   roots of the eigenvalues of `AᴴA` (entries with `i` conjugated, symbols taken as
   real), largest first when they are numbers; `V` is orthonormal eigenvectors of `AᴴA`

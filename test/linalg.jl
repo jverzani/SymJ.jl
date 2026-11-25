@@ -191,3 +191,59 @@ end
     @test_throws ArgumentError SymJ.smith_normal_form(Sym[sin(x) 1; 0 1])
 end
 
+
+@testset "Cholesky, LDLᵀ, permanent, rotation matrices" begin
+    @syms a b c d θ
+    LA = SymJ.LinearAlgebra
+    A = Sym[a 1; 1 a]
+    # L as the transpose of U, symbols real as for U (L conjugated them: conj(sqrt(a)))
+    C = LA.cholesky(A)
+    @test C.L == Sym[sqrt(a) 0; 1/sqrt(a) sqrt(a - 1/a)]
+    @test simplify.(C.L * C.U) == A
+    L, U = C
+    @test U == C.U
+    # check = false, NoPivot, Hermitian and Symmetric take the same path (they went to
+    # LinearAlgebra's generic code: wrong, or a MethodError)
+    @test LA.cholesky(A; check = false).U == C.U
+    @test LA.cholesky(Sym[4 2; 2 3], LA.NoPivot()).U == Sym[2 1; 0 sqrt(Sym(2))]
+    @test LA.cholesky(LA.Hermitian(Sym[4 2; 2 3])).L == Sym[2 0; 1 sqrt(Sym(2))]
+    @test LA.cholesky(LA.Symmetric(A)).L == C.L
+    @test !LA.issuccess(LA.cholesky(Sym[1 2; 2 1]; check = false))
+    @test LA.cholesky(Sym[4 2; 2 3]) \ Sym[2, 1] == Sym[1 // 2, 0]
+    @test simplify.(C \ Sym[1, 0]) == Sym[a / (a^2 - 1), -1 / (a^2 - 1)]
+    Ci = LA.cholesky(Sym[2 IM; -IM 2])
+    @test simplify.(Ci.L * Ci.U) == Sym[2 IM; -IM 2]
+    @test_throws ArgumentError LA.cholesky(Sym[1 2; 3 4])
+    # LDLᵀ without square roots (SymPy #28477)
+    F = LA.ldlt(Sym[4 2; 2 3])
+    @test Matrix(F.L) == Sym[1 0; 1//2 1]
+    @test F.D == LA.Diagonal(Sym[4, 2])
+    @test F \ Sym[2, 1] == Sym[1 // 2, 0]
+    G = LA.ldlt(A)
+    @test G.D == LA.Diagonal(Sym[a, a - 1/a])
+    @test simplify.(G.L * G.D * transpose(Matrix(G.L))) == A
+    @test LA.ldlt(Sym[1 2; 2 1]).D == LA.Diagonal(Sym[1, -3])          # indefinite is fine
+    @test_throws LA.ZeroPivotException LA.ldlt(Sym[0 1; 1 0])
+    # Symmetric(A) prints (symmetric(::Sym, ::Symbol) was missing)
+    @test occursin("a  1", sprint(show, MIME"text/plain"(), LA.Symmetric(A)))
+    # the permanent, rectangular and empty too (SymPy #28539)
+    per = SymJ.permanent
+    @test per(Sym[a b; c d]) == a * d + b * c
+    @test per(Sym[1 2 3; 4 5 6; 7 8 9]) == 450
+    @test per(Sym[1 2 3; 4 5 6]) == 58
+    @test per(Sym[1 4; 2 5; 3 6]) == 58
+    @test per(zeros(Sym, 0, 3)) == 1
+    @test per(zeros(Sym, 3, 0)) == 1
+    # rotation matrices, right-handed (SymPy #24936, #24528)
+    R = SymJ.rotation_matrix
+    @test R(θ) == Sym[cos(θ) -sin(θ); sin(θ) cos(θ)]
+    @test R(θ, :z) == Sym[cos(θ) -sin(θ) 0; sin(θ) cos(θ) 0; 0 0 1]
+    @test R(θ, 1) == Sym[1 0 0; 0 cos(θ) -sin(θ); 0 sin(θ) cos(θ)]
+    @test R(PI / 2, :y) * Sym[0, 0, 1] == Sym[1, 0, 0]                  # z to x about y
+    @test R(PI / 2, :x) * Sym[0, 1, 0] == Sym[0, 0, 1]
+    @test R(2PI / 3, [1, 1, 1]) * Sym[1, 0, 0] == Sym[0, 1, 0]          # about a vector
+    @test R(θ, [0, 0, 5]) == R(θ, 3)
+    @test simplify.(R(θ, [1, 2, 2]) * transpose(R(θ, [1, 2, 2]))) == Matrix{Sym}(LA.I(3))
+    @test_throws ArgumentError R(θ, 4)
+    @test_throws ArgumentError R(θ, [0, 0, 0])
+end
