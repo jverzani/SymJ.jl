@@ -272,6 +272,27 @@ Contradictory facts are an error (`@assume(x > 1 && x < 0)`), and the
 `Assumptions` value `@assume` makes can be reused: `A = @assume(x > 0,
 n in Integers)`, then `assume = A`.
 
+#### Defaults
+
+Without `assume`, each function starts from its own defaults. Below, `x` is the
+unknown or the variable, and the other symbols are parameters. Everywhere, parameters
+are *generic*: an expression in them is taken to be nonzero unless the facts say
+otherwise (`solve(a*x ~ 1, x)` is `1/a`, with no case `a = 0`).
+
+| function | defaults |
+|:---------|:---------|
+| `solve(eq, x)` | `x ∈ ℂ` (`x^2 ~ -1` gives `±im`); `abs`, `real` or `imag` of `x` is an error suggesting `assume = (x ∈ ℝ,)` |
+| `solve(eqs, xs)` | the unknowns in ℂ, also under `abs`, `real` and `imag`; `assume = (x ∈ ℝ, …)` narrows to ℝ |
+| `SymJ.solveset` | `domain = ℝ` (`x^2 ~ -1` has no solutions); `domain = ℂ` is an option |
+| `SymJ.fsolve` | `domain = ℝ`; `domain = ℂ` finds complex roots too |
+| `SymJ.rsolve` | `n` an integer index, not assumed nonnegative |
+| `SymJ.dsolve` | `x` real inside integrals, but `log(x)` without `abs`; no cases on the signs of parameters (`y'' + a*y ~ 0` gives exponentials in `√(-a)*x`; `assume = (a ≫ 0,)` gives `cos` and `sin`) |
+| `simplify` | all symbols in ℂ: `sqrt(x^2)` and `log(exp(x))` stay as they are |
+| `limit` | `x` and the parameters real: `sqrt(a^2)` is `abs(a)`; cases when the limit depends on a parameter's sign (`exp(a*x)` as `x → ∞`) |
+| `integrate` | `x` and the parameters real: `1/x` integrates to `log(abs(x))`, `sqrt(a^2)` is `abs(a)`; cases on signs when the form depends on them (`1/(x^2 + a)`) |
+
+
+### Numerically finding solutions
 
 As with polynomials, for an equation `solve` cannot solve exactly, `SymJ.fsolve` (with name
 and functionality mirroring Maple's function) finds its roots numerically: the
@@ -285,7 +306,7 @@ SymJ.fsolve(log(x) + sin(x) ~ 1, x, (0, 4))
 )
 ```
 
-### External zero finding
+#### External zero finding
 
 The packages for numerical root finding also take SymJ expressions as
 they are, since an expression is callable (`lambdify` makes a faster
