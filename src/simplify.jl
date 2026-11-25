@@ -1587,24 +1587,24 @@ _conj_sum_parts(e::Sym) = _replace_walk(e) do t
     t.kind == ADD || return nothing
     cs, as = collect(t.coefs), collect(t.args)
     used, out, changed = falses(length(as)), Sym(t.num), false
+    # (the conj terms first, whatever the order of the sum's terms: u before conj(u) was
+    # taken as an ordinary term)
     for i in eachindex(as)
-        used[i] && continue
         a = as[i]
-        if a.kind == FN && a.name === :conj && length(a.args) == 1
-            u = a.args[1]
-            j = findfirst(j -> !used[j] && j != i && _eq(as[j], u) && abs(cs[j]) == abs(cs[i]), eachindex(as))
-            if j !== nothing
-                used[i] = used[j] = true
-                c = Sym(cs[j])
-                out += cs[j] == cs[i] ? 2c * apply_function(:real, Sym[u]) : 2IM * c * apply_function(:imag, Sym[u])
-                changed = true
-                continue
-            end
-        end
-        used[i] = true
-        out += Sym(cs[i]) * a
+        (!used[i] && a.kind == FN && a.name === :conj && length(a.args) == 1) || continue
+        u = a.args[1]
+        j = findfirst(j -> !used[j] && j != i && _eq(as[j], u) && abs(cs[j]) == abs(cs[i]), eachindex(as))
+        j === nothing && continue
+        used[i] = used[j] = true
+        c = Sym(cs[j])
+        out += cs[j] == cs[i] ? 2c * apply_function(:real, Sym[u]) : 2IM * c * apply_function(:imag, Sym[u])
+        changed = true
     end
-    changed ? out : nothing
+    changed || return nothing
+    for i in eachindex(as)
+        used[i] || (out += Sym(cs[i]) * as[i])
+    end
+    out
 end
 
 # in a product, u^p v^q (u, v sums, q a fraction, p and q of one sign) as (uv)^q u^(p - q)

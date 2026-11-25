@@ -435,7 +435,8 @@ end
     @test simplify(exp(IM * (k - conj(k))) - exp(-2imag(k))) == 0
     @test simplify(IM * (k - conj(k))) == -2imag(k)
     # min(a, b) + min(c, d) with a - c = b - d (SymPy #18643)
-    @test simplify(min(0, -c + n - 1) + min(c, n - 1); assume = (c ∈ ℤ, n ∈ ℤ)) == 2min(c, n - 1) - c
+    # (two forms of one size; which one depends on the order of the terms)
+    @test simplify(min(0, -c + n - 1) + min(c, n - 1); assume = (c ∈ ℤ, n ∈ ℤ)) in (2min(c, n - 1) - c, c + 2min(0, n - 1 - c))
     @test simplify(min(0, -c + n - 1) - min(c, n - 1)) == -c
     @test simplify(max(x1 + 1, x2) - max(x1, x2 - 1)) == 1
     # u^p v^q as (uv)^q u^(p - q) for u > 0 (SymPy #20251)
