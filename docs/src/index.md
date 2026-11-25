@@ -21,7 +21,7 @@ for integrals, works on them.
 
 - The [Design notes](@ref) record each decision in detail, with measurements.
 
-- The [Reference](@ref) lists the functions. Most functions are not exported and need qualifying (`SymJ.name`).
+- The [Reference](@ref) lists the functions. Most functions are not exported and need qualifying (`SymJ.name`); `using SymJ.AllCommands` brings them all into scope instead (see [`SymJ.AllCommands`](@ref)).
 
 ## General usage
 

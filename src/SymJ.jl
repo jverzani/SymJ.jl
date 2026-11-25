@@ -90,6 +90,7 @@ include("specialfunctions.jl")
 include("hypergeometric.jl")
 include("polylog.jl")
 include("show.jl")
+include("commands.jl")
 _more_asin_values!()
 include("precompile.jl")
 
