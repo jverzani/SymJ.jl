@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Matrices — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=b326b820">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=8f48000a">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Matrices — SymJ.jl">
   <meta property="og:title" content="Matrices — SymJ.jl">
@@ -77,10 +77,23 @@
     <main class="md-content">
       <article class="md-article">
 <h1 id="Matrices" class="md-heading">Matrices<a href="#Matrices" class="md-heading-anchor" aria-label="Link to this section">#</a></h1>
+<div class="md-docstring" id="SymJ.SymLDLt">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.SymLDLt</code></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/655234978acf05e7ce1e5b448dc16518fcbc5189/src/linalg.jl#L1401-L1407" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.SymLDLt</code></pre>
+</div>
+<p>The result of <a href="../../reference/matrices/#LinearAlgebra.ldlt-Tuple{AbstractMatrix{Sym}}"><code class="md-code-inline">ldlt</code></a> for a matrix of expressions: <code class="md-code-inline">F.L</code> unit lower triangular and <code class="md-code-inline">F.D</code> diagonal with <code class="md-code-inline">A = L D Lᴴ</code>. <code class="md-code-inline">L, D = F</code> destructures it, and <code class="md-code-inline">F \ b</code> solves <code class="md-code-inline">A x = b</code>.</p>
+</div>
+</div>
 <div class="md-docstring" id="SymJ.SymQR">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymQR</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a41e4a55b8dd6ed99c24a2c3fb6fc0813b43b38/src/linalg.jl#L1274-L1280" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/655234978acf05e7ce1e5b448dc16518fcbc5189/src/linalg.jl#L1274-L1280" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -93,7 +106,7 @@
 <div class="md-docstring" id="Base.:^-Tuple{AbstractMatrix{Sym}, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>Base.:^</code> — <span class="md-docstring-sig">Tuple{AbstractMatrix{Sym}, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a41e4a55b8dd6ed99c24a2c3fb6fc0813b43b38/src/linalg.jl#L1640-L1645" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/655234978acf05e7ce1e5b448dc16518fcbc5189/src/linalg.jl#L1728-L1733" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -106,7 +119,7 @@
 <div class="md-docstring" id="Base.exp-Tuple{StridedMatrix{Sym}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>Base.exp</code> — <span class="md-docstring-sig">Tuple{StridedMatrix{Sym}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a41e4a55b8dd6ed99c24a2c3fb6fc0813b43b38/src/linalg.jl#L1625-L1634" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/655234978acf05e7ce1e5b448dc16518fcbc5189/src/linalg.jl#L1713-L1722" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -123,7 +136,7 @@
 <div class="md-docstring" id="Base.inv-Tuple{StridedMatrix{Sym}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>Base.inv</code> — <span class="md-docstring-sig">Tuple{StridedMatrix{Sym}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a41e4a55b8dd6ed99c24a2c3fb6fc0813b43b38/src/linalg.jl#L274-L284" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/655234978acf05e7ce1e5b448dc16518fcbc5189/src/linalg.jl#L274-L284" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -140,7 +153,7 @@
 <div class="md-docstring" id="Base.sqrt-Tuple{StridedMatrix{Sym}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>Base.sqrt</code> — <span class="md-docstring-sig">Tuple{StridedMatrix{Sym}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a41e4a55b8dd6ed99c24a2c3fb6fc0813b43b38/src/linalg.jl#L1661-L1673" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/655234978acf05e7ce1e5b448dc16518fcbc5189/src/linalg.jl#L1749-L1761" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -155,27 +168,28 @@ Sym[4 1; 0 4]^(3//2)         # [8 3; 0 8]</code></pre>
 </div>
 </div>
 </div>
-<div class="md-docstring" id="LinearAlgebra.cholesky-Tuple{AbstractMatrix{Sym}}">
+<div class="md-docstring" id="LinearAlgebra.cholesky">
 <div class="md-docstring-header">
-<h4 class="md-docstring-binding"><code>LinearAlgebra.cholesky</code> — <span class="md-docstring-sig">Tuple{AbstractMatrix{Sym}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a41e4a55b8dd6ed99c24a2c3fb6fc0813b43b38/src/linalg.jl#L1335-L1347" title="View source">source</a>
+<h4 class="md-docstring-binding"><code>LinearAlgebra.cholesky</code> — <span class="md-docstring-sig">Union{Tuple{AbstractMatrix{Sym}}, Tuple{AbstractMatrix{Sym}, LinearAlgebra.NoPivot}}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/655234978acf05e7ce1e5b448dc16518fcbc5189/src/linalg.jl#L1335-L1351" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">cholesky(A::AbstractMatrix{Sym})</code></pre>
+<pre><code class="language-julia">cholesky(A::AbstractMatrix{Sym}, NoPivot(); check = true)</code></pre>
 </div>
-<p>The Cholesky factorization <code class="md-code-inline">A = Uᴴ U</code> of a Hermitian positive definite matrix of expressions, with exact arithmetic: <code class="md-code-inline">U</code> upper triangular with the square roots of the pivots on its diagonal. Symbols are taken to be real, as in <a href="../../reference/matrices/#LinearAlgebra.qr-Tuple{AbstractMatrix{Sym}}"><code class="md-code-inline">qr</code></a>. A pivot that is known not to be positive throws a <code class="md-code-inline">PosDefException</code>. Returns a <code class="md-code-inline">LinearAlgebra.Cholesky</code> (<code class="md-code-inline">F.U</code>, <code class="md-code-inline">F.L</code>).</p>
+<p>The Cholesky factorization <code class="md-code-inline">A = Uᴴ U</code> of a Hermitian positive definite matrix of expressions, with exact arithmetic: <code class="md-code-inline">U</code> upper triangular with the square roots of the pivots on its diagonal. Symbols are taken to be real, as in <a href="../../reference/matrices/#LinearAlgebra.qr-Tuple{AbstractMatrix{Sym}}"><code class="md-code-inline">qr</code></a>, for <code class="md-code-inline">U</code> and for <code class="md-code-inline">L = Uᴴ</code> alike (<code class="md-code-inline">F.L * F.U == A</code>). A pivot that is known not to be positive throws a <code class="md-code-inline">PosDefException</code> (with <code class="md-code-inline">check = false</code>, the factorization stops there and <code class="md-code-inline">issuccess(F)</code> is false). Returns a <code class="md-code-inline">LinearAlgebra.Cholesky</code> (<code class="md-code-inline">F.U</code>, <code class="md-code-inline">F.L</code>, <code class="md-code-inline">L, U = F</code>, <code class="md-code-inline">F \ b</code>). Without square roots: <a href="../../reference/matrices/#LinearAlgebra.ldlt-Tuple{AbstractMatrix{Sym}}"><code class="md-code-inline">ldlt</code></a>.</p>
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
-<pre><code class="language-julia">cholesky(Sym[4 2; 2 3]).U        # [2 1; 0 sqrt(2)]</code></pre>
+<pre><code class="language-julia">cholesky(Sym[4 2; 2 3]).U        # [2 1; 0 sqrt(2)]
+cholesky(Sym[a 1; 1 a]).L        # [sqrt(a) 0; 1/sqrt(a) sqrt(a - 1/a)]</code></pre>
 </div>
 </div>
 </div>
 <div class="md-docstring" id="LinearAlgebra.eigen-Tuple{AbstractMatrix{Sym}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>LinearAlgebra.eigen</code> — <span class="md-docstring-sig">Tuple{AbstractMatrix{Sym}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a41e4a55b8dd6ed99c24a2c3fb6fc0813b43b38/src/linalg.jl#L1228-L1235" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/655234978acf05e7ce1e5b448dc16518fcbc5189/src/linalg.jl#L1228-L1235" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -188,7 +202,7 @@ Sym[4 1; 0 4]^(3//2)         # [8 3; 0 8]</code></pre>
 <div class="md-docstring" id="LinearAlgebra.eigvals-Tuple{AbstractMatrix{Sym}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>LinearAlgebra.eigvals</code> — <span class="md-docstring-sig">Tuple{AbstractMatrix{Sym}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a41e4a55b8dd6ed99c24a2c3fb6fc0813b43b38/src/linalg.jl#L1096-L1108" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/655234978acf05e7ce1e5b448dc16518fcbc5189/src/linalg.jl#L1096-L1108" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -206,7 +220,7 @@ eigvals([a b; b a])          # [a - b, a + b]</code></pre>
 <div class="md-docstring" id="LinearAlgebra.eigvecs-Tuple{AbstractMatrix{Sym}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>LinearAlgebra.eigvecs</code> — <span class="md-docstring-sig">Tuple{AbstractMatrix{Sym}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a41e4a55b8dd6ed99c24a2c3fb6fc0813b43b38/src/linalg.jl#L1131-L1137" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/655234978acf05e7ce1e5b448dc16518fcbc5189/src/linalg.jl#L1131-L1137" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -216,10 +230,28 @@ eigvals([a b; b a])          # [a - b, a + b]</code></pre>
 <p>Eigenvectors of a matrix of expressions as the columns of a matrix: a basis of each eigenspace, the null space of <code class="md-code-inline">A - v*I</code>, eigenvalue by eigenvalue (in the order of <code class="md-code-inline">eigvals</code>). A defective matrix has fewer columns than rows.</p>
 </div>
 </div>
+<div class="md-docstring" id="LinearAlgebra.ldlt-Tuple{AbstractMatrix{Sym}}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>LinearAlgebra.ldlt</code> — <span class="md-docstring-sig">Tuple{AbstractMatrix{Sym}}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/655234978acf05e7ce1e5b448dc16518fcbc5189/src/linalg.jl#L1424-L1437" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">ldlt(A::AbstractMatrix{Sym})</code></pre>
+</div>
+<p>The factorization <code class="md-code-inline">A = L D Lᴴ</code> of a Hermitian matrix of expressions without square roots (the cheaper alternative to <a href="../../reference/matrices/#LinearAlgebra.cholesky"><code class="md-code-inline">cholesky</code></a> for solving; SymPy #28477): <code class="md-code-inline">L</code> unit lower triangular, <code class="md-code-inline">D</code> diagonal. Symbols are taken to be real. A zero pivot is an error (<code class="md-code-inline">ZeroPivotException</code>); <code class="md-code-inline">D</code> need not be positive. Returns a <code class="md-code-inline">SymJ.SymLDLt</code> (<code class="md-code-inline">F.L</code>, <code class="md-code-inline">F.D</code>, <code class="md-code-inline">L, D = F</code>, <code class="md-code-inline">F \ b</code>).</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">F = ldlt(Sym[4 2; 2 3])          # L = [1 0; 1/2 1], D = Diagonal([4, 2])
+F \ Sym[2, 1]                    # [1/2, 0]</code></pre>
+</div>
+</div>
+</div>
 <div class="md-docstring" id="LinearAlgebra.lu">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>LinearAlgebra.lu</code> — <span class="md-docstring-sig">Union{Tuple{AbstractMatrix{Sym}}, Tuple{AbstractMatrix{Sym}, Union{LinearAlgebra.NoPivot, LinearAlgebra.RowMaximum, LinearAlgebra.RowNonZero}}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a41e4a55b8dd6ed99c24a2c3fb6fc0813b43b38/src/linalg.jl#L487-L496" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/655234978acf05e7ce1e5b448dc16518fcbc5189/src/linalg.jl#L487-L496" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -232,7 +264,7 @@ eigvals([a b; b a])          # [a - b, a + b]</code></pre>
 <div class="md-docstring" id="LinearAlgebra.nullspace-Tuple{AbstractMatrix{Sym}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>LinearAlgebra.nullspace</code> — <span class="md-docstring-sig">Tuple{AbstractMatrix{Sym}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a41e4a55b8dd6ed99c24a2c3fb6fc0813b43b38/src/linalg.jl#L833-L839" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/655234978acf05e7ce1e5b448dc16518fcbc5189/src/linalg.jl#L833-L839" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -245,7 +277,7 @@ eigvals([a b; b a])          # [a - b, a + b]</code></pre>
 <div class="md-docstring" id="LinearAlgebra.pinv-Tuple{AbstractMatrix{Sym}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>LinearAlgebra.pinv</code> — <span class="md-docstring-sig">Tuple{AbstractMatrix{Sym}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a41e4a55b8dd6ed99c24a2c3fb6fc0813b43b38/src/linalg.jl#L1684-L1695" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/655234978acf05e7ce1e5b448dc16518fcbc5189/src/linalg.jl#L1772-L1783" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -262,7 +294,7 @@ eigvals([a b; b a])          # [a - b, a + b]</code></pre>
 <div class="md-docstring" id="LinearAlgebra.qr-Tuple{AbstractMatrix{Sym}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>LinearAlgebra.qr</code> — <span class="md-docstring-sig">Tuple{AbstractMatrix{Sym}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a41e4a55b8dd6ed99c24a2c3fb6fc0813b43b38/src/linalg.jl#L1298-L1309" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/655234978acf05e7ce1e5b448dc16518fcbc5189/src/linalg.jl#L1298-L1309" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -279,7 +311,7 @@ eigvals([a b; b a])          # [a - b, a + b]</code></pre>
 <div class="md-docstring" id="LinearAlgebra.rank-Tuple{AbstractMatrix{Sym}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>LinearAlgebra.rank</code> — <span class="md-docstring-sig">Tuple{AbstractMatrix{Sym}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a41e4a55b8dd6ed99c24a2c3fb6fc0813b43b38/src/linalg.jl#L748-L761" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/655234978acf05e7ce1e5b448dc16518fcbc5189/src/linalg.jl#L748-L761" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -297,7 +329,7 @@ rank(Sym[1 2; 3 k]; generic = false)   # k == 6 =&gt; 1, k != 6 =&gt; 2</code></
 <div class="md-docstring" id="LinearAlgebra.svd-Tuple{AbstractMatrix{Sym}}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>LinearAlgebra.svd</code> — <span class="md-docstring-sig">Tuple{AbstractMatrix{Sym}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a41e4a55b8dd6ed99c24a2c3fb6fc0813b43b38/src/linalg.jl#L1423-L1446" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/655234978acf05e7ce1e5b448dc16518fcbc5189/src/linalg.jl#L1511-L1534" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -318,7 +350,7 @@ svdvals(Sym[a 0; 0 b]; assume = @assume(a &gt; 0, b &gt; 0))   # [b, a]</code></
 <div class="md-docstring" id="SymJ.charpoly-Tuple{AbstractMatrix, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.charpoly</code> — <span class="md-docstring-sig">Tuple{AbstractMatrix, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a41e4a55b8dd6ed99c24a2c3fb6fc0813b43b38/src/linalg.jl#L887-L892" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/655234978acf05e7ce1e5b448dc16518fcbc5189/src/linalg.jl#L887-L892" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -331,7 +363,7 @@ svdvals(Sym[a 0; 0 b]; assume = @assume(a &gt; 0, b &gt; 0))   # [b, a]</code></
 <div class="md-docstring" id="SymJ.jordan_form-Tuple{AbstractMatrix}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.jordan_form</code> — <span class="md-docstring-sig">Tuple{AbstractMatrix}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a41e4a55b8dd6ed99c24a2c3fb6fc0813b43b38/src/linalg.jl#L1490-L1500" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/655234978acf05e7ce1e5b448dc16518fcbc5189/src/linalg.jl#L1578-L1588" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -345,10 +377,47 @@ svdvals(Sym[a 0; 0 b]; assume = @assume(a &gt; 0, b &gt; 0))   # [b, a]</code></
 </div>
 </div>
 </div>
+<div class="md-docstring" id="SymJ.permanent-Tuple{AbstractMatrix}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.permanent</code> — <span class="md-docstring-sig">Tuple{AbstractMatrix}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/655234978acf05e7ce1e5b448dc16518fcbc5189/src/linalg.jl#L1838-L1850" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.permanent(A)</code></pre>
+</div>
+<p>The permanent of <code class="md-code-inline">A</code>: <code class="md-code-inline">Σ_σ Π_i A[i, σ(i)]</code> over the injections σ of the rows into the columns, like the determinant without signs. A matrix with more rows than columns has the permanent of its transpose, and one with no rows (or no columns) has permanent 1 (SymPy #28539). By recursion over the rows with the used columns as a set, <code class="md-code-inline">m C(n, m)</code> steps.</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.permanent(Sym[a b; c d])       # a*d + b*c</code></pre>
+</div>
+</div>
+</div>
+<div class="md-docstring" id="SymJ.rotation_matrix-Tuple{Any}">
+<div class="md-docstring-header">
+<h4 class="md-docstring-binding"><code>SymJ.rotation_matrix</code> — <span class="md-docstring-sig">Tuple{Any}</span></h4>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/655234978acf05e7ce1e5b448dc16518fcbc5189/src/linalg.jl#L1875-L1890" title="View source">source</a>
+</div>
+<div class="md-docstring-content">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.rotation_matrix(θ)
+SymJ.rotation_matrix(θ, axis)</code></pre>
+</div>
+<p>The matrix of the rotation by the angle <code class="md-code-inline">θ</code> (counterclockwise, the right-hand rule; SymPy #24528), acting on column vectors: in the plane <code class="md-code-inline">[cos θ -sin θ; sin θ cos θ]</code>; in space about <code class="md-code-inline">axis</code>, which is <code class="md-code-inline">1</code>, <code class="md-code-inline">2</code>, <code class="md-code-inline">3</code> (or <code class="md-code-inline">:x</code>, <code class="md-code-inline">:y</code>, <code class="md-code-inline">:z</code>) for a coordinate axis, or a vector <code class="md-code-inline">u</code> for the axis along it (Rodrigues&#39; formula <code class="md-code-inline">cos θ I + sin θ [u]ₓ + (1 - cos θ) u uᵀ</code>, <code class="md-code-inline">u</code> normalized; its components taken to be real).</p>
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">SymJ.rotation_matrix(θ)              # [cos(θ) -sin(θ); sin(θ) cos(θ)]
+SymJ.rotation_matrix(θ, :z)          # [cos(θ) -sin(θ) 0; sin(θ) cos(θ) 0; 0 0 1]
+SymJ.rotation_matrix(PI/2, [1, 1, 1])</code></pre>
+</div>
+</div>
+</div>
 <div class="md-docstring" id="SymJ.rref-Tuple{AbstractMatrix}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.rref</code> — <span class="md-docstring-sig">Tuple{AbstractMatrix}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a41e4a55b8dd6ed99c24a2c3fb6fc0813b43b38/src/linalg.jl#L735-L745" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/655234978acf05e7ce1e5b448dc16518fcbc5189/src/linalg.jl#L735-L745" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -365,7 +434,7 @@ svdvals(Sym[a 0; 0 b]; assume = @assume(a &gt; 0, b &gt; 0))   # [b, a]</code></
 <div class="md-docstring" id="SymJ.hermite_normal_form-Tuple{AbstractMatrix}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.hermite_normal_form</code> — <span class="md-docstring-sig">Tuple{AbstractMatrix}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a41e4a55b8dd6ed99c24a2c3fb6fc0813b43b38/src/normalforms.jl#L238-L253" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/655234978acf05e7ce1e5b448dc16518fcbc5189/src/normalforms.jl#L238-L253" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -383,7 +452,7 @@ SymJ.hermite_normal_decomp(A)</code></pre>
 <div class="md-docstring" id="SymJ.smith_normal_form-Tuple{AbstractMatrix}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.smith_normal_form</code> — <span class="md-docstring-sig">Tuple{AbstractMatrix}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/6a41e4a55b8dd6ed99c24a2c3fb6fc0813b43b38/src/normalforms.jl#L215-L230" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/655234978acf05e7ce1e5b448dc16518fcbc5189/src/normalforms.jl#L215-L230" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -416,6 +485,6 @@ D, U, V = SymJ.smith_normal_decomp(Sym[x 1; 0 x])         # diagonal 1, x^2</cod
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=b326b820"></script>
+  <script src="../../assets/materialdocs.js?v=8f48000a"></script>
 </body>
 </html>

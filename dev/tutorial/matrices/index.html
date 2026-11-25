@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Matrices — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=d44aa55b">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=8a87553a">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Matrices — SymJ.jl">
   <meta property="og:title" content="Matrices — SymJ.jl">
@@ -229,6 +229,51 @@ Q, R</code></pre>
 \right] \right)\]
 </div>
 </div>
+<p>Cholesky and LDLᵀ factorizations of a symmetric matrix, the second without square roots:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms a
+C = cholesky(Sym[a 1; 1 a])
+F = ldlt(Sym[a 1; 1 a])
+C.L, F.L, F.D</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \left[
+\begin{array}{cc}
+\sqrt{a} &amp; 0 \\
+\frac{1}{\sqrt{a}} &amp; \sqrt{a - \frac{1}{a}} \\
+\end{array}
+\right], \; \left[
+\begin{array}{cc}
+1 &amp; 0 \\
+\frac{1}{a} &amp; 1 \\
+\end{array}
+\right], \; \left[
+\begin{array}{cc}
+a &amp; 0 \\
+0 &amp; a - \frac{1}{a} \\
+\end{array}
+\right] \right)\]
+</div>
+</div>
+<p>Rotation matrices (right-handed; about <code class="md-code-inline">:x</code>, <code class="md-code-inline">:y</code>, <code class="md-code-inline">:z</code> or any vector) and the permanent:</p>
+<div class="md-multi-output">
+<div class="md-code-block">
+<button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
+<pre><code class="language-julia">@syms θ
+SymJ.rotation_matrix(θ, :z), SymJ.permanent(Sym[1 2; 3 4])</code></pre>
+</div>
+<div class="md-math md-math-display">
+\[\left( \left[
+\begin{array}{ccc}
+\cos\left( \theta \right) &amp;  - \sin\left( \theta \right) &amp; 0 \\
+\sin\left( \theta \right) &amp; \cos\left( \theta \right) &amp; 0 \\
+0 &amp; 0 &amp; 1 \\
+\end{array}
+\right], \; 10 \right)\]
+</div>
+</div>
 <p>The singular value decomposition, exactly, for small matrices:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
@@ -320,6 +365,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=d44aa55b"></script>
+  <script src="../../assets/materialdocs.js?v=8a87553a"></script>
 </body>
 </html>
