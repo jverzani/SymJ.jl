@@ -54,6 +54,37 @@
     @test diff(Sym(3), x) == 0
 end
 
+@testset "gradient, jacobian, hessian, divergence, curl, laplacian (SymPy #30186)" begin
+    @syms r θ a
+    grad, jac, hess = SymJ.gradient, SymJ.jacobian, SymJ.hessian
+    @test grad(x^2 * y + sin(y), [x, y]) == [2x * y, x^2 + cos(y)]
+    @test grad(x^2 * y, (x, y)) == [2x * y, x^2]                     # a tuple of variables
+    @test grad(Sym(3), [x, y]) == [0, 0]
+    @test jac([r * cos(θ), r * sin(θ)], [r, θ]) == Sym[cos(θ) -r*sin(θ); sin(θ) r*cos(θ)]
+    @test simplify(SymJ.LinearAlgebra.det(jac([r * cos(θ), r * sin(θ)], [r, θ]))) == r
+    @test size(jac([x, y, x * y], [x, y])) == (3, 2)                 # m × n
+    @test jac(x^2 * y, [x, y]) == Sym[2x*y x^2]                      # a scalar: the row
+    @test jac(Sym[x * y; x + y;;], [x, y]) == Sym[y x; 1 1]          # a column matrix
+    @test jac((x * y, x + y), (x, y)) == Sym[y x; 1 1]               # tuples
+    @test hess(x^3 + x * y^2, [x, y]) == Sym[6x 2y; 2y 2x]
+    @test hess(exp(a * x * y), [x, y]) == jac(grad(exp(a * x * y), [x, y]), [x, y])
+    @test hess(f(x, y), [x, y])[1, 2] == hess(f(x, y), [x, y])[2, 1]
+    @test_throws ArgumentError grad(x^2, [x^2])                       # not a symbol
+    @test_throws ArgumentError hess([x, y], [x, y])                  # not a scalar
+    div, curl, lap = SymJ.divergence, SymJ.curl, SymJ.laplacian
+    @test div([x^2, x * y, y * z], [x, y, z]) == 3x + y
+    @test div((x, y), (x, y)) == 2
+    @test_throws ArgumentError div([x, y], [x, y, z])               # lengths differ
+    @test curl([-y, x, 0], [x, y, z]) == Sym[0, 0, 2]
+    @test curl(grad(x^2 * y * z, [x, y, z]), [x, y, z]) == Sym[0, 0, 0]   # curl ∘ grad = 0
+    @test div(curl([x * y, y * z^2, x^3], [x, y, z]), [x, y, z]) == 0      # div ∘ curl = 0
+    @test_throws ArgumentError curl([x, y], [x, y])                  # three components
+    @test lap(x^2 * y + y^3, [x, y]) == 8y
+    @test simplify(lap(log(x^2 + y^2), [x, y])) == 0                # harmonic
+    @test lap(x^2 * y * z, [x, y, z]) == div(grad(x^2 * y * z, [x, y, z]), [x, y, z])
+    @test lap([x^2, y^3], [x, y]) == [2, 6y]                         # entrywise
+end
+
 @testset "series" begin
     @syms sa
     S(e, args...) = Sym(series(e, args...))
