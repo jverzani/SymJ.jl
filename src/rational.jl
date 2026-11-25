@@ -219,6 +219,10 @@ function _cancel_radicals(P::Poly{SymNumber}, Q::Poly{SymNumber}, gs::Vector{Sym
     plain = all(g -> _isnamed(g) || _isrationalsqrt(g), gs)
     rad = [i for i in eachindex(gs) if _isrationalsqrt(gs[i]) && (plain || !_eq(gs[i], IM))]
     isempty(rad) && return nothing
+    # (only for roots independent modulo squares: with √6 = √2√3 among √2, √3, √6, the
+    # conjugate -√2√3 + √6 is 0, and so the product of the conjugates, and √2√3 + √6 was
+    # taken to be 0)
+    _rational_sqrts_independent(gs, rad) || return nothing
     inQ = [i for i in rad if _maxdegs(Q)[i] > 0]
     inP = [i for i in rad if _maxdegs(P)[i] > 0]
     if !isempty(inQ)
@@ -279,6 +283,45 @@ function _conj_cancel(R::Poly{SymNumber}, S::Poly{SymNumber}, gs::Vector{Sym}, r
     end
 end
 # (i = (-1)^(1/2) too, conjugated i -> -i: (p² + 1)/(i p - 1) is -i p - 1; SymPy #6336)
+# whether the square roots gs[rad] of rationals (and i) are multiplicatively independent
+# modulo squares: their radicands' squarefree parts, as sets of primes (-1 for a sign),
+# linearly independent over GF(2)
+function _rational_sqrts_independent(gs::Vector{Sym}, rad::Vector{Int})
+    basis = Dict{Int,Set{Int}}()                      # pivot (largest prime) => vector
+    for i in rad
+        v = _squarefree_support(Rational{BigInt}(_rat(gs[i].args[1].num)))
+        v === nothing && return false
+        while !isempty(v)
+            p = maximum(v)
+            haskey(basis, p) || (basis[p] = v; break)
+            v = symdiff(v, basis[p])
+        end
+        isempty(v) && return false                     # a product of the others, up to squares
+    end
+    true
+end
+# the primes to an odd power in r (-1 when r < 0); nothing when r has a large factor left
+function _squarefree_support(r::Rational{BigInt})
+    s = Set{Int}()
+    r < 0 && push!(s, -1)
+    m = abs(numerator(r)) * denominator(r)
+    p = 2
+    while p * p <= m
+        p > 10^6 && return nothing
+        e = 0
+        while iszero(m % p)
+            m ÷= p
+            e += 1
+        end
+        isodd(e) && push!(s, p)
+        p += p == 2 ? 1 : 2
+    end
+    if m > 1
+        m > typemax(Int) && return nothing
+        push!(s, Int(m))
+    end
+    s
+end
 _isrationalsqrt(a::Sym) = a.kind == POW && a.args[2] == HALF && a.args[1].kind == NUMBER &&
     isexact(a.args[1].num) && (a.args[1].num > N0 || _isN1(-a.args[1].num))
 
