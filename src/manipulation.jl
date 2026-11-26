@@ -219,6 +219,10 @@ subs(ex::Number, args...) = Sym(ex)
 
 # whole nodes, unless a target is a power, a sum or a product, also matched algebraically
 function _subs_top(ex::Sym, d::Dict{Sym,Sym})
+    # x => x is no substitution: dropped, as a bound variable took it for a value
+    # (subs(Derivative(f(x), x), x => x) was f'(x) at the point x, Derivative(f(x), x, x))
+    any(((k, v),) -> _eq(k, v), d) && (d = Dict{Sym,Sym}(k => v for (k, v) in d if !_eq(k, v)))
+    isempty(d) && return ex
     # a target c M, c a number ≠ 1 and M a power or product: M => v/c, so M is found in any
     # term (subs(2x² + y, 2x² => s) was unchanged; SymPy #5217)
     if any(k -> k.kind == MUL && !isone(k.num) && _subs_compound(k / Sym(k.num)), keys(d))
@@ -570,7 +574,7 @@ function _subs_derivative(ex::Sym, d::Dict{Sym,Sym})
         return apply_function(:Derivative, Sym[fs, v, _subs(ex.args[3], d)])
     end
     w = get(d, v, nothing)
-    w === nothing && return apply_function(:Derivative, Sym[fs, v])
+    (w === nothing || _eq(w, v)) && return apply_function(:Derivative, Sym[fs, v])
     # renamed only to a symbol not already in f (y => x in ∂f(x, y)/∂y is ∂₂f(x, x))
     w.kind == SYMBOL && !has(fs, w) && return apply_function(:Derivative, Sym[_subs(fs, Dict(v => w)), w])
     apply_function(:Derivative, Sym[fs, v, w])
