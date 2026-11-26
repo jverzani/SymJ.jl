@@ -181,6 +181,20 @@ end
     @test has(sin(x) + y, x)
     @test !has(sin(x) + y, z)
     @test N((x^2)(x => 2.5)) == 6.25
+    # x => x is no substitution, also for a variable bound in a derivative or integral
+    # (it made Derivative(f(x), x) the derivative at the point x; found by SymJOSR)
+    @test isequal(subs(diff(f(x), x), x => x), diff(f(x), x))
+    @test isequal(subs(diff(f(x), x, 2), x => x), diff(f(x), x, 2))
+    @test isequal(subs(f(x) * diff(f(x), x), x => x), f(x) * diff(f(x), x))
+    @test isequal(subs(diff(f(x), x), Dict(x => x)), diff(f(x), x))
+    @test isequal(subs(diff(f(x), x), x => x, y => 1), diff(f(x), x))
+    @test isequal(subs(SymJ.Integral(f(x), x), x => x), SymJ.Integral(f(x), x))
+    let e = x^2 + y
+        @test subs(e, x => x) === e
+    end
+    # a rename and a point, as before
+    @test isequal(subs(diff(f(x), x), x => y), diff(f(y), y))
+    @test isequal(subs(diff(f(x), x), x => 2), SymJ.SymDerivative(f, 1)(2))
 end
 
 @testset "calling with keywords" begin
