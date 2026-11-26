@@ -90,8 +90,11 @@ include("specialfunctions.jl")
 include("hypergeometric.jl")
 include("polylog.jl")
 include("show.jl")
-include("commands.jl")
 _more_asin_values!()
 include("precompile.jl")
+# (after the precompile workload: on Julia 1.12 any submodule defined before it, even an
+# empty one, brought back #230 — with Test or JSON loaded first, the first show of an
+# expression re-inferred SymJ's printing code for minutes, `@syms x` at the REPL too)
+include("commands.jl")
 
 end
