@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Calculus — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=89b61224">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=4cae52c4">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Calculus — SymJ.jl">
   <meta property="og:title" content="Calculus — SymJ.jl">
@@ -80,7 +80,7 @@
 <h1 id="Calculus" class="md-heading">Calculus<a href="#Calculus" class="md-heading-anchor" aria-label="Link to this section">#</a></h1>
 <p>Limits, derivatives, series, sums, integrals and differential equations.</p>
 <h2 id="Limits" class="md-heading">Limits<a href="#Limits" class="md-heading-anchor" aria-label="Link to this section">#</a></h2>
-<p><code class="md-code-inline">limit(f, x =&gt; x0)</code> is the limit of <code class="md-code-inline">f</code> as <code class="md-code-inline">x</code> tends to <code class="md-code-inline">x0</code>, a number, an expression or <code class="md-code-inline">Inf</code>. It is computed by Gruntz&#39;s algorithm, through GruntzLimit. An infinite limit is returned as <code class="md-code-inline">Sym(Inf)</code> or <code class="md-code-inline">Sym(-Inf)</code>:</p>
+<p><code class="md-code-inline">limit(f, x =&gt; x0)</code> is the limit of <code class="md-code-inline">f</code> as <code class="md-code-inline">x</code> tends to <code class="md-code-inline">x0</code>, a number, an expression or <code class="md-code-inline">Inf</code>. It is computed by Gruntz&#39;s algorithm, through GruntzLimit. An infinite limit is returned as <code class="md-code-inline">Sym(Inf)</code> or <code class="md-code-inline">Sym(-Inf)</code>, which is also available as <a href="../../reference/expressions/#SymJ.oo"><code class="md-code-inline">SymJ.oo</code></a> (complex infinity is <a href="../../reference/expressions/#SymJ.zoo"><code class="md-code-inline">SymJ.zoo</code></a>). In arithmetic it behaves as an infinity: <code class="md-code-inline">oo + π</code> is <code class="md-code-inline">oo</code>, <code class="md-code-inline">1/oo</code> is <code class="md-code-inline">0</code>, and <code class="md-code-inline">oo - oo</code> is <code class="md-code-inline">NaN</code>:</p>
 <div class="md-multi-output">
 <div class="md-code-block">
 <button class="md-copy-btn" title="Copy to clipboard" aria-label="Copy code"><span class="md-copy-icon">⧉</span><span class="md-copy-feedback">Copied!</span></button>
@@ -1068,6 +1068,6 @@ document.querySelectorAll('.md-math').forEach(function (el) {
 });</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=89b61224"></script>
+  <script src="../../assets/materialdocs.js?v=4cae52c4"></script>
 </body>
 </html>
