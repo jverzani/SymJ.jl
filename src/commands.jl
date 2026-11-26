@@ -24,7 +24,7 @@ const _COMMANDS = (
     # patterns and rules
     Symbol("@rule"), Symbol("@pattern"), :rule, :pattern, :register_function!,
     # constants and the cases of an answer
-    :PI, :E, :IM, :Cases,
+    :PI, :E, :IM, :oo, :zoo, :Cases,
 )
 
 eval(Expr(:public, _COMMANDS...))
@@ -34,9 +34,9 @@ eval(Expr(:public, _COMMANDS...))
 
 A module that exports SymJ's unexported functions, for those who would rather not
 qualify them: after `using SymJ.AllCommands`, `dsolve`, `summation`, `rref`,
-`simplify_trig` and the rest are in scope, as are the constants `PI`, `E` and `IM`. Plain
-`using SymJ` keeps the smaller set of names; the others are `public` and can always be
-written `SymJ.dsolve` and so on.
+`simplify_trig` and the rest are in scope, as are the constants `PI`, `E`, `IM`, `oo`
+(∞) and `zoo` (complex ∞). Plain `using SymJ` keeps the smaller set of names; the others
+are `public` and can always be written `SymJ.dsolve` and so on.
 
 A name exported by another package loaded the same way (`gradient` in ForwardDiff, say)
 is an error only where it is used unqualified; qualify it there.

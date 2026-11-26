@@ -23,7 +23,7 @@ series, assumptions, a basic `simplify`, summation, differential equations)
 | Exact radicals, π, ℯ, exact function values | `sqrt`, `pi`, `E` | built in | ✅ `sqrt(Sym(8)) == 2sqrt(2)`, `sin(π/3) == sqrt(3)/2`; no `τ = 2π` constant (requested, SymPy #26454) |
 | Combining and denesting radicals | `radsimp`, `sqrtdenest` | `simplify` | ✅ through `simplify`: combining (`sqrt(2)*sqrt(3) = sqrt(6)`), denesting square roots of `a + b sqrt(c)`, rationalizing denominators; ◐ no deeper denesting |
 | Complex numbers: `re`, `im`, `conj`, `arg` | `re`, `im`, `conjugate`, `arg` | `re`, `im`, `conj`, `arg` | ✅ `real`, `imag`, `conj`, `angle`, `reim` (exact for constants; identities for every complex value as built; parts under assumptions through `refine`); `adjoint` for matrices of expressions |
-| Symbolic infinity and undefined | `oo`, `zoo`, `nan` | `infinity`, `undef` | ◐ limits return `Sym(Inf)`; no symbolic infinity in expressions; no accumulation bounds (`AccumBounds`; SymPy #28576) |
+| Symbolic infinity and undefined | `oo`, `zoo`, `nan` | `infinity`, `undef` | ◐ `SymJ.oo` is `Sym(Inf)`, as limits return it, with infinity arithmetic (`oo + π = oo`, `1/oo = 0`, `oo - oo`, `0·oo` NaN); `SymJ.zoo`, complex infinity, absorbing finite constants (`zoo - zoo`, `0·zoo` NaN, `abs(zoo) = oo`), but not produced by division by zero or at poles (a `DivisionByZero` error, unlike SymPy); NaN is the float; ❌ no accumulation bounds (`AccumBounds`; SymPy #28576) |
 | Numeric evaluation | `evalf(n)` | `evalf` | ✅ `N` (Float64, checked in higher precision, so cancellation is recovered), `float` (Julia's: BigFloat for big numbers), `SymJ.evalf(ex, T, prec)` (a BigFloat to `prec` bits), calling with `BigFloat`, dual numbers, … (SymPy #28537, #28514) |
 | Assumptions on symbols | `symbols(positive=True)`, `ask`, `refine`, `Q` | `assume` | ✅ `@assume`, `assuming`/`@assuming` (a `SymJ.Assumptions`), per call or per block, not stored on symbols; used by `solve` (equations and systems), `limit`, `refine`, `simplify` (`sqrt(x^2) = x` for `x > 0`), `integrate`, `rsolve` and `dsolve`; expressions in parameters are generic (nonzero) by default; ◐ not integer congruences (`mod(n, 3) == 1`); no prime or composite predicate (SymPy #27446, #27441), no reasoning about unknown functions (congruence, SymPy #28154); round 5 (SymPy #23909–#25408): transcendental and algebraic predicates (#25237) |
 | Parameters (named constants) | — | — | ◐ implemented, hidden until the shared-name question is settled |
@@ -293,7 +293,7 @@ tables below or in the [gaps by round](sympy_review/README.md#feature-gaps-by-ro
     separate packages): symbolic sets (`ImageSet`, `Range`, `ProductSet`, symbolic
     intervals); matrix expressions (`MatrixSymbol`, block matrices, matrix calculus;
     about 70 SymPy issues); noncommutative symbols; `IndexedBase` and `KroneckerDelta`;
-    Boolean logic; a symbolic infinity in expressions and `AccumBounds`; an unevaluated
+    Boolean logic; `AccumBounds` (`oo` and `zoo` are now there); an unevaluated
     `Derivative` for users; number theory (Primes.jl has much of it).
 12. **Performance.** Multivariate factoring of large products (about 50 s for six
     variables); Gröbner bases over a parametric field by FGLM (#12071); the precompile

@@ -472,7 +472,7 @@ end
 
 # an infinite or NaN float among e's numbers (coefficients included)
 _has_nonfinite(e::Sym) = (bad(c) = isfloat(c) && !isfinite(Float64(c));
-    (e.kind == NUMBER && bad(e.num)) || (e.kind in (ADD, MUL) && bad(e.num)) || (e.kind == ADD && any(bad, e.coefs)) ||
+    e === zoo || (e.kind == NUMBER && bad(e.num)) || (e.kind in (ADD, MUL) && bad(e.num)) || (e.kind == ADD && any(bad, e.coefs)) ||
     any(_has_nonfinite, e.args) || any(_has_nonfinite, e.exps))
 
 # the error for an equation that every value satisfies, naming the points where it is

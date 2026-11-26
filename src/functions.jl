@@ -530,6 +530,7 @@ end
 register_function!(:abs; julia = abs,
     eval = _unary(a -> begin
         a.kind == NUMBER && return Sym(abs(a.num))
+        a === zoo && return oo
         _isfn(a, :abs) && return a
         # a real constant of known sign: ±itself (abs(√2) = √2, abs(-π) = π; SymPy #11193 area)
         if !_hassymbol(a) && !has(a, IM) && !_hasfn(a, :abs)

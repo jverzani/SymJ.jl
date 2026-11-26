@@ -170,9 +170,10 @@ end
 
 _scope_assumptions() = (A = _assumptions(nothing); A === nothing ? Assumptions() : A)
 
-# a float infinity or NaN among e's numbers
+# a float infinity or NaN among e's numbers, or zoo
 function _hasnonfinite(e::Sym)
     nf(n) = isfloat(n) && !isfinite(n.f)
+    e === zoo && return true
     k = e.kind
     k == NUMBER && return nf(e.num)
     (k == ADD || k == MUL) && (nf(e.num) || (k == ADD && any(nf, e.coefs))) && return true
@@ -184,6 +185,7 @@ _const_value(x::Sym) = _hassymbol(x) ? nothing : (try _evalc(x) catch; nothing e
 
 function Base.isreal(x::Sym)
     x.kind == NUMBER && return true
+    has(x, zoo) && return false
     _isreal(x, _scope_assumptions()) === true
 end
 function Base.isfinite(x::Sym)
@@ -193,7 +195,7 @@ function Base.isfinite(x::Sym)
     v === nothing || return isfinite(v)
     _isreal(x, _scope_assumptions()) === true
 end
-Base.isinf(x::Sym) = x.kind == NUMBER ? isfloat(x.num) && isinf(x.num.f) :
+Base.isinf(x::Sym) = x.kind == NUMBER ? isfloat(x.num) && isinf(x.num.f) : x === zoo ||
     (v = _const_value(x); v !== nothing && isinf(v))
 Base.isnan(x::Sym) = x.kind == NUMBER ? isfloat(x.num) && isnan(x.num.f) :
     (v = _const_value(x); v !== nothing && isnan(v))
