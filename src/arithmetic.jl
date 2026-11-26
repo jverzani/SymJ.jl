@@ -137,11 +137,11 @@ end
 # (their signs into ±∞), and zoo takes no coefficient (-zoo = 2zoo = ∞ zoo = zoo).
 # Nothing when there is nothing to change.
 function _mul_infinite(c::SymNumber, bases::Vector{Sym}, exps::Vector{Sym})
-    iz, haszoo = _search(bases, zoo)
+    izoo, haszoo = _search(bases, zoo)
     keep = Int[]
     s = 1
     for i in eachindex(bases)
-        haszoo && i == iz && (push!(keep, i); continue)
+        haszoo && i == izoo && (push!(keep, i); continue)
         p = _mkpow(bases[i], exps[i])
         f = haszoo ? (_finite_const(p, false) ? 1 : nothing) : _finite_sign(p)
         f === nothing ? push!(keep, i) : (s *= f)
