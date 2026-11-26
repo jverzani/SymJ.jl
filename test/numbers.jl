@@ -162,3 +162,40 @@ end
     @test [x; y] == [x, y]
     @test x .+ [1, 2] == [x + 1, x + 2]
 end
+
+@testset "infinities: SymJ.oo and SymJ.zoo" begin
+    oo, zoo = SymJ.oo, SymJ.zoo
+    @test isequal(oo, Sym(Inf))
+    @test 1 / oo === SymJ.ZERO                  # exact, not the float 0.0
+    @test oo^(-1 // 2) === SymJ.ZERO
+    @test oo + PI == oo
+    @test oo * PI == oo
+    @test -oo * sqrt(Sym(2)) == -oo
+    @test isnan(oo - oo)
+    @test isnan(x * oo - x * oo)               # it was NaN*x
+    @test isnan(0 * (oo * x))
+    @test isequal(x + oo + PI, x + oo)
+    @test isequal(oo * x * PI, oo * x)
+    @test isequal(oo + IM, IM + oo)              # ∞ + i stays, as in SymPy
+    @test zoo + 1 === zoo
+    @test -zoo === zoo
+    @test 2zoo === zoo
+    @test zoo * IM === zoo
+    @test zoo * oo === zoo
+    @test zoo^2 === zoo
+    @test 1 / zoo === SymJ.ZERO
+    @test isnan(zoo + zoo)
+    @test isnan(zoo - zoo)
+    @test isnan(zoo + oo)
+    @test isnan(0 * zoo)
+    @test isnan((zoo + x) - zoo)
+    @test isequal(expand((x + zoo)^2), x^2 + x * zoo + zoo)
+    @test abs(zoo) == oo
+    @test isinf(zoo)
+    @test !isfinite(zoo)
+    @test !isreal(zoo)
+    @test_throws ArgumentError N(zoo)
+    @test_throws SymJ.DivisionByZero 1 / Sym(0)    # not zoo, unlike SymPy
+    @test string(zoo) == "zoo"
+    @test SymJ.summation(1 / x^2, (x, 1, oo)) == PI^2 / 6
+end

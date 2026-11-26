@@ -12,7 +12,10 @@ using RischIntegrate
 
 `limit(f, x => x0)` is the limit of `f` as `x` tends to `x0`, a
 number, an expression or `Inf`. It is computed by Gruntz's algorithm,
-through GruntzLimit. An infinite limit is returned as `Sym(Inf)` or `Sym(-Inf)`:
+through GruntzLimit. An infinite limit is returned as `Sym(Inf)` or `Sym(-Inf)`,
+which is also available as [`SymJ.oo`](@ref) (complex infinity is
+[`SymJ.zoo`](@ref)). In arithmetic it behaves as an infinity: `oo + π` is `oo`,
+`1/oo` is `0`, and `oo - oo` is `NaN`:
 
 ```@example tut
 limit(sin(x) / x, x => 0)

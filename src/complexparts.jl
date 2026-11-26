@@ -21,6 +21,7 @@ const _CONJ_COMMUTES = (:sin, :cos, :tan, :cot, :sec, :csc, :sinh, :cosh, :tanh,
 function _const_parts(e::Sym)
     _hassymbol(e) && return nothing
     k = e.kind
+    e === zoo && return nothing
     (k == NUMBER || k == CONSTANT) && return (e, ZERO)
     _eq(e, IM) && return (ZERO, ONE)
     if k == ADD

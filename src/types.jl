@@ -136,6 +136,31 @@ const PI = _mkconst(:pi)
 const E = _mkconst(:E)
 const IM = _mkpow_node(MINUS_ONE, HALF)   # sqrt(-1)
 
+"""
+    SymJ.oo
+
+Infinity: the float `Inf` as a symbolic number, `Sym(Inf)`, which is what `limit`,
+`summation` and `integrate` take and return for ±∞. Arithmetic treats it as an infinity:
+`oo + 1`, `2oo`, `oo + π` and `oo*π` are `oo`, `1/oo` is `0`, and the indeterminate forms
+`oo - oo` and `0*oo` are `NaN`. A sum or product with a variable stays (`x + oo`,
+`oo*x`). It prints as `Inf`.
+"""
+const oo = Sym(Inf)
+
+"""
+    SymJ.zoo
+
+Complex infinity, the point at infinity of the complex plane: a quantity of infinite
+modulus and no direction. It absorbs finite constants: `zoo + 1`, `-zoo`, `2zoo`,
+`zoo*im` and `zoo^2` are `zoo`, and `1/zoo` is `0`; the indeterminate forms `zoo + zoo`,
+`zoo - zoo`, `zoo + oo` and `0*zoo` are `NaN`. `abs(zoo)` is `oo`. It has no numeric
+value (`N(zoo)` is an error).
+
+Unlike SymPy, SymJ does not produce `zoo` on its own: `1/Sym(0)` and a pole such as
+`tan(π/2)` raise a `SymJ.DivisionByZero` error.
+"""
+const zoo = _mkconst(:zoo)
+
 Sym(::Irrational{:π}) = PI
 Sym(::Irrational{:ℯ}) = E
 # Euler's constant γ = -ψ(1), as limits and series give it (SymJ has no γ constant)

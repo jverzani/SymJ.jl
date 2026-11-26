@@ -58,6 +58,10 @@ function _mkmul(c::SymNumber, bases::Vector{Sym}, exps::Vector{Sym})
     iszero(c) && return ZERO
     n = length(bases)
     n == 0 && return Sym(c)
+    if _isinf_num(c) || ((n > 1 || !_isN1(c)) && _search(bases, zoo)[2])
+        r = Base.inferencebarrier(_mul_infinite)(c, bases, exps)
+        r === nothing || return r::Sym
+    end
     if n == 1
         _isN1(c) && return _mkpow(bases[1], exps[1])
         bases[1].kind == ADD && _isone(exps[1]) && return _scale_add(bases[1], c)
@@ -68,6 +72,7 @@ end
 # coefficient * key for a key from a sum
 function _with_coef(c::SymNumber, key::Sym)
     _isN1(c) && return key
+    _isnan_num(c) && return Sym(NaN)
     key.kind == MUL && return _mkmul_node(c, key.args, key.exps)
     b, e = _split_pow(key)
     _mkmul_node(c, Sym[b], Sym[e])
@@ -76,9 +81,79 @@ end
 function _mkadd(c::SymNumber, terms::Vector{Sym}, coefs::Vector{SymNumber})
     n = length(terms)
     n == 0 && return Sym(c)
+    if _isinf_num(c) || _search(terms, zoo)[2]
+        r = Base.inferencebarrier(_add_infinite)(c, terms, coefs)
+        r === nothing || return r::Sym
+    end
+    # (∞x - ∞x: like terms whose coefficients made NaN)
+    any(_isnan_num, coefs) && return Sym(NaN)
     n == 1 && iszero(c) && return _with_coef(coefs[1], terms[1])
     _mkadd_node(c, terms, coefs)
 end
+
+## infinities: ±∞ (the floats ±Inf, SymJ.oo) and complex infinity (SymJ.zoo)
+
+_isinf_num(c::SymNumber) = isfloat(c) && isinf(Float64(c))
+
+# a finite constant, which an infinity absorbs; for ±∞ it must also be real (∞ + i
+# stays, as in SymPy)
+function _finite_const(t::Sym, real::Bool)
+    (_hassymbol(t) || _has_nonfinite(t) || has(t, zoo)) && return false
+    real || return true
+    _isreal_const(t) === true
+end
+
+# the sign of a finite real nonzero constant, else nothing
+function _finite_sign(t::Sym)
+    _finite_const(t, true) || return nothing
+    s = _csign(t)
+    s === nothing || s == 0 ? nothing : s
+end
+
+# c + Σ cᵢ tᵢ with c = ±∞ or a term zoo: the finite constant terms are absorbed, and
+# zoo with ±∞ is NaN. Nothing when there is nothing to change.
+function _add_infinite(c::SymNumber, terms::Vector{Sym}, coefs::Vector{SymNumber})
+    haszoo = _search(terms, zoo)[2]
+    haszoo && _isinf_num(c) && return Sym(NaN)
+    keep = [i for i in eachindex(terms) if !_finite_const(terms[i], !haszoo)]
+    length(keep) == length(terms) && (!haszoo || iszero(c)) && return nothing
+    _mkadd(haszoo ? N0 : c, terms[keep], coefs[keep])
+end
+
+# a sum's coefficients with those of terms holding zoo set to 1 (2x zoo is x zoo): only
+# scaling a sum (_scale_add) and collecting terms in a table (_add_from_dict) give such a
+# term another coefficient; adding a term keeps its 1, and like terms combine to NaN
+function _zoo_unit(terms::Vector{Sym}, coefs::Vector{SymNumber})
+    @inbounds for i in eachindex(terms)
+        t = terms[i]
+        if t.kind == MUL && !_isN1(coefs[i]) && !_isnan_num(coefs[i]) && _haszoo_key(t)
+            return SymNumber[_haszoo_key(terms[j]) && !_isnan_num(coefs[j]) ? N1 : coefs[j] for j in eachindex(terms)]
+        end
+    end
+    coefs
+end
+
+# c ∏ bᵢ^eᵢ with c = ±∞, or c ≠ 1 and a factor zoo: finite constant factors are absorbed
+# (their signs into ±∞), and zoo takes no coefficient (-zoo = 2zoo = ∞ zoo = zoo).
+# Nothing when there is nothing to change.
+function _mul_infinite(c::SymNumber, bases::Vector{Sym}, exps::Vector{Sym})
+    iz, haszoo = _search(bases, zoo)
+    keep = Int[]
+    s = 1
+    for i in eachindex(bases)
+        haszoo && i == iz && (push!(keep, i); continue)
+        p = _mkpow(bases[i], exps[i])
+        f = haszoo ? (_finite_const(p, false) ? 1 : nothing) : _finite_sign(p)
+        f === nothing ? push!(keep, i) : (s *= f)
+    end
+    c2 = haszoo ? N1 : (s < 0 ? -c : c)
+    length(keep) == length(bases) && c2 == c && return nothing
+    _mkmul(c2, bases[keep], exps[keep])
+end
+
+# a term key that holds zoo: like terms in it combine to NaN (zoo - zoo, zoo + zoo)
+_haszoo_key(t::Sym) = t === zoo || (t.kind == MUL && _search(t.args, zoo)[2])
+@inline _combine(c1::SymNumber, c2::SymNumber, t::Sym) = _haszoo_key(t) ? SymNumber(NaN) : c1 + c2
 
 ## scaling by a number
 
@@ -87,7 +162,7 @@ function _scale_add(A::Sym, c::SymNumber)
         r = Base.inferencebarrier(_inf_times_sum)(A, c)
         r === nothing || return r::Sym
     end
-    _mkadd(A.num * c, A.args, SymNumber[x * c for x in A.coefs])
+    _mkadd(A.num * c, A.args, _zoo_unit(A.args, SymNumber[x * c for x in A.coefs]))
 end
 
 # ±∞ times a sum is not distributed: ∞(π - 1) = ∞ - ∞ was NaN (SymPy #3802, #3738). A
@@ -105,15 +180,18 @@ _isnan_num(c::SymNumber) = isfloat(c) && isnan(Float64(c))
 
 function _scale(x::Sym, c::SymNumber)
     _isnan_num(c) && return Sym(NaN)
-    iszero(c) && return ZERO
+    iszero(c) && return _infinite_top(x) ? Sym(NaN) : ZERO
     _isN1(c) && return x
     k = x.kind
     k == NUMBER && return Sym(x.num * c)
     k == ADD && return _scale_add(x, c)
     k == MUL && return _mkmul(x.num * c, x.args, x.exps)
     b, e = _split_pow(x)
-    _mkmul_node(c, Sym[b], Sym[e])
+    _mkmul(c, Sym[b], Sym[e])
 end
+
+# 0 times an infinity is NaN: zoo, ±∞ x, x + ∞, zoo x, x + zoo
+_infinite_top(x::Sym) = x === zoo || ((x.kind == MUL || x.kind == ADD) && (_isinf_num(x.num) || _search(x.args, zoo)[2]))
 
 ## addition
 
@@ -138,7 +216,7 @@ function add(a::Sym, b::Sym)
     cb, tb = _split_coef(b)
     c = _cmp(ta, tb)
     if c == 0
-        s = ca + cb
+        s = _combine(ca, cb, ta)
         return iszero(s) ? ZERO : _with_coef(s, ta)
     end
     c < 0 ? _mkadd_node(N0, Sym[ta, tb], SymNumber[ca, cb]) :
@@ -150,18 +228,18 @@ function _add_num(x::Sym, n::SymNumber)
     iszero(n) && return x
     x.kind == ADD && return _mkadd(x.num + n, x.args, x.coefs)
     c, t = _split_coef(x)
-    _mkadd_node(n, Sym[t], SymNumber[c])
+    _mkadd(n, Sym[t], SymNumber[c])
 end
 
 function _add_term(A::Sym, x::Sym)
     c, t = _split_coef(x)
     i, found = _search(A.args, t)
     if found
-        s = A.coefs[i] + c
+        s = _combine(A.coefs[i], c, t)
         iszero(s) && return _mkadd(A.num, _deleteat(A.args, i), _deleteat(A.coefs, i))
         coefs = copy(A.coefs)
         coefs[i] = s
-        return _mkadd_node(A.num, A.args, coefs)
+        return _mkadd(A.num, A.args, coefs)
     end
     _mkadd(A.num, _insert(A.args, i, t), _insert(A.coefs, i, c))
 end
@@ -179,7 +257,7 @@ function _merge_add(A::Sym, B::Sym)
         elseif c > 0
             k += 1; terms[k] = b[j]; coefs[k] = bc[j]; j += 1
         else
-            s = ac[i] + bc[j]
+            s = _combine(ac[i], bc[j], a[i])
             if !iszero(s)
                 k += 1; terms[k] = a[i]; coefs[k] = s
             end
@@ -199,7 +277,8 @@ end
 
 # n-ary sum through a hash table; used where many terms are combined at once
 function _accum!(d::Dict{Sym,SymNumber}, t::Sym, c::SymNumber)
-    d[t] = get(d, t, N0) + c
+    v = get(d, t, nothing)
+    d[t] = v === nothing ? c : _combine(v, c, t)
     d
 end
 
@@ -226,7 +305,7 @@ function _add_from_dict(c::SymNumber, d::Dict{Sym,SymNumber})
         iszero(v) || push!(terms, t)
     end
     permute!(terms, _canonical_perm(terms))
-    _mkadd(c, terms, SymNumber[d[t] for t in terms])
+    _mkadd(c, terms, _zoo_unit(terms, SymNumber[d[t] for t in terms]))
 end
 
 function _add_many(xs)
@@ -417,6 +496,7 @@ function pow(b::Sym, e::Sym)
         en = e.num
         iszero(en) && return ONE
         _isN1(en) && return b
+        b === zoo && return sign(en) > 0 ? zoo : ZERO   # zoo² = zoo, 1/zoo = 0
         bk == NUMBER && return _numpow(b.num, en)
         isfloat(en) && (v = _floatpow(b, en)) !== nothing && return v
         if _isint(en)
@@ -612,6 +692,8 @@ end
 function _numpow(b::SymNumber, e::SymNumber)
     if isfloat(b) || isfloat(e)
         bf, ef = Float64(b), Float64(e)
+        # ±∞ to a negative power: an exact 0, as 1/∞ is in limits (it was the float 0.0)
+        isinf(bf) && ef < 0 && return ZERO
         # an exact base to an infinite power: 0 stays exact (0^∞, (1/2)^∞, 2^-∞), as in limits
         !isfloat(b) && isinf(ef) && abs(bf) != 1 && (abs(bf) < 1) == (ef > 0) && return ZERO
         # 1^±∞ is indeterminate, not the float 1.0 (SymPy #13914): left, as (-1)^∞ is
