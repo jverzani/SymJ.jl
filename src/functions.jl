@@ -80,8 +80,8 @@ function apply_function(name::Symbol, args::Vector{Sym})
         # asin(-u) = -asin(u), which do not hold for Julia's principal values on a
         # branch cut (asin(-17.0 + 0im) is not -asin(17.0 + 0im)).
         if rule.julia !== nothing && _float_args(args)
-            # (behind an inference barrier: see _apply_float)
-            v = Base.inferencebarrier(_apply_float)(rule, name, args)::Union{Nothing,Sym}
+            # (behind an inference barrier before Julia 1.14: see _apply_float)
+            v = _apply_float_entry(rule, name, args)
             v === nothing || return v
         end
         # a complex float argument (2.0im, 2.0 + 2.0im): its value too (SymPy #6071)
@@ -103,6 +103,14 @@ end
 # had to infer it all. The REPL's hint inference does that from scratch, with its own
 # cache, as one types integrate(sin(x), ... : it ran for minutes, and on Julia 1.13 it
 # froze Ctrl-R history search (which waits on the same thread pool).
+# Not on Julia 1.14, where the barrier made SymJ's own precompile run past an hour on
+# macOS (60 s without; Linux was unaffected), and whose Ctrl-R freeze is fixed upstream
+# (JuliaLang/julia#65238, marked for backport to 1.14).
+@static if VERSION < v"1.14-"
+    _apply_float_entry(rule, name, args) = Base.inferencebarrier(_apply_float)(rule, name, args)::Union{Nothing,Sym}
+else
+    _apply_float_entry(rule, name, args) = _apply_float(rule, name, args)
+end
 function _apply_float(rule::FunctionRule, name::Symbol, args::Vector{Sym})
     v = _try_numeric(rule.julia, args)
     if v === nothing
