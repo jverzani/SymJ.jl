@@ -224,12 +224,13 @@ function _solve_floor(eq::Relation, x::Sym, assume)
         pts = [r for r in pts if _isinteger_const(r)]
         return isempty(pts) ? A : A ∪ SymSet([SymInterval(r, r, true, true) for r in pts])
     end
-    F = nothing
+    found = Ref{Union{Nothing,Sym}}(nothing)
     _replace_walk(g) do t
         t.kind == FN && t.name in (:floor, :ceil) && length(t.args) == 1 && has(t.args[1], x) &&
-            (F === nothing || _eq(F, t)) && (F = t)
+            (found[] === nothing || _eq(found[], t)) && (found[] = t)
         nothing
     end
+    F = found[]
     F === nothing && return nothing
     u = Sym(Symbol("_floor_u"))
     h = expand(subs(g, F => u))
@@ -608,12 +609,12 @@ const _WEIERSTRASS_FNS = (:sin, :cos, :tan, :cot, :sec, :csc)
 # 2 of u = 2πt; the zeros of 2cos(4πt) - 4cos(2πt) + 3, an atan's jumps; SymPy #13609)
 function _multiple_angle_form(n::Sym, bad::Vector{Sym}, x::Sym)
     all(b -> b.kind == FN && b.name in _WEIERSTRASS_FNS && length(b.args) == 1, bad) || return nothing
-    ratios(u) = (cs = SymNumber[];
+    ratios(u) = (cr = SymNumber[];
         for b in bad
             c = cancel(b.args[1] / u)
             (c.kind == NUMBER && isexact(c.num) && !iszero(c.num)) || return nothing
-            push!(cs, c.num)
-        end; cs)
+            push!(cr, c.num)
+        end; cr)
     cs = ratios(x)
     cs === nothing && (x = bad[1].args[1]; cs = ratios(x))
     cs === nothing && return nothing
@@ -698,7 +699,8 @@ function _solve_weierstrass(eq::Relation, n::Sym, x::Sym, w::Sym)
         end
         v = try N(u) catch; nothing end
         v isa Real && v < 0 && (u += 2PI)
-        any(s -> _eq(s, u), ws) || push!(ws, u)
+        u1 = u
+        any(s -> _eq(s, u1), ws) || push!(ws, u1)
     end
     out = Sym[]
     for (i, u) in enumerate(ws)
@@ -774,7 +776,8 @@ function _solve_through(eq::Relation, n::Sym, x::Sym, bad::Vector{Sym})
     else
         g, ks, cs = common
         u = Sym(Symbol("_u", objectid(g)))
-        nu = subs(n, (a => c * u^k for (a, k, c) in zip(bad, ks, cs))...)
+        u1 = u
+        nu = subs(n, (a => c * u1^k for (a, k, c) in zip(bad, ks, cs))...)
     end
     if has(nu, x)
         _issqrt(g) && return _solve_radical(eq, nu, u, g, x)
@@ -787,7 +790,8 @@ function _solve_through(eq::Relation, n::Sym, x::Sym, bad::Vector{Sym})
                 t = g.kind == FN ? g.args[1] : g.args[1]
                 cands = _solve_eq(expand(A^3 + B^3 * t) ~ 0, x)
                 # (cbrt is real: its equation's roots real ones)
-                real_ok(r) = g.kind != FN || _isreal_const(r) !== false
+                g1 = g
+                real_ok(r) = g1.kind != FN || _isreal_const(r) !== false
                 cands isa AbstractVector && return filter(r -> real_ok(r) && _satisfies(eq, x, r), cands)
             end
         end
@@ -849,9 +853,20 @@ function _tidy_roots(rs::Vector{Sym})
             s = try simplify(r) catch err; err isa InterruptException && rethrow(); r end
             _nodes(s) < _nodes(r) && (r = s)
         end
-        any(q -> _eq(q, r), out) || push!(out, r)
+        rr = r
+        any(q -> _eq(q, rr), out) || push!(out, rr)
     end
     out
+end
+
+# does the condition c hold at x = r? (decided by cases when parameters are left)
+function _solve_piecewise_holds(x, c, r)
+    v = subs(c, x => r)
+    v.kind == NUMBER && return !iszero(v)
+    _iscond(v) || throw(ArgumentError("solve: cannot decide the condition $v"))
+    A = _SOLVE_ASSUME[]
+    A === nothing && throw(ArgumentError("solve: cannot decide the condition $v"))
+    v.name === :And ? all(a -> _solve_piecewise_holds(x, a, r), v.args) : _decide(_relation_of(v), A)
 end
 
 # a piecewise function of x in the equation: solved piece by piece, a piece's roots kept
@@ -866,20 +881,14 @@ function _solve_piecewise(eq::Relation, x::Sym)
             return _solve_piecewise(Relation(:eq, f, ZERO), x)
         end
     end
-    P = nothing
+    found = Ref{Union{Nothing,Sym}}(nothing)
     _replace_walk(eq.lhs - eq.rhs) do t
-        P === nothing && t.kind == FN && t.name === :piecewise && has(t, x) && (P = t)
+        found[] === nothing && t.kind == FN && t.name === :piecewise && has(t, x) && (found[] = t)
         nothing
     end
+    P = found[]
     P === nothing && return nothing
-    holds(c, r) = begin
-        v = subs(c, x => r)
-        v.kind == NUMBER && return !iszero(v)
-        _iscond(v) || throw(ArgumentError("solve: cannot decide the condition $v"))
-        A = _SOLVE_ASSUME[]
-        A === nothing && throw(ArgumentError("solve: cannot decide the condition $v"))
-        v.name === :And ? all(a -> holds(a, r), v.args) : _decide(_relation_of(v), A)
-    end
+    holds(c, r) = _solve_piecewise_holds(x, c, r)
     out = Sym[]
     ps = _pieces(P)
     zero = falses(length(ps))
@@ -1156,8 +1165,9 @@ function _common_power(atoms::Vector{Sym})
     length(atoms) > 1 || return nothing
     all(a -> a.kind == POW, atoms) || return nothing
     b = atoms[1].args[1]
+    b0 = b  # (a new binding: a reassigned capture is boxed)
     es = [a.args[2] for a in atoms]
-    if !all(a -> _eq(a.args[1], b), atoms)
+    if !all(a -> _eq(a.args[1], b0), atoms)
         bases = [a.args[1] for a in atoms]
         if all(c -> c.kind == NUMBER && _isint(c.num) && c.num > SymNumber(1), bases)
             # integer bases that are powers of one integer: 4^x = 2^(2x)
@@ -1171,7 +1181,7 @@ function _common_power(atoms::Vector{Sym})
             any(_hassymbol, bases) && return nothing
             ks = SymNumber[]
             for c in bases
-                k = findfirst(k -> iszero(simplify(c - b^Sym(k))), _BASE_POWERS)
+                k = findfirst(k -> iszero(simplify(c - b0^Sym(k))), _BASE_POWERS)
                 k === nothing && return nothing
                 push!(ks, _BASE_POWERS[k])
             end
@@ -1190,7 +1200,8 @@ function _common_power(atoms::Vector{Sym})
     q = reduce(lcm, (big(_denominator(r.num)) for r in ratios); init = big(1))
     g = e1 / Sym(SymNumber(q))
     ks = [Int(_numerator(r.num) * (q ÷ _denominator(r.num))) for r in ratios]
-    (pow(b, g), ks, Sym[b^d for d in ds])
+    bf = b
+    (pow(bf, g), ks, Sym[bf^d for d in ds])
 end
 const _BASE_POWERS = SymNumber[1, -1, 2, -2, 1 // 2, -1 // 2, 3, -3]
 
@@ -1232,8 +1243,8 @@ function _solve_radical(eq::Relation, nu::Sym, u::Sym, R::Sym, x::Sym)
         # squared, an identity: eq holds where √t = -A/B, not for every x (x - √(x²) = 0
         # fails at -1; SymPy #8716, #8545). For a real x that is -A/B ≥ 0 (the squares
         # agree); in ℂ a region of the plane, refused
-        Asm = _SOLVE_ASSUME[]
-        if Asm !== nothing && _isreal(x, Asm) === true
+        Asm0 = _SOLVE_ASSUME[]
+        if Asm0 !== nothing && _isreal(x, Asm0) === true
             S = _solve_eq(Relation(:ge, cancel(-A / B), ZERO), x)
             S isa SymSet && return S
         end
@@ -1247,9 +1258,10 @@ function _solve_radical(eq::Relation, nu::Sym, u::Sym, R::Sym, x::Sym)
     Asm = _SOLVE_ASSUME[]
     if Asm !== nothing && rs isa AbstractVector && _isreal(x, Asm) === true &&
        all(s -> _isreal(s, Asm) === true, free_symbols(eq.lhs - eq.rhs))
+        AB = A * B
         rs = filter(rs) do r
             _hassymbol(r) || return true
-            c = try cancel(subs(A * B, x => r)) catch err; _isdivzero(err) || rethrow(); return true end
+            c = try cancel(subs(AB, x => r)) catch err; _isdivzero(err) || rethrow(); return true end
             c = _sign_core(c, Asm)
             _hassymbol(c) || return true
             h = _holds(Relation(:le, c, ZERO), Asm)
@@ -1322,7 +1334,8 @@ function _solve_lambert(eq::Relation, nu::Sym, u::Sym, g::Sym, x::Sym)
         v = try N(arg) catch; nothing end
         v isa Real && -exp(-1) < v < 0 && push!(ws, lambertw(arg, -1))
     end
-    filter(r -> _satisfies(eq, x, r), [w / γ - β / α for w in ws])
+    γ1, β1, α1 = γ, β, α
+    filter(r -> _satisfies(eq, x, r), [w / γ1 - β1 / α1 for w in ws])
 end
 _lin_coeffs(c::Sym, x::Sym) = (α = cancel(diff(c, x)); (α, cancel(c - α * x)))
 
@@ -1331,12 +1344,12 @@ function _solve_lambert_power(eq::Relation, c1::Sym, c0::Sym, g::Sym, x::Sym)
     function lin_power(c)
         has(c, x) || return nothing
         P = try Poly{Sym}(c, [x]) catch err; err isa ArgumentError || rethrow(); return nothing end
-        k = degree(P, x)
-        k >= 2 || return nothing
-        κ = Sym(coefficients(P)[1])
-        β = cancel(coeff(expand(c), x, k - 1) / (k * κ))
-        iszero(expand(c - κ * (x + β)^k)) || return nothing
-        κ, β, k
+        m = degree(P, x)
+        m >= 2 || return nothing
+        κ1 = Sym(coefficients(P)[1])
+        β1 = cancel(coeff(expand(c), x, m - 1) / (m * κ1))
+        iszero(expand(c - κ1 * (x + β1)^m)) || return nothing
+        κ1, β1, m
     end
     b, e = g.args
     out = Sym[]
@@ -1382,9 +1395,9 @@ function _invert(g::Sym, r::Sym, x::Sym)
             end
             # |b^q| = |b|^q for b, q real: |√x| = r is |x| = r² (SymPy #25779)
             if A !== nothing && t.kind == POW && _isreal(t.args[1], A) === true && _isreal(t.args[2], A) === true
-                b, q = t.args
+                tb, q = t.args
                 _decide(Relation(:ge, r, ZERO), A) || return Tuple{Sym,Sym}[]
-                return [(abs(b), r^inv(q))]
+                return [(abs(tb), r^inv(q))]
             end
             # |t| = 0 only at t = 0, in ℂ too (round-11 review); |t| = r > 0 is a curve
             iszero(r) && return [(t, ZERO)]
@@ -1439,11 +1452,11 @@ function _invert(g::Sym, r::Sym, x::Sym)
         name === :digamma && return [(t, apply_function(:invdigamma, Sym[r]))]   # (SymPy #6605)
     elseif k == FN && length(g.args) == 2 && g.name === :log
         # log(b, t) = log t/log b = r: t = b^r, or b = t^(1/r) (SymPy #6176)
-        b, t = g.args
-        has(b, x) || return [(t, b^r)]
-        has(t, x) && throw(ArgumentError("solve: cannot invert $g for $x"))
+        lb, lt = g.args
+        has(lb, x) || return [(lt, lb^r)]
+        has(lt, x) && throw(ArgumentError("solve: cannot invert $g for $x"))
         iszero(r) && return Tuple{Sym,Sym}[]
-        return [(b, t^inv(r))]
+        return [(lb, lt^inv(r))]
     elseif k == FN && length(g.args) == 2 && g.name === :atan2
         # atan(y, c) = r, the angle of (c, y): y = c tan r, or c = y cot r, the roots then
         # checked in the equation (SymPy #6977)
@@ -1614,9 +1627,10 @@ function _one_period(a::Sym, b::Sym)
     out = Sym[]
     for c in (a, b)
         v = try N(c) catch; return [a, b] end
-        v isa Real || return [a, b]
-        c = c - 2PI * floor(Int, v / (2Float64(π)) + 1e-12)   # into [0, 2π)
-        any(o -> isapprox(N(o), N(c); atol = 1e-12), out) || push!(out, c)
+        v isa Float64 || return [a, b]   # (concrete: an abstract Real here let loading
+        # ForwardDiff invalidate this, and the solve code above it)
+        c1 = c - 2PI * floor(Int, v / (2Float64(π)) + 1e-12)   # into [0, 2π)
+        any(o -> isapprox(N(o), N(c1); atol = 1e-12), out) || push!(out, c1)
     end
     any(iszero, out) && push!(out, 2PI)
     sort!(out; by = N)
@@ -1677,9 +1691,9 @@ function _satisfies(eq::Relation, x::Sym, r::Sym)
         # a residual c·u^p vanishes exactly where u = 0: a case of the parameters, not a
         # spurious root (√(z - x) + √(y - x) = 0 has z = x when y = x)
         u = _vanishing_base(d)
-        A = _SOLVE_ASSUME[]
-        (u === nothing || A === nothing) && return false
-        return _decide(Relation(:eq, u, ZERO), A)
+        A2 = _SOLVE_ASSUME[]
+        (u === nothing || A2 === nothing) && return false
+        return _decide(Relation(:eq, u, ZERO), A2)
     end
     v = try N(d) catch; return true end
     abs(v) <= 1e-9 * _root_scale(r)
@@ -1781,8 +1795,8 @@ function _solve_irreducible(c::Vector{Sym}, f)
     d == 1 && return [-c[1] / c[2]]
     d == 2 && return _quadratic(c...)
     if all(iszero, c[2:(end-1)])                              # a xⁿ + b
-        r = (-c[1] / c[end])^(1 // d)
-        return [r * pow(MINUS_ONE, Sym(SymNumber(2k // d))) for k in 0:(d - 1)]
+        r0 = (-c[1] / c[end])^(1 // d)
+        return [r0 * pow(MINUS_ONE, Sym(SymNumber(2k // d))) for k in 0:(d - 1)]
     end
     # a cyclotomic polynomial Φ_N: the primitive N-th roots of unity as cos + i sin of
     # rational multiples of π, not radicals or floats (x^7 + 1; SymPy #25192)
@@ -1790,8 +1804,8 @@ function _solve_irreducible(c::Vector{Sym}, f)
     N === nothing || return Sym[cos(Sym(2k // N) * PI) + IM * sin(Sym(2k // N) * PI) for k in 1:N if gcd(k, N) == 1]
     # the minimal polynomial of cos(2π/N): its roots cos(2πk/N), not radicals or floats
     # (32x⁵ + 16x⁴ - 32x³ - 12x² + 6x + 1 for N = 11, from an 11×11 circulant; SymPy #21631)
-    N = _cos_minpoly_index(c)
-    N === nothing || return Sym[cos(Sym(2k // N) * PI) for k in 1:(N ÷ 2) if gcd(k, N) == 1]
+    Nc = _cos_minpoly_index(c)
+    Nc === nothing || return Sym[cos(Sym(2k // Nc) * PI) for k in 1:(Nc ÷ 2) if gcd(k, Nc) == 1]
     d == 3 && return _cardano(c...)
     d == 4 && return _ferrari(c...)
     r = _solve_decomposed(c)
@@ -1861,7 +1875,8 @@ function _cos_minpoly(N::Int)
     for j in 1:d
         psi = padd(psi, a[d+j+1] .* Ds[j+1])
     end
-    px = [psi[i] * big(2)^(i - 1) for i in eachindex(psi)]   # y = 2x
+    psf = psi
+    px = [psf[i] * big(2)^(i - 1) for i in eachindex(psf)]   # y = 2x
     px ./ px[end]
 end
 
@@ -1941,12 +1956,12 @@ function _cardano(d, c, b, a)                                # a x³ + b x² + c
     # would divide 0 by 0 ((x - 2im*y)^3 has Δ0 = Δ1 = 0 only once expanded)
     if iszero(Δ0)
         iszero(Δ1) && return [-b / (3a)]
-        C = _real_cbrt(Δ1)
-        return [-(b + _OMEGA^k * C) / (3a) for k in 0:2]
+        C0 = _real_cbrt(Δ1)
+        return [-(b + _OMEGA^k * C0) / (3a) for k in 0:2]
     end
     s = sqrt(Δ1^2 - 4Δ0^3)
-    C = _real_cbrt((Δ1 + s) / 2)
-    _iszero_value(C) && (C = _real_cbrt((Δ1 - s) / 2))
+    C1 = _real_cbrt((Δ1 + s) / 2)
+    C = _iszero_value(C1) ? _real_cbrt((Δ1 - s) / 2) : C1
     [-(b + _OMEGA^k * C + Δ0 / (_OMEGA^k * C)) / (3a) for k in 0:2]
 end
 

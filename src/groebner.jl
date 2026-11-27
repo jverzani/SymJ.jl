@@ -588,7 +588,8 @@ function reduced(f, G::AbstractVector, vars::Sym...; order::Symbol = :lex)
         qs = [_GP{C,W}(W[], W[], C[]) for _ in gs]
         rk, rm, rc = W[], W[], C[]
         while !iszero(p)
-            j = findfirst(g -> !iszero(g) && _gdivides(ctx, g.m[1], p.m[1]), gs)
+            pm1 = p.m[1]
+            j = findfirst(g -> !iszero(g) && _gdivides(ctx, g.m[1], pm1), gs)
             if j === nothing
                 push!(rk, p.k[1]); push!(rm, p.m[1]); push!(rc, p.c[1])
                 p = _GP{C,W}(p.k[2:end], p.m[2:end], p.c[2:end])
@@ -610,8 +611,8 @@ end
 function _gfield(e::Sym, vs::Vector{Sym}, ctx::_GCtx{W}, numeric::Bool) where {W}
     nv = length(vs)
     if numeric
-        P = Poly{SymNumber}(e, vs)
-        return _gpsorted(W[_gmono(ctx, [_exponent(m, P.layout, nv, i) for i in 1:nv]) for m in P.monos], copy(P.coefs), ctx)
+        Pn = Poly{SymNumber}(e, vs)
+        return _gpsorted(W[_gmono(ctx, [_exponent(m, Pn.layout, nv, i) for i in 1:nv]) for m in Pn.monos], copy(Pn.coefs), ctx)
     end
     P = Poly{Sym}(e, vs)
     cs = Sym[cancel(c) for c in P.coefs]

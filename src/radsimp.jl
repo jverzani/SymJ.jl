@@ -52,32 +52,34 @@ end
 _leading_sign(e::Sym) = (c = e.kind == ADD ? e.coefs[1] : e.kind == MUL || e.kind == NUMBER ? e.num : N1;
                          (try c < N0 catch; false end) ? -1 : 1)
 
+# (for _rad_groups) the radicals of t, as (base, exponent), pushed to rads
+function _rad_groups_find!(rads, t::Sym)
+    t.kind == FN && return
+    if t.kind == POW
+        b, p = t.args
+        if p.kind == NUMBER && isexact(p.num) && !isinteger(p) && b !== E
+            push!(rads, (b, p))
+        else
+            _rad_groups_find!(rads, b)
+        end
+    elseif t.kind == MUL
+        for (b, p) in zip(t.args, t.exps)
+            if p.kind == NUMBER && isexact(p.num) && !isinteger(p) && b !== E
+                push!(rads, (b, p))
+            elseif p.kind == NUMBER
+                _rad_groups_find!(rads, b)
+            end
+        end
+    elseif t.kind == ADD
+        foreach(a -> _rad_groups_find!(rads, a), t.args)
+    end
+end
+
 # the radicals b^(p/q) of e outside function arguments (and im): one base b whose radicals
 # lie inside no other radical's base, with L the lcm of their q; nothing if none
 function _rad_groups(e::Sym)
     rads = Tuple{Sym,Sym}[]                            # (base, exponent)
-    function find(t::Sym)
-        t.kind == FN && return
-        if t.kind == POW
-            b, p = t.args
-            if p.kind == NUMBER && isexact(p.num) && !isinteger(p) && b !== E
-                push!(rads, (b, p))
-            else
-                find(b)
-            end
-        elseif t.kind == MUL
-            for (b, p) in zip(t.args, t.exps)
-                if p.kind == NUMBER && isexact(p.num) && !isinteger(p) && b !== E
-                    push!(rads, (b, p))
-                elseif p.kind == NUMBER
-                    find(b)
-                end
-            end
-        elseif t.kind == ADD
-            foreach(find, t.args)
-        end
-    end
-    find(e)
+    _rad_groups_find!(rads, e)
     isempty(rads) && return nothing
     bases = Sym[]
     for (b, _) in rads
@@ -150,7 +152,8 @@ function _rad_eliminate(d::Sym, b::Sym, L::Int, maxL::Int)
         c[mod(m, L) + 1] = expand(c[mod(m, L) + 1] + ck * b^Sym(fld(m, L)))
     end
     # only powers of t^s present: t^s = b^(s/L) generates the same field with L/s
-    s = reduce(gcd, (k - 1 for k in 1:L if !iszero(c[k])); init = L)
+    c0 = c                                               # (a new binding: a reassigned capture is boxed)
+    s = reduce(gcd, (k - 1 for k in 1:L if !iszero(c0[k])); init = L)
     s == L && return (ONE, c[1])                         # no radical after all
     if s > 1
         c = c[1:s:L]

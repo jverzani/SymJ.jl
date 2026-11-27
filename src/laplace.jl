@@ -385,7 +385,7 @@ function _ilap_special_term(x::Sym, s::Sym, t::Sym)
     any(k -> k != i && (has(fs[k][1], s) || has(fs[k][2], s)), eachindex(fs)) && return nothing
     c = cf * prod((b^p for (k, (b, p)) in enumerate(fs) if k != i); init = ONE)
     b, p = fs[i]
-    lin(u) = (k1 = diff(u, s); has(k1, s) || iszero(k1) ? nothing : (k1, expand(subs(u, s => ZERO))))
+    lin(u) = (d1 = diff(u, s); has(d1, s) || iszero(d1) ? nothing : (d1, expand(subs(u, s => ZERO))))
     if b.kind == FN && b.name === :atan && length(b.args) == 1 && _eq(p, ONE)
         l = lin(cancel(1 / b.args[1]))                # 1/u = (s - α)/a
         l === nothing && return nothing
@@ -530,8 +530,9 @@ function _ilap_part(N::Sym, D::Sym, s::Sym, t::Sym)
     ρs = degree(P, s) == 2 ? _ilap_quadratic_roots(q, s) : _solve_generic(q ~ 0, s)
     length(ρs) == degree(P, s) || throw(ArgumentError("inverse_laplace_transform: the roots of $q were not found"))
     out = ZERO
+    kq = k                                           # (a new binding: a reassigned capture is boxed)
     for ρ in ρs
-        G = N * exp(s * t) / (lead * lq^k * prod(((s - σ)^k for σ in ρs if !_eq(σ, ρ)); init = ONE))
+        G = N * exp(s * t) / (lead * lq^k * prod(((s - σ)^kq for σ in ρs if !_eq(σ, ρ)); init = ONE))
         out += subs(diff(G, s, k - 1), s => ρ) / factorial(big(k - 1))
     end
     out

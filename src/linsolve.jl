@@ -87,8 +87,8 @@ function solve(eqs::AbstractVector{<:Relation}, vars::Union{AbstractVector,Tuple
     # assumptions: about the unknowns, they choose the domain (x ∈ ℝ: abs(x) as ±x, real
     # solutions only) and filter the solutions; about parameters, they decide cases
     if assume !== nothing
-        A = _assumptions(assume)
-        A === nothing && (A = Assumptions())
+        A1 = _assumptions(assume)
+        A = A1 === nothing ? Assumptions() : A1
         vs = Sym[Sym(v) for v in vars]
         # one equation with |u| in one unknown: the scalar solve's cases on the parameters
         # (in the system, solutions with parameters hold only on one side of u; SymPy #13306)
@@ -132,21 +132,21 @@ function solve(eqs::AbstractVector{<:Relation}, vars::Union{AbstractVector,Tuple
         end
         return r isa Cases ? _map_cases(keep, r) : keep(r)
     end
-    vars = Sym[Sym(v) for v in vars]
-    all(_isnamed, vars) || return with(_NOT_PARAMS => unique!(reduce(vcat, map(_named, vars)))) do
-        _solve_for_calls((es, vs, _) -> solve(es, vs), collect(Relation, eqs), vars)
+    uvars = Sym[Sym(v) for v in vars]
+    all(_isnamed, uvars) || return with(_NOT_PARAMS => unique!(reduce(vcat, map(_named, uvars)))) do
+        _solve_for_calls((es, vs, _) -> solve(es, vs), collect(Relation, eqs), uvars)
     end
     if any(e -> e.op === :ne, eqs) && any(e -> e.op === :eq, eqs) && all(e -> e.op in (:eq, :ne), eqs)
-        r = _solve_ne_after(eqs, vars)
+        r = _solve_ne_after(eqs, uvars)
         r === nothing || return r
     end
-    all(e -> e.op === :eq, eqs) || return _solve_ineq_system(eqs, vars)
-    r = _solve_float_constants(eqs, vars)
+    all(e -> e.op === :eq, eqs) || return _solve_ineq_system(eqs, uvars)
+    r = _solve_float_constants(eqs, uvars)
     r === nothing || return r
     A0 = _SYSTEM_ASSUME[]
     try
         _by_cases(A0 === nothing ? Assumptions() : A0) do B
-            _solve_system_case(collect(Relation, eqs), vars, B)
+            _solve_system_case(collect(Relation, eqs), uvars, B)
         end
     catch err
         # floats with symbols: as the rationals they stand for, the solutions' numbers
@@ -158,7 +158,7 @@ function solve(eqs::AbstractVector{<:Relation}, vars::Union{AbstractVector,Tuple
         all(e -> _isexactex(e.lhs) && _isexactex(e.rhs), es) || rethrow()
         flv(v) = _hassymbol(v) ? _floatify(v) : (w = N(v); w isa Number ? Sym(w) : v)
         fdicts(ds) = ds isa AbstractVector ? [d isa AbstractDict ? Dict{Sym,Sym}(k => flv(w) for (k, w) in d) : d for d in ds] : ds
-        rr = solve(es, vars)
+        rr = solve(es, uvars)
         rr isa Cases ? _map_cases(fdicts, rr) : fdicts(rr)
     end
 end
@@ -222,8 +222,9 @@ function _family_narrow(s::AbstractDict, vars::Vector{Sym}, A)
         end
     end
     # integers: some integer t's with every integer unknown's value an integer
-    zfree = Sym[t for t in free if any(v -> has(vals[v], t), vars)]
-    zv = Sym[v for v in vars if get(A.dom, v, _CR) <= _ZR && _hassymbol(vals[v])]
+    vz = vals  # (a new binding: a reassigned capture is boxed)
+    zfree = Sym[t for t in free if any(v -> has(vz[v], t), vars)]
+    zv = Sym[v for v in vars if get(A.dom, v, _CR) <= _ZR && _hassymbol(vz[v])]
     if !isempty(zv) && all(t -> get(A.dom, t, _CR) <= _ZR, zfree)
         ok = true
         D = big(1)
@@ -254,7 +255,8 @@ function _family_narrow(s::AbstractDict, vars::Vector{Sym}, A)
         end
     end
     T = typeof(s)
-    T(k => vals[k] for k in union(keys(s), Sym[v for v in free if !_eq(vals[v], v)]))
+    vf = vals
+    T(k => vf[k] for k in union(keys(s), Sym[v for v in free if !_eq(vf[v], v)]))
 end
 
 # The t ∈ ℤᵏ with w0 + C t ∈ ℤᵐ (C m × k, rational; D a common denominator): (t0, B) with
@@ -291,6 +293,11 @@ function _set_where(w::Sym, I::SymInterval, t::Sym)
     I.hi === nothing || (U = intersect(U, solve(Relation(I.rclosed ? :le : :lt, w, I.hi), t)))
     U
 end
+
+# the floats put back for _solve_float_constants
+_solve_float_constants_putback(back, v) = v isa Sym ? _floatify(subs(v, back...)) :
+                 v isa AbstractDict ? Dict{Sym,Sym}(k => _solve_float_constants_putback(back, w) for (k, w) in v) :
+                 v isa AbstractVector ? map(w -> _solve_float_constants_putback(back, w), v) : v
 
 # floats among parameters: each float an opaque constant c, the system solved exactly in
 # the c's, then the floats put back: conditions of the c's alone decided by their
@@ -333,9 +340,7 @@ function _solve_float_constants(eqs, vars::Vector{Sym})
         _solve_system_case(es, vars, B)
     end
     back = [c => Sym(f) for (c, f) in zip(cs, floats)]
-    putback(v) = v isa Sym ? _floatify(subs(v, back...)) :
-                 v isa AbstractDict ? Dict{Sym,Sym}(k => putback(w) for (k, w) in v) :
-                 v isa AbstractVector ? map(putback, v) : v
+    putback(v) = _solve_float_constants_putback(back, v)
     r isa Cases || return putback(r)
     out = Pair{Vector{Any},Any}[]
     for (conds, v) in r.cases
@@ -612,10 +617,11 @@ function _gauss_jordan(A::Matrix{C}, b::Vector{C}, vars::Vector{Sym}, ::Type{Sym
         C === SymNumber || cx || _divisor!(M[r, col])
         piv = inv(M[r, col])
         M[r, :] = [e * piv for e in M[r, :]]
+        rr = r
         for i in 1:m
             (i == r || !nz(M[i, col])) && continue
             f = M[i, col]
-            M[i, :] = [M[i, j] - f * M[r, j] for j in 1:(k + 1)]
+            M[i, :] = [M[i, j] - f * M[rr, j] for j in 1:(k + 1)]
             fl && (M[i, col] = zero(M[i, col]))
         end
         fl && (M .= [nz(e) ? e : zero(e) for e in M])

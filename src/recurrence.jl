@@ -412,6 +412,17 @@ end
 
 ## rsolve
 
+# rsolve's values by the recurrence itself (memoized in vals)
+function _rsolve_value(vals, m0, d, p, g, n, m)
+    haskey(vals, m) && return vals[m]
+    m < m0 + d && return nothing
+    prev = [_rsolve_value(vals, m0, d, p, g, n, m - d + i) for i in 0:(d - 1)]
+    any(isnothing, prev) && return nothing
+    pd = subs(p[end], n => m - d)
+    iszero(pd) && return nothing
+    vals[m] = expand((subs(g, n => m - d) - _add_many(subs(p[i+1], n => m - d) * prev[i+1] for i in 0:(d - 1))) / pd)
+end
+
 """
     SymJ.rsolve(eq, y(n), inits...)
 
@@ -455,7 +466,8 @@ function rsolve(eq, yn::Sym, inits::Pair...; assume = nothing)
         end
         # (|a| as a for a > 0, before the coefficients are taken)
         eq isa Relation && (eq = Relation(eq.op, refine(eq.lhs; assume = A), refine(eq.rhs; assume = A)))
-        r = with(() -> rsolve(eq, yn, inits...), _ASSUMING => A)
+        eq1, inits1 = eq, inits                    # (a new binding: a reassigned capture is boxed)
+        r = with(() -> rsolve(eq1, yn, inits1...), _ASSUMING => A)
         return r isa Sym ? refine(r; assume = A) : r
     end
     (yn.kind == FN && length(yn.args) == 1 && _isnamed(yn.args[1])) ||
@@ -464,13 +476,13 @@ function rsolve(eq, yn::Sym, inits::Pair...; assume = nothing)
     e = eq isa Relation ? expand(eq.lhs - eq.rhs) : throw(ArgumentError("rsolve: $eq is not an equation"))
     # the coefficient of each y(n + s), and the terms free of y
     coefs = Dict{Int,Sym}()
-    g = ZERO
+    g1 = ZERO
     terms = e.kind == ADD ? [Sym(c) * t for (c, t) in zip(e.coefs, e.args)] : [e]
     e.kind == ADD && !iszero(e.num) && push!(terms, Sym(e.num))
     for t in terms
         ys = _yfactors(t, yname)
         if isempty(ys)
-            g -= t                                 # Σ p_i y(n+i) = g
+            g1 -= t                                # Σ p_i y(n+i) = g
             continue
         end
         length(ys) == 1 || throw(ArgumentError("rsolve: the recurrence is not linear in $yname"))
@@ -484,16 +496,16 @@ function rsolve(eq, yn::Sym, inits::Pair...; assume = nothing)
     isempty(coefs) && throw(ArgumentError("rsolve: no $yname in the equation"))
     lo, hi = extrema(keys(coefs))
     # y(n + lo) ... as y(n) ...: shift n by -lo
-    p = Sym[expand(subs(get(coefs, i, ZERO), n => n - lo)) for i in lo:hi]
-    g = expand(subs(g, n => n - lo))
+    p1 = Sym[expand(subs(get(coefs, i, ZERO), n => n - lo)) for i in lo:hi]
+    g1 = expand(subs(g1, n => n - lo))
     # denominators cleared: polynomial coefficients
     # (a denominator free of n, 2^(-m) in the right side, needs no clearing: #27901)
-    den = reduce(vcat(p, g); init = ONE) do a, c
+    den = reduce(vcat(p1, g1); init = ONE) do a, c
         q = numer_denom(c)[2]
         has(q, n) ? _lcm_den(a, q) : a
     end
-    p = [expand(cancel(c * den)) for c in p]
-    g = expand(cancel(g * den))
+    p = [expand(cancel(c * den)) for c in p1]
+    g = expand(cancel(g1 * den))
     all(c -> _ispolyin(c, [n]), p) || throw(ArgumentError("rsolve: the coefficients are not polynomials in $n"))
     d = length(p) - 1
     d >= 1 || throw(ArgumentError("rsolve: $eq does not relate values at different n"))
@@ -518,15 +530,7 @@ function rsolve(eq, yn::Sym, inits::Pair...; assume = nothing)
     # values by the recurrence itself
     vals = Dict{Int,Sym}(i => v for (i, v) in init)
     m0 = minimum(keys(init))
-    function value(m)
-        haskey(vals, m) && return vals[m]
-        m < m0 + d && return nothing
-        prev = [value(m - d + i) for i in 0:(d - 1)]
-        any(isnothing, prev) && return nothing
-        pd = subs(p[end], n => m - d)
-        iszero(pd) && return nothing
-        vals[m] = expand((subs(g, n => m - d) - _add_many(subs(p[i+1], n => m - d) * prev[i+1] for i in 0:(d - 1))) / pd)
-    end
+    value(m) = _rsolve_value(vals, m0, d, p, g, n, m)
     # hypergeometric solutions (of the recurrence made homogeneous), else d'Alembertian
     # ones, else interlaced ones (Liouvillian)
     hom = _annihilate(p, g, n)

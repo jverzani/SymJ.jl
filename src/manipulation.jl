@@ -243,10 +243,10 @@ function _subs(ex::Sym, d::Dict{Sym,Sym})
     v === nothing || return v
     k = ex.kind
     if k == ADD
-        new = _subs_args(ex.args, d)
-        new === nothing && return ex
+        na = _subs_args(ex.args, d)
+        na === nothing && return ex
         return _add_many(Iterators.flatten(((Sym(ex.num),),
-            (_scale(new[i], ex.coefs[i]) for i in eachindex(ex.args)))))
+            (_scale(na[i], ex.coefs[i]) for i in eachindex(ex.args)))))
     elseif k == MUL
         powkeys = any(key -> key.kind == POW, keys(d))   # the dictionary is small
         # a factor b^e is stored as a pair, not a node: match it whole first (only
@@ -531,11 +531,13 @@ _isboundsum(ex::Sym) = ex.kind == FN && ex.name in (:Sum, :Product) && length(ex
 # contains v would be captured by it (Σₖ 1/(k² + y) with y => k is Σⱼ 1/(j² + k), not
 # Σₖ 1/(k² + k)), so v is first renamed to a fresh symbol.
 function _subs_bound(ex::Sym, d::Dict{Sym,Sym}, build)
-    f, v, a, b = ex.args
-    df = haskey(d, v) ? Dict(k => w for (k, w) in d if !_eq(k, v)) : d
-    if any(((k, w),) -> has(f, k) && has(w, v), df)
-        w = _fresh_bound(v, f, df)
-        f, v = _subs(f, Dict(v => w)), w
+    f0, v0, a, b = ex.args
+    df = haskey(d, v0) ? Dict(k => w for (k, w) in d if !_eq(k, v0)) : d
+    f, v = if any(((k, w),) -> has(f0, k) && has(w, v0), df)
+        w = _fresh_bound(v0, f0, df)
+        (_subs(f0, Dict(v0 => w)), w)
+    else
+        (f0, v0)
     end
     build(ex.name, Sym[_subs(f, df), v, _subs(a, d), _subs(b, d)])
 end
@@ -850,6 +852,10 @@ end
 Base.showerror(io::IO, e::HugeArgumentError) = print(io, "HugeArgumentError: ", e.name,
     " of a number about 2^", exponent(real(e.v)), ": its value needs that many bits of the argument, too many to compute")
 
+# (not specialized: inferred through sqrt(complex(::Real)), loading ForwardDiff
+# invalidated _evpow and the evaluation code above it)
+_sqrt_complex(@nospecialize(v)) = sqrt(complex(v))
+
 function _evpow(b::Sym, e::Sym, a, F, var)
     b === E && return exp(_ev(e, a, F, var))      # exp(x) is stored as ℯ^x
     bv = _ev(b, a, F, var)
@@ -859,7 +865,7 @@ function _evpow(b::Sym, e::Sym, a, F, var)
             return k >= 0 ? bv^k : inv(bv)^(-k)
         end
         if e.num == SymNumber(1 // 2)
-            return bv isa Real && bv < 0 ? sqrt(complex(bv)) : sqrt(bv)
+            return bv isa Real && bv < 0 ? _sqrt_complex(bv) : sqrt(bv)
         end
         ev = convert(F === nothing ? Float64 : F, _jlnum(e.num))
     else
@@ -1076,10 +1082,10 @@ function _evalf_big(ex::Sym, p::Int)
     # an unevaluated integral: once, by quadrature at p bits and a little more (a second
     # evaluation at twice the precision would cost more than it checks)
     if _hasfn(ex, :Integral)
-        w = _bigvalue(ex, p + 16)
-        w === nothing && throw(ArgumentError("evalf: $ex has no numeric value"))
+        wi = _bigvalue(ex, p + 16)
+        wi === nothing && throw(ArgumentError("evalf: $ex has no numeric value"))
         return setprecision(BigFloat, p) do
-            r, i = BigFloat(real(w)), BigFloat(imag(w))
+            r, i = BigFloat(real(wi)), BigFloat(imag(wi))
             iszero(i) ? r : complex(r, i)
         end
     end
@@ -1097,8 +1103,9 @@ function _evalf_big(ex::Sym, p::Int)
         end
         prev = w
     end
+    wf = w
     setprecision(BigFloat, p) do
-        r, i = BigFloat(real(w)), BigFloat(imag(w))
+        r, i = BigFloat(real(wf)), BigFloat(imag(wf))
         iszero(i) ? r : complex(r, i)
     end
 end
@@ -1281,10 +1288,13 @@ end
 # at a by central differences in 256-bit arithmetic, step 2^-32, Richardson-extrapolated
 # once (error far below Float64's); the derivative of ζ at 4 had no value (SymPy #11802)
 function _evalc_derivative(ex::Sym)::ComplexF64
-    f, v, a = ex.args
-    k = 1
-    while f.kind == FN && f.name === :Derivative && length(f.args) == 2 && _eq(f.args[2], v)
-        f, k = f.args[1], k + 1
+    f0, v, a = ex.args
+    # (f and k bound once: a reassigned capture is boxed)
+    f, k = let f = f0, k = 1
+        while f.kind == FN && f.name === :Derivative && length(f.args) == 2 && _eq(f.args[2], v)
+            f, k = f.args[1], k + 1
+        end
+        (f, k)
     end
     (_isnamed(v) && !_hassymbol(a) && k <= 8) || throw(ArgumentError("no numeric method for $ex"))
     _hasfn(f, :Derivative) && throw(ArgumentError("no numeric method for $ex"))

@@ -213,12 +213,12 @@ function _factor_exp_powers(ex::Sym; gcd_method::Symbol = :auto)
         nothing
     end
     # (one not replaced: a power of the same generator left)
-    left = false
+    left = Ref(false)
     _replace_walk(h) do t
-        t.kind == POW && (r = key(t.args[1], t.args[2]); r !== nothing && haskey(reps, (r[1], r[3])) && (left = true))
+        t.kind == POW && (r = key(t.args[1], t.args[2]); r !== nothing && haskey(reps, (r[1], r[3])) && (left[] = true))
         nothing
     end
-    left && return nothing
+    left[] && return nothing
     f = _factor_sym(h; gcd_method)
     _eq(f, h) && return nothing
     subs(f, [t => (p === E ? exp(u / Sym(q)) : p^(u / Sym(q))) for ((p, u), (t, q)) in reps]...)
@@ -560,9 +560,11 @@ end
 
 const _KRONECKER_MAX_DEGREE = 4000
 
-function _factor_kronecker(q::Poly{SymNumber}, act::Vector{Int})
+function _factor_kronecker(q0::Poly{SymNumber}, act::Vector{Int})
+    # (q0 for the closures, q reassigned below: a reassigned capture is boxed)
+    q = q0
     n = length(q.gens)
-    degs = [_deg_in_all(q, i) for i in act]
+    degs = [_deg_in_all(q0, i) for i in act]
     w = ones(Int, length(act))
     for j in 2:length(act)
         w[j] = w[j-1] * (degs[j-1] + 1)
@@ -574,7 +576,7 @@ function _factor_kronecker(q::Poly{SymNumber}, act::Vector{Int})
     t = Sym(:t)
     img = Dict{Int,SymNumber}()
     for (m, c) in zip(q.monos, q.coefs)
-        e = sum(_exponent(m, q.layout, n, act[j]) * w[j] for j in eachindex(act))
+        e = sum(_exponent(m, q0.layout, n, act[j]) * w[j] for j in eachindex(act))
         img[e] = c
     end
     F = Poly{SymNumber}([t], _uniform(1, 64), UInt64[e for e in sort!(collect(keys(img)); rev = true)],

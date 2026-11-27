@@ -171,7 +171,12 @@ Sym(z::Complex) = Sym(real(z)) + Sym(imag(z)) * IM
 
 # the Julia number a SymNumber stands for (as _jlnum, defined later), and its hash
 _julia_value(n::SymNumber) = n.tag == T_FLOAT ? n.f : n.tag == T_SMALL ? (n.d == 1 ? n.n : n.n // n.d) : n.big::Rational{BigInt}
-_hash_as_julia(n::SymNumber, h::UInt) = hash(_julia_value(n), h)
+# (each branch on its own: _julia_value infers as Union{Float64, Int, Rational}, and a hash
+# of an abstract Rational let loading ForwardDiff invalidate every hash of a Sym)
+_hash_as_julia(n::SymNumber, h::UInt) =
+    n.tag == T_FLOAT ? hash(n.f, h) :
+    n.tag == T_SMALL ? (n.d == 1 ? hash(n.n, h) : hash(n.n // n.d, h)) :
+    hash(n.big::Rational{BigInt}, h)
 
 # A Sym equal (==, isequal) to a Julia number hashes as that number, so Sets and Dicts
 # mix them (1 in Set([Sym(1)]); SymPy #5720, #5072): numbers, a + b i, i, π and ℯ

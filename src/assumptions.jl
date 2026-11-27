@@ -184,11 +184,15 @@ end
 const _NOTOP = Dict(:lt => :ge, :le => :gt, :gt => :le, :ge => :lt, :eq => :ne, :ne => :eq)
 Base.:!(r::Relation) = Relation(_NOTOP[r.op], r.lhs, r.rhs)
 
+# (typed constructors: the default FactAnd(facts) converted an Any to Vector{Any}, which
+# loading ForwardDiff invalidated with much of SymJ behind it)
 struct FactAnd
     facts::Vector{Any}
+    FactAnd(facts::Vector{Any}) = new(facts)
 end
 struct FactOr
     facts::Vector{Any}
+    FactOr(facts::Vector{Any}) = new(facts)
 end
 const _Fact = Union{Relation,Membership,FactAnd,FactOr}
 _parts(f, T) = f isa T ? f.facts : Any[f]
@@ -244,8 +248,13 @@ struct Assumptions
     lin::Vector{_ACon}                      # relations among several symbols
     cache::Dict{Sym,Union{Nothing,UInt8}}   # sign masks found
     # (the fields are set behind a marker: with Julia's default constructor, a call with
-    # nine facts, one for each field, would not reach Assumptions(facts...))
-    Assumptions(::_Fields, fields...) = new(fields...)
+    # nine facts, one for each field, would not reach Assumptions(facts...); typed, as
+    # new(fields...) from a Vararg{Any} converted each field from Any, which loading
+    # ForwardDiff invalidated with much of SymJ behind it)
+    Assumptions(::_Fields, facts::Vector{Any}, subst::Dict{Sym,Sym}, dom::Dict{Sym,Int8},
+                notin::Dict{Sym,Int8}, sets::Dict{Sym,SymSet}, excluded::Dict{Sym,Vector{Sym}},
+                nonzero::Vector{Sym}, lin::Vector{_ACon}, cache::Dict{Sym,Union{Nothing,UInt8}}) =
+        new(facts, subst, dom, notin, sets, excluded, nonzero, lin, cache)
 end
 
 # with Julia's operators, as the facts are written in @assume
@@ -375,10 +384,10 @@ _subsfact(f::FactOr, sub) = FactOr(Any[_subsfact(g, sub) for g in f.facts])
 
 _named(e::Sym) = sort!(collect(free_symbols(e) ∪ free_parameters(e)); lt = _lt)
 # the symbols of e that occur outside function calls
+_bare_symbols_visit!(out, t) = t.kind == FN ? nothing : (_isnamed(t) ? push!(out, t) : (foreach(a -> _bare_symbols_visit!(out, a), t.args); t.kind == MUL && foreach(a -> _bare_symbols_visit!(out, a), t.exps)))
 function _bare_symbols(e::Sym)
     out = Set{Sym}()
-    visit(t) = t.kind == FN ? nothing : (_isnamed(t) ? push!(out, t) : (foreach(visit, t.args); t.kind == MUL && foreach(visit, t.exps)))
-    visit(e)
+    _bare_symbols_visit!(out, e)
     out
 end
 _ismarkedreal(A, x) = get(A.dom, x, _CR) <= _RR || haskey(A.sets, x)
@@ -714,12 +723,13 @@ function _signs(e::Sym, A::Assumptions)::Union{Nothing,UInt8}
         mg = _sign_by_grouping(e, A)
         mg === nothing || (m = m === nothing ? mg : (m & mg == 0 ? m : m & mg))
     end
+    ee = e                          # (a new binding: a reassigned capture is boxed)
     if (m === nothing || count_ones(m) > 1) && _SPLIT_DEPTH[] < 3
-        ms = with(() -> _sign_by_split(e, A), _SPLIT_DEPTH => _SPLIT_DEPTH[] + 1)
+        ms = with(() -> _sign_by_split(ee, A), _SPLIT_DEPTH => _SPLIT_DEPTH[] + 1)
         ms === nothing || (m = m === nothing ? ms : (m & ms == 0 ? m : m & ms))
     end
     if (m === nothing || count_ones(m) > 1) && !_IN_EXTREMA[]
-        me = with(() -> _sign_by_extrema(e, A), _IN_EXTREMA => true)
+        me = with(() -> _sign_by_extrema(ee, A), _IN_EXTREMA => true)
         me === nothing || (m = m === nothing ? me : (m & me == 0 ? m : m & me))
     end
     A.cache[e] = m
@@ -760,29 +770,30 @@ end
 # or a case is undecided.
 const _SPLIT_DEPTH = ScopedValue(0)
 function _sign_by_split(e::Sym, A::Assumptions)
-    t = nothing
+    tr = Ref{Union{Nothing,Sym}}(nothing)
     _replace_walk(e) do s
-        t === nothing || return nothing
+        tr[] === nothing || return nothing
         s.kind == FN || return nothing
         if s.name in (:floor, :ceil, :abs) && length(s.args) == 1 && _isreal(s.args[1], A) === true
-            t = s
+            tr[] = s
         elseif s.name in (:max, :min) && length(s.args) == 2 && all(a -> _isreal(a, A) === true, s.args)
-            t = s
+            tr[] = s
         elseif s.name in (:sin, :cos) && length(s.args) == 1 && _isreal(s.args[1], A) === true &&
                (ms = _smask(s, A); ms === nothing || count_ones(ms) > 1)
             # sin u, cos u ∈ [-1, 1] (|cos x + 1| = cos x + 1; SymPy #21359, #21351, #21811)
-            t = s
+            tr[] = s
         elseif s.name === :mod && length(s.args) == 2 && _isreal(s.args[1], A) === true &&
                _signs(s.args[2], A) == _POS
             # mod(u, b) ∈ [0, b) for b > 0 (mod(k, 3) < 3; SymPy #8486)
-            t = s
+            tr[] = s
         elseif s.name === :factorial && length(s.args) == 1 && _isinteger(s.args[1], A) === true &&
                _holds(Relation(:ge, s.args[1], ZERO), A) === true
             # n! ≥ 1 for an integer n ≥ 0 (SymPy #9115)
-            t = s
+            tr[] = s
         end
         nothing
     end
+    t = tr[]
     t === nothing && return nothing
     branches = if t.name in (:sin, :cos)
         w = Sym(Symbol("_trig", _SPLIT_DEPTH[]))
@@ -1152,8 +1163,8 @@ function _unpair_conj(ts::Vector{Sym})
 end
 
 # is e an integer?
-function _isinteger(e::Sym, A::Assumptions)::Union{Nothing,Bool}
-    isempty(A.subst) || (e = expand(subs(e, A.subst...)))
+function _isinteger(e0::Sym, A::Assumptions)::Union{Nothing,Bool}
+    e = isempty(A.subst) ? e0 : expand(subs(e0, A.subst...))
     r = _isinteger_form(e, A)
     r === nothing || return r
     # a real e between consecutive integers, n < e < n + 1 with n = floor(e) decided:
@@ -1225,10 +1236,10 @@ end
 
 # is e nonzero?
 const _IN_IMNZ = ScopedValue(false)
-function _isnonzero(e::Sym, A::Assumptions)::Union{Nothing,Bool}
-    m = _signs(e, A)
+function _isnonzero(e0::Sym, A::Assumptions)::Union{Nothing,Bool}
+    m = _signs(e0, A)
     m === nothing || return m & _ZER == 0 ? true : m == _ZER ? false : nothing
-    isempty(A.subst) || (e = expand(subs(e, A.subst...)))
+    e = isempty(A.subst) ? e0 : expand(subs(e0, A.subst...))
     _known_nonzero(e, A) && return true
     # a fact u ≠ v with u - v = ±e (x ≠ 1 decides x - 1 ≠ 0; SymPy #25522)
     any(f -> f isa Relation && f.op === :ne && (d = expand(f.lhs - f.rhs); _eq(d, e) || _eq(d, -e)), A.facts) &&

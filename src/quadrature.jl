@@ -48,7 +48,8 @@ function _ev_integral(ex::Sym, a, var, F = Float64)
     nores() = Ref{Union{Nothing,Sym}}(nothing)
     la = _ev(lo, _Named(named), R, nores())
     lb = _ev(hi, _Named(named), R, nores())
-    g(t) = _ev(f, _Named(merge(named, NamedTuple{(v.name,)}((t,)))), R, nores())
+    nm = named                                       # (a new binding: a reassigned capture is boxed)
+    g(t) = _ev(f, _Named(merge(nm, NamedTuple{(v.name,)}((t,)))), R, nores())
     val, err = try
         if la isa Real && lb isa Real
             _quadgk(g, la, lb)

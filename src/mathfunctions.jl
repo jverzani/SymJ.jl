@@ -309,21 +309,21 @@ function _extreme_rule(name::Symbol, better)
             d = expand(rest[i] - rest[j])
             d.kind == NUMBER && isreal(d.num) && !iszero(d.num) && better(d.num, zero(d.num)) && (keep[j] = false)
         end
-        rest = rest[keep]
+        rest1 = rest[keep]
         # absorption: min(r, max(…, s, …)) = min(r, …) when s ≥ r (min(a, max(a, y)) = a),
         # and max(r, min(…, s, …)) likewise when s ≤ r (SymPy #12638)
         other = name === :min ? :max : :min
-        keep = trues(length(rest))
-        for (i, m) in enumerate(rest)
+        keep1 = trues(length(rest1))
+        for (i, m) in enumerate(rest1)
             (m.kind == FN && m.name === other) || continue
-            keep[i] = !any(j -> j != i && keep[j] && any(s -> (d = expand(s - rest[j]);
-                d.kind == NUMBER && isreal(d.num) && !better(d.num, zero(d.num))), m.args), eachindex(rest))
+            keep1[i] = !any(j -> j != i && keep1[j] && any(s -> (d = expand(s - rest1[j]);
+                d.kind == NUMBER && isreal(d.num) && !better(d.num, zero(d.num))), m.args), eachindex(rest1))
         end
-        rest = rest[keep]
-        length(rest) == 1 && return rest[1]
-        sort!(rest; lt = _lt)
-        length(rest) == length(args) && all(_eq.(rest, args)) && return nothing
-        _mkfn_node(name, rest)
+        rest2 = rest1[keep1]
+        length(rest2) == 1 && return rest2[1]
+        sort!(rest2; lt = _lt)
+        length(rest2) == length(args) && all(_eq.(rest2, args)) && return nothing
+        _mkfn_node(name, rest2)
     end
 end
 # ∂max(a, b)/∂a = heaviside(a - b), ∂min(a, b)/∂a = heaviside(b - a), for real a and b

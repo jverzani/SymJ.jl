@@ -101,10 +101,10 @@ function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Boo
     # terms with an unknown function of x are held, ∫ₐᵇ f(x) dx, the rest integrated
     rest, held = _split_opaque(Sym(f), x)
     if !isempty(held) && (P = _total_derivative(held, x)) !== nothing
-        H = subs(P, x => Sym(xab[3])) - subs(P, x => Sym(xab[2]))
-        iszero(rest) && return H
+        HP = subs(P, x => Sym(xab[3])) - subs(P, x => Sym(xab[2]))
+        iszero(rest) && return HP
         v = _definite_integral(rest, xab, assume, antider; principal_value)
-        return v isa Cases ? _map_cases(w -> w + H, v) : v + H
+        return v isa Cases ? _map_cases(w -> w + HP, v) : v + HP
     end
     if !isempty(held)
         Hs = Sym[]
@@ -149,12 +149,14 @@ function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Boo
     r = _floor_integral(f, x, lo, hi, assume, antider)
     r === nothing || return r
     isempty(ps) || (A0 = _with_fact(A0, FactAnd(Any[p ∈ ℝ for p in _sort_by_name!(collect(ps))])))
+    lo1, hi1 = lo, hi
     v = _by_cases(A0) do A
+        local g, r
         sub = collect(A.subst)
         # (a case where the integrand is not defined, b = 0 in exp(-(x - a)²/b): an error
         # for that case, not for the whole; SymPy #19672)
-        g, l, h = isempty(sub) ? (Sym(f), lo, hi) : try
-            (subs(Sym(f), sub...), subs(lo, sub...), subs(hi, sub...))
+        g, l, h = isempty(sub) ? (Sym(f), lo1, hi1) : try
+            (subs(Sym(f), sub...), subs(lo1, sub...), subs(hi1, sub...))
         catch err
             _isdivzero(err) || rethrow()
             throw(ArgumentError("integrate: the integrand is not defined where $(join(("$k = $w" for (k, w) in sub), ", "))"))
@@ -175,6 +177,7 @@ function _definite_integral(f, xab::Tuple, assume, antider; principal_value::Boo
                 end
             catch err
                 err isa InterruptException && rethrow()
+                local v
                 v = _known_definite(g, x, l, h)
                 v === nothing && (v = _bose_fermi_definite(g, x, l, h, A))
                 v === nothing && (v = _beta_log_definite(g, x, l, h, A))
@@ -501,7 +504,8 @@ function _gaussian_definite(f::Sym, x::Sym, lo::Sym, hi::Sym, A::Assumptions)
     if trig !== nothing
         (n == 0 && whole) || return nothing
         nm, k, φ = trig
-        g(s) = _gaussian_definite(exp(Q + s * IM * k * x), x, lo, hi, A)
+        Q1 = Q
+        g(s) = _gaussian_definite(exp(Q1 + s * IM * k * x), x, lo, hi, A)
         gp, gm = g(1), g(-1)
         (gp isa Sym && gm isa Sym) || return nothing
         v = nm === :cos ? (exp(IM * φ) * gp + exp(-IM * φ) * gm) / 2 : (exp(IM * φ) * gp - exp(-IM * φ) * gm) / (2IM)
@@ -568,8 +572,9 @@ end
 function _definite_integral(cs::Cases, xab::Tuple, assume, antider; principal_value::Bool = false)
     length(xab) == 3 || throw(ArgumentError("integrate: give the limits as (x, a, b)"))
     x, lo, hi = Sym(xab[1]), _endpoint(xab[2]), _endpoint(xab[3])
-    A0 = _assumptions(assume)
-    A0 === nothing && (A0 = Assumptions())
+    A0 = let A = _assumptions(assume)
+        A === nothing ? Assumptions() : A
+    end
     Ax = A0
     up = try _less(lo, hi, A0) catch err; err isa _NeedDecision || rethrow(); nothing end
     if up !== nothing
@@ -596,11 +601,12 @@ function _definite_integral(cs::Cases, xab::Tuple, assume, antider; principal_va
         end
     end
     out = Pair{Vector{Any},Any}[]
+    Ax1 = Ax
     for (conds, v) in cs
         onx = [c for c in conds if _fact_has(c, x)]
         rest = Any[c for c in conds if !_fact_has(c, x)]
         any(c -> c isa Relation && c.op === :eq, onx) && continue
-        hold = [_fact_holds(c, Ax) for c in onx]
+        hold = [_fact_holds(c, Ax1) for c in onx]
         any(h -> h === false, hold) && continue
         all(h -> h === true, hold) || throw(ArgumentError(
             "integrate: the inner integral's cases ($(_condsstring(onx))) split the interval of $x"))
@@ -750,15 +756,18 @@ function _definite(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A::Assumptions, pv
                 "integrate: the integral does not converge: $f has a pole at $x = $s inside the interval"))
         end
     end
-    terms = Tuple{Int,Sym}[]
-    for s in inside                                  # F(s⁻) - F(s⁺)
-        l, r = () -> _endvalue(F, x, s, :-, A, true), () -> _endvalue(F, x, s, :+, A, true)
-        append!(terms, pv ? _pv_terms(l, r, () -> _pv_limit(F, x, s, A)) : [(1, l()), (-1, r())])
+    # (new bindings: a reassigned capture is boxed)
+    let F = F, f = f, lo = lo, hi = hi
+        terms = Tuple{Int,Sym}[]
+        for s in inside                                  # F(s⁻) - F(s⁺)
+            l, r = () -> _endvalue(F, x, s, :-, A, true), () -> _endvalue(F, x, s, :+, A, true)
+            append!(terms, pv ? _pv_terms(l, r, () -> _pv_limit(F, x, s, A)) : [(1, l()), (-1, r())])
+        end
+        h, l = () -> _endvalue_div(F, f, x, hi, :-, A, hi in sing), () -> _endvalue_div(F, f, x, lo, :+, A, lo in sing)
+        append!(terms, pv && _isinfpt(lo) && _isinfpt(hi) ? _pv_terms(h, l, () -> _pv_limit(F, x, nothing, A)) :
+                       [(1, h()), (-1, l())])
+        _sum_values(terms, A)
     end
-    h, l = () -> _endvalue_div(F, f, x, hi, :-, A, hi in sing), () -> _endvalue_div(F, f, x, lo, :+, A, lo in sing)
-    append!(terms, pv && _isinfpt(lo) && _isinfpt(hi) ? _pv_terms(h, l, () -> _pv_limit(F, x, nothing, A)) :
-                   [(1, h()), (-1, l())])
-    _sum_values(terms, A)
 end
 
 # the terms for a principal value: the one-sided values left() - right() when both are
@@ -1200,7 +1209,8 @@ function _frullani(g::Sym, x::Sym)
         name === :exp ? (k.num < N0 || return nothing) : (k.num > N0 || return nothing)
         push!(ks, name === :exp ? -k : k)
     end
-    f(t) = name === :exp ? exp(-t) : apply_function(name, Sym[t])
+    nm = name
+    f(t) = nm === :exp ? exp(-t) : apply_function(nm, Sym[t])
     tt = Sym(:_frullani_t)
     f0 = subs(f(tt), tt => ZERO)
     finf = try limit(f(tt), tt => Inf) catch; return nothing end
@@ -1260,21 +1270,23 @@ function _singular_points(f::Sym, x::Sym, lo::Sym, hi::Sym)
     unique(pts)
 end
 
+# (for _total_derivative) the unknown functions of x in t pushed to us
+function _total_derivative_walk!(us, x::Sym, t::Sym)
+    if t.kind == FN && t.name !== :Derivative && !haskey(FUNCTION_RULES, t.name) && has(t, x)
+        any(o -> _eq(o, t), us) || push!(us, t)
+        return
+    end
+    foreach(a -> _total_derivative_walk!(us, x, a), t.args)
+    t.kind == MUL && foreach(a -> _total_derivative_walk!(us, x, a), t.exps)
+end
+
 # P with P' = Σ cᵢ gᵢ for the held terms, P a product of powers of the unknown functions of x
 # in them (f'g + fg' = (fg)'; SymPy #6958); nothing otherwise
 function _total_derivative(held, x::Sym)
     length(held) >= 2 || return nothing
     S = _add_many(Sym[c * g for (c, g) in held])
     us = Sym[]
-    function walk(t::Sym)
-        if t.kind == FN && t.name !== :Derivative && !haskey(FUNCTION_RULES, t.name) && has(t, x)
-            any(o -> _eq(o, t), us) || push!(us, t)
-            return
-        end
-        foreach(walk, t.args)
-        t.kind == MUL && foreach(walk, t.exps)
-    end
-    walk(S)
+    _total_derivative_walk!(us, x, S)
     (isempty(us) || length(us) > 4) && return nothing
     # (each term's degree in the functions, one more derivative: the product of them all,
     # or of one's square)
@@ -1290,15 +1302,15 @@ function _step_value_at(F::Sym, x::Sym, v::Sym)
     inf = v.kind == NUMBER && isfloat(v.num) && isinf(Float64(v.num))
     inf || return subs(F, x => v)
     s = Float64(v.num) > 0 ? 1 : -1
-    ok = true
+    ok = Ref(true)
     G = _replace_walk(F) do t
         (t.kind == FN && t.name in (:heaviside, :dirac)) || return nothing
         m = expand(subs(t.args[1], x => ONE) - subs(t.args[1], x => ZERO))
-        (m.kind == NUMBER && !iszero(m.num)) || (ok = false; return nothing)
+        (m.kind == NUMBER && !iszero(m.num)) || (ok[] = false; return nothing)
         t.name === :dirac && return ZERO
         return (sign(m.num) > 0) == (s > 0) ? ONE : ZERO
     end
-    (ok && !has(G, x)) ? G : nothing
+    (ok[] && !has(G, x)) ? G : nothing
 end
 
 # an antiderivative in x of g when g is a derivative: u'(x) (∫ g dx = u), or u'(v) at a
@@ -1455,7 +1467,8 @@ function _sampled_check(F::Sym, f::Sym, x::Sym, lo::Sym, hi::Sym, S, unlocated::
             abs(fm - fl) >= abs(fr - fm) ? ((r, fr) = (m, fm)) : ((l, fl) = (m, fm))
         end
         abs(fr - fl) > 1e-6 * scale || continue
-        any(p -> abs(p - (l + r) / 2) <= 1e-6 * (1 + abs(p)), Sv) && continue   # split there already
+        lr = (l + r) / 2
+        any(p -> abs(p - lr) <= 1e-6 * (1 + abs(p)), Sv) && continue   # split there already
         return :jump
     end
     :ok
@@ -1578,8 +1591,8 @@ function _definite_whole_periods(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A, p
     isempty(fs) && return nothing
     args = _fn_args!(Sym[], f, x)
     i = findfirst(args) do a
-        k = expand(diff(a, x))
-        !_hassymbol(k) && !iszero(k) && _hassymbol(expand(a - k * x))
+        ka = expand(diff(a, x))
+        !_hassymbol(ka) && !iszero(ka) && _hassymbol(expand(a - ka * x))
     end
     i === nothing && return nothing
     k = expand(diff(args[i], x))
@@ -1636,41 +1649,43 @@ function _definite_by_pieces(f::Sym, x::Sym, lo::Sym, hi::Sym, antider, A, pv::B
     N(lo) <= N(hi) ? v : -v
 end
 
+# (for _piece_cuts) the points in n pushed to out; ok[] = false when they can't be found
+function _piece_cuts_visit(out, ok, x::Sym, a::Real, b::Real, n::Sym)
+    ok[] || return
+    if n.kind == FN && (haskey(_COND_RELS, n.name) || n.name === :heaviside) && has(n, x)
+        u = haskey(_COND_RELS, n.name) ? n.args[1] - n.args[2] : n.args[1]
+        rs = try _solve_generic(u ~ 0, x) catch; (ok[] = false; return) end
+        rs isa AbstractVector || (ok[] = false; return)
+        # and where u is not defined, as it may change sign there (atan(1/x) at 0,
+        # where the midpoint was then taken; SymPy #20755)
+        for z in unique(_zero_sets!(Sym[], u, x))
+            zs = try _solve_generic(z ~ 0, x) catch; continue end
+            zs isa AbstractVector && (rs = vcat(rs, zs))
+        end
+        P = _trig_period(u, x)
+        p = P === nothing ? nothing : N(P)
+        for r in rs
+            _hassymbol(r) && (ok[] = false; return)
+            v = try N(r) catch; continue end
+            v isa Real || continue
+            ns = p === nothing ? (0:0) : ((floor(Int, (a - v) / p) - 1):(ceil(Int, (b - v) / p) + 1))
+            for k in ns
+                c = p === nothing ? r : expand(r + k * P)
+                w = v + (p === nothing ? 0 : k * p)
+                (a < w < b) && !any(q -> isapprox(N(q), w; atol = 1e-12), out) && push!(out, c)
+            end
+        end
+    end
+    foreach(t -> _piece_cuts_visit(out, ok, x, a, b, t), n.args)
+    n.kind == MUL && foreach(t -> _piece_cuts_visit(out, ok, x, a, b, t), n.exps)
+end
+
 # the points strictly inside (a, b) where a condition of g in x changes, sorted, with a
 # periodic condition's points repeated over the interval; nothing when they can't be found
 function _piece_cuts(g::Sym, x::Sym, a::Real, b::Real)
     out = Sym[]
     ok = Ref(true)
-    function visit(n::Sym)
-        ok[] || return
-        if n.kind == FN && (haskey(_COND_RELS, n.name) || n.name === :heaviside) && has(n, x)
-            u = haskey(_COND_RELS, n.name) ? n.args[1] - n.args[2] : n.args[1]
-            rs = try _solve_generic(u ~ 0, x) catch; (ok[] = false; return) end
-            rs isa AbstractVector || (ok[] = false; return)
-            # and where u is not defined, as it may change sign there (atan(1/x) at 0,
-            # where the midpoint was then taken; SymPy #20755)
-            for z in unique(_zero_sets!(Sym[], u, x))
-                zs = try _solve_generic(z ~ 0, x) catch; continue end
-                zs isa AbstractVector && (rs = vcat(rs, zs))
-            end
-            P = _trig_period(u, x)
-            p = P === nothing ? nothing : N(P)
-            for r in rs
-                _hassymbol(r) && (ok[] = false; return)
-                v = try N(r) catch; continue end
-                v isa Real || continue
-                ns = p === nothing ? (0:0) : ((floor(Int, (a - v) / p) - 1):(ceil(Int, (b - v) / p) + 1))
-                for k in ns
-                    c = p === nothing ? r : expand(r + k * P)
-                    w = v + (p === nothing ? 0 : k * p)
-                    (a < w < b) && !any(q -> isapprox(N(q), w; atol = 1e-12), out) && push!(out, c)
-                end
-            end
-        end
-        foreach(visit, n.args)
-        n.kind == MUL && foreach(visit, n.exps)
-    end
-    visit(g)
+    _piece_cuts_visit(out, ok, x, a, b, g)
     ok[] || return nothing
     sort!(out; by = N)
 end
@@ -1730,8 +1745,8 @@ function _drop_removable(v)
             g = cs[j].second
             (g isa Sym && vi isa Sym) || continue
             _removable_at(g, eq.lhs, eq.rhs, vi) || continue
-            cj = cs[j].first
-            cs[j] = Any[c for c in cj if !(c isa Relation && c.op === :ne && _eq(c.lhs, eq.lhs) && _eq(c.rhs, eq.rhs))] => g
+            cg = cs[j].first
+            cs[j] = Any[c for c in cg if !(c isa Relation && c.op === :ne && _eq(c.lhs, eq.lhs) && _eq(c.rhs, eq.rhs))] => g
             deleteat!(cs, i)
             changed = true
             break
@@ -1837,29 +1852,31 @@ end
 _trig_of(e::Sym, x::Sym) = (e.kind == FN && e.name in _TRIGFNS && has(e, x)) ||
     any(a -> _trig_of(a, x), e.args) || (e.kind == MUL && any(p -> _trig_of(p, x), e.exps))
 
+# (for _all_breakpoints) the breakpoints in n pushed to out; ok[] = false when one can't be found
+function _all_breakpoints_visit(out, ok, x::Sym, n::Sym)
+    ok[] || return
+    if n.kind == FN && (haskey(_COND_RELS, n.name) || n.name === :heaviside) && has(n, x)
+        u = haskey(_COND_RELS, n.name) ? n.args[1] - n.args[2] : n.args[1]
+        # a periodic condition (cos(π(x - y)) < 0) changes at infinitely many points,
+        # not the few a solver returns
+        _trig_of(u, x) && (ok[] = false; return)
+        rs = try _solve_generic(u ~ 0, x) catch; (ok[] = false; return) end
+        rs isa AbstractVector || (ok[] = false; return)
+        for r in rs
+            (_hassymbol(r) || _isreal_const(r) === true) || continue
+            any(q -> iszero(expand(q - r)), out) || push!(out, r)
+        end
+        n.name === :heaviside && return
+    end
+    foreach(t -> _all_breakpoints_visit(out, ok, x, t), n.args)
+    n.kind == MUL && foreach(t -> _all_breakpoints_visit(out, ok, x, t), n.exps)
+end
+
 # every breakpoint of g in x, numeric or with parameters; nothing when one can't be found
 function _all_breakpoints(e::Sym, x::Sym)
     out = Sym[]
     ok = Ref(true)
-    function visit(n::Sym)
-        ok[] || return
-        if n.kind == FN && (haskey(_COND_RELS, n.name) || n.name === :heaviside) && has(n, x)
-            u = haskey(_COND_RELS, n.name) ? n.args[1] - n.args[2] : n.args[1]
-            # a periodic condition (cos(π(x - y)) < 0) changes at infinitely many points,
-            # not the few a solver returns
-            _trig_of(u, x) && (ok[] = false; return)
-            rs = try _solve_generic(u ~ 0, x) catch; (ok[] = false; return) end
-            rs isa AbstractVector || (ok[] = false; return)
-            for r in rs
-                (_hassymbol(r) || _isreal_const(r) === true) || continue
-                any(q -> iszero(expand(q - r)), out) || push!(out, r)
-            end
-            n.name === :heaviside && return
-        end
-        foreach(visit, n.args)
-        n.kind == MUL && foreach(visit, n.exps)
-    end
-    visit(e)
+    _all_breakpoints_visit(out, ok, x, e)
     ok[] && !isempty(out) ? out : nothing
 end
 
@@ -2173,39 +2190,43 @@ function _feynman(f::Sym, x::Sym, lo::Sym, hi::Sym, q::Number, integ)
     end
 end
 
+# (for _feynman_constants) add applied to e's constants, depth first
+function _feynman_constants_walk(add, e::Sym)
+    k = e.kind
+    if k == NUMBER
+        add(e.num)
+    elseif k == ADD
+        add(e.num); foreach(add, e.coefs)
+    elseif k == MUL
+        add(e.num)
+    end
+    foreach(t -> _feynman_constants_walk(add, t), e.args)
+    k == MUL && foreach(t -> _feynman_constants_walk(add, t), e.exps)
+end
+
 # the distinct |c| of f's exact constants other than 0 and 1, as they appear (at most 4)
 function _feynman_constants(f::Sym)
     cs = Rational{BigInt}[]
     add(r::SymNumber) = (isexact(r) && (c = abs(_rat(r)); !iszero(c) && !isone(c) && !(c in cs)) && push!(cs, c))
-    function walk(e::Sym)
-        k = e.kind
-        if k == NUMBER
-            add(e.num)
-        elseif k == ADD
-            add(e.num); foreach(add, e.coefs)
-        elseif k == MUL
-            add(e.num)
-        end
-        foreach(walk, e.args)
-        k == MUL && foreach(walk, e.exps)
-    end
-    walk(f)
+    _feynman_constants_walk(add, f)
     cs[1:min(end, 4)]
+end
+
+# (for _feynman_param) e with num applied to each exact constant
+function _feynman_param_rep(num, e::Sym)
+    k = e.kind
+    k == NUMBER && return num(e.num)
+    k == ADD && return _add_many(vcat([num(e.num)], [num(w) * _feynman_param_rep(num, t) for (w, t) in zip(e.coefs, e.args)]))
+    k == MUL && return num(e.num) * prod((_feynman_param_rep(num, b)^_feynman_param_rep(num, p) for (b, p) in zip(e.args, e.exps)); init = ONE)
+    k == POW && return _feynman_param_rep(num, e.args[1])^_feynman_param_rep(num, e.args[2])
+    k == FN && return apply_function(e.name, Sym[_feynman_param_rep(num, t) for t in e.args])
+    e
 end
 
 # f with each exact constant ±c replaced by ±a
 function _feynman_param(f::Sym, c::Rational{BigInt}, a::Sym)
     num(r::SymNumber) = isexact(r) && abs(_rat(r)) == c ? (_rat(r) > 0 ? a : -a) : Sym(r)
-    function rep(e::Sym)
-        k = e.kind
-        k == NUMBER && return num(e.num)
-        k == ADD && return _add_many(vcat([num(e.num)], [num(w) * rep(t) for (w, t) in zip(e.coefs, e.args)]))
-        k == MUL && return num(e.num) * prod((rep(b)^rep(p) for (b, p) in zip(e.args, e.exps)); init = ONE)
-        k == POW && return rep(e.args[1])^rep(e.args[2])
-        k == FN && return apply_function(e.name, Sym[rep(t) for t in e.args])
-        e
-    end
-    rep(f)
+    _feynman_param_rep(num, f)
 end
 
 function _feynman_try(f, g, x, a, c, a0, lo, hi, integ)

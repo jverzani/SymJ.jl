@@ -437,6 +437,16 @@ RischIntegrate that run a precompilation workload of limits and integrals on Sym
 expressions when those packages are installed. The compiled code then ships with the
 extension, and the first limit takes about 1 ms.
 
+A package loaded after SymJ that adds methods to Base functions SymJ calls on abstract
+types (`/(::Real, ::Float64)`, `hash(::Rational)`, `min(::Real, ::Real)`), as ForwardDiff
+does, invalidates the compiled code that makes those calls, and Julia infers again
+whatever depends on it. Much of SymJ is one large recursive cycle (simplify, solve,
+assumptions, series, limits), so a first `sin(x)` after loading ForwardDiff took 13–15 s
+on Julia 1.12. SymJ keeps such calls concretely typed and has no boxed captured variables
+(a closure capturing a reassigned variable sees it as `Any`), which brought it to about
+6 s. Loading ForwardDiff before SymJ avoids most of the rest. Cutting the cycle with
+inference barriers made SymJ's own precompilation take over 25 minutes.
+
 With Latexify loaded, an extension gives `latexify` recipes for expressions and
 relations, and a `text/latex` display for them, for arrays of expressions and for
 tuples of expressions. Notebooks and these pages then show results typeset. As in
