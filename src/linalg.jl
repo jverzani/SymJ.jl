@@ -117,8 +117,8 @@ function _field_matrix(A::AbstractMatrix)
             throw(ArgumentError("matrix entries with floating point numbers together with symbols are not supported"))
     end
     any(_isalgebraic_atom, atoms) && return map(e -> _AlgF(_algnorm(e)), S), (a -> cancel(a.v))
-    gens = sort!(collect(atoms); lt = _lt)
-    isempty(gens) && (gens = Sym[Sym(:_linalg)])         # constants such as sqrt(2) only
+    gens0 = sort!(collect(atoms); lt = _lt)
+    gens = isempty(gens0) ? Sym[Sym(:_linalg)] : gens0     # constants such as sqrt(2) only
     rf(e) = (nd = numer_denom(e); _ratfun(Poly{SymNumber}(nd[1], gens), Poly{SymNumber}(nd[2], gens)))
     map(rf, S), _from_ratfun
 end
@@ -718,12 +718,12 @@ function _exp_powers(A::AbstractMatrix)
     # the exponents as sums of c u with c rational (exp(a + b) is exp(a) exp(b): with a + b
     # its own atom, a zero pivot was taken; SymPy #17130), each u a generator
     groups = Dict{Sym,Vector{Rational{BigInt}}}()
-    multi = false
+    multi = Ref(false)
     for e in X
         _replace_walk(e) do t
             if t.kind == POW && t.args[1] === E
                 ts, _ = _exp_terms(t.args[2])
-                length(ts) > 1 && (multi = true)
+                length(ts) > 1 && (multi[] = true)
                 for (u, c) in ts
                     push!(get!(groups, u, Rational{BigInt}[]), c)
                 end
@@ -732,7 +732,7 @@ function _exp_powers(A::AbstractMatrix)
         end
     end
     # (also a product holding e as a base: exp(q)^k is E^(kq) as built)
-    multi || any(v -> length(unique(abs.(v))) >= 2 || any(c -> !isone(abs(c)), v), values(groups)) || return S, nothing
+    multi[] || any(v -> length(unique(abs.(v))) >= 2 || any(c -> !isone(abs(c)), v), values(groups)) || return S, nothing
     ws = Dict{Sym,Tuple{Sym,BigInt}}()
     for (u, cs) in groups
         ws[u] = (Sym(Symbol("_expw", length(ws) + 1)), reduce(lcm, (denominator(c) for c in cs); init = big(1)))
@@ -965,11 +965,13 @@ function _berkowitz(A::Matrix{Sym})
         q = Sym[ONE, -a]
         w = C
         for _ in 0:(r - 2)
-            push!(q, -expand(sum(R[i] * w[i] for i in eachindex(w))))
-            w = Sym[expand(sum(M[i, j] * w[j] for j in eachindex(w))) for i in eachindex(w)]
+            wc = w                         # (a new binding: a reassigned capture is boxed)
+            push!(q, -expand(sum(R[i] * wc[i] for i in eachindex(wc))))
+            w = Sym[expand(sum(M[i, j] * wc[j] for j in eachindex(wc))) for i in eachindex(wc)]
         end
         # (r + 1) × r lower-triangular Toeplitz matrix with first column q, times v
-        v = Sym[expand(_add_many(q[i - j + 1] * v[j] for j in 1:min(i, r))) for i in 1:(r + 1)]
+        vc = v
+        v = Sym[expand(_add_many(q[i - j + 1] * vc[j] for j in 1:min(i, r))) for i in 1:(r + 1)]
     end
     v
 end
@@ -1011,11 +1013,11 @@ function _eigen_mult(A::AbstractMatrix)
     for (f, k) in fs
         has(f, λ) || continue
         m = Int(_numerator(k.num))
-        for r in _eig_roots_unity(f, λ)
+        for r0 in _eig_roots_unity(f, λ)
             # an exact matrix with numeric roots (its charpoly's coefficients radicals, as
             # for the DFT matrix): a root r with r or r² a small rational, verified exactly
             # (√5, i√5; SymPy #24082)
-            r = _exact_eig_guess(f, λ, r)
+            r = _exact_eig_guess(f, λ, r0)
             i = findfirst(q -> iszero(expand(q.first - r)), out)
             i === nothing ? push!(out, r => m) : (out[i] = r => out[i].second + m)
         end
@@ -1594,7 +1596,8 @@ function LinearAlgebra.svd(A::AbstractMatrix{Sym}; full::Bool = false, assume = 
         m, n = size(A)
         return LinearAlgebra.SVD(Matrix{Sym}(undef, m, 0), Sym[], Matrix{Sym}(undef, 0, n))
     end
-    assume === nothing || return assuming(() -> LinearAlgebra.svd(A; full), _assumptions(assume))
+    Ac = A
+    assume === nothing || return assuming(() -> LinearAlgebra.svd(Ac; full), _assumptions(assume))
     m, n = size(A)
     if m < n                                     # through A' (the smaller of A'A, AA')
         F = LinearAlgebra.svd(_adjoint(A); full)
@@ -1891,6 +1894,19 @@ end
 
 ## Permanent
 
+# rows i..m of M, the columns in `used` (a bit set) taken (for permanent)
+function _permanent_per(memo, M, m, n, i::Int, used::Int)
+    i > m && return ONE
+    get(memo, used, nothing) isa Sym && return memo[used]
+    terms = Sym[]
+    for j in 1:n
+        (used >> (j - 1)) & 1 == 1 && continue
+        iszero(M[i, j]) && continue
+        push!(terms, M[i, j] * _permanent_per(memo, M, m, n, i + 1, used | (1 << (j - 1))))
+    end
+    memo[used] = expand(_add_many(terms))
+end
+
 """
     SymJ.permanent(A)
 
@@ -1911,19 +1927,7 @@ function permanent(A::AbstractMatrix)
     n > 30 && throw(ArgumentError("permanent: at most 30 columns"))
     M = Sym[Sym(a) for a in A]
     memo = Dict{Int,Sym}()
-    # rows i..m, the columns in `used` (a bit set) taken
-    function per(i::Int, used::Int)
-        i > m && return ONE
-        get(memo, used, nothing) isa Sym && return memo[used]
-        terms = Sym[]
-        for j in 1:n
-            (used >> (j - 1)) & 1 == 1 && continue
-            iszero(M[i, j]) && continue
-            push!(terms, M[i, j] * per(i + 1, used | (1 << (j - 1))))
-        end
-        memo[used] = expand(_add_many(terms))
-    end
-    per(1, 0)
+    _permanent_per(memo, M, m, n, 1, 0)
 end
 
 ## Rotation matrices

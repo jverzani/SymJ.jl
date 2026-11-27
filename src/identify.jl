@@ -66,9 +66,9 @@ function _identify(f::Float64, cs, rtol, maxcoeff, maxdegree)
         if !isempty(cs)
             # b₁x + b₂ + Σ bᵢ cᵢ = 0
             v = [x; one(BigFloat); BigFloat[c[2] for c in cs]]
-            b = _relation(v, rtol, maxcoeff)
-            if b !== nothing && !iszero(b[1])
-                r = -(b[2] + sum(b[i + 2] * c[1] for (i, c) in enumerate(cs))) / b[1]
+            bc = _relation(v, rtol, maxcoeff)
+            if bc !== nothing && !iszero(bc[1])
+                r = -(bc[2] + sum(bc[i + 2] * c[1] for (i, c) in enumerate(cs))) / bc[1]
                 return r
             end
         end

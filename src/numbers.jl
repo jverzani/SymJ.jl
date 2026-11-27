@@ -279,13 +279,18 @@ Base.promote_rule(::Type{SymNumber}, ::Type{<:Integer}) = SymNumber
 Base.promote_rule(::Type{SymNumber}, ::Type{<:Rational}) = SymNumber
 Base.promote_rule(::Type{SymNumber}, ::Type{<:AbstractFloat}) = SymNumber
 
+# (each print with a concrete type: print(io, n, "//", d) with n, d Union{Int, BigInt} let
+# loading ForwardDiff invalidate the printing of every expression)
 function Base.show(io::IO, x::SymNumber)
     if x.tag == T_FLOAT
         print(io, x.f)
-    elseif _isint(x)
-        print(io, _numerator(x))
+    elseif x.tag == T_SMALL
+        print(io, x.n)
+        x.d == 1 || (print(io, "//"); print(io, x.d))
     else
-        print(io, _numerator(x), "//", _denominator(x))
+        r = x.big::Rational{BigInt}
+        print(io, numerator(r))
+        isone(denominator(r)) || (print(io, "//"); print(io, denominator(r)))
     end
 end
 

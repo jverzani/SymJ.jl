@@ -82,9 +82,9 @@ function _solvable_quintic(c::Vector{Sym})
         D = round(BigInt, real(V^2))
         abs(V^2 - D) <= big(10.0)^-60 * max(1, abs(V)^2) || return nothing
         # exact V: ±√D, the sign the numeric V has
-        Vx = sqrt(Sym(D))
-        Vxn = C(_bigvalue(Vx, 512))
-        Vx = abs(Vxn - V) < abs(Vxn + V) ? Vx : -Vx
+        Vx0 = sqrt(Sym(D))
+        Vxn = C(_bigvalue(Vx0, 512))
+        Vx = abs(Vxn - V) < abs(Vxn + V) ? Vx0 : -Vx0
         function exact(u1, u2)                    # u1's ζ-coefficients: (U + W V/D)/2
             out = Sym[]
             for i in 1:4
@@ -150,9 +150,9 @@ function _solvable_quintic(c::Vector{Sym})
             any(isnothing, vals) && return nothing
             i = argmin([abs(C(v) - rn^5) for v in vals])
             abs(C(vals[i]) - rn^5) <= big(10.0)^-40 * max(1, abs(rn)^5) || return nothing
-            Rx = root5(y5s[i], rn)
-            Rx === nothing && return nothing
-            Rx, (-Rx[1], Qe / Rx[2])                            # P/R = ζ^(-k) P/r0
+            Rp = root5(y5s[i], rn)
+            Rp === nothing && return nothing
+            Rp, (-Rp[1], Qe / Rp[2])                            # P/R = ζ^(-k) P/r0
         end
         A = pair(S1, Q1, P1, Rn[1], Rn[4])
         B = pair(S2, Q2, P2, Rn[2], Rn[3])

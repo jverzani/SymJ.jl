@@ -222,11 +222,11 @@ end
 
 Total degree, or the degree in the generator `x`. The zero polynomial has degree `-1`.
 """
-function degree(p::Poly)
+function degree(p::Poly)::Int
     n = length(p.gens)
     maximum((sum(_exponent(m, p.layout, n, i) for i in 1:n; init = 0) for m in p.monos); init = -1)
 end
-function degree(p::Poly, x::Sym)
+function degree(p::Poly, x::Sym)::Int
     i, n = _genindex(p, x), length(p.gens)
     maximum((_exponent(m, p.layout, n, i) for m in p.monos); init = -1)
 end
@@ -937,13 +937,16 @@ function _monocode(::Type{M}, ex::Sym, index, L::_Layout, n::Int) where {M}
 end
 
 # sum of many polynomials: concatenate, sort once, combine runs
-function _sum_polys(::Type{C}, ::Type{M}, gs, L, ps) where {C,M}
+function _sum_polys(::Type{C}, ::Type{M}, gs, L0, ps) where {C,M}
     # parts built in other layouts (none, given the degree bounds): bring all to one
-    if any(p -> !(p.layout == L), ps)
+    # (L0 and Ln bound once: a reassigned capture is boxed)
+    L = L0
+    if any(p -> !(p.layout == L0), ps)
         degs = reduce((a, p) -> max.(a, _maxdegs(p)), ps; init = zeros(Int, length(gs)))
-        L = _layout_in(M, degs)
-        L === nothing && throw(_PackOverflow(maximum(degs)))
-        ps = [_repack(p, gs, L, M) for p in ps]
+        Ln = _layout_in(M, degs)
+        Ln === nothing && throw(_PackOverflow(maximum(degs)))
+        ps = [_repack(p, gs, Ln, M) for p in ps]
+        L = Ln
     end
     monos = reduce(vcat, (p.monos for p in ps); init = M[])
     coefs = reduce(vcat, (p.coefs for p in ps); init = C[])

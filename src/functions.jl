@@ -217,7 +217,11 @@ function _first_printed(x::Sym)
         d > deg ? ((best, deg, tie) = (i, d, false)) : d == deg && (tie = true)
     end
     tie || return best
-    if all(a -> a.kind == SYMBOL || _degree(a) != deg, x.args)   # names compare as printed
+    # (a new binding for the closures below: capturing deg, which the loop above assigns,
+    # boxed it as Any, and d > deg then reached the comparison of Syms, with simplify and
+    # solve behind it, in inference)
+    dg = deg
+    if all(a -> a.kind == SYMBOL || _degree(a) != dg, x.args)   # names compare as printed
         best = 0
         for i in eachindex(x.args)
             _degree(x.args[i]) == deg && (best == 0 || isless(x.args[i].name, x.args[best].name)) && (best = i)

@@ -205,17 +205,20 @@ const _SSMember = Tuple{Sym,Vector{Sym},Vector{Relation}}
 
 function _ss_set(x::Sym, ms::Vector{_SSMember}, names)
     pts, fams = Sym[], ImageSet[]
-    for (e, vs, cs) in _ss_merge(ms)
-        vs = unique(Sym[v for v in vs if has(e, v)])
-        cs = Relation[c for c in cs if any(v -> has(c.lhs - c.rhs, v), vs)]
+    for (e0, vs0, cs0) in _ss_merge(ms)
+        vs1 = unique(Sym[v for v in vs0 if has(e0, v)])
+        cs1 = Relation[c for c in cs0 if any(v -> has(c.lhs - c.rhs, v), vs1)]
         # each family's variables renamed n, m, … in order
-        if !isempty(vs)
-            new = Sym[Sym(i <= length(names) ? names[i] : Symbol("n", i)) for i in eachindex(vs)]
-            tmp = Sym[Sym(Symbol("_ssr", i)) for i in eachindex(vs)]
-            sub1, sub2 = [v => t for (v, t) in zip(vs, tmp)], [t => w for (t, w) in zip(tmp, new)]
-            e = subs(subs(e, sub1...), sub2...)
-            cs = Relation[Relation(c.op, subs(subs(c.lhs, sub1...), sub2...), subs(subs(c.rhs, sub1...), sub2...)) for c in cs]
-            vs = new
+        # (one assignment of e, vs, cs: a reassigned capture is boxed)
+        e, vs, cs = if !isempty(vs1)
+            new = Sym[Sym(i <= length(names) ? names[i] : Symbol("n", i)) for i in eachindex(vs1)]
+            tmp = Sym[Sym(Symbol("_ssr", i)) for i in eachindex(vs1)]
+            sub1, sub2 = [v => t for (v, t) in zip(vs1, tmp)], [t => w for (t, w) in zip(tmp, new)]
+            (subs(subs(e0, sub1...), sub2...),
+             new,
+             Relation[Relation(c.op, subs(subs(c.lhs, sub1...), sub2...), subs(subs(c.rhs, sub1...), sub2...)) for c in cs1])
+        else
+            (e0, vs1, cs1)
         end
         if isempty(vs)
             any(p -> _ss_same(p, e), pts) || push!(pts, e)
@@ -335,7 +338,7 @@ function _ss(e::Sym, x::Sym, real::Bool, fresh, bvs::Vector{Sym}, bcs::Vector{Re
         return _ss_map(r) do rs
             n = fresh()
             Pn = N(P)
-            out = _SSMember[]
+            res = _SSMember[]
             seen = Sym[]
             for ρ in rs
                 v = try N(ρ) catch; throw(_SSUnsolved()) end
@@ -344,9 +347,9 @@ function _ss(e::Sym, x::Sym, real::Bool, fresh, bvs::Vector{Sym}, bcs::Vector{Re
                 ρ0 = expand(ρ - q * P)
                 any(s -> _ss_same(s, ρ0), seen) && continue
                 push!(seen, ρ0)
-                push!(out, (ρ0 + P * n, [bvs; n], copy(bcs)))
+                push!(res, (ρ0 + P * n, [bvs; n], copy(bcs)))
             end
-            out
+            res
         end
     end
     # with parameters, two or more trigonometric functions of one angle: through tan(u/2)
@@ -647,6 +650,7 @@ function _ss_invert(g::Sym, y::Sym, real::Bool, fresh, bvs::Vector{Sym}, bcs::Ve
     out = _SSMember[]
     # y's admissible instances: (y with bound variables substituted, conditions)
     function within(lo, hi; lc = true, hc = true)
+        local b, c, w
         vs = [v for v in bvs if has(y, v)]
         if isempty(vs)
             if _hassymbol(y)

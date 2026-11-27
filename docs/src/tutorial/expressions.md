@@ -295,8 +295,15 @@ u(3), u(3.0), u(1 // 3), u(big(2.5))
 
 
 Because the arithmetic is generic, automatic differentiation and other
-number types work through it. An expression can also be broadcast over
-a collection:
+number types work through it.
+
+!!! note "Load ForwardDiff first"
+    A package that adds methods to Base's number functions, as ForwardDiff does,
+    invalidates some of SymJ's compiled code when it is loaded after SymJ, and the next
+    symbolic operations compile again: a first `sin(x)` took 6 s on Julia 1.12. Loaded
+    before, `import ForwardDiff` then `using SymJ`, it costs little.
+
+An expression can also be broadcast over a collection:
 
 ```@example tut
 u.(0:4)

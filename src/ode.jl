@@ -218,7 +218,10 @@ SymJ.dsolve([u'(t) ~ v(t), v'(t) ~ -u(t)], [u(t), v(t)], u(0) => 1, v(0) => 0)
 """
 function dsolve(eq::Relation, yx::Sym, ics::Pair...; series::Union{Nothing,Integer} = nothing, x0 = nothing,
                 method::Symbol = :auto, assume = nothing)
-    assume === nothing || return with(() -> dsolve(eq, yx, ics...; series, x0, method), _ASSUMING => _assumptions(assume))
+    if assume !== nothing
+        eq0 = eq                                 # (a new binding: a reassigned capture is boxed)
+        return with(() -> dsolve(eq0, yx, ics...; series, x0, method), _ASSUMING => _assumptions(assume))
+    end
     method in (:auto, :laplace) || throw(ArgumentError("dsolve: method is :auto or :laplace, not $method"))
     eq = _ode_drop_factors(eq, yx)
     # several factors with y in them: each factor's solutions (φ′(M + c φ″) = 0 lost φ = C
@@ -308,8 +311,8 @@ function dsolve(eq::Relation, yx::Sym, ics::Pair...; series::Union{Nothing,Integ
         if kind === :several
             # the candidates that solve the equation on both sides of the initial point
             # ((x/2 - 1)² meets f(0) = 1 but not f′ = √f near 0; SymPy #16880)
-            a = conds[1][2]
-            T = [t for t in S if _ode_holds_near(eq, yx, P.x, t, a)]
+            a1, eq1 = conds[1][2], eq
+            T = [t for t in S if _ode_holds_near(eq1, yx, P.x, t, a1)]
             isempty(T) && throw(ArgumentError("dsolve: no solution satisfies the initial conditions"))
             length(T) == 1 || return [yx ~ t for t in T]
             kind, S = :explicit, T[1]
@@ -353,26 +356,30 @@ struct _ODE
     n::Int              # the order
 end
 
+# _ode_parse's: e = y⁽ᵒ⁾(x): o, else nothing
+# (nothing, not false, for another function: g'(x) is no y'; SymPy #13691)
+_ode_parse_order(yx, x, e) = _eq(e, yx) ? 0 :
+           (e.kind == FN && e.name === :Derivative && length(e.args) == 2 && _eq(e.args[2], x)) ?
+           (o = _ode_parse_order(yx, x, e.args[1]); o === nothing ? nothing : o + 1) : nothing
+
+# _ode_parse's: the derivatives of y in e, recorded in ders
+function _ode_parse_walk(ders, yx, x, e)
+    o = e.kind == FN ? _ode_parse_order(yx, x, e) : nothing
+    if o isa Int
+        ders[e] = o
+        return
+    end
+    foreach(a -> _ode_parse_walk(ders, yx, x, a), e.args)
+    foreach(a -> _ode_parse_walk(ders, yx, x, a), e.exps)
+end
+
 function _ode_parse(eq::Relation, yx::Sym)
     (yx.kind == FN && length(yx.args) == 1 && yx.args[1].kind == SYMBOL) ||
         throw(ArgumentError("dsolve: the unknown is a function of one symbol, y(x); got $yx"))
     x = yx.args[1]
     F = lhs(eq) - rhs(eq)
     ders = Dict{Sym,Int}()
-    # (nothing, not false, for another function: g'(x) is no y'; SymPy #13691)
-    order(e) = _eq(e, yx) ? 0 :
-               (e.kind == FN && e.name === :Derivative && length(e.args) == 2 && _eq(e.args[2], x)) ?
-               (o = order(e.args[1]); o === nothing ? nothing : o + 1) : nothing
-    function walk(e)
-        o = e.kind == FN ? order(e) : nothing
-        if o isa Int
-            ders[e] = o
-            return
-        end
-        foreach(walk, e.args)
-        foreach(walk, e.exps)
-    end
-    walk(F)
+    _ode_parse_walk(ders, yx, x, F)
     isempty(ders) && throw(ArgumentError("dsolve: $yx does not appear in $eq"))
     n = maximum(values(ders))
     n >= 1 || throw(ArgumentError("dsolve: no derivative of $yx in $eq"))
@@ -650,9 +657,9 @@ function _ode_linear(P::_ODE, Cs)
     end
     t = Sym(:_ode_t)
     # x^k y⁽ᵏ⁾ = θ(θ - 1)…(θ - k + 1) y, θ = d/dt: the coefficients of the polynomial in θ
-    r = Sym(:_ode_r)
-    q = expand(sum(cs[k + 1] * prod((r - i for i in 0:(k - 1)); init = ONE) for k in 0:n))
-    b = Sym[_ode_coeff(q, r, k) for k in 0:n]
+    ρ = Sym(:_ode_r)
+    q = expand(sum(cs[k + 1] * prod((ρ - i for i in 0:(k - 1)); init = ONE) for k in 0:n))
+    b = Sym[_ode_coeff(q, ρ, k) for k in 0:n]
     G = _explog(subs(_ode_tidy(g * x^n / a[n + 1]), x => exp(t)))
     S = _ode_constcoeff(b, G, t, Cs)
     (:explicit, _ode_tidy(_explog(subs(S, t => log(x)))))
@@ -1026,8 +1033,8 @@ function _ode_basis(a::Vector{Sym}, x::Sym)
         re, im_ = _ode_reim(ρ, A)
         if im_ !== nothing && !iszero(im_)
             # a conjugate pair, once
-            β = _ode_tidy(abs(im_))
-            A === nothing || (β = refine(β; assume = A))
+            β0 = _ode_tidy(abs(im_))
+            β = A === nothing ? β0 : refine(β0; assume = A)
             # (constants compared by value: cos(8π/5) ± i sin(8π/5) is the pair of 2π/5; the
             # forms differ; SymPy #15594)
             same(u, v) = _eq(u, v) || (!_hassymbol(u) && !_hassymbol(v) &&
@@ -1218,7 +1225,7 @@ function _ode_nonlinear_p(eq::Relation, yx::Sym)
     if r !== nothing && _ode_verified(P, r..., Cs)
         push!(general, yx ~ expand(r[2]))
     end
-    fallback = nothing
+    fallback = Ref{Union{Nothing,Vector{Relation}}}(nothing)
     # the branches of p: first when F is quadratic in p (or not a polynomial in it), after
     # the parametric methods for higher degrees (Cardano's roots: slow, and large)
     Fp = try Poly{Sym}(expand(P.F), [Y1]) catch; nothing end
@@ -1229,7 +1236,7 @@ function _ode_nonlinear_p(eq::Relation, yx::Sym)
         fs === nothing && return
         rs = try _dsolve_factors(fs, yx) catch err; err isa ArgumentError || rethrow(); nothing end
         rs === nothing && return
-        any(q -> _hasfn(q.lhs - q.rhs, :Integral), rs) ? (fallback = rs) : append!(general, rs)
+        any(q -> _hasfn(q.lhs - q.rhs, :Integral), rs) ? (fallback[] = rs) : append!(general, rs)
     end
     quadratic && branches!()
     if isempty(general)
@@ -1246,8 +1253,8 @@ function _ode_nonlinear_p(eq::Relation, yx::Sym)
     end
     quadratic || branches!()
     if isempty(general)
-        fallback === nothing && return nothing
-        append!(general, fallback)
+        fallback[] === nothing && return nothing
+        append!(general, fallback[])
     end
     for s in _ode_singular(P, Cs, general, lines)
         push!(general, yx ~ s)
@@ -1585,8 +1592,8 @@ end
 function _ode_antider_to(P::_ODE, g::Sym, v::Sym, upper::Sym, name::Symbol)
     G = _integrate(g, v)
     _hasfn(G, :Integral) || return _ode_tidy(subs(G, v => upper))
-    u = Sym(name)
-    any(z -> _eq(z, u), free_symbols(P.F)) && (u = Sym(Symbol(:_ode_, name)))
+    u0 = Sym(name)
+    u = any(z -> _eq(z, u0), free_symbols(P.F)) ? Sym(Symbol(:_ode_, name)) : u0
     # (the lower limit where g is finite; parameters, as dsolve's constants, at sample values)
     ps = [q => Sym(_SAMPLE_VALUES[mod1(i, length(_SAMPLE_VALUES))]) for (i, q) in enumerate(_sort_by_name!(collect(free_symbols(g)))) if !_eq(q, v)]
     for p in (ZERO, ONE, Sym(2), -ONE)
@@ -1738,9 +1745,9 @@ end
 # the candidates that satisfy the determining equation and are not trivial (η ≢ f ξ)
 function _lie_verified(cands, f::Sym, x::Sym, Y::Sym)
     out = Tuple{Sym,Sym}[]
-    for (ξ, η) in cands
-        (ξ === nothing || η === nothing) && continue
-        ξ, η = _ode_tidy(ξ), _ode_tidy(η)
+    for (ξ0, η0) in cands
+        (ξ0 === nothing || η0 === nothing) && continue
+        ξ, η = _ode_tidy(ξ0), _ode_tidy(η0)
         (_hasfn(ξ, :Integral) || _hasfn(η, :Integral)) && continue
         iszero(_ode_tidy(η - f * ξ)) && continue
         ok = try iszero(_lie_determining(ξ, η, f, x, Y)) catch err; err isa InterruptException && rethrow(); false end
@@ -2468,7 +2475,8 @@ function _ode_auto_branches(P::_ODE, Cs; implicit::Bool = false, conds = nothing
         length(c1s) == 1 || return nothing
         g = _ode_tidy(subs(g, C1 => c1s[1]))
         gs = kind === :explicit ? [g] : (try _solve_generic(g ~ c1s[1], p0) catch; Sym[] end)
-        gs = [gi for gi in gs if iszero(_ode_tidy(subs(gi, s => v) - w))]
+        v0 = v
+        gs = [gi for gi in gs if iszero(_ode_tidy(subs(gi, s => v0) - w))]
     else
         gs = kind === :explicit ? [g] : (try _solve_generic(g ~ C1, p0) catch; Sym[] end)
     end
@@ -2481,14 +2489,14 @@ function _ode_auto_branches(P::_ODE, Cs; implicit::Bool = false, conds = nothing
         H = _ode_tidy(_integrate(h, s))
         if conds !== nothing && _hasfn(H, :Integral)
             # no antiderivative: ∫ᵥʸ dy/p = x - a, a definite integral
-            u = Sym(P.yx.name)                       # the bound variable named as the function
-            any(z -> _eq(z, u), free_symbols(P.F)) && (u = Sym(:_ode_u))
+            u0 = Sym(P.yx.name)                      # the bound variable named as the function
+            u = any(z -> _eq(z, u0), free_symbols(P.F)) ? Sym(:_ode_u) : u0
             push!(out, (:implicit, _mkfn_node(:Integral, Sym[subs(h, s => u), u, v, Y0]) - x, -a))
             continue
         end
         c2 = conds === nothing ? C2 : _ode_tidy(subs(H, s => v) - a)
         ys = implicit || _hasfn(H, :Integral) ? Sym[] : (try _solve_generic(H ~ x + c2, s) catch; Sym[] end)
-        conds === nothing || (ys = [yy for yy in ys if iszero(_ode_tidy(subs(yy, x => a) - v))])
+        conds === nothing || (ys = let a = a, v = v; [yy for yy in ys if iszero(_ode_tidy(subs(yy, x => a) - v))] end)
         if length(ys) == 1
             push!(out, (:explicit, _ode_tidy(ys[1]), ZERO))
         else
@@ -2544,11 +2552,11 @@ end
 # constants (substituting x = a into Integral(f, x) gave Integral(f(a), a); SymPy #27479)
 function _from_point(S::Sym, x::Sym, a::Sym)
     _hasfn(S, :Integral) || return S
-    k = 0                              # a dummy variable for each (nested ones differ)
+    k = Ref(0)                         # a dummy variable for each (nested ones differ)
     _replace_walk(S) do e
         (e.kind == FN && e.name === :Integral && length(e.args) == 2 && _eq(e.args[2], x)) || return nothing
-        k += 1
-        s = Sym(Symbol(x.name, "_s", k == 1 ? "" : string(k)))
+        k[] += 1
+        s = Sym(Symbol(x.name, "_s", k[] == 1 ? "" : string(k[])))
         _mkfn_node(:Integral, Sym[subs(e.args[1], x => s), s, a, x])
     end
 end
@@ -2562,7 +2570,8 @@ function _ode_ics(P::_ODE, kind::Symbol, S::Sym, Cs, conds)
     x, Y0 = P.x, P.ys[1]
     allequal(c[2] for c in conds) && (S = _from_point(S, x, conds[1][2]))
     if kind === :explicit
-        eqs = [_ode_tidy(subs(diff(S, x, o), x => a)) ~ v for (o, a, v) in conds]
+        Se = S
+        eqs = [_ode_tidy(subs(diff(Se, x, o), x => a)) ~ v for (o, a, v) in conds]
         # a point where the general solution is singular (log 0 at x = ±1 for Legendre's
         # equation): its constants are not found by substituting; an error, not the general
         # solution with the conditions dropped (SymPy #15113)
@@ -2571,13 +2580,13 @@ function _ode_ics(P::_ODE, kind::Symbol, S::Sym, Cs, conds)
                                   (t.kind == ADD && any(c -> isfloat(c) && !isfinite(Float64(c)), t.coefs))) &&
                 throw(ArgumentError("dsolve: x = $a is a singular point of the general solution $S; give the conditions at a regular point"))
         end
-        used = [C for C in Cs if has(S, C)]
+        used = [C for C in Cs if has(Se, C)]
         # one constant: the equation's solve, which takes C in exp, tan, …; a system's
         # needs it polynomial
         sols = length(eqs) == 1 && length(used) == 1 ? [[used[1] => c] for c in _solve_generic(eqs[1], used[1])] :
                _solve_generic(eqs, used)
         isempty(sols) && throw(ArgumentError("dsolve: no solution satisfies the initial conditions"))
-        T = [_ode_tidy(subs(S, sol...)) for sol in sols]
+        T = [_ode_tidy(subs(Se, sol...)) for sol in sols]
         T = unique(T)
         length(T) == 1 || return (:several, T, ZERO)
         return (:explicit, T[1], ZERO)
@@ -2595,7 +2604,8 @@ function _ode_ics(P::_ODE, kind::Symbol, S::Sym, Cs, conds)
         ds = _ode_implicit_derivs(P, S)
         eqs = [_ode_tidy(subs(S, x => a, Y0 => v)) ~ Ci;
                [_ode_tidy(subs(ds[o], x => a, Y0 => v)) ~ w for (o, _, w) in conds if o > 0]]
-        sols = _solve_generic(eqs, [C for C in Cs if has(S, C) || _eq(C, Ci)])
+        Sc = S
+        sols = _solve_generic(eqs, [C for C in Cs if has(Sc, C) || _eq(C, Ci)])
         length(sols) == 1 || throw(ArgumentError("dsolve: the initial conditions don't fix the constants"))
         S, c = _ode_tidy(subs(S, sols[1]...)), _ode_tidy(subs(Ci, sols[1]...))
     end
@@ -2617,7 +2627,10 @@ end
 function dsolve(eqs::AbstractVector, yxs::AbstractVector, ics::Pair...; method::Symbol = :auto, assume = nothing)
     # facts about the parameters, as for one equation: eigenvalues they show complex give
     # cosines and sines (decided 2026-11-14)
-    assume === nothing || return with(() -> dsolve(eqs, yxs, ics...; method), _ASSUMING => _assumptions(assume))
+    if assume !== nothing
+        yxs0 = yxs
+        return with(() -> dsolve(eqs, yxs0, ics...; method), _ASSUMING => _assumptions(assume))
+    end
     method in (:auto, :laplace) || throw(ArgumentError("dsolve: method is :auto or :laplace, not $method"))
     all(e -> e isa Relation, eqs) || throw(ArgumentError("dsolve: give equations, `lhs ~ rhs`"))
     length(eqs) == length(yxs) || throw(ArgumentError("dsolve: give as many equations as unknowns"))
@@ -2644,15 +2657,16 @@ function dsolve(eqs::AbstractVector, yxs::AbstractVector, ics::Pair...; method::
     # (an unknown without derivatives: its value solved for with the highest derivatives)
     zsol = [z => v for (z, v) in zip(Z, sol)]
     S = [(k = findfirst(z -> _eq(z, Ys[j][1]), Z); k === nothing ? _ode_tidy(subs(top[j], zsol...)) : sol[k]) for j in eachindex(yxs)]
-    isempty(cons) || ((S, Cs) = _odesys_constrain(S, cons, Ys, Cs, t))
-    N = length(Cs)
+    Cs2 = Cs
+    isempty(cons) || ((S, Cs2) = _odesys_constrain(S, cons, Ys, Cs, t))
+    N2 = length(Cs2)
     _odesys_verified(Fs, Ys, S, t) || throw(ArgumentError("dsolve: the solution found does not satisfy the equations"))
     if !isempty(ics)
         # (a differential-algebraic system: at least N, the others consistent with them, as
         # I_C(0) = 0 with I_L(0) = 0 for I_C = I_L; SymPy #26717)
-        (dae ? length(ics) >= N : length(ics) == N) || throw(ArgumentError(dae ? "dsolve: give at least $N initial conditions (the constraints fix the others)" :
-                                                "dsolve: give $N initial conditions, one for each unknown and order below its highest"))
-        S = length(ics) > N ? _odesys_ics_over(S, yxs, Cs, t, ics) : _odesys_ics(S, yxs, Cs, t, ics)
+        (dae ? length(ics) >= N2 : length(ics) == N2) || throw(ArgumentError(dae ? "dsolve: give at least $N2 initial conditions (the constraints fix the others)" :
+                                                "dsolve: give $N2 initial conditions, one for each unknown and order below its highest"))
+        S = length(ics) > N2 ? _odesys_ics_over(S, yxs, Cs2, t, ics) : _odesys_ics(S, yxs, Cs2, t, ics)
     end
     [y ~ s for (y, s) in zip(yxs, S)]
 end
@@ -2669,27 +2683,31 @@ function _odesys_var(yxs)
     t
 end
 
+# _odesys_parse's: e = y⁽ᵒ⁾(t): o, else nothing
+function _odesys_parse_order(t, e, y)
+    _eq(e, y) && return 0
+    (e.kind == FN && e.name === :Derivative && length(e.args) == 2 && _eq(e.args[2], t)) || return nothing
+    o = _odesys_parse_order(t, e.args[1], y)
+    o === nothing ? nothing : o + 1
+end
+
+# _odesys_parse's: the derivatives of the unknowns in e, recorded in ders
+function _odesys_parse_walk(ders, yxs, t, e)
+    if e.kind == FN
+        for (j, y) in enumerate(yxs)
+            o = _odesys_parse_order(t, e, y)
+            o isa Int && (ders[j][e] = o; return)
+        end
+    end
+    foreach(a -> _odesys_parse_walk(ders, yxs, t, a), e.args)
+    foreach(a -> _odesys_parse_walk(ders, yxs, t, a), e.exps)
+end
+
 # the equations F = 0 in placeholders: Ys[j][k + 1] for the k-th derivative of unknown j
 function _odesys_parse(eqs, yxs, t)
-    function order(e, y)                # e = y⁽ᵒ⁾(t): o, else nothing
-        _eq(e, y) && return 0
-        (e.kind == FN && e.name === :Derivative && length(e.args) == 2 && _eq(e.args[2], t)) || return nothing
-        o = order(e.args[1], y)
-        o === nothing ? nothing : o + 1
-    end
     ders = [Dict{Sym,Int}() for _ in yxs]
-    function walk(e)
-        if e.kind == FN
-            for (j, y) in enumerate(yxs)
-                o = order(e, y)
-                o isa Int && (ders[j][e] = o; return)
-            end
-        end
-        foreach(walk, e.args)
-        foreach(walk, e.exps)
-    end
     Fs0 = Sym[lhs(eq) - rhs(eq) for eq in eqs]
-    foreach(walk, Fs0)
+    foreach(e -> _odesys_parse_walk(ders, yxs, t, e), Fs0)
     ns = [isempty(d) ? 0 : maximum(values(d)) for d in ders]
     # (an unknown may appear without derivatives, an algebraic one, if another has some)
     all(iszero, ns) && throw(ArgumentError("dsolve: no derivative of an unknown in the equations"))
@@ -2786,11 +2804,11 @@ function _odesys_constrain(S, cons, Ys, Cs, t)
     isempty(eqs) && return S, Cs
     sols = _solve_generic(eqs, Cs)
     isempty(sols) && throw(ArgumentError("dsolve: the equations are inconsistent (no solution)"))
-    S = [_ode_tidy(subs(v, sols[1]...)) for v in S]
-    left = [c for c in Cs if any(v -> has(v, c), S)]
+    S1 = [_ode_tidy(subs(v, sols[1]...)) for v in S]
+    left = [c for c in Cs if any(v -> has(v, c), S1)]
     tmp = [Sym(Symbol("_odesys_C", i)) for i in eachindex(left)]
-    S = [_ode_tidy(subs(_ode_tidy(subs(v, (l => u for (l, u) in zip(left, tmp))...)), (u => c for (u, c) in zip(tmp, Cs))...)) for v in S]
-    S, Cs[1:length(left)]
+    S2 = [_ode_tidy(subs(_ode_tidy(subs(v, (l => u for (l, u) in zip(left, tmp))...)), (u => c for (u, c) in zip(tmp, Cs))...)) for v in S1]
+    S2, Cs[1:length(left)]
 end
 
 # the real fundamental matrix Φ, and for the particular solution P exp(J t) and
@@ -2799,11 +2817,11 @@ function _odesys_fundamental(M, F, t)
     # with parameters, eigenvalues that are roots of an irreducible cubic or more: their
     # formulas (Cardano's) in the parameters are too large to use (SymPy #21867)
     if any(_hassymbol, M) && size(M, 1) >= 3
-        λ = Sym(:_odesys_lambda)
-        fq = try factor(expand(charpoly(M, λ))) catch err; err isa ArgumentError || rethrow(); nothing end
+        λs = Sym(:_odesys_lambda)
+        fq = try factor(expand(charpoly(M, λs))) catch err; err isa ArgumentError || rethrow(); nothing end
         bs = fq === nothing ? Sym[] : fq.kind == MUL ? fq.args : fq.kind == POW ? [fq.args[1]] : [fq]
-        deg(b) = (P = try Poly{Sym}(b, [λ]) catch; return 0 end; degree(P, λ))
-        any(b -> has(b, λ) && deg(b) >= 3, bs) && throw(ArgumentError(
+        deg(b) = (Pb = try Poly{Sym}(b, [λs]) catch; return 0 end; degree(Pb, λs))
+        any(b -> has(b, λs) && deg(b) >= 3, bs) && throw(ArgumentError(
             "dsolve: the system's eigenvalues are roots of a polynomial of degree ≥ 3 in the parameters, whose closed forms are too large to use; substitute numbers for the parameters"))
     end
     P, J = jordan_form(M)
@@ -2848,8 +2866,9 @@ function _odesys_fundamental(M, F, t)
         # (the conjugate written differently: Cardano's roots with ω and with ω², equal in
         # value; SymPy #21867)
         if !_hassymbol(λ) && (w = try ComplexF64(SymJ.N(λ)) catch; nothing end) !== nothing  # (N is the size here)
+            w0 = w
             k = findfirst(((c, n),) -> n > 0 && !_hassymbol(c) &&
-                          (cv = try ComplexF64(SymJ.N(c)) catch; nothing end; cv !== nothing && abs(cv - w) <= 1e-9 * max(1, abs(w))), collect(skip))
+                          (cv = try ComplexF64(SymJ.N(c)) catch; nothing end; cv !== nothing && abs(cv - w0) <= 1e-9 * max(1, abs(w0))), collect(skip))
             if k !== nothing
                 c = collect(keys(skip))[k]
                 skip[c] -= 1
@@ -2860,7 +2879,7 @@ function _odesys_fundamental(M, F, t)
         re = [subs(e, IM => ZERO) for e in v]
         # a real eigenvalue written with i (a cubic's three real roots by Cardano's formula):
         # a real column as it is, not a complex pair (SymPy #21867)
-        lreal = !_hassymbol(λ) && (w = try SymJ.N(λ) catch; nothing end; w isa Number && abs(imag(w)) <= 1e-10 * max(1, abs(w)))
+        lreal = !_hassymbol(λ) && (wl = try SymJ.N(λ) catch; nothing end; wl isa Number && abs(imag(wl)) <= 1e-10 * max(1, abs(wl)))
         if lreal || all(r -> _eq(re[r], v[r]), 1:N)
             col += 1
             Φ[:, col] = [_ode_tidy(e) for e in v]
@@ -2892,8 +2911,8 @@ function _odesys_particular(Φ, Ψ, v, F, t)
         return [_ode_tidy(expand(_ode_cis(expand(sum(Ψ[i, j] * w[j] for j in eachindex(w)))))) for i in 1:size(Ψ, 1)]
     end
     u = map(_ode_tidy, inv(Φ) * F)
-    w = [_integrate(e, t) for e in u]
-    [_ode_tidy(sum(Φ[i, j] * w[j] for j in eachindex(w))) for i in 1:size(Φ, 1)]
+    wu = [_integrate(e, t) for e in u]
+    [_ode_tidy(sum(Φ[i, j] * wu[j] for j in eachindex(wu))) for i in 1:size(Φ, 1)]
 end
 
 # ∫ e dt for e a sum of cf t^k e^(a t) terms, or nothing
@@ -2930,7 +2949,8 @@ function _odesys_expoly_int(term::Sym, t::Sym)
     end
     iszero(a) && return cf * t^(k + 1) / (k + 1)
     # ∫ t^k e^(a t) = e^(a t) Σ_j (-1)^j k!/(k-j)! t^(k-j) / a^(j+1)
-    cf * exp(a * t) * sum((-1)^j * Sym(factorial(big(k)) // factorial(big(k - j))) * t^(k - j) / a^(j + 1) for j in 0:k)
+    k1, a1 = k, a
+    cf * exp(a1 * t) * sum((-1)^j * Sym(factorial(big(k1)) // factorial(big(k1 - j))) * t^(k1 - j) / a1^(j + 1) for j in 0:k1)
 end
 
 # sin, cos, sinh, cosh as complex exponentials
@@ -2985,13 +3005,15 @@ function _odesys_verified(Fs, Ys, S, t)
     true
 end
 
+# the k-element subsets of eachindex(ics) from index from on (_odesys_ics_over's)
+_odesys_ics_over_subsets(ics, k, from) = k == 0 ? [Int[]] : [vcat(i, r) for i in from:length(ics) for r in _odesys_ics_over_subsets(ics, k - 1, i + 1)]
+
 # more initial conditions than constants (a differential-algebraic system): the
 # constants from N of them, the others checked (solving all at once took √(-c₁l₁) as a
 # fresh symbol, and consistent conditions looked inconsistent; SymPy #28390)
 function _odesys_ics_over(S, yxs, Cs, t, ics)
     N = length(Cs)
-    subsets(k, from) = k == 0 ? [Int[]] : [vcat(i, r) for i in from:length(ics) for r in subsets(k - 1, i + 1)]
-    for sub in subsets(N, 1)
+    for sub in _odesys_ics_over_subsets(ics, N, 1)
         S2 = try _odesys_ics(S, yxs, Cs, t, ics[sub]) catch err; err isa ArgumentError || rethrow(); continue end
         ok = all(eachindex(ics)) do i
             i in sub && return true
@@ -3134,11 +3156,12 @@ function _ode_frobenius(P::_ODE, Cs, N::Integer, a::Sym)
     isempty(rs) && nope()
     all(ρ -> _eq(subs(ρ, IM => ZERO), ρ), rs) ||
         throw(ArgumentError("dsolve: the indicial roots at $a are complex; not done"))
-    r1, r2 = length(rs) == 1 ? (rs[1], rs[1]) : (rs[1], rs[2])
-    d = _ode_tidy(r1 - r2)
+    ra, rb = length(rs) == 1 ? (rs[1], rs[1]) : (rs[1], rs[2])
+    d = _ode_tidy(ra - rb)
     if d.kind == NUMBER && d.num < N0
-        r1, r2, d = r2, r1, -d
+        ra, rb, d = rb, ra, -d
     end
+    r1, r2 = ra, rb
     function coeffs(ρ)
         out = Sym[ONE]
         for m in 1:(N - 1)
@@ -3189,9 +3212,10 @@ function _odesys_laplace(M, F, Z, Ys, yxs, Cs, t, ics)
         Z0[i] = Sym(p.second)
     end
     s = Sym(:_ode_s)
-    Fs = Sym[laplace_transform(subs(f, t => t + a), t, s) for f in F]
+    a1 = a
+    Fs = Sym[laplace_transform(subs(f, t => t + a1), t, s) for f in F]
     R = map(cancel, inv(s * Matrix{Sym}(LinearAlgebra.I, N, N) - M))
     Zs = R * (Z0 + Fs)
-    [_ode_tidy(subs(inverse_laplace_transform(Zs[findfirst(z -> _eq(z, Ys[j][1]), Z)], s, t), t => t - a)) for j in eachindex(yxs)]
+    [_ode_tidy(subs(inverse_laplace_transform(Zs[findfirst(z -> _eq(z, Ys[j][1]), Z)], s, t), t => t - a1)) for j in eachindex(yxs)]
 end
 

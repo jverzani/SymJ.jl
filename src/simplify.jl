@@ -235,7 +235,9 @@ function _refine_rule(e::Sym, A::Assumptions)
     # y; SymPy #12592)
     if k == FN && e.name === :mod && length(e.args) == 2 && e.args[1].kind == ADD && _hassymbol(e.args[2])
         u, m = e.args
-        drop = [_isinteger(cancel(Sym(c) * t / m), A) === true for (c, t) in zip(u.coefs, u.args)]
+        drop = let m = m
+            [_isinteger(cancel(Sym(c) * t / m), A) === true for (c, t) in zip(u.coefs, u.args)]
+        end
         if any(drop)
             return apply_function(:mod, Sym[Sym(u.num) + _add_many(Sym(c) * t for (c, t, d) in zip(u.coefs, u.args, drop) if !d), m])
         end
@@ -726,17 +728,18 @@ end
 function simplify(f::Union{FactAnd,FactOr}; assume = nothing)
     fs = Any[g isa Relation ? simplify(g; assume) : g for g in f.facts]
     any(g -> g === (f isa FactAnd ? false : true), fs) && return f isa FactAnd ? false : true
-    fs = [g for g in fs if g !== (f isa FactAnd ? true : false)]
+    fs = Any[g for g in fs if g !== (f isa FactAnd ? true : false)]
     keep = trues(length(fs))
+    fs0 = fs
     for i in eachindex(fs)
-        others = [fs[j] for j in eachindex(fs) if j != i && keep[j]]
+        others = [fs0[j] for j in eachindex(fs) if j != i && keep[j]]
         isempty(others) && continue
         implied = if f isa FactAnd
             B = try Assumptions(others...) catch err; err isa ArgumentError || rethrow(); nothing end
             B !== nothing && _holds(fs[i], B) === true
         else
-            B = try Assumptions(fs[i]) catch err; err isa ArgumentError || rethrow(); nothing end
-            B !== nothing && any(h -> _holds(h, B) === true, others)
+            B1 = try Assumptions(fs[i]) catch err; err isa ArgumentError || rethrow(); nothing end
+            B1 !== nothing && any(h -> _holds(h, B1) === true, others)
         end
         implied && (keep[i] = false)
     end
@@ -752,8 +755,9 @@ function simplify(r::Relation; assume = nothing)
     v = refine(r; assume)
     v isa Bool && return v
     l, rr = _drop_common_terms(simplify(v.lhs; assume), simplify(v.rhs; assume))
-    A = _assumptions(assume)
-    A === nothing && (A = Assumptions())
+    A = let A0 = _assumptions(assume)
+        A0 === nothing ? Assumptions() : A0
+    end
     d = l - rr
     # sides that simplify to the same constant: decided (cos² + sin² ~ 1 was 0 ~ 0;
     # SymPy #12522)
@@ -875,17 +879,17 @@ end
 # so that (1/2)^x and 2^(-x) are one power (their difference is 0; SymPy #11544); nothing
 # when there is no such power
 function _rational_base_split(e::Sym)
-    hit = false
+    hit = Ref(false)
     y = _replace_walk(e) do t
         if t.kind == POW && t.args[1].kind == NUMBER && isexact(t.args[1].num) && t.args[1].num > N0 &&
            !isone(_denominator(t.args[1].num)) && _hassymbol(t.args[2])
-            hit = true
+            hit[] = true
             p, q = Sym(SymNumber(_numerator(t.args[1].num))), Sym(SymNumber(_denominator(t.args[1].num)))
             return p^t.args[2] * q^(-t.args[2])
         end
         nothing
     end
-    hit ? y : nothing
+    hit[] ? y : nothing
 end
 
 # digamma(u + k), k a positive integer, as digamma(u) + Σ_{j<k} 1/(u + j) when digamma(u)
@@ -929,9 +933,9 @@ end
 # so like powers collect: 3tan⁷ - 2/cot⁷ = tan⁷ (SymPy #6303); nothing when there is none
 const _RECIP_FLIP = Dict(:cot => :tan, :sec => :cos, :csc => :sin, :coth => :tanh, :sech => :cosh, :csch => :sinh)
 function _recip_trig_flip(e::Sym)
-    hit = false
+    hit = Ref(false)
     flip(b, p) = (b.kind == FN && length(b.args) == 1 && haskey(_RECIP_FLIP, b.name) && p.kind == NUMBER && p.num < N0) ?
-        (hit = true; apply_function(_RECIP_FLIP[b.name], b.args)^(-p)) : nothing
+        (hit[] = true; apply_function(_RECIP_FLIP[b.name], b.args)^(-p)) : nothing
     y = _replace_walk(e) do t
         if t.kind == POW
             return flip(t.args[1], t.args[2])
@@ -941,20 +945,20 @@ function _recip_trig_flip(e::Sym)
         end
         nothing
     end
-    hit ? y : nothing
+    hit[] ? y : nothing
 end
 
 # integer bases with symbolic exponents as powers of their root, n^u = p^(k u) for n = p^k,
 # and a numeric factor ±p^m merged into p^u (4^x - 2^(2x + 2)/4 = 0; SymPy #6370);
 # nothing when there is no such power
 function _prime_base_powers(e::Sym)
-    hit = false
+    hit = Ref(false)
     isintbase(b) = b.kind == NUMBER && isexact(b.num) && _isint(b.num) && b.num > N1
     y = _replace_walk(e) do t
         if t.kind == POW && isintbase(t.args[1]) && _hassymbol(t.args[2])
             p, k = _int_root_power(big(_numerator(t.args[1].num)))
             k == 1 && return nothing
-            hit = true
+            hit[] = true
             return Sym(SymNumber(p))^expand(Sym(k) * t.args[2])
         elseif t.kind == MUL && isexact(t.num) && !isone(abs(t.num))
             r = abs(_rat(t.num))
@@ -968,7 +972,7 @@ function _prime_base_powers(e::Sym)
                     (k >= 1 && p^k == num && isone(sgn == 1 ? denominator(r) : numerator(r))) && (m = sgn * k)
                 end
                 m === nothing && continue
-                hit = true
+                hit[] = true
                 rest = _mkmul(sign(t.num) < 0 ? -N1 : N1, t.args[[j for j in eachindex(t.args) if j != i]],
                               t.exps[[j for j in eachindex(t.args) if j != i]])
                 return rest * Sym(SymNumber(p))^expand(u + m)
@@ -976,7 +980,7 @@ function _prime_base_powers(e::Sym)
         end
         nothing
     end
-    hit ? y : nothing
+    hit[] ? y : nothing
 end
 
 # c asin(u) + c acos(u) = c π/2 in a sum (for every u, principal values: asin z + acos z
@@ -1084,8 +1088,12 @@ function _simplify(e::Sym, A::Assumptions)
         return e
     end
     # function arguments first (and constant function values as wholes)
-    e = _map_fn_args(a -> _simplify(a, A), e; whole = true)
-    best, size = e, _nodes(e)
+    _simplify_symbolic(_map_fn_args(a -> _simplify(a, A), e; whole = true), A)
+end
+# (for _simplify) the smallest of e's candidate forms, e with symbols (a function of its
+# own: e is reassigned above, and a reassigned capture is boxed)
+function _simplify_symbolic(e::Sym, A::Assumptions)
+    best, size = Ref{Sym}(e), Ref(_nodes(e))
     powers(x) = simplify_powers(x; assume = A)
     logs(x) = simplify_log(x; assume = A)
     radicals(x) = simplify_radicals(x; assume = A)
@@ -1100,7 +1108,7 @@ function _simplify(e::Sym, A::Assumptions)
         c isa Sym || return
         c = _refine(c, A)
         n = _nodes(c)
-        n < size && ((best, size) = (c, n))
+        n < size[] && ((best[], size[]) = (c, n))
     end
     logq(x) = _hasfn2log(x) ? simplify_log(cancel(_log_quotients(x)); assume = A) : nothing
     elog(x) = (y = _exp_log_powers(x); y === x ? nothing : y)
@@ -1155,8 +1163,8 @@ function _simplify(e::Sym, A::Assumptions)
         for idx in values(groups)
             (length(idx) >= 2 && length(idx) < length(fs)) || continue
             part = Sym(e.num) * prod((fs[i][1]^fs[i][2] for i in idx); init = ONE)
-            rest = prod((fs[i][1]^fs[i][2] for i in eachindex(fs) if !(i in idx)); init = ONE)
-            consider(_ -> simplify_trig(part) * rest)
+            others = prod((fs[i][1]^fs[i][2] for i in eachindex(fs) if !(i in idx)); init = ONE)
+            consider(_ -> simplify_trig(part) * others)
         end
     end
     # several piecewise functions (as from a definite integral with a parameter): one
@@ -1252,7 +1260,7 @@ function _simplify(e::Sym, A::Assumptions)
             consider(g)
         end
     end
-    best
+    best[]
 end
 # in each product, W(u)^k exp(k W(u) + r) as u^k exp(r), k an integer (W any branch of
 # lambertw): W e^W = u
@@ -1388,12 +1396,12 @@ function _unit_powers(e::Sym)
         if t.kind == POW
             return unit(t.args[1], t.args[2])
         elseif t.kind == MUL && any(b -> b.kind == NUMBER, t.args)
-            ch = false
+            ch = Ref(false)
             fs = map(zip(t.args, t.exps)) do (b, p)
                 u = unit(b, p)
-                u === nothing ? b^p : (ch = true; u)
+                u === nothing ? b^p : (ch[] = true; u)
             end
-            return ch ? Sym(t.num) * prod(fs; init = ONE) : nothing
+            return ch[] ? Sym(t.num) * prod(fs; init = ONE) : nothing
         end
         nothing
     end
@@ -1503,15 +1511,15 @@ end
 
 # every sin and cos argument in e a rational multiple of π
 function _trig_args_rational_pi(e::Sym)
-    ok = true
+    ok = Ref(true)
     _replace_walk(e) do t
-        if ok && t.kind == FN && t.name in (:sin, :cos) && length(t.args) == 1
+        if ok[] && t.kind == FN && t.name in (:sin, :cos) && length(t.args) == 1
             q = t.args[1] / PI
-            (q.kind == NUMBER && isexact(q.num)) || (ok = false)
+            (q.kind == NUMBER && isexact(q.num)) || (ok[] = false)
         end
         nothing
     end
-    ok
+    ok[]
 end
 
 # a constant with inverse trig functions whose value is q π, q rational with a small
@@ -1899,15 +1907,15 @@ expand_trig(ex) = _expand_trig(Sym(ex))
 # for simplify's candidates: e unchanged when a circular function's argument has an
 # integer multiple beyond _CIRC_MAX_MULTIPLE (a polynomial of that degree; SymPy #27293)
 function _expand_trig_small(e::Sym)
-    big = false
+    big = Ref(false)
     _replace_walk(e) do t
-        if !big && t.kind == FN && length(t.args) == 1 && t.name in _CIRCFNS
+        if !big[] && t.kind == FN && length(t.args) == 1 && t.name in _CIRCFNS
             q = _trig_split(t.args[1])[1]
-            abs(numerator(q)) > _CIRC_MAX_MULTIPLE && (big = true)
+            abs(numerator(q)) > _CIRC_MAX_MULTIPLE && (big[] = true)
         end
         nothing
     end
-    big ? e : _expand_trig(e)
+    big[] ? e : _expand_trig(e)
 end
 
 # top down: a function is expanded on its argument as it is, then inside what remains
@@ -1981,8 +1989,8 @@ function _circ_simplify(e::Sym, M::_Circ)
         end
     end
     n, d = numer_denom(cancel(p))
-    best, size = e, _nodes(e)
-    consider(r) = (k = _nodes(r); k < size && ((best, size) = (r, k)))
+    best, size = Ref{Sym}(e), Ref(_nodes(e))
+    consider(r) = (k = _nodes(r); k < size[] && ((best[], size[]) = (r, k)))
     s, c = M.fns[1], M.fns[2]
     back(q) = _circ_tan(subs(q, (v => apply_function(f, Sym[g]) for ((S, C), g) in zip(vars, bases)
                                        for (v, f) in ((S, s), (C, c)))...), M)
@@ -2016,7 +2024,7 @@ function _circ_simplify(e::Sym, M::_Circ)
         r = try _circ_exp(n, vars, bases, M) / _circ_exp(d, vars, bases, M) catch; nothing end
         r === nothing || consider(cancel(r))
     end
-    best
+    best[]
 end
 
 # exp(u) in the mode: (multiple, h) with u = multiple * i * h (trig) or multiple * h
@@ -2043,25 +2051,26 @@ function _circ_exps!(out, n::Sym)
     out
 end
 
+# (for _circ_bases) the base angles of n in seen, nfn[] counting its functions
+function _circ_bases_walk!(seen, nfn, M::_Circ, n::Sym)
+    add!(q, h) = (seen[h] = haskey(seen, h) ? gcd(seen[h], q) : q)
+    if n.kind == FN && n.name in M.fns && length(n.args) == 1
+        nfn[] += 1
+        add!(_trig_split(n.args[1])...)
+    end
+    for u in _circ_exps!(Sym[], n)
+        t = _circ_expsplit(u, M)
+        t === nothing || add!(t...)
+    end
+    foreach(a -> _circ_bases_walk!(seen, nfn, M, a), n.args)
+    foreach(a -> _circ_bases_walk!(seen, nfn, M, a), n.exps)
+end
 # the base angles: arguments with their numeric content taken out, each with the gcd of
 # the multiples it appears with (args x/2 and x: base x/2)
 function _circ_bases(e::Sym, M::_Circ)
     seen = Dict{Sym,Rational{BigInt}}()
     nfn = Ref(0)
-    add!(q, h) = (seen[h] = haskey(seen, h) ? gcd(seen[h], q) : q)
-    function walk(n::Sym)
-        if n.kind == FN && n.name in M.fns && length(n.args) == 1
-            nfn[] += 1
-            add!(_trig_split(n.args[1])...)
-        end
-        for u in _circ_exps!(Sym[], n)
-            t = _circ_expsplit(u, M)
-            t === nothing || add!(t...)
-        end
-        foreach(walk, n.args)
-        foreach(walk, n.exps)
-    end
-    walk(e)
+    _circ_bases_walk!(seen, nfn, M, e)
     # exponentials alone are left to the canonical form unless they could combine
     nfn[] == 0 && length(seen) == 0 && return Sym[]
     Sym[expand(Sym(SymNumber(q)) * h) for (h, q) in seen]
@@ -2083,58 +2092,61 @@ end
 # the multiple k of a base that u is, or nothing
 _circ_multiple(u::Sym, g::Sym) = (r = expand(u / g); r.kind == NUMBER && isexact(r.num) && isone(_denominator(r.num)) ? Int(_numerator(r.num)) : nothing)
 
+# (for _circ_poly) (i, k) with u = k bases[i]; nothing if none, or k too large
+function _circ_poly_find(bases, u)
+    for (i, g) in enumerate(bases)
+        k = _circ_multiple(u, g)
+        k === nothing && continue
+        # a polynomial of degree k in S, C: sin(316801t) is beyond any use (SymPy #27293)
+        abs(k) > _CIRC_MAX_MULTIPLE && return nothing
+        return i, k
+    end
+    nothing
+end
+# (for _circ_poly) exp(u), u = k i g (trig) or k g
+function _circ_poly_expof(bases, vars, M::_Circ, u)
+    t = _circ_expsplit(u, M)
+    t === nothing && return nothing
+    f = _circ_poly_find(bases, expand(Sym(SymNumber(t[1])) * t[2]))
+    f === nothing && return nothing
+    i, k = f
+    S, C = vars[i]
+    s, c = _chebyshev(k, S, C)
+    M.hyp ? c + s : c + IM * s
+end
+# (for _circ_poly) n in S, C; ok[] = false when an argument is not a multiple of a base
+function _circ_poly_tr(ok, bases, vars, M::_Circ, n::Sym)
+    isempty(n.args) && return n
+    if n.kind == POW && _eq(n.args[1], E)
+        r = _circ_poly_expof(bases, vars, M, n.args[2])
+        r === nothing || return r
+    end
+    if n.kind == FN && n.name in M.fns && length(n.args) == 1
+        f = _circ_poly_find(bases, n.args[1])
+        f === nothing && (ok[] = false; return n)
+        i, k = f
+        S, C = vars[i]
+        s, c = _chebyshev(k, S, C)
+        j = findfirst(==(n.name), M.fns)
+        return (s, c, s / c, c / s, 1 / c, 1 / s)[j]
+    end
+    if n.kind == MUL
+        out = Sym(n.num)
+        for (b, p) in zip(n.args, n.exps)
+            r = _eq(b, E) ? _circ_poly_expof(bases, vars, M, p) : nothing
+            out *= r === nothing ? _circ_poly_tr(ok, bases, vars, M, b)^_circ_poly_tr(ok, bases, vars, M, p) : r
+        end
+        return out
+    end
+    _rebuild_node(n, Sym[_circ_poly_tr(ok, bases, vars, M, a) for a in n.args])
+end
 # e with the functions (and exponentials) of multiples of the bases as polynomials and
 # quotients in S, C; nothing if an argument is not a multiple of a base, or a multiple
 # larger than _CIRC_MAX_MULTIPLE
 const _CIRC_MAX_MULTIPLE = 32
 function _circ_poly(e::Sym, bases::Vector{Sym}, vars, M::_Circ)
     ok = Ref(true)
-    function find(u)
-        for (i, g) in enumerate(bases)
-            k = _circ_multiple(u, g)
-            k === nothing && continue
-            # a polynomial of degree k in S, C: sin(316801t) is beyond any use (SymPy #27293)
-            abs(k) > _CIRC_MAX_MULTIPLE && return nothing
-            return i, k
-        end
-        nothing
-    end
-    function expof(u)                       # exp(u), u = k i g (trig) or k g
-        t = _circ_expsplit(u, M)
-        t === nothing && return nothing
-        f = find(expand(Sym(SymNumber(t[1])) * t[2]))
-        f === nothing && return nothing
-        i, k = f
-        S, C = vars[i]
-        s, c = _chebyshev(k, S, C)
-        M.hyp ? c + s : c + IM * s
-    end
-    function tr(n::Sym)
-        isempty(n.args) && return n
-        if n.kind == POW && _eq(n.args[1], E)
-            r = expof(n.args[2])
-            r === nothing || return r
-        end
-        if n.kind == FN && n.name in M.fns && length(n.args) == 1
-            f = find(n.args[1])
-            f === nothing && (ok[] = false; return n)
-            i, k = f
-            S, C = vars[i]
-            s, c = _chebyshev(k, S, C)
-            j = findfirst(==(n.name), M.fns)
-            return (s, c, s / c, c / s, 1 / c, 1 / s)[j]
-        end
-        if n.kind == MUL
-            out = Sym(n.num)
-            for (b, p) in zip(n.args, n.exps)
-                r = _eq(b, E) ? expof(p) : nothing
-                out *= r === nothing ? tr(b)^tr(p) : r
-            end
-            return out
-        end
-        _rebuild_node(n, Sym[tr(a) for a in n.args])
-    end
-    r = tr(e)
+    r = _circ_poly_tr(ok, bases, vars, M, e)
     ok[] ? r : nothing
 end
 
@@ -2532,9 +2544,9 @@ function _mq_parse(b::Sym)
         t.kind == MUL && !isexact(t.num) && return nothing
         for (f, p) in fs
             (f.kind == NUMBER && isexact(f.num) && p == Sym(1 // 2)) || return nothing
-            r = _mq_sqrt_rat(Rational{BigInt}(_rat(f.num)))
-            r === nothing && return nothing
-            k2, c2 = r
+            rq = _mq_sqrt_rat(Rational{BigInt}(_rat(f.num)))
+            rq === nothing && return nothing
+            k2, c2 = rq
             k, c = _mq_mulkey(k, c, k2, c2)
         end
         (k, c)
@@ -2669,34 +2681,38 @@ function _conjugate_radical_den(e::Sym)
     best
 end
 
+# (for _cancel_halfpowers) a variable in m for each symbol s with √s in e
+function _cancel_halfpowers_find!(m, e)
+    if e.kind == POW && _isnamed(e.args[1]) && e.args[2].kind == NUMBER && _denominator(e.args[2].num) == 2
+        m[e.args[1]] = Sym(Symbol("_half_", e.args[1]))
+    elseif e.kind == MUL
+        for (b, x) in zip(e.args, e.exps)
+            _isnamed(b) && x.kind == NUMBER && _denominator(x.num) == 2 && (m[b] = Sym(Symbol("_half_", b)))
+        end
+    end
+    foreach(a -> _cancel_halfpowers_find!(m, a), e.args)
+end
+
+# (for _cancel_halfpowers) e with each symbol s in m as its variable u squared
+function _cancel_halfpowers_sub(m, e)
+    _isnamed(e) && haskey(m, e) && return m[e]^2
+    isempty(e.args) && return e
+    if e.kind == POW && haskey(m, e.args[1]) && e.args[2].kind == NUMBER && isexact(e.args[2].num)
+        return m[e.args[1]]^Sym(2 * e.args[2].num)
+    elseif e.kind == MUL
+        return Sym(e.num) * prod((haskey(m, b) && x.kind == NUMBER && isexact(x.num) ? m[b]^Sym(2 * x.num) : _cancel_halfpowers_sub(m, b)^x
+                                  for (b, x) in zip(e.args, e.exps)); init = ONE)
+    end
+    _rebuild_node(e, Sym[_cancel_halfpowers_sub(m, a) for a in e.args])
+end
+
 # p/q cancelled with √s of each symbol s in them a variable u (s = u², s^(3/2) = u³),
 # so that c^(3/2) and √c share their factor
 function _cancel_halfpowers(p::Sym, q::Sym)
     m = Dict{Sym,Sym}()
-    function find(e)
-        if e.kind == POW && _isnamed(e.args[1]) && e.args[2].kind == NUMBER && _denominator(e.args[2].num) == 2
-            m[e.args[1]] = Sym(Symbol("_half_", e.args[1]))
-        elseif e.kind == MUL
-            for (b, x) in zip(e.args, e.exps)
-                _isnamed(b) && x.kind == NUMBER && _denominator(x.num) == 2 && (m[b] = Sym(Symbol("_half_", b)))
-            end
-        end
-        foreach(find, e.args)
-    end
-    find(p); find(q)
+    _cancel_halfpowers_find!(m, p); _cancel_halfpowers_find!(m, q)
     isempty(m) && return cancel(p / q)
-    function sub(e)
-        _isnamed(e) && haskey(m, e) && return m[e]^2
-        isempty(e.args) && return e
-        if e.kind == POW && haskey(m, e.args[1]) && e.args[2].kind == NUMBER && isexact(e.args[2].num)
-            return m[e.args[1]]^Sym(2 * e.args[2].num)
-        elseif e.kind == MUL
-            return Sym(e.num) * prod((haskey(m, b) && x.kind == NUMBER && isexact(x.num) ? m[b]^Sym(2 * x.num) : sub(b)^x
-                                      for (b, x) in zip(e.args, e.exps)); init = ONE)
-        end
-        _rebuild_node(e, Sym[sub(a) for a in e.args])
-    end
-    r = cancel(sub(p) / sub(q))
+    r = cancel(_cancel_halfpowers_sub(m, p) / _cancel_halfpowers_sub(m, q))
     subs(r, (u => sqrt(b) for (b, u) in m)...)
 end
 
@@ -3043,19 +3059,20 @@ function _pw_as_abs(e::Sym)
 end
 
 _small_den(q) = (d = _denominator(q); d > 1000 ? 1001 : Int(d))
+# (for _radical_degree_bound) the (base, index) of u's radicals pushed to seen
+function _radical_degree_bound_walk!(seen, u)
+    if u.kind == POW && u.args[2].kind == NUMBER && !_isint(u.args[2].num)
+        push!(seen, (u.args[1], _small_den(u.args[2].num)))
+    elseif u.kind == MUL
+        for (b, x) in zip(u.args, u.exps)
+            x.kind == NUMBER && !_isint(x.num) && push!(seen, (b, _small_den(x.num)))
+        end
+    end
+    for a in u.args; _radical_degree_bound_walk!(seen, a) end
+end
 function _radical_degree_bound(e::Sym)
     seen = Set{Tuple{Sym,Int}}()
-    _walk(u) = begin
-        if u.kind == POW && u.args[2].kind == NUMBER && !_isint(u.args[2].num)
-            push!(seen, (u.args[1], _small_den(u.args[2].num)))
-        elseif u.kind == MUL
-            for (b, x) in zip(u.args, u.exps)
-                x.kind == NUMBER && !_isint(x.num) && push!(seen, (b, _small_den(x.num)))
-            end
-        end
-        for a in u.args; _walk(a) end
-    end
-    _walk(e)
+    _radical_degree_bound_walk!(seen, e)
     d = 1
     for (_, q) in seen
         d = Base.checked_mul(d, q) ; d > 1000 && return d

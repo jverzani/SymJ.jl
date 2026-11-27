@@ -403,7 +403,8 @@ function _simplify_conds(conds, A::Assumptions)
     while i <= length(out)
         c = out[i]
         if !(c isa _NotFact)
-            rest = [out[j] for j in eachindex(out) if j != i && !(out[j] isa _NotFact)]
+            ii = i
+            rest = [out[j] for j in eachindex(out) if j != ii && !(out[j] isa _NotFact)]
             B = try _build(_flatten!(Any[], (A.facts, rest))) catch; nothing end
             if B !== nothing && _holds(c, B) === true
                 deleteat!(out, i)
@@ -472,7 +473,9 @@ function _case_tree(run, A::Assumptions, decided::Dict{Any,Bool}, count::Ref{Int
     fsize = f isa Relation ? _nodes(f.lhs - f.rhs) : f isa Membership ? _nodes(f.x) : 0
     fsize > _MAX_FACT_NODES && return [Any[] => ArgumentError("a condition too large to split on (of $fsize nodes): this case is left unsolved (SymPy #6818)")]
     g = _reduce_fact(f)
-    branches = Pair{Any,Any}[]                       # condition => (assumptions, decided)
+    # condition => (assumptions, decided); (typed: with Pair{Any,Any} the destructuring
+    # below was inferred on Any, which loading ForwardDiff invalidated)
+    branches = Pair{Any,Tuple{Assumptions,Dict{Any,Bool}}}[]
     c = g isa Relation ? expand(g.lhs - g.rhs) : nothing
     if g isa Relation && g.op in (:lt, :le, :gt, :ge) && _isreal(c, A) === true
         m = _signs(c, A)
@@ -521,18 +524,19 @@ function _merge_cases(kids)
     length(kids) == 1 && return [vcat(Any[kids[1].first], l.first) => l.second for l in kids[1].second]
     same(a, b) = length(a) == length(b) && all(_samecase(p, q) for (p, q) in zip(a, b))
     all(k -> same(k.second, kids[1].second), kids) && return kids[1].second
+    ks = kids
     if length(kids) == 3 && all(k -> k.first isa Relation, kids)
         lt, eq, gt = kids
         if same(lt.second, eq.second)
-            kids = [Relation(:le, lt.first.lhs, lt.first.rhs) => lt.second, gt]
+            ks = [Relation(:le, lt.first.lhs, lt.first.rhs) => lt.second, gt]
         elseif same(eq.second, gt.second)
-            kids = [lt, Relation(:ge, gt.first.lhs, gt.first.rhs) => gt.second]
+            ks = [lt, Relation(:ge, gt.first.lhs, gt.first.rhs) => gt.second]
         elseif same(lt.second, gt.second)
-            kids = [Relation(:ne, lt.first.lhs, lt.first.rhs) => lt.second, eq]
+            ks = [Relation(:ne, lt.first.lhs, lt.first.rhs) => lt.second, eq]
         end
     end
     out = Pair{Vector{Any},Any}[]
-    for (cond, ls) in kids, l in ls
+    for (cond, ls) in ks, l in ls
         push!(out, vcat(Any[cond], l.first) => l.second)
     end
     out
@@ -629,8 +633,8 @@ function _param_factors(c::Sym, unknowns)
             # a polynomial in the parameters, its coefficients constants such as √3
             # (a - √3 b; SymPy #24344)
             all(a -> _isnamed(a) || !_hassymbol(a), atoms) || continue
-            b = _content_free(b)
-            any(o -> (q = cancel(o / b); q.kind == NUMBER), out) || push!(out, b)
+            bc = _content_free(b)
+            any(o -> (q = cancel(o / bc); q.kind == NUMBER), out) || push!(out, bc)
         end
     end
     out
@@ -770,9 +774,9 @@ function _defined_roots(rs::AbstractVector, e::Sym, x::Sym, B::Assumptions)
                 ps = _named(v)
                 if length(ps) == 1
                     p = only(ps)
-                    zs = try _solve_generic(v ~ 0, p) catch err; err isa ArgumentError || rethrow(); nothing end
-                    if zs isa AbstractVector
-                        for ρ in zs
+                    ρs = try _solve_generic(v ~ 0, p) catch err; err isa ArgumentError || rethrow(); nothing end
+                    if ρs isa AbstractVector
+                        for ρ in ρs
                             (_hassymbol(ρ) || _isreal_const(ρ) === true) || continue
                             w = try simplify(subs(v, p => ρ)) catch err; _isdivzero(err) || rethrow(); continue end
                             iszero(w) || continue
@@ -795,12 +799,13 @@ end
 function _solve_abs_split(e::Relation, x::Sym, B::Assumptions)
     _ismarkedreal(B, x) || return nothing
     g = e.lhs - e.rhs
-    a = nothing
+    ar = Ref{Union{Nothing,Sym}}(nothing)
     _replace_walk(g) do t
-        a === nothing && t.kind == FN && t.name === :abs && length(t.args) == 1 && has(t.args[1], x) &&
-            _isreal(t.args[1], B) === true && (a = t)
+        ar[] === nothing && t.kind == FN && t.name === :abs && length(t.args) == 1 && has(t.args[1], x) &&
+            _isreal(t.args[1], B) === true && (ar[] = t)
         nothing
     end
+    a = ar[]
     a === nothing && return nothing
     # a lone |u| = r is inverted directly (r ≥ 0 by cases)
     (_eq(e.lhs, a) && !has(e.rhs, x)) || (_eq(e.rhs, a) && !has(e.lhs, x)) && return nothing
@@ -1110,6 +1115,8 @@ function _solve_inequality_params(r::Relation, x::Sym, A::Assumptions)
             throw(ArgumentError("solve: inequalities with parameters are supported for rational functions of $x only, not $r"))
     end
     # generic: each leading coefficient nonzero, or the term dropped when it is zero
+    # (B in a Ref: a reassigned capture is boxed)
+    Bl = Ref{Assumptions}(B)
     function lead(q)
         has(q, x) || return q
         while has(q, x)
@@ -1117,14 +1124,14 @@ function _solve_inequality_params(r::Relation, x::Sym, A::Assumptions)
             k = degree(P, x)
             c = coeff(q, x, k)
             _hassymbol(c) || return q
-            z = _holds(Relation(:eq, c, ZERO), B)
-            z === true || (B = _with_fact(B, Relation(:ne, c, ZERO)); return q)
+            z = _holds(Relation(:eq, c, ZERO), Bl[])
+            z === true || (Bl[] = _with_fact(Bl[], Relation(:ne, c, ZERO)); return q)
             q = expand(q - c * x^k)
         end
         q
     end
-    n, d = lead(expand(n)), lead(expand(d))
-    S = _by_cases(C -> _ineq_params_case(r.op, n, d, x, C), B)
+    nl, dl = lead(expand(n)), lead(expand(d))
+    S = _by_cases(C -> _ineq_params_case(r.op, nl, dl, x, C), Bl[])
     # (a fact decided twice, by the realness of a root and by its equality to another, is
     # listed once)
     S isa Cases ? typeof(S)([unique(c) => v for (c, v) in S.cases]) : S
@@ -1162,15 +1169,15 @@ function _ineq_params_case(op::Symbol, n::Sym, d::Sym, x::Sym, B::Assumptions)
         has(q, x) || return Tuple{Sym,Int}[]
         f = factor_squarefree(q)
         fs = f.kind == MUL ? collect(zip(f.args, f.exps)) : f.kind == POW ? [(f.args[1], f.args[2])] : [(f, ONE)]
-        out = Tuple{Sym,Int}[]
+        rs = Tuple{Sym,Int}[]
         for (g, k) in fs
             has(g, x) || continue
             (k.kind == NUMBER && _isint(k.num)) || throw(ArgumentError("solve: cannot find the multiplicities of the roots of $q in $x"))
             for ρ in _solve_eq(g ~ 0, x)
-                _param_root_real(ρ, B) && push!(out, (ρ, Int(_numerator(k.num))))
+                _param_root_real(ρ, B) && push!(rs, (ρ, Int(_numerator(k.num))))
             end
         end
-        out
+        rs
     end
     # the breakpoints, distinct and in order: point, multiplicity as a zero of n, of d
     # (two roots equal when c√u = 0, decided as u = 0, √u then 0 in the endpoints:

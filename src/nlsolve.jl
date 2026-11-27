@@ -60,15 +60,16 @@ end
 # |u| = -u where u ≤ 0, the real solutions kept that fall in their case (|x| + |y| = 2,
 # x - y = 1; SymPy #24189). nothing when there is no such |u|.
 function _solve_abs_system(eqs::Vector{<:Relation}, vars::Vector{Sym})
-    a = nothing
+    found = Ref{Union{Nothing,Sym}}(nothing)
     for eq in eqs
         _replace_walk(eq.lhs - eq.rhs) do t
-            a === nothing && t.kind == FN && t.name === :abs && length(t.args) == 1 &&
-                any(v -> has(t.args[1], v), vars) && (a = t)
+            found[] === nothing && t.kind == FN && t.name === :abs && length(t.args) == 1 &&
+                any(v -> has(t.args[1], v), vars) && (found[] = t)
             nothing
         end
-        a === nothing || break
+        found[] === nothing || break
     end
+    a = found[]
     a === nothing && return nothing
     u = a.args[1]
     out = Dict{Sym,Sym}[]
@@ -305,15 +306,16 @@ function _polish(s::Dict{Sym,Sym}, nums::Vector{Sym}, vars::Vector{Sym})
     J = [diff(n, v) for n in nums, v in vars]
     ev(e, z) = _ev(e, _Named(NamedTuple{names}(Tuple(z))), BigFloat, Ref{Union{Nothing,Sym}}(nothing))
     z = setprecision(BigFloat, 256) do
-        z = Complex{BigFloat}.(z0)
+        zb = Complex{BigFloat}.(z0)
         tol = big(2.0)^-200
         for _ in 1:30
-            f = Complex{BigFloat}[ev(n, z) for n in nums]
-            Jz = Complex{BigFloat}[ev(d, z) for d in J]
+            zi = zb
+            f = Complex{BigFloat}[ev(n, zi) for n in nums]
+            Jz = Complex{BigFloat}[ev(d, zi) for d in J]
             δ = try (Jz' * Jz) \ (Jz' * f) catch; return nothing end
             all(isfinite, δ) || return nothing
-            z -= δ
-            maximum(abs, δ) <= tol * max(1, maximum(abs, z)) && return z
+            zb -= δ
+            maximum(abs, δ) <= tol * max(1, maximum(abs, zb)) && return zb
         end
         nothing
     end
@@ -358,10 +360,11 @@ function _solve_lifted(nums::Vector{Sym}, vars::Vector{Sym}, first::Bool)
     algs = sort!([a for a in atoms if _isalgconst(a)]; lt = _lt)
     isempty(algs) && return nothing
     rs = Sym[]
+    taken(r) = any(n -> has(n, r), nums) || any(v -> _eq(v, r), vars)
     for i in eachindex(algs)
         k = i
         r = Sym(Symbol("_alg", k))
-        while any(n -> has(n, r), nums) || any(v -> _eq(v, r), vars)
+        while taken(r)
             k += length(algs)
             r = Sym(Symbol("_alg", k))
         end
@@ -464,31 +467,33 @@ function _parametric_degree_guard(nums::Vector{Sym}, vars::Vector{Sym})
 end
 const _PARAMETRIC_RADICAL_MAX = 6
 
+function _unknown_factors_add!(out, vars, b)
+    if b.kind == MUL
+        for (a, p) in zip(b.args, b.exps)
+            p.kind == NUMBER && p.num > N0 && _unknown_factors_add!(out, vars, a)
+        end
+        return
+    elseif b.kind == POW
+        p = b.args[2]
+        p.kind == NUMBER && p.num > N0 && _unknown_factors_add!(out, vars, b.args[1])
+        return
+    end
+    any(v -> has(b, v), vars) || return
+    atoms = Set{Sym}()
+    _poly_atoms!(atoms, b)
+    all(_isnamed, atoms) || return            # a polynomial (no radicals of values found)
+    f = try factor(b) catch err; err isa ArgumentError || rethrow(); b end
+    f.kind in (MUL, POW) && return _unknown_factors_add!(out, vars, f)
+    f = _content_free(f)
+    ff = f
+    any(o -> cancel(o / ff).kind == NUMBER, out) || push!(out, ff)
+end
+
 # the irreducible factors (up to constants) of the expressions in D that involve vars:
 # through products and powers (sqrt(-y^2) vanishes where y does)
 function _unknown_factors(D::Vector{Sym}, vars::Vector{Sym})
     out = Sym[]
-    function add!(b)
-        if b.kind == MUL
-            for (a, p) in zip(b.args, b.exps)
-                p.kind == NUMBER && p.num > N0 && add!(a)
-            end
-            return
-        elseif b.kind == POW
-            p = b.args[2]
-            p.kind == NUMBER && p.num > N0 && add!(b.args[1])
-            return
-        end
-        any(v -> has(b, v), vars) || return
-        atoms = Set{Sym}()
-        _poly_atoms!(atoms, b)
-        all(_isnamed, atoms) || return            # a polynomial (no radicals of values found)
-        f = try factor(b) catch err; err isa ArgumentError || rethrow(); b end
-        f.kind in (MUL, POW) && return add!(f)
-        f = _content_free(f)
-        any(o -> cancel(o / f).kind == NUMBER, out) || push!(out, f)
-    end
-    foreach(c -> add!(numer_denom(c)[1]), D)
+    foreach(c -> _unknown_factors_add!(out, vars, numer_denom(c)[1]), D)
     out
 end
 
@@ -568,7 +573,8 @@ function _backsub(G::Vector{Sym}, vars::Vector{Sym}, k::Int, sol::Dict{Sym,Sym},
     ct = _xcontent(qs[1], x)
     ct !== nothing && any(v -> has(ct, v), vars) && push!(degen, ct)
     atoms = Set{Sym}()
-    if ct === nothing ? any(v -> has(qs[1], v), vars) : !(_poly_atoms!(atoms, ct) && all(_isnamed, atoms))
+    q1 = qs[1]
+    if ct === nothing ? any(v -> has(q1, v), vars) : !(_poly_atoms!(atoms, ct) && all(_isnamed, atoms))
         cg = _xcontent(gs[1], x)
         cg !== nothing && any(v -> has(cg, v), vars) && push!(degen, cg)
     end
@@ -771,10 +777,10 @@ function _solve_by_elimination(eqs::Vector{<:Relation}, vars::Vector{Sym})
     # floats: the system with the rationals they stand for, the solutions floats again
     if !all(e -> _isexactex(e.lhs) && _isexactex(e.rhs), eqs)
         ex = Relation[Relation(:eq, _exactfloats(e.lhs; short = true), _exactfloats(e.rhs; short = true)) for e in eqs]
-        r = _solve_by_elimination(ex, vars)
-        r === nothing && return nothing
+        rx = _solve_by_elimination(ex, vars)
+        rx === nothing && return nothing
         num(v) = _hassymbol(v) ? _floatify(v) : (w = N(v); w isa Number ? Sym(w) : v)
-        return [Dict{Sym,Sym}(k => num(v) for (k, v) in s) for s in r]
+        return [Dict{Sym,Sym}(k => num(v) for (k, v) in s) for s in rx]
     end
     ds = [e.lhs - e.rhs for e in eqs]
     function ispoly(e)
@@ -790,8 +796,8 @@ function _solve_by_elimination(eqs::Vector{<:Relation}, vars::Vector{Sym})
         n, d = numer_denom(cancel(e))
         for v in vars
             has(n, v) || continue
-            P = try Poly{Sym}(n, [v]) catch; continue end
-            degree(P, v) == 1 || continue
+            Pv = try Poly{Sym}(n, [v]) catch; continue end
+            degree(Pv, v) == 1 || continue
             c1, c0 = coeff(n, v, 1), coeff(n, v, 0)
             any(u -> has(c1, u), vars) && continue
             iszero(c1) && continue
@@ -945,19 +951,19 @@ function _solve_complex_parts(eqs::Vector{<:Relation}, vars::Vector{Sym})
                 (has(a, IM) || has(b, IM)) ? nothing : (a, b))
     reqs = Relation[]
     for eq in eqs
-        failed = false
+        failed = Ref(false)
         # (the walk is bottom-up: an inner real(u) is already a real expression in the parts)
         e = _replace_walk(eq.lhs - eq.rhs) do t
             parted(t) || return nothing
             ab = split(t.args[1])
-            ab === nothing && (failed = true; return nothing)
+            ab === nothing && (failed[] = true; return nothing)
             a, b = ab
             t.name === :real ? a : t.name === :imag ? b : t.name === :conj ? a - IM * b : sqrt(a^2 + b^2)
         end
-        failed && return nothing
-        ab = split(e)
-        ab === nothing && return nothing
-        A_, B_ = ab
+        failed[] && return nothing
+        abe = split(e)
+        abe === nothing && return nothing
+        A_, B_ = abe
         iszero(A_) || push!(reqs, Relation(:eq, A_, ZERO))
         iszero(B_) || push!(reqs, Relation(:eq, B_, ZERO))
     end
@@ -1021,7 +1027,7 @@ function _solve_exp_generators(eqs::Vector{<:Relation}, vars::Vector{Sym})
     patoms = Dict{Sym,Vector{Sym}}(v => Sym[] for v in vars)
     fatoms = Dict{Sym,Vector{Sym}}(v => Sym[] for v in vars)
     bare = Set{Sym}()
-    ok = true
+    ok = Ref(true)
     addto!(l, a) = any(o -> _eq(o, a), l) || push!(l, a)
     for e in es
         _topdown(e) do t
@@ -1029,20 +1035,20 @@ function _solve_exp_generators(eqs::Vector{<:Relation}, vars::Vector{Sym})
                 push!(bare, t)
             elseif ispow(t)
                 sp = split_exponent(t.args[2])
-                sp === nothing && (ok = false; return t)
+                sp === nothing && (ok[] = false; return t)
                 for (v, q) in sp[2]
                     addto!(patoms[v], pow(t.args[1], q))
                 end
             elseif isfn(t)
                 vs = varsin(t.args[1])
-                length(vs) == 1 || (ok = false; return t)
+                length(vs) == 1 || (ok[] = false; return t)
                 addto!(fatoms[only(vs)], t)
             else
                 return nothing
             end
             t
         end
-        ok || return nothing
+        ok[] || return nothing
     end
     # each unknown's generator: (:pow, g, u, atoms, ks, cs), (:fn, g, u), (:trig, A, s, c)
     gens = Dict{Sym,Tuple}()
@@ -1067,14 +1073,14 @@ function _solve_exp_generators(eqs::Vector{<:Relation}, vars::Vector{Sym})
     function rep(t)
         if ispow(t)
             q0, parts = split_exponent(t.args[2])
-            out = pow(t.args[1], q0)
+            res = pow(t.args[1], q0)
             for (v, q) in parts
                 _, _, u, pa, ks, cs = gens[v]
                 a = pow(t.args[1], q)
                 i = findfirst(o -> _eq(o, a), pa)
-                out *= cs[i] * u^ks[i]
+                res *= cs[i] * u^ks[i]
             end
-            return out
+            return res
         elseif isfn(t)
             G = gens[only(varsin(t.args[1]))]
             G[1] === :fn && return G[3]

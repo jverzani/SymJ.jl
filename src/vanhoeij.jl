@@ -62,7 +62,7 @@ function _lll(b0::Vector{Vector{BigInt}})
             λ[k, i] -= q * λ[l, i]
         end
     end
-    function swap!(k)
+    function swap!(k, kmax)
         b[k], b[k-1] = b[k-1], b[k]
         for j in 1:(k - 2)
             λ[k, j], λ[k-1, j] = λ[k-1, j], λ[k, j]
@@ -86,7 +86,7 @@ function _lll(b0::Vector{Vector{BigInt}})
         end
         reduce!(k, k - 1)
         if 4 * d[k+1] * d[k-1] < 3 * d[k]^2 - 4 * λ[k, k-1]^2
-            swap!(k)
+            swap!(k, kmax)
             k = max(2, k - 1)
         else
             for l in (k - 2):-1:1
@@ -154,8 +154,9 @@ function _vanhoeij(f::Vector{BigInt}, modfacs::Vector{Vector{Int}}, p::Int)
             M *= p
         end
         g = _hensel_lift(_zmod(f, M), modfacs, p, k)
-        tr = [_power_sums(gi, N, M) for gi in g]
-        sym(v) = (w = mod(v, M); w > M >> 1 ? w - M : w)
+        M1, N1 = M, N  # (new bindings: a reassigned capture is boxed)
+        tr = [_power_sums(gi, N1, M1) for gi in g]
+        sym(v) = (w = mod(v, M1); w > M1 >> 1 ? w - M1 : w)
         rows = Vector{Vector{BigInt}}()
         for i in 1:r
             row = zeros(BigInt, r + N)

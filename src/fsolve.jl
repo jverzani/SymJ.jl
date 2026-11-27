@@ -77,7 +77,8 @@ function _fsolve_poly(ex::Sym, x::Sym, lo::Float64, hi::Float64, domain)
             lo <= w <= hi || continue
             z = Sym(w)
         end
-        pole(z) || any(o -> _eq(o, z), out) || push!(out, z)
+        zz = z  # (a new binding: a reassigned capture is boxed)
+        pole(zz) || any(o -> _eq(o, zz), out) || push!(out, zz)
     end
     _sort_roots!(out)
 end
@@ -209,7 +210,8 @@ function _fsolve_poly_system(eqs, xs::Vector{Sym}, ranges, start, domain)
         if domain == ℝ
             all(v -> v isa Real || abs(imag(v)) <= 1e-10 * max(1, abs(v)), vals) || continue
             vals = [real(v) for v in vals]
-            all(i -> start[i] !== nothing || ranges[i] == (-10.0, 10.0) || ranges[i][1] - 1e-9 <= vals[i] <= ranges[i][2] + 1e-9, eachindex(xs)) || continue
+            rv = vals
+            all(i -> start[i] !== nothing || ranges[i] == (-10.0, 10.0) || ranges[i][1] - 1e-9 <= rv[i] <= ranges[i][2] + 1e-9, eachindex(xs)) || continue
         end
         d = Dict{Sym,Sym}()
         for (v, w) in zip(xs, vals)
@@ -239,7 +241,7 @@ end
 function _damped_newton(f, J, z::Vector{T}, ::Type{T}) where {T}
     # (a complex value at a real point, x^y with x < 0, is no real point of F: as for a
     # DomainError; Float64 of it was an InexactError; SymPy #4027)
-    val(w) = (v = try T.(f(w...)) catch err; err isa Union{DomainError,DivideError,InexactError} || rethrow(); nothing end)
+    val(w) = try T.(f(w...)) catch err; err isa Union{DomainError,DivideError,InexactError} || rethrow(); nothing end
     v = val(z)
     (v === nothing || !all(isfinite, v)) && return nothing
     scale = max(1.0, maximum(abs, v))

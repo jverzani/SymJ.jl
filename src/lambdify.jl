@@ -273,21 +273,22 @@ end
 # sums sharing two or more terms (the same coefficient times the same term): the
 # largest such part of two sums replaced by a placeholder P in every sum that has it,
 # P => the part pushed onto subsums; repeated while there are any
+_cse_subsums_walk!(sums, seen, e) = (isempty(e.args) || e in seen) ? nothing :
+    (push!(seen, e); e.kind == ADD && push!(sums, e); foreach(a -> _cse_subsums_walk!(sums, seen, a), e.args))
 function _cse_subsums!(subsums::Vector{Pair{Sym,Sym}}, outs::Vector{Sym})
     for _ in 1:20
         sums = Sym[]
         seen = Set{Sym}()
-        walk(e) = (isempty(e.args) || e in seen) ? nothing :
-            (push!(seen, e); e.kind == ADD && push!(sums, e); foreach(walk, e.args))
-        foreach(walk, outs)
+        foreach(e -> _cse_subsums_walk!(sums, seen, e), outs)
         length(sums) > 200 && return outs
         termset(e) = Set{Tuple{SymNumber,Sym}}(zip(e.coefs, e.args))
         sets = map(termset, sums)
-        best = Tuple{SymNumber,Sym}[]
+        cand = Tuple{SymNumber,Sym}[]
         for i in eachindex(sets), j in 1:(i - 1)
             c = intersect(sets[i], sets[j])
-            length(c) > length(best) && (best = collect(c))
+            length(c) > length(cand) && (cand = collect(c))
         end
+        best = cand
         (length(best) >= 2 && count(st -> issubset(best, st), sets) >= 2) || return outs
         S = _add_many(Sym(c) * t for (c, t) in best)
         P = Sym(Symbol("_cse_part", length(subsums) + 1))
@@ -303,6 +304,8 @@ end
 
 # common subproducts: the factors that two or more products share (positive integer
 # powers, at least two bases), as one placeholder (x y in x y and x² y; SymPy #10228)
+_cse_subproducts_walk!(prods, seen, e) = (isempty(e.args) || e in seen) ? nothing :
+    (push!(seen, e); e.kind == MUL && push!(prods, e); foreach(a -> _cse_subproducts_walk!(prods, seen, a), e.args))
 function _cse_subproducts!(parts::Vector{Pair{Sym,Sym}}, outs::Vector{Sym})
     fdict(e) = Dict{Sym,SymNumber}(b => p.num for (b, p) in zip(e.args, e.exps)
                                    if p.kind == NUMBER && isexact(p.num) && isone(_denominator(p.num)) && p.num > N0)
@@ -310,16 +313,15 @@ function _cse_subproducts!(parts::Vector{Pair{Sym,Sym}}, outs::Vector{Sym})
     for _ in 1:20
         prods = Sym[]
         seen = Set{Sym}()
-        walk(e) = (isempty(e.args) || e in seen) ? nothing :
-            (push!(seen, e); e.kind == MUL && push!(prods, e); foreach(walk, e.args))
-        foreach(walk, outs)
+        foreach(e -> _cse_subproducts_walk!(prods, seen, e), outs)
         length(prods) > 200 && return outs
         ds = map(fdict, prods)
-        best = Pair{Sym,SymNumber}[]
+        cand = Pair{Sym,SymNumber}[]
         for i in eachindex(ds), j in 1:(i - 1)
             c = [b => min(q, ds[j][b]) for (b, q) in ds[i] if haskey(ds[j], b)]
-            length(c) > length(best) && (best = c)
+            length(c) > length(cand) && (cand = c)
         end
+        best = cand
         (length(best) >= 2 && count(d -> covers(d, best), ds) >= 2) || return outs
         sort!(best; by = p -> string(p.first))
         S = prod(b^Sym(q) for (b, q) in best)
@@ -334,6 +336,15 @@ function _cse_subproducts!(parts::Vector{Pair{Sym,Sym}}, outs::Vector{Sym})
         end
     end
     outs
+end
+
+# count e and, the first time, its factors (for cse)
+function _cse_count!(counts, recip, factors, e)
+    r = recip(e)
+    r === nothing || return _cse_count!(counts, recip, factors, r)
+    n = get(counts, e, 0)
+    counts[e] = n + 1
+    n == 0 && foreach(f -> _cse_count!(counts, recip, factors, f), factors(e))
 end
 
 """
@@ -384,13 +395,7 @@ function cse(ex; prefix = :t)
         e.args[1]^(-p)
     end
     counts = Dict{Sym,Int}()
-    function count!(e)
-        r = recip(e)
-        r === nothing || return count!(r)
-        n = get(counts, e, 0)
-        counts[e] = n + 1
-        n == 0 && foreach(count!, factors(e))
-    end
+    count!(e) = _cse_count!(counts, recip, factors, e)
     foreach(count!, outs)
     used = Set{Symbol}(Symbol(string(s)) for o in outs for s in free_symbols(o))
     i = Ref(0)
@@ -404,13 +409,14 @@ function cse(ex; prefix = :t)
     reps = Pair{Sym,Sym}[]
     memo = Dict{Sym,Sym}()
     foreach(count!, (S for (_, S) in subsums))
-    function rep(e)
+    # (rep passed to itself: a recursive local function is boxed)
+    function rep(self, e)
         haskey(memo, e) && return memo[e]
         isempty(e.args) && return e
         rc = recip(e)
-        rc === nothing || return (memo[e] = inv(rep(rc)))
-        r = bound(e) ? e : e.kind == MUL ? Sym(e.num) * prod((rep(f) for f in factors(e)); init = ONE) :
-            _rebuild_node(e, Sym[rep(a) for a in e.args])
+        rc === nothing || return (memo[e] = inv(self(self, rc)))
+        r = bound(e) ? e : e.kind == MUL ? Sym(e.num) * prod((self(self, f) for f in factors(e)); init = ONE) :
+            _rebuild_node(e, Sym[self(self, a) for a in e.args])
         if get(counts, e, 0) > 1 && e.kind in (ADD, MUL, POW, FN)
             t = fresh()
             push!(reps, t => r)
@@ -421,14 +427,12 @@ function cse(ex; prefix = :t)
     # each placeholder named in its turn, after the parts its sum needs
     names = Pair{Sym,Sym}[]
     for (P, S) in subsums
-        r = subs(rep(S), names...)
+        r = subs(rep(rep, S), names...)
         t = fresh()
         push!(reps, t => r)
         push!(names, P => t)
     end
-    reduced = Sym[subs(rep(o), names...) for o in outs]
-    if !isempty(names)
-        reps = [t => subs(r, names...) for (t, r) in reps]
-    end
-    reps, ex isa Union{Tuple,AbstractArray} ? _shape_like(ex, reduced) : only(reduced)
+    reduced = Sym[subs(rep(rep, o), names...) for o in outs]
+    reps2 = isempty(names) ? reps : [t => subs(r, names...) for (t, r) in reps]
+    reps2, ex isa Union{Tuple,AbstractArray} ? _shape_like(ex, reduced) : only(reduced)
 end

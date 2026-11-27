@@ -496,12 +496,12 @@ function _diff(ex::Sym, x::Sym)
             for i in eachindex(ex.args)
                 da = _diff(ex.args[i], x)
                 iszero(da) && continue
-                a = ex.args[i]
+                ai = ex.args[i]
                 slot = Sym[j == i ? t : ex.args[j] for j in eachindex(ex.args)]
                 Fi = apply_function(ex.name, slot)
-                Di = a.kind == SYMBOL && !any(j -> j != i && has(ex.args[j], a), eachindex(ex.args)) ?
-                     _mkfn_node(:Derivative, Sym[apply_function(ex.name, ex.args), a]) :
-                     apply_function(:Derivative, Sym[Fi, t, a])
+                Di = ai.kind == SYMBOL && !any(j -> j != i && has(ex.args[j], ai), eachindex(ex.args)) ?
+                     _mkfn_node(:Derivative, Sym[apply_function(ex.name, ex.args), ai]) :
+                     apply_function(:Derivative, Sym[Fi, t, ai])
                 push!(terms, mul(Di, da))
             end
             return isempty(terms) ? ZERO : _add_many(terms)

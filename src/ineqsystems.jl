@@ -57,7 +57,8 @@ function _solve_ineq_system(eqs::AbstractVector{<:Relation}, vars::Vector{Sym})
         free = [v for v in vars if !haskey(sol, v)]
         ineqs = [Relation(r.op, subs(r.lhs, sol), subs(r.rhs, sol)) for r in ineqs]
     end
-    cons = [_lincon(r, free) for r in ineqs]
+    fr = free  # (a new binding: a reassigned capture is boxed)
+    cons = [_lincon(r, fr) for r in ineqs]
     C = _fourier_motzkin(cons, free, equalities)
     CylindricalSet(C.feasible, C.levels, C.equalities, vars, collect(Relation, eqs))
 end
@@ -148,7 +149,7 @@ _dot(a, vars, skip) = _add_many(Sym(a[i]) * vars[i] for i in eachindex(vars) if 
 function _dominant(bs::Vector{Tuple{Sym,Bool}}, lower::Bool)
     out = Tuple{Sym,Bool}[]
     for (e, strict) in bs
-        i = findfirst(o -> (d = cancel(e - o[1]); d.kind == NUMBER), out)
+        i = findfirst(o -> cancel(e - o[1]).kind == NUMBER, out)
         if i === nothing
             push!(out, (e, strict))
         else

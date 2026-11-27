@@ -482,7 +482,8 @@ function _integrate_pieces(e::Sym, x::Sym, integ)
     end
     _haspieces(g, x) || return iszero(g) ? out : out + integ(g)
     # a piecewise whose conditions are free of x: each piece integrated (SymPy #6747)
-    if g.kind == FN && g.name === :piecewise && all(i -> !has(g.args[i], x), 1:2:length(g.args))
+    gg = g                                  # (a new binding: a reassigned capture is boxed)
+    if g.kind == FN && g.name === :piecewise && all(i -> !has(gg.args[i], x), 1:2:length(g.args))
         return out + piecewise((c => (_haspieces(v, x) ? _integrate_pieces(v, x, integ) : integ(v)) for (c, v) in _pieces(g))...)
     end
     bps = _breakpoints(g, x)
@@ -879,26 +880,26 @@ function _order_by_assumptions(rs::Vector{Sym})
     end
 end
 
+function _breakpoints_visit!(out, ok, x, n::Sym)
+    if n.kind == FN && (haskey(_COND_RELS, n.name) || n.name === :heaviside) && has(n, x)
+        u = haskey(_COND_RELS, n.name) ? n.args[1] - n.args[2] : n.args[1]
+        rs = try _solve_generic(u ~ 0, x) catch; nothing end
+        # (no roots found: the ends of the set where u < 0, which has the jumps too:
+        # acot(x) < 0 for x < 0; SymPy #20755)
+        rs isa AbstractVector || (rs = _sign_change_points(u, x))
+        rs === nothing && (ok[] = false; return)
+        for r in rs
+            (_hassymbol(r) || _isreal_const(r) === true) && !any(q -> iszero(expand(q - r)), out) && push!(out, r)
+        end
+        n.name === :heaviside && return
+    end
+    foreach(a -> _breakpoints_visit!(out, ok, x, a), n.args)
+    n.kind == MUL && foreach(a -> _breakpoints_visit!(out, ok, x, a), n.exps)
+end
 function _breakpoints(e::Sym, x::Sym)
     out = Sym[]
     ok = Ref(true)
-    function visit(n::Sym)
-        if n.kind == FN && (haskey(_COND_RELS, n.name) || n.name === :heaviside) && has(n, x)
-            u = haskey(_COND_RELS, n.name) ? n.args[1] - n.args[2] : n.args[1]
-            rs = try _solve_generic(u ~ 0, x) catch; nothing end
-            # (no roots found: the ends of the set where u < 0, which has the jumps too:
-            # acot(x) < 0 for x < 0; SymPy #20755)
-            rs isa AbstractVector || (rs = _sign_change_points(u, x))
-            rs === nothing && (ok[] = false; return)
-            for r in rs
-                (_hassymbol(r) || _isreal_const(r) === true) && !any(q -> iszero(expand(q - r)), out) && push!(out, r)
-            end
-            n.name === :heaviside && return
-        end
-        foreach(visit, n.args)
-        n.kind == MUL && foreach(visit, n.exps)
-    end
-    visit(e)
+    _breakpoints_visit!(out, ok, x, e)
     (ok[] && !isempty(out)) || return nothing
     # (several in parameters: in the order the assumptions give, ±y for y > 0; SymPy #7158)
     # (not for periodic conditions, which have their own path: |cos(x + y)|)
@@ -940,11 +941,10 @@ function _pieces_at(e::Sym, x::Sym, p::Sym; extra = ())
         psyms = _hassymbol(p) ? free_symbols(p) : Sym[]
         A = _PIECES_ASSUME[]
         for (c, v) in _pieces(e)
-            cv = _truth(subs(c, x => p, extra...))
+            cv0 = _truth(subs(c, x => p, extra...))
             # (decided by the assumptions when p has parameters)
-            if cv.kind != NUMBER && A isa Assumptions
-                cv = _truth(try _refine(cv, A) catch err; err isa ArgumentError || rethrow(); cv end)
-            end
+            cv = cv0.kind != NUMBER && A isa Assumptions ?
+                _truth(try _refine(cv0, A) catch err; err isa ArgumentError || rethrow(); cv0 end) : cv0
             cv == ZERO && continue
             if cv == ONE
                 isempty(ps) && return v
@@ -1110,31 +1110,31 @@ end
 
 # the real points where a condition in x changes, in increasing order (decided as
 # numbers or under the assumptions)
+function _pw_breakpoints_visit!(out, x, n::Sym)
+    if n.kind == FN && haskey(_COND_RELS, n.name) && has(n, x)
+        q = n.args[1] - n.args[2]
+        rs = _solve_generic(q ~ 0, x)
+        rs isa AbstractVector || throw(ArgumentError("piecewise_fold: the points where $(_relation_of(n)) changes were not found"))
+        # its poles too, where a sign may change ((x - 1)/(x - 5) < 0 changes at 5;
+        # SymPy #12095)
+        d = numer_denom(cancel(q))[2]
+        if has(d, x)
+            ds = _solve_generic(d ~ 0, x)
+            ds isa AbstractVector || throw(ArgumentError("piecewise_fold: the poles of $(_relation_of(n)) were not found"))
+            rs = vcat(rs, ds)
+        end
+        for r0 in rs
+            r = _ode_tidy(r0)
+            (_hassymbol(r) || _isreal_const(r) === true) || continue
+            any(q -> iszero(expand(q - r)), out) || push!(out, r)
+        end
+    end
+    foreach(a -> _pw_breakpoints_visit!(out, x, a), n.args)
+    n.kind == MUL && foreach(a -> _pw_breakpoints_visit!(out, x, a), n.exps)
+end
 function _pw_breakpoints(g::Sym, x::Sym, A::Assumptions)
     out = Sym[]
-    function visit(n::Sym)
-        if n.kind == FN && haskey(_COND_RELS, n.name) && has(n, x)
-            q = n.args[1] - n.args[2]
-            rs = _solve_generic(q ~ 0, x)
-            rs isa AbstractVector || throw(ArgumentError("piecewise_fold: the points where $(_relation_of(n)) changes were not found"))
-            # its poles too, where a sign may change ((x - 1)/(x - 5) < 0 changes at 5;
-            # SymPy #12095)
-            d = numer_denom(cancel(q))[2]
-            if has(d, x)
-                ds = _solve_generic(d ~ 0, x)
-                ds isa AbstractVector || throw(ArgumentError("piecewise_fold: the poles of $(_relation_of(n)) were not found"))
-                rs = vcat(rs, ds)
-            end
-            for r in rs
-                r = _ode_tidy(r)
-                (_hassymbol(r) || _isreal_const(r) === true) || continue
-                any(q -> iszero(expand(q - r)), out) || push!(out, r)
-            end
-        end
-        foreach(visit, n.args)
-        n.kind == MUL && foreach(visit, n.exps)
-    end
-    visit(g)
+    _pw_breakpoints_visit!(out, x, g)
     # insertion sort: the order of two points decided (by cases when not known); equal
     # points are one
     sorted = Sym[]

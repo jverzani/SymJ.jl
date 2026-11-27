@@ -209,7 +209,10 @@ function _limit(f, xx0::Pair, dir, assume)
         # (through an inference barrier: inferring limit within its own call recursed
         # until the stack overflowed during precompilation)
         h = Base.inferencebarrier(_hyp2f1_limit)
-        L = with(() -> h(f, x, x0, dir, assume), _HYP_DEPTH => 1)
+        # (new bindings: a reassigned capture is boxed)
+        L = let f = f, x0 = x0
+            with(() -> h(f, x, x0, dir, assume), _HYP_DEPTH => 1)
+        end
         L === nothing || return L
     end
     # |u^r| = |u|^r, the symbols real: |(-n/(n+1))^n| = (n/(n+1))^n (SymPy #26513)
@@ -251,7 +254,9 @@ function _limit(f, xx0::Pair, dir, assume)
     # parameters: the limit of each branch, under its condition
     P = _param_piecewise(f, x)
     if P !== nothing
-        return piecewise((c => limit(subs(f, P => v), x => x0; dir, assume) for (c, v) in _pieces(P))...)
+        return let f = f, x0 = x0
+            piecewise((c => limit(subs(f, P => v), x => x0; dir, assume) for (c, v) in _pieces(P))...)
+        end
     end
     # piecewise functions, heaviside and dirac: the piece on each side
     if _haspieces(f, x)
@@ -299,7 +304,8 @@ function _limit(f, xx0::Pair, dir, assume)
     end
     isempty(cases) && throw(ArgumentError("limit: no case is consistent with the assumptions"))
     # the cases left cover what the assumptions allow: one answer throughout is the answer
-    all(c -> _sameanswer(c.second, cases[1].second), cases) && (cases = [Any[] => cases[1].second])
+    c1 = cases[1].second
+    all(c -> _sameanswer(c.second, c1), cases) && (cases = [Any[] => c1])
     if length(cases) == 1 && isempty(cases[1].first)
         v = cases[1].second
         v isa Exception && throw(v)

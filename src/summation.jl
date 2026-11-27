@@ -99,7 +99,7 @@ function _summation_kab(f, k::Sym, a, b; assume = nothing, _regroup::Bool = true
     # 0^k from k = 0: that term (0^0 = 1) apart, the rest from 1
     # (an exponent c k, c > 0: 0^(n - k) has its special term elsewhere)
     zk(u) = u.kind == POW && u.args[1].kind == NUMBER && iszero(u.args[1].num) && has(u.args[2], k) &&
-        iszero(subs(u.args[2], k => ZERO)) && (c = diff(u.args[2], k); c.kind == NUMBER && c.num > N0)
+        iszero(subs(u.args[2], k => ZERO)) && (ck = diff(u.args[2], k); ck.kind == NUMBER && ck.num > N0)
     if a.kind == NUMBER && iszero(a.num) && _has_node(f, zk)
         return _sum_parts(_summation_kab(f, k, 1, b; assume), subs(f, k => ZERO))
     end
@@ -181,7 +181,8 @@ function _summation_kab(f, k::Sym, a, b; assume = nothing, _regroup::Bool = true
             if r2 isa Sym && _hasfn(r2, :Sum)
                 ts = [Sym(c) * t for (c, t) in zip(g.coefs, g.args)]
                 iszero(g.num) || push!(ts, Sym(g.num))
-                ps = [try _summation_kab(t, k, a, bs === nothing ? Inf : bs; assume) catch err; err isa ArgumentError || rethrow(); nothing end for t in ts]
+                aa, bb = a, bs === nothing ? Inf : bs
+                ps = [try _summation_kab(t, k, aa, bb; assume) catch err; err isa ArgumentError || rethrow(); nothing end for t in ts]
                 all(p -> p isa Sym && !_hasfn(p, :Sum) && !(p.kind == NUMBER && !isfinite(Float64(p.num))), ps) &&
                     return simplify(_add_many(ps); assume)
             end
@@ -208,8 +209,8 @@ function _summation_kab(f, k::Sym, a, b; assume = nothing, _regroup::Bool = true
         # (a summand undefined at 0, 1/k: no retry, not a DivisionByZero; SymPy #14909)
         r0 = try _summation(f, k, ZERO, nothing, assume) catch err; (err isa ArgumentError || _isdivzero(err)) || rethrow(); nothing end
         if r0 isa Sym && !_hasfn(r0, :Sum)
-            head = try _direct_sum(f, k, 0, _toint(a.num) - 1) catch err; _isdivzero(err) || rethrow(); nothing end
-            head isa Sym && return simplify(r0 - head)
+            h0 = try _direct_sum(f, k, 0, _toint(a.num) - 1) catch err; _isdivzero(err) || rethrow(); nothing end
+            h0 isa Sym && return simplify(r0 - h0)
         end
     end
     r
@@ -411,15 +412,15 @@ function _summation(f::Sym, k::Sym, a::Sym, b, assume)
 end
 
 function _zero_pow_down(f::Sym, k::Sym)
-    found = false
+    found = Ref(false)
     _replace_walk(f) do e
         if e.kind == POW && iszero(e.args[1]) && has(e.args[2], k)
             c = try coeff(expand(e.args[2]), k, 1) catch; ZERO end
-            c.kind == NUMBER && c.num < N0 && (found = true)
+            c.kind == NUMBER && c.num < N0 && (found[] = true)
         end
         nothing
     end
-    found
+    found[]
 end
 
 # Σ_{k≥a} c k^s r^k, s and r free of k, |r| < 1, a a positive integer ≤ 50: Li_{-s}(r) less
@@ -604,9 +605,9 @@ function _interpolated_poly(f::Sym, r::Sym, k::Sym, m::Int)
         end
         p += vals[j + 1] * L
     end
-    p = expand(p)
-    all(j -> iszero(cancel(subs(p, k => Sym(j)) - vals[j + 1])), (m + 1):(m + 3)) || return nothing
-    p
+    pe = expand(p)
+    all(j -> iszero(cancel(subs(pe, k => Sym(j)) - vals[j + 1])), (m + 1):(m + 3)) || return nothing
+    pe
 end
 
 # f = c * r^k with c, r free of k: (c, r), or nothing
@@ -719,10 +720,10 @@ function _binomial_theorem(f::Sym, k::Sym, n::Sym)
     # a factor uⁿ of p (n the integer upper bound): uⁿ(1 + x)ⁿ = (u(1 + x))ⁿ, so
     # Σ binomial(n, k) xᵏ y^(n-k) is (x + y)ⁿ, not (x/y + 1)ⁿ yⁿ (SymPy #14142)
     if d == 0
-        fs = Pf.kind == MUL ? collect(zip(Pf.args, Pf.exps)) : Pf.kind == POW ? [(Pf.args[1], Pf.args[2])] : Tuple{Sym,Sym}[]
-        j = findfirst(((u, q),) -> _eq(q, n), fs)
+        pfs = Pf.kind == MUL ? collect(zip(Pf.args, Pf.exps)) : Pf.kind == POW ? [(Pf.args[1], Pf.args[2])] : Tuple{Sym,Sym}[]
+        j = findfirst(((u, q),) -> _eq(q, n), pfs)
         if j !== nothing
-            u = fs[j][1]
+            u = pfs[j][1]
             w = cancel(u * (1 + x))
             numer_denom(w)[2] == ONE && return cancel(Pf / u^n) * w^n
         end
@@ -1319,7 +1320,8 @@ function _merge_powers(e::Sym)
     for (q, b) in groups
         j = 0
         if b.kind == NUMBER && abs(b.num) != N1 && c.kind == NUMBER
-            j = something(findfirst(t -> t != 0 && c == b^t, -12:12), 13) - 13
+            cc = c                               # (a new binding: a reassigned capture is boxed)
+            j = something(findfirst(t -> t != 0 && cc == b^t, -12:12), 13) - 13
         end
         c /= b^j
         # (-1)^(-n) = (-1)^n
@@ -1499,8 +1501,8 @@ function _digamma_pairs(e::Sym)
             end
             if j !== nothing
                 used[i] = used[j] = true
-                s = _toint(expand(split(terms[j])[2].args[1] + u).num)
-                m = s - 1                                   # ψ(1 - u + m) - ψ(1 - u)
+                sj = _toint(expand(split(terms[j])[2].args[1] + u).num)
+                m = sj - 1                                   # ψ(1 - u + m) - ψ(1 - u)
                 D = m >= 0 ? _add_many(1 / (1 - u + q) for q in 0:(m - 1)) :
                              -_add_many(1 / (1 - u + q) for q in m:-1)
                 push!(out, ci * (-_pi_cot(u) - D))

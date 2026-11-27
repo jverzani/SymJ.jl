@@ -593,9 +593,9 @@ function _pm_slots(p::_PNode, order::Vector{_PNode}, i::Int, s::Sym, elems::Vect
             push!(idx, j)
         end
         used[idx] .= true
-        r = _pm_slots(p, order, i + 1, s, elems, used, B, k)
+        rb = _pm_slots(p, order, i + 1, s, elems, used, B, k)
         used[idx] .= false
-        return r
+        return rb
     end
     # the free elements, the number (always last in elems) first: ~a*~x against 2x is a => 2
     n = length(elems)
@@ -837,14 +837,14 @@ function _rw_parts(f, e::Sym)
     if k == ADD
         ts = _add_parts(e)
         e.num == N0 || pop!(ts)
-        new = Sym[f(t) for t in ts]
-        all(i -> new[i] === ts[i], eachindex(ts)) && return e
-        return Sym(e.num) + _add_many(new)
+        na = Sym[f(t) for t in ts]
+        all(i -> na[i] === ts[i], eachindex(ts)) && return e
+        return Sym(e.num) + _add_many(na)
     elseif k == MUL
         fs, c = _mul_parts(e)
-        new = Sym[f(t) for t in fs]
-        all(i -> new[i] === fs[i], eachindex(fs)) && return e
-        return Sym(c) * prod(new; init = ONE)
+        nm = Sym[f(t) for t in fs]
+        all(i -> nm[i] === fs[i], eachindex(fs)) && return e
+        return Sym(c) * prod(nm; init = ONE)
     end
     new = Sym[f(a) for a in e.args]
     all(i -> new[i] === e.args[i], eachindex(new)) && return e
@@ -995,16 +995,16 @@ function _replace_parts(g, e::Sym)
     if k == ADD
         c, c2 = Sym(e.num), iszero(e.num) ? ZERO : g(Sym(e.num))
         ts = Sym[Sym(q) * a for (q, a) in zip(e.coefs, e.args)]
-        new = Sym[g(t) for t in ts]
-        (_eq(c, c2) && all(i -> new[i] === ts[i], eachindex(ts))) && return e
-        return c2 + _add_many(new)
+        na = Sym[g(t) for t in ts]
+        (_eq(c, c2) && all(i -> na[i] === ts[i], eachindex(ts))) && return e
+        return c2 + _add_many(na)
     elseif k == MUL
         c = Sym(e.num)
         c2 = isone(e.num) ? ONE : g(c)
         fs = Sym[isone(p) ? b : b^p for (b, p) in zip(e.args, e.exps)]
-        new = Sym[g(t) for t in fs]
-        (_eq(c, c2) && all(i -> new[i] === fs[i], eachindex(fs))) && return e
-        return c2 * prod(new; init = ONE)
+        nm = Sym[g(t) for t in fs]
+        (_eq(c, c2) && all(i -> nm[i] === fs[i], eachindex(fs))) && return e
+        return c2 * prod(nm; init = ONE)
     end
     new = Sym[g(a) for a in e.args]
     all(i -> new[i] === e.args[i], eachindex(new)) && return e

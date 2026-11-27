@@ -43,7 +43,9 @@ end
 
 # (a real number written with complex parts, a root through ω, has an imaginary part of
 # rounding size only)
-_rv(e::Sym) = (v = N(e); v isa Real ? Float64(v) :
+# (N gives a Float64 for a real value; v isa Real then Float64(v) was a call on an
+# abstract Real, which loading ForwardDiff invalidated)
+_rv(e::Sym) = (v = N(e); v isa Float64 ? v : v isa Real ? Float64(v)::Float64 :
     abs(imag(v)) <= 1e-12 * max(1, abs(v)) ? Float64(real(v)) : throw(ArgumentError("$e is not a real number")))
 
 Base.isempty(S::SymSet) = isempty(S.intervals)
@@ -79,24 +81,25 @@ Base.in(v::Union{Sym,Real}, S::SymSet) = (w = v isa Real ? Float64(v) : v; any(I
 
 # pred(v, point::Bool): is the piece containing v included? (v exact at a breakpoint,
 # a Float64 sample inside an open piece)
-function _set_from(bps::Vector{Sym}, pred)
-    vals = map(_rv, bps)
+function _set_from(bps0::Vector{Sym}, pred)
+    vals0 = map(_rv, bps0)
     # breakpoints past Float64's range, or too close for its samples (exp(50) + 1 is
     # exp(50) in Float64; x < exp(50) gave all x but exp(50); SymPy #10268): values at 256
     # bits and exact rational samples
-    wide = any(v -> !isfinite(v) || abs(v) >= 2.0^50, vals)
-    if !wide && length(vals) > 1
-        q = sortperm(vals)
-        sv, sb = vals[q], bps[q]
+    wide = any(v -> !isfinite(v) || abs(v) >= 2.0^50, vals0)
+    if !wide && length(vals0) > 1
+        qp = sortperm(vals0)
+        sv, sb = vals0[qp], bps0[qp]
         # (neighbours equal in Float64 though different, or with no Float64 between them)
         wide = any(i -> (sv[i] == sv[i+1] && sb[i] != sb[i+1]) ||
                         (sv[i] != sv[i+1] && (sv[i] + sv[i+1]) / 2 in (sv[i], sv[i+1])), 1:(length(sv) - 1))
     end
-    wide && (vals = setprecision(() -> map(_rvb, bps), BigFloat, 256))
-    p = sortperm(vals)
-    bps, vals = bps[p], vals[p]
-    keep = [i == 1 || vals[i] != vals[i-1] for i in eachindex(vals)]   # distinct values
-    bps, vals = bps[keep], vals[keep]
+    # (new bindings, not reassignments: a reassigned capture is boxed)
+    vals1 = wide ? setprecision(() -> map(_rvb, bps0), BigFloat, 256) : vals0
+    p = sortperm(vals1)
+    bps2, vals2 = bps0[p], vals1[p]
+    keep = [i == 1 || vals2[i] != vals2[i-1] for i in eachindex(vals2)]   # distinct values
+    bps, vals = bps2[keep], vals2[keep]
     m = length(bps)
     # pieces in order: open (−∞, b1), {b1}, (b1, b2), ..., {bm}, (bm, ∞)
     samples = m == 0 ? Any[0.0] : wide ?
@@ -273,33 +276,35 @@ function _inequality_with_infinity(r::Relation, x::Sym)
     _set_from(ps, (v, atpoint) -> !(atpoint && any(p -> p == v, ps))) |> S -> SymSet(S.intervals, x)
 end
 
+# a piece's condition c as a subset of the reals (for _solve_inequality_pieces)
+function _solve_inequality_pieces_cond_set(c::Sym, reals, x)
+    c == ONE && return reals
+    c == ZERO && return SymSet(SymInterval[])
+    if c.kind == FN && haskey(_COND_RELS, c.name)
+        q = _relation_of(c)
+        q.op === :eq && return SymSet(_set_from(_real_roots(_solve_eq(q.lhs - q.rhs ~ 0, x)), (v, atpoint) -> atpoint).intervals)
+        q.op === :ne && return setdiff(reals, _solve_inequality_pieces_cond_set(_mkfn_node(:eq, Sym[q.lhs, q.rhs]), reals, x))
+        return _solve_inequality(Relation(q.op, q.lhs, q.rhs), x)
+    elseif c.kind == FN && c.name in (:And, :Or)
+        ss = map(a -> _solve_inequality_pieces_cond_set(a, reals, x), c.args)
+        return reduce(c.name === :And ? intersect : union, ss)
+    elseif c.kind == FN && c.name === :Not
+        return setdiff(reals, _solve_inequality_pieces_cond_set(only(c.args), reals, x))
+    end
+    throw(ArgumentError("solve: the condition $c is not supported"))
+end
+
 function _solve_inequality_pieces(r::Relation, x::Sym)
     e = r.lhs - r.rhs
     _hasfn(e, :piecewise) || (e = piecewise(e))           # |x|, sign, max, min as pieces
     pw = try piecewise_fold(e, x) catch err; err isa ArgumentError || rethrow(); return nothing end
     (pw.kind == FN && pw.name === :piecewise) || return nothing
     reals = SymSet([SymInterval(nothing, nothing, false, false)])
-    function cond_set(c::Sym)
-        c == ONE && return reals
-        c == ZERO && return SymSet(SymInterval[])
-        if c.kind == FN && haskey(_COND_RELS, c.name)
-            q = _relation_of(c)
-            q.op === :eq && return SymSet(_set_from(_real_roots(_solve_eq(q.lhs - q.rhs ~ 0, x)), (v, atpoint) -> atpoint).intervals)
-            q.op === :ne && return setdiff(reals, cond_set(_mkfn_node(:eq, Sym[q.lhs, q.rhs])))
-            return _solve_inequality(Relation(q.op, q.lhs, q.rhs), x)
-        elseif c.kind == FN && c.name in (:And, :Or)
-            ss = map(cond_set, c.args)
-            return reduce(c.name === :And ? intersect : union, ss)
-        elseif c.kind == FN && c.name === :Not
-            return setdiff(reals, cond_set(only(c.args)))
-        end
-        throw(ArgumentError("solve: the condition $c is not supported"))
-    end
     covered = SymSet(SymInterval[])
     out = SymSet(SymInterval[])
     try
         for (c, v) in _pieces(pw)
-            Sc = setdiff(cond_set(c), covered)
+            Sc = setdiff(_solve_inequality_pieces_cond_set(c, reals, x), covered)
             covered = union(covered, Sc)
             isempty(Sc) && continue
             Sv = if has(v, x)
@@ -317,6 +322,23 @@ function _solve_inequality_pieces(r::Relation, x::Sym)
     SymSet(out.intervals, x)
 end
 
+# acot(u) as atan(1/u), and the atoms the method takes (for _solve_inequality_continuous)
+_solve_inequality_continuous_acot2atan(t) = _replace_walk(t) do q
+    q.kind == FN && q.name === :acot && length(q.args) == 1 ? atan(1 / _solve_inequality_continuous_acot2atan(q.args[1])) : nothing
+end
+function _solve_inequality_continuous_okexpr(u, x)
+    n, d = numer_denom(u)
+    as = Set{Sym}()
+    (_poly_atoms!(as, n) && _poly_atoms!(as, d)) || return false
+    all(a -> _solve_inequality_continuous_ok(a, x), as)
+end
+# (exp(u) is stored as ℯ^u: a positive constant base to a power in x, as 2^x)
+_solve_inequality_continuous_ok(a, x) = _eq(a, x) || !has(a, x) ||
+    (a.kind == POW && a.args[2].kind == NUMBER && isexact(a.args[2].num) && _ispolyin(a.args[1], [x])) ||
+    (a.kind == POW && !has(a.args[1], x) && _ispositive_const(a.args[1]) && _solve_inequality_continuous_okexpr(a.args[2], x)) ||
+    (a.kind == FN && a.name in (:log, :exp, :cbrt) && length(a.args) == 1 && _ispolyin(a.args[1], [x])) ||
+    (a.kind == FN && a.name in (:log, :exp, :cbrt, :atan) && length(a.args) == 1 && _solve_inequality_continuous_okexpr(a.args[1], x))
+
 # an inequality in radicals, logs and exponentials of x (no periodic functions, so the
 # equation has finitely many roots): its breakpoints the real roots of the equation, the
 # ends of the real domain (zeros of radicands and of log's arguments) and the poles; each
@@ -325,26 +347,11 @@ end
 # (atan and acot too, of such arguments in turn, acot(u) as atan(1/u), with a jump where
 # u = 0: |acot x| on (-1, 1), atan(log x) > 0; SymPy #20755, #19977)
 function _solve_inequality_continuous(r::Relation, x::Sym, atoms)
-    acot2atan(t) = _replace_walk(t) do q
-        q.kind == FN && q.name === :acot && length(q.args) == 1 ? atan(1 / acot2atan(q.args[1])) : nothing
-    end
-    lhs, rhs = acot2atan(r.lhs), acot2atan(r.rhs)
+    lhs, rhs = _solve_inequality_continuous_acot2atan(r.lhs), _solve_inequality_continuous_acot2atan(r.rhs)
     e = lhs - rhs
-    function okexpr(u)
-        n, d = numer_denom(u)
-        as = Set{Sym}()
-        (_poly_atoms!(as, n) && _poly_atoms!(as, d)) || return false
-        all(ok, as)
-    end
-    # (exp(u) is stored as ℯ^u: a positive constant base to a power in x, as 2^x)
-    ok(a) = _eq(a, x) || !has(a, x) ||
-        (a.kind == POW && a.args[2].kind == NUMBER && isexact(a.args[2].num) && _ispolyin(a.args[1], [x])) ||
-        (a.kind == POW && !has(a.args[1], x) && _ispositive_const(a.args[1]) && okexpr(a.args[2])) ||
-        (a.kind == FN && a.name in (:log, :exp, :cbrt) && length(a.args) == 1 && _ispolyin(a.args[1], [x])) ||
-        (a.kind == FN && a.name in (:log, :exp, :cbrt, :atan) && length(a.args) == 1 && okexpr(a.args[1]))
     n0, d0 = numer_denom(cancel(e))
     as0 = Set{Sym}()
-    (_poly_atoms!(as0, n0) && _poly_atoms!(as0, d0) && all(ok, as0)) || return nothing
+    (_poly_atoms!(as0, n0) && _poly_atoms!(as0, d0) && all(a -> _solve_inequality_continuous_ok(a, x), as0)) || return nothing
     rts = try _solve_eq(Relation(:eq, lhs, rhs), x) catch err; err isa ArgumentError || rethrow(); return nothing end
     rts isa AbstractVector || return nothing
     pts = Sym[q for q in _real_roots(rts) if !_hassymbol(q)]

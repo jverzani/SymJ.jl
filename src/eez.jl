@@ -251,8 +251,9 @@ function _eez_wang(qs::_P, H::Vector{<:_P}, xi::Int, ys::Vector{Int})
     end
     Q = qs
     if !isone(cs)
-        CC = [_scale(c, SymNumber(cs)) for c in CC]
-        HH = [_scale(h, SymNumber(cs)) for h in HH]
+        csf = cs                                       # (a new binding: a reassigned capture is boxed)
+        CC = [_scale(c, SymNumber(csf)) for c in CC]
+        HH = [_scale(h, SymNumber(csf)) for h in HH]
         Q = _scale(qs, SymNumber(cs)^(length(H) - 1))
     end
     p0 = foldl(*, HH)
@@ -286,8 +287,8 @@ function _factor_eez(q::_P, act::Vector{Int})
     good = 0
     for t in 1:60
         B = 1 + t ÷ 6
-        α = [Int(_next!(rng) % UInt64(2B + 1)) - B for _ in ys]
-        val(m) = prod((big(α[j])^_exponent(m, q.layout, n, ys[j]) for j in eachindex(ys)); init = big(1))
+        αt = [Int(_next!(rng) % UInt64(2B + 1)) - B for _ in ys]
+        val(m) = prod((big(αt[j])^_exponent(m, q.layout, n, ys[j]) for j in eachindex(ys)); init = big(1))
         ev(p) = sum((big(_numerator(c)) * val(m) for (m, c) in zip(p.monos, p.coefs)); init = big(0))
         ev(L) == 0 && continue
         u = zeros(BigInt, _deg_in_all(q, xi) + 1)
@@ -302,7 +303,7 @@ function _factor_eez(q::_P, act::Vector{Int})
         ok = _wang_nondivisors(BigInt[ev(t) for (t, _) in T], reduce(gcd, u; init = big(0)),
                                abs(big(_numerator(ct)))) !== nothing
         if best === nothing || (ok && !bestok) || (ok == bestok && length(fs) < length(best[2]))
-            best, bestok = (α, fs), ok
+            best, bestok = (αt, fs), ok
         end
         good += 1
         (good >= 3 && bestok) || good >= 5 ? break : nothing

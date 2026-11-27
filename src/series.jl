@@ -92,6 +92,10 @@ Base.hash(e::_Ex, h::UInt) = e.k == 0 ? hash(e.q, h) : hash(e.k, hash(e.q, h))
 end
 @inline Base.:<(a::_Ex, b::_Ex) = isless(a, b)
 Base.:<=(a::_Ex, b::_Ex) = a == b || isless(a, b)
+# (directly: Base's min(::Real, ::Real) promotes first, and loading ForwardDiff
+# invalidated that promote with the series code behind it)
+Base.min(a::_Ex, b::_Ex) = isless(b, a) ? b : a
+Base.max(a::_Ex, b::_Ex) = isless(b, a) ? a : b
 Base.isinteger(e::_Ex) = e.k == 0 && isinteger(e.q)
 Base.iszero(e::_Ex) = e.k == 0 && iszero(e.q)
 Base.isinf(e::_Ex) = isinf(e.q)
@@ -223,7 +227,7 @@ function _pspow(a::_PS, r::Sym, N::_Ex)
     else
         throw(ArgumentError("series: a power with a symbolic exponent, $r, of a vanishing or infinite base"))
     end
-    binom(k) = (b = ONE; for i in 0:(k - 1); b = b * (r - i) / (i + 1); end; b)
+    binom(k) = (bk = ONE; for i in 0:(k - 1); bk = bk * (r - i) / (i + 1); end; bk)
     _psshift(_psscale(_psgeom(u, binom, N - s), c0^r), s)
 end
 
@@ -346,7 +350,8 @@ function _psapply(name::Symbol, args::Vector{Sym}, N::_Ex)
             return _psadd(head, tail)
         elseif !_isint(ν.num)
             head = _psscale(_pspow(u, ν - 1, N), apply_function(:gamma, Sym[1 - ν]))
-            tail = _psgeom(u, k -> -Sym(-1)^k / (fact(k) * (k + 1 - ν)), N)
+            νt = ν                         # (a new binding: a reassigned capture is boxed)
+            tail = _psgeom(u, k -> -Sym(-1)^k / (fact(k) * (k + 1 - νt)), N)
             return _psadd(head, tail)
         end
     end
@@ -424,13 +429,13 @@ function _psapply(name::Symbol, args::Vector{Sym}, N::_Ex)
     if a0.kind == NUMBER && isexact(a0.num) && _isint(a0.num) && a0.num <= N0 && (length(args) == 1 && name in (:gamma, :digamma, :trigamma) ||
                            name === :polygamma && i == 2 && args[1].kind == NUMBER && isexact(args[1].num) && _isint(args[1].num) && args[1].num >= N0)
         m = -_toint(a0.num)
-        w = args[i]
+        wg = args[i]
         r = if name === :gamma
-            apply_function(:gamma, Sym[w + m + 1]) / prod(Sym[w + j for j in 0:m])
+            apply_function(:gamma, Sym[wg + m + 1]) / prod(Sym[wg + j for j in 0:m])
         else
             k = name === :digamma ? 0 : name === :trigamma ? 1 : _toint(args[1].num)
-            f = k == 0 ? apply_function(:digamma, Sym[w + m + 1]) : apply_function(:polygamma, Sym[Sym(k), w + m + 1])
-            f - Sym(isodd(k) ? -factorial(big(k)) : factorial(big(k))) * _add_many(inv((w + j)^(k + 1)) for j in 0:m)
+            f = k == 0 ? apply_function(:digamma, Sym[wg + m + 1]) : apply_function(:polygamma, Sym[Sym(k), wg + m + 1])
+            f - Sym(isodd(k) ? -factorial(big(k)) : factorial(big(k))) * _add_many(inv((wg + j)^(k + 1)) for j in 0:m)
         end
         return _ser(r, N)
     end
@@ -791,8 +796,8 @@ function _asfn(name::Symbol, args::Vector{Sym}, N::_Ex)
         return _asmul(_asexp(u, N), _asplain(W(k -> k >= 1 ? fac(k - 1) : ZERO)))
     elseif name === :expint                          # E_ν(u) = e^(-u) Σ_{k≥1} (-1)^(k-1) (ν)_(k-1)/u^k
         sg > 0 || return nothing
-        ν = length(args) == 2 ? args[1] : ONE
-        poch(m) = (p = ONE; for j in 0:(m - 1); p = p * (ν + j); end; expand(p))
+        νe = length(args) == 2 ? args[1] : ONE
+        poch(m) = (p = ONE; for j in 0:(m - 1); p = p * (νe + j); end; expand(p))
         return _asmul(_asexp(_psscale(u, MINUS_ONE), N), _asplain(W(k -> k >= 1 ? sgn(k - 1) * poch(k - 1) : ZERO)))
     elseif name in (:sinint, :cosint)
         name === :cosint && sg < 0 && return nothing  # Ci at -∞ is complex
@@ -943,8 +948,9 @@ function series(ex, x::Sym, x0 = 0, n::Real = 6)
     trim(p) = (keep = findall(<(order), p.e);
         _PS(p.e[keep], p.c[keep], p.o == _INF && length(keep) == length(p.e) ? _INF : order))
     for _ in 1:12
+        Nc = N
         r = try
-            with(() -> atinf ? _aser(ext, N) : _asplain(_ser(ext, N)), _TPOS => atinf)
+            with(() -> atinf ? _aser(ext, Nc) : _asplain(_ser(ext, Nc)), _TPOS => atinf)
         catch err
             err isa _SeriesPrecision || rethrow()
             N += 2
@@ -1153,10 +1159,10 @@ function _foldpre(s::SymSeries, irr::Bool = false)
     s.pre.kind == POW || return s
     β = s.pre.args[2]
     (β.kind == NUMBER && isexact(β.num)) || irr || return s
-    q = _ex_of(β)
-    q === nothing && return s
+    q0 = _ex_of(β)
+    q0 === nothing && return s
     atinf = s.x0 isa Real && isinf(s.x0)
-    q = q * (atinf ? -1 : 1)
+    q = q0 * (atinf ? -1 : 1)
     sh(p::_PS) = _PS(p.e .+ q, p.c, p.o == _INF ? _INF : p.o + q)
     SymSeries(s.x, s.x0, sh(s.ps), s.n + q, _Piece[_Piece(r.G, r.k, r.H, sh(r.p)) for r in s.pcs], ONE)
 end
