@@ -436,13 +436,13 @@ _float_exponent(e::Sym) = (e.kind == POW && e.args[2].kind == NUMBER && isfloat(
 
 # the numbers of e as floats, except exponents and coefficients ±1 (b/2 + y as
 # 0.5*b + y), and its constant parts as their values (exp(350/3), π/6)
-function _floatify(e::Sym)
+function _floatify(e::Sym)::Sym
     f(c::SymNumber) = isexact(c) ? SymNumber(Float64(c)) : c
     if !_hassymbol(e) && e.kind != NUMBER       # a constant: its value (π/6, exp(350/3))
         v = try N(e) catch; nothing end
         # (a real root in complex radicals: its imaginary part of rounding size dropped,
         # not left as 1e-77im; SymPy #9691)
-        if v isa Complex && isfinite(v) && abs(imag(v)) <= 1e-12 * abs(v) && _isreal_const(e) === true
+        if v isa Complex{Float64} && isfinite(v) && abs(imag(v)) <= 1e-12 * abs(v) && _isreal_const(e) === true
             v = real(v)
         end
         v isa Number && isfinite(v) && return Sym(v)

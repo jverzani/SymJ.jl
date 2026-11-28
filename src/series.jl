@@ -1017,16 +1017,16 @@ end
 _plain_ps(s::SymSeries) = isone(s.pre) ? s.ps : throw(ArgumentError("series: a power factor $(s.pre)"))
 
 # t and log(t) in terms of x
-function _tvar(s::SymSeries)
+function _tvar(s::SymSeries)::Sym
     s.x0 isa Real && isinf(s.x0) && return s.x0 > 0 ? inv(s.x) : -inv(s.x)
     s.x - s.x0
 end
 # log(t) in terms of x: log(x - x0), or -log(x) at ∞ and -log(-x) at -∞
-_logt(s::SymSeries) = s.x0 isa Real && isinf(s.x0) ? -log(s.x0 > 0 ? s.x : -s.x) : log(_tvar(s))
+_logt(s::SymSeries)::Sym = s.x0 isa Real && isinf(s.x0) ? -log(s.x0 > 0 ? s.x : -s.x) : log(_tvar(s))
 _coef(s::SymSeries, c::Sym) = subs(c, _LOGT => _logt(s))
 # t^e in x: at ±∞ an irrational power as x^(-e) ((-x)^(-e)), x positive there ((1/x)^(-√2)
 # stays as it is)
-_tpow(s::SymSeries, e::_Ex) = s.x0 isa Real && isinf(s.x0) && !_isrational(e) ?
+_tpow(s::SymSeries, e::_Ex)::Sym = s.x0 isa Real && isinf(s.x0) && !_isrational(e) ?
     (s.x0 > 0 ? s.x : -s.x)^(-_sym(e)) : _tvar(s)^_sym(e)
 _term(s::SymSeries, e::_Ex, c::Sym) = _coef(s, c) * _tpow(s, e)
 

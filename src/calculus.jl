@@ -17,7 +17,7 @@ diff(x^3 * y^2, x, y)        # 6*x^2*y
 diff(sin(x * y), x, y)       # -x*y*sin(x*y) + cos(x*y)
 ```
 """
-function Base.diff(ex::Sym, x::Sym, n::Integer = 1)
+function Base.diff(ex::Sym, x::Sym, n::Integer = 1)::Sym
     _isnamed(x) || throw(ArgumentError("can only differentiate with respect to a symbol or parameter, got $x"))
     n < 0 && throw(ArgumentError("diff: the order must be nonnegative, got $n"))   # (SymPy #13873)
     for _ in 1:n
@@ -27,7 +27,7 @@ function Base.diff(ex::Sym, x::Sym, n::Integer = 1)
 end
 Base.diff(ex::Number, x::Sym, n::Integer = 1) = ZERO
 
-function Base.diff(ex::Sym, x::Sym, y::Sym, zs::Sym...)
+function Base.diff(ex::Sym, x::Sym, y::Sym, zs::Sym...)::Sym
     for v in (x, y, zs...)
         ex = diff(ex, v)
     end
@@ -374,7 +374,7 @@ function _fresh_dummy(ex::Sym)
     Sym(Symbol(:t, k))
 end
 
-function _diff(ex::Sym, x::Sym)
+function _diff(ex::Sym, x::Sym)::Sym
     k = ex.kind
     _isnamed(ex) && return _eq(ex, x) ? ONE : ZERO
     k == NUMBER && return ex.num.tag == T_FLOAT && isnan(ex.num.f) ? ex : ZERO    # NaN stays NaN

@@ -73,7 +73,7 @@ apart(ex::Number, x...; gcd_method::Symbol = :auto) = Sym(ex)
 # Over ℚ(params): D factored over ℤ in (x, params); by Gauss's lemma its factors
 # involving x are its irreducible factors over ℚ(params)[x], the rest a unit there.
 # The same steps as above, in Poly{RatFun}.
-function _apart_params(n::Sym, d::Sym, x::Sym, params::Vector{Sym}, gcd_method::Symbol = :auto)
+function _apart_params(n::Sym, d::Sym, x::Sym, params::Vector{Sym}, gcd_method::Symbol = :auto)::Sym
     gs = [x; params]
     N, D = Poly{SymNumber}(n, gs), Poly{SymNumber}(d, gs)
     c, facs = _factor_poly(D; gcd_method)

@@ -258,7 +258,7 @@ function _dalembert_solve(p::Vector{Sym}, g::Sym, n::Sym, value, avoid)
 end
 
 # the unevaluated sums in e summed (closed forms, or Sum still), innermost first
-function _dal_close(e::Sym)
+function _dal_close(e::Sym)::Sym
     isempty(e.args) && return e
     e = _rebuild_node(e, Sym[_dal_close(a) for a in e.args])
     e.kind == FN && e.name === :Sum && length(e.args) == 4 ? _summation_kab(e.args...) : e

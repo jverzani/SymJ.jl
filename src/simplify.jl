@@ -110,12 +110,12 @@ function refine(r::Relation; assume = nothing)
     Relation(r.op, l, rr)
 end
 
-function _refine(e::Sym, A::Assumptions)
+function _refine(e::Sym, A::Assumptions)::Sym
     isempty(A.subst) || (e = subs(e, A.subst...))
     _refine_node(e, A)
 end
 
-function _refine_node(e::Sym, A::Assumptions)
+function _refine_node(e::Sym, A::Assumptions)::Sym
     isempty(e.args) && return e
     n = e.kind == MUL ? Sym(e.num) * prod((_refine_node(b^p, A) for (b, p) in zip(e.args, e.exps)); init = ONE) :
         _rebuild_node(e, Sym[_refine_node(a, A) for a in e.args])
@@ -182,7 +182,7 @@ function _refine_exp_ipi(u::Sym, A::Assumptions)
 end
 
 # one identity at the node, or nothing
-function _refine_rule(e::Sym, A::Assumptions)
+function _refine_rule(e::Sym, A::Assumptions)::Union{Nothing,Sym}
     k = e.kind
     # ±∞ plus real terms is ±∞ (x + ∞ with x real; SymPy #27605); a real term is finite
     if k == ADD && isfloat(e.num) && isinf(Float64(e.num)) && all(t -> _isreal(t, A) === true, e.args)
@@ -472,7 +472,7 @@ function _refine_atan2(y::Sym, x::Sym, A::Assumptions)
 end
 
 # real, imag, conj, angle of u, from u's real and imaginary parts under the assumptions
-function _refine_parts(f::Symbol, u::Sym, A::Assumptions)
+function _refine_parts(f::Symbol, u::Sym, A::Assumptions)::Union{Nothing,Sym}
     # u known real: real(u) = u, imag(u) = 0 (imag(√(-x)) for x < 0; SymPy #2920)
     if f in (:real, :imag, :conj) && _isreal(u, A) === true
         return f === :imag ? ZERO : u
@@ -1045,7 +1045,7 @@ function _log_int_powers(e::Sym)
     end
 end
 
-function _simplify(e::Sym, A::Assumptions)
+function _simplify(e::Sym, A::Assumptions)::Sym
     e = _exact_int_exponents(e)
     if !_hassymbol(e) && e.kind != NUMBER
         # function arguments first, as for expressions with symbols: acos(cos a cos b +
@@ -1092,7 +1092,7 @@ function _simplify(e::Sym, A::Assumptions)
 end
 # (for _simplify) the smallest of e's candidate forms, e with symbols (a function of its
 # own: e is reassigned above, and a reassigned capture is boxed)
-function _simplify_symbolic(e::Sym, A::Assumptions)
+function _simplify_symbolic(e::Sym, A::Assumptions)::Sym
     best, size = Ref{Sym}(e), Ref(_nodes(e))
     powers(x) = simplify_powers(x; assume = A)
     logs(x) = simplify_log(x; assume = A)
@@ -1526,7 +1526,7 @@ end
 # denominator: e - qπ is a multiple of 2π when cos(e - qπ) is 1 exactly, and so 0, its
 # value being tiny (acos(2√5/5) - acos(-3√10/10) + 3π/4 is 0; SymPy #24948)
 const _IN_INVTRIG_PI = ScopedValue(false)
-function _invtrig_multiple_of_pi(e::Sym, A::Assumptions)
+function _invtrig_multiple_of_pi(e::Sym, A::Assumptions)::Union{Nothing,Sym}
     _IN_INVTRIG_PI[] && return nothing
     v = try N(e) catch; return nothing end
     v isa Real || return nothing
@@ -1665,7 +1665,7 @@ _bigpower(e::Sym) = (e.kind == POW && e.args[1].kind == ADD && e.args[2].kind ==
 # as for the integral in SymPy #27957)
 const _FACTOR_MAX_TERMS = 2000
 
-function _factor_or_nothing(e::Sym)
+function _factor_or_nothing(e::Sym)::Union{Nothing,Sym}
     n, d = numer_denom(e)
     _expanded_terms(n) > _FACTOR_MAX_TERMS && return nothing
     _ispolylike(n) && (_ispolylike(d) || d.kind == NUMBER) || return nothing
@@ -2248,7 +2248,7 @@ function _circ_recip(b::Sym, p::Sym, M::_Circ)
     b^p
 end
 
-function _circ_tan(e::Sym, M::_Circ)
+function _circ_tan(e::Sym, M::_Circ)::Sym
     isempty(e.args) && return e
     s, c, t, ct = M.fns[1], M.fns[2], M.fns[3], M.fns[4]
     if e.kind == POW
@@ -2313,7 +2313,7 @@ end
 
 _logpos(u::Sym, A) = u.kind == NUMBER ? u.num > N0 : _ispos(u, A)
 
-function _log_combine(e::Sym, A::Assumptions)
+function _log_combine(e::Sym, A::Assumptions)::Sym
     isempty(e.args) && return e
     if e.kind == ADD
         args = Sym[_log_combine(a, A) for a in e.args]
@@ -2342,7 +2342,7 @@ function _log_combine(e::Sym, A::Assumptions)
 end
 
 # force: every base taken as positive (but a number) and every exponent as real
-function _log_expand(e::Sym, A::Assumptions, force::Bool = false)
+function _log_expand(e::Sym, A::Assumptions, force::Bool = false)::Sym
     isempty(e.args) && return e
     pos(b) = b.kind == NUMBER ? b.num > N0 : force || _ispos(b, A)
     realp(p) = force || _isreal(p, A) === true
@@ -2419,7 +2419,7 @@ function simplify_radicals(ex; assume = nothing)
     _refine(_radicals(_refine(Sym(ex), A), A), A)
 end
 
-function _radicals(e::Sym, A::Assumptions)
+function _radicals(e::Sym, A::Assumptions)::Sym
     isempty(e.args) && return e
     if e.kind == MUL
         return Sym(e.num) * prod((_radicals(b^p, A) for (b, p) in zip(e.args, e.exps)); init = ONE)
@@ -2998,7 +2998,7 @@ function _small_prime_factors(n::Integer)
     end
     nothing
 end
-_merge_prime_powers(e::Sym) = _replace_walk(e) do t
+_merge_prime_powers(e::Sym)::Sym = _replace_walk(e) do t
     t.kind == MUL || return nothing
     ix = [i for i in eachindex(t.args) if _int_rational_power(t.args[i], t.exps[i])]
     length(ix) >= 2 || return nothing
@@ -3017,7 +3017,7 @@ _merge_prime_powers(e::Sym) = _replace_walk(e) do t
     out * prod((t.args[i]^t.exps[i] for i in eachindex(t.args) if !(i in ix)); init = ONE)
 end
 
-function _sum_contents_out(e::Sym)
+function _sum_contents_out(e::Sym)::Sym
     e.kind == MUL || return e
     c = Sym(e.num)
     out = ONE
@@ -3079,7 +3079,7 @@ function _radical_degree_bound(e::Sym)
     end
     d
 end
-function _rational_by_minpoly(e::Sym)
+function _rational_by_minpoly(e::Sym)::Union{Nothing,Sym}
     (e.kind != NUMBER && _isexactex(e) && _nodes(e) <= 80) || return nothing
     _has_node(e, t -> t.kind == FN) && return nothing            # radicals only
     _has_node(e, t -> (t.kind == POW && t.args[2].kind == NUMBER && !_isint(t.args[2].num)) ||

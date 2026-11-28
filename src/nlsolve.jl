@@ -734,7 +734,7 @@ _isexactex(e::Sym) = e.kind == NUMBER ? isexact(e.num) :
     all(_isexactex, e.args) && all(_isexactex, e.exps)
 
 # floating point numbers replaced by the rationals they represent exactly
-_exactnum(n::SymNumber) = isexact(n) ? Sym(n) :
+_exactnum(n::SymNumber)::Sym = isexact(n) ? Sym(n) :
     (v = N(Sym(n)); v isa Real && !isfinite(v) ? Sym(n) : v isa Real ? Sym(SymNumber(Rational{BigInt}(v))) :
      throw(ArgumentError("solve: complex floating point coefficients in a nonlinear system are not supported")))
 # (short = true: the shortest rational within rounding, 0.3 as 3/10, not 5404319552844595/2^54)

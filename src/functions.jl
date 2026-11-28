@@ -73,7 +73,7 @@ end
 
 Apply the function `name`, simplifying with its registered rule if any.
 """
-function apply_function(name::Symbol, args::Vector{Sym})
+function apply_function(name::Symbol, args::Vector{Sym})::Sym
     rule = get(FUNCTION_RULES, name, nothing)
     if rule !== nothing
         # Float arguments are values: evaluate first, before symbolic rules such as

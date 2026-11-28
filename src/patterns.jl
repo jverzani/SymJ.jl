@@ -91,7 +91,7 @@ _to_pat(x::QuoteNode, P) = _to_pat(x.value, P)
 _to_pat(x::Symbol, P) = x === :π || x === :pi ? PI : x === :ℯ ? E : x === :im ? Sym(im) : Sym(x)
 _to_pat(x, P) = throw(ArgumentError("pattern: can't read $x"))
 
-function _to_pat(ex::Expr, P::_PatBuild)
+function _to_pat(ex::Expr, P::_PatBuild)::Sym
     ex.head === :call || throw(ArgumentError("pattern: can't read $ex"))
     f = ex.args[1]
     if f === :~ && length(ex.args) == 2
