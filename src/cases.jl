@@ -485,7 +485,7 @@ function _case_tree(run, A::Assumptions, decided::Dict{Any,Bool}, count::Ref{Int
             B = _with_fact(A, h)
             B === nothing && continue
             d = copy(decided)
-            d[f] = d[g] = _REL_INFO[g.op][2](s, 0)   # f ⇔ g, and g at this sign
+            d[f] = d[g] = _rel_cmp(g.op, s, 0)   # f ⇔ g, and g at this sign
             push!(branches, h => (B, d))
         end
     elseif g isa Relation && g.op in (:eq, :ne) && (h = _zero_factor(c, A)) !== nothing

@@ -131,7 +131,7 @@ function _settle_conditions(g::Sym, x::Sym, a::Real, b::Real)
         s = _sign_on(g.args[1] - g.args[2], x, a, b)
         s === nothing && return g
         r = _relation_of(g)
-        return _REL_INFO[r.op][2](s, 0) ? ONE : ZERO
+        return _rel_cmp(r.op, s, 0) ? ONE : ZERO
     elseif g.name in (:heaviside, :dirac) && has(g.args[1], x)
         s = _sign_on(g.args[1], x, a, b)
         s === nothing && return g

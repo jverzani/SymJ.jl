@@ -47,8 +47,19 @@ The right side of a relation (see [`lhs`](@ref)).
 """
 rhs(r::Relation) = r.rhs
 
-const _REL_INFO = Dict(:eq => ("~", ==), :lt => ("≪", <), :le => ("≦", <=),
-                       :gt => ("≫", >), :ge => ("≧", >=), :ne => ("≶", !=))
+# a relation's comparison of two values, called directly (a Dict of the functions left the
+# result of every comparison unknown to inference)
+function _rel_cmp(op::Symbol, a, b)
+    op === :eq && return a == b
+    op === :lt && return a < b
+    op === :le && return a <= b
+    op === :gt && return a > b
+    op === :ge && return a >= b
+    op === :ne && return a != b
+    throw(ArgumentError("unknown relation $op"))
+end
+_rel_symbol(op::Symbol) = op === :eq ? "~" : op === :lt ? "≪" : op === :le ? "≦" :
+    op === :gt ? "≫" : op === :ge ? "≧" : op === :ne ? "≶" : throw(ArgumentError("unknown relation $op"))
 
 """
     Eq(a, b), Lt(a, b), Le(a, b), Gt(a, b), Ge(a, b), Ne(a, b)
@@ -86,7 +97,7 @@ Sym(x::Irrational) = throw(ArgumentError("Sym: no exact form of $x; use Sym(Floa
 # constants; for anything with a symbol, an error pointing to the symbolic operator.
 const _SYMBOLIC_OP = Dict(:< => ("≪", "\\ll", "Lt"), :<= => ("≦", "\\leqq", "Le"),
                           :> => ("≫", "\\gg", "Gt"), :>= => ("≧", "\\geqq", "Ge"))
-function _compare(op::Symbol, a::Sym, b::Sym)
+function _compare(op::Symbol, a::Sym, b::Sym)::Bool
     if _hassymbol(a) || _hassymbol(b)
         infix, tab, f = _SYMBOLIC_OP[op]
         throw(ArgumentError("`$a $op $b`: `$op` compares numbers and returns a Bool; for a " *
@@ -129,7 +140,7 @@ Base.hash(r::Relation, h::UInt) = hash(r.rhs, hash(r.lhs, hash(r.op, h)))
 
 function Base.show(io::IO, r::Relation)
     _show(io, r.lhs, 0)
-    print(io, " ", _REL_INFO[r.op][1], " ")
+    print(io, " ", _rel_symbol(r.op), " ")
     _show(io, r.rhs, 0)
 end
 Base.show(io::IO, ::MIME"text/plain", r::Relation) = show(io, r)
@@ -153,35 +164,35 @@ TermInterface.maketerm(::Type{Relation}, head, args, metadata) = head(args...)
 
 # Bool when both sides are constants, else the relation. Exact numbers compare exactly;
 # otherwise numerically (equality to a relative tolerance).
-function _decide(r::Relation)
-    r.lhs == r.rhs && return _REL_INFO[r.op][2](0, 0)    # identical sides: whatever they are
+function _decide(r::Relation)::Union{Bool,Relation}
+    r.lhs == r.rhs && return _rel_cmp(r.op, 0, 0)    # identical sides: whatever they are
     (_hassymbol(r.lhs) || _hassymbol(r.rhs)) && return r
     d = r.lhs - r.rhs
-    _, cmp = _REL_INFO[r.op]
+    op = r.op
     if d.kind == NUMBER && isexact(d.num)
-        return cmp(sign(d.num), 0)
+        return _rel_cmp(op, sign(d.num), 0)
     end
     v = N(d)
     v isa Real || return r.op === :eq ? false : r.op === :ne ? true :
         throw(ArgumentError("$r: the sides do not compare as real numbers"))
     scale = max(1.0, abs(N(r.lhs)), abs(N(r.rhs)))
     if isfinite(v) && isfinite(scale) && abs(v) > 1e-12 * scale
-        return cmp(v, 0)
+        return _rel_cmp(op, v, 0)
     end
     # past Float64's range, or equal to its precision: the sides at 256 bits, relative to
     # their own size (5 < exp(1000) was false, overflowing to -Inf; exp(-1000) > 0 false,
     # underflowing to 0; SymPy #10268)
     w = _decide_big(r)
-    w === nothing || return cmp(w, 0)
+    w === nothing || return _rel_cmp(op, w, 0)
     isfinite(v) || throw(ArgumentError("$r: the sides could not be compared numerically"))
-    cmp(0, 0)
+    _rel_cmp(op, 0, 0)
 end
 
 # sign of lhs - rhs at 256 bits (0 when equal to that precision, relative to the larger
 # side's size: a sum by its terms, whose cancellation leaves rounding of their size;
 # (x + 1)^3 - 2 expanded at x = 2^(1/3) - 1 is -1.3e-77 on Julia 1.10); nothing when a
 # side has no such value
-function _decide_big(r::Relation)
+function _decide_big(r::Relation)::Union{Nothing,Int}
     # sides equal to a precision's rounding: the next precision, before they are taken equal
     # (π^1000 - floor(π^1000) > 0 was false: its terms near 1e497 cancel below 256 bits;
     # SymPy #6167)

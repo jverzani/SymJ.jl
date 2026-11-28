@@ -58,7 +58,7 @@ _relation_of(c::Sym) = Relation(_COND_RELS[c.name], c.args[1], c.args[2])
 const _FLIP_OP = Dict(:lt => :gt, :le => :ge, :gt => :lt, :ge => :le, :eq => :eq, :ne => :ne)
 
 for (op, name) in _COND_OPS
-    f = _REL_INFO[op][2]
+    f = (a, b) -> _rel_cmp(op, a, b)
     register_function!(name; julia = (a, b) -> Float64(f(real(a), real(b))),
         eval = args -> begin
             length(args) == 2 || return nothing
@@ -415,7 +415,7 @@ function _cond_near(c::Sym, x::Sym, x0, side, assume)
     c == ZERO && return false
     c.kind == FN && c.name === :And && return all(a -> _cond_near(a, x, x0, side, assume), c.args)
     r = _relation_of(c)
-    _REL_INFO[r.op][2](_side_sign(r.lhs - r.rhs, x, x0, side, assume), 0)
+    _rel_cmp(r.op, _side_sign(r.lhs - r.rhs, x, x0, side, assume), 0)
 end
 
 # the sign (-1, 0, 1) of g for x near x0 on `side`: of its limit, or where that is 0, of
