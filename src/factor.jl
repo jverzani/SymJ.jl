@@ -64,7 +64,7 @@ function _factor_poly(p::Poly{SymNumber}; gcd_method::Symbol = :auto)
     unit, out
 end
 
-function factor(ex::Sym; gcd_method::Symbol = :auto, assume = nothing)
+function factor(ex::Sym; gcd_method::Symbol = :auto, assume = nothing)::Sym
     if assume !== nothing
         A = something(_assumptions(assume), Assumptions())
         ex = _split_radicals(_refine(ex, A), A; gcd_method)
@@ -100,7 +100,7 @@ function _split_radicals(e::Sym, A; gcd_method::Symbol = :auto)
         nothing
     end
 end
-function _factor_sym(ex::Sym; gcd_method::Symbol = :auto)
+function _factor_sym(ex::Sym; gcd_method::Symbol = :auto)::Sym
     iszero(ex) && return ZERO                      # (an error, as the zero polynomial; SymPy #11151)
     # exponentials e^(c u), several rational c for one u: a polynomial in t = e^(u/q), q
     # the denominators' lcm, factored (y² - y e^(x/7) - y e^(x/2) + e^(9x/14) is

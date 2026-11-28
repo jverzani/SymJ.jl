@@ -27,7 +27,7 @@ factor_squarefree((x^2 - 1)/(x^2 + 2x + 1)^2)      # (x - 1)/(x + 1)^3
 """
 factor_squarefree(p::Poly{SymNumber}; gcd_method::Symbol = :auto) =
     _with_widening(_factor_squarefree_poly, p; gcd_method)
-function _factor_squarefree_poly(p::Poly{SymNumber}; gcd_method::Symbol = :auto)
+function _factor_squarefree_poly(p::Poly{SymNumber}; gcd_method::Symbol = :auto)::Tuple{SymNumber,Vector{Pair{Poly{SymNumber},Int}}}
     _check_gcd_method(gcd_method)
     iszero(p) && throw(ArgumentError("the zero polynomial has no squarefree factorization"))
     f = _integer_scaled(p)
@@ -54,7 +54,7 @@ function _squarefree_part_poly(p::Poly{SymNumber}; gcd_method::Symbol = :auto)
 end
 
 # f primitive with positive lc; returns its nonconstant factors by multiplicity
-function _sqf(f::Poly{SymNumber}, method::Symbol = :auto)
+function _sqf(f::Poly{SymNumber}, method::Symbol = :auto)::Vector{Pair{Poly{SymNumber},Int}}
     i = _mainvar(f, f)
     i == 0 && return Pair{Poly{SymNumber},Int}[]
     c = _content_mod(f, i, method)
@@ -116,9 +116,9 @@ end
 
 ## expressions
 
-factor_squarefree(ex::Sym; gcd_method::Symbol = :auto) =
+factor_squarefree(ex::Sym; gcd_method::Symbol = :auto)::Sym =
     _with_widening(_factor_squarefree_sym, ex; gcd_method)
-function _factor_squarefree_sym(ex::Sym; gcd_method::Symbol = :auto)
+function _factor_squarefree_sym(ex::Sym; gcd_method::Symbol = :auto)::Sym
     iszero(ex) && return ZERO                      # (SymPy #11151)
     r = _sqf_parts(ex, gcd_method)
     r === nothing && return ex
@@ -126,9 +126,9 @@ function _factor_squarefree_sym(ex::Sym; gcd_method::Symbol = :auto)
     _sqf_sym(un, fn) / _sqf_sym(ud, fd)
 end
 
-squarefree_part(ex::Sym; gcd_method::Symbol = :auto) =
+squarefree_part(ex::Sym; gcd_method::Symbol = :auto)::Sym =
     _with_widening(_squarefree_part_sym, ex; gcd_method)
-function _squarefree_part_sym(ex::Sym; gcd_method::Symbol = :auto)
+function _squarefree_part_sym(ex::Sym; gcd_method::Symbol = :auto)::Sym
     r = _sqf_parts(ex, gcd_method)
     r === nothing && throw(ArgumentError("squarefree_part needs exact coefficients"))
     (_, fn), _ = r
