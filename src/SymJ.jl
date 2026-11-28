@@ -9,7 +9,7 @@ module SymJ
 
 using TermInterface
 using RuntimeGeneratedFunctions
-using ScopedValues: ScopedValue, with
+using Base.ScopedValues: ScopedValue, with
 import GruntzLimit
 import LinearAlgebra
 using GruntzLimit: GruntzError
