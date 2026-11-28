@@ -444,8 +444,11 @@ whatever depends on it. Much of SymJ is one large recursive cycle (simplify, sol
 assumptions, series, limits), so a first `sin(x)` after loading ForwardDiff took 13–15 s
 on Julia 1.12. SymJ keeps such calls concretely typed and has no boxed captured variables
 (a closure capturing a reassigned variable sees it as `Any`), which brought it to about
-6 s. Loading ForwardDiff before SymJ avoids most of the rest. Cutting the cycle with
-inference barriers made SymJ's own precompilation take over 25 minutes.
+6 s, but a first `diff` still took 18–25 s, and about 15 s with ForwardDiff loaded before
+SymJ. Cutting the cycle with inference barriers made SymJ's own precompilation take over
+25 minutes. A ForwardDiff extension running SymJ's precompile workload again removed the
+cost when SymJ is loaded first, at about 1.5 minutes of compiling for every environment
+with ForwardDiff; for a rare combination, a notice was preferred.
 
 With Latexify loaded, an extension gives `latexify` recipes for expressions and
 relations, and a `text/latex` display for them, for arrays of expressions and for

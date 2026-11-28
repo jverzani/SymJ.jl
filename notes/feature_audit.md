@@ -178,7 +178,8 @@ series, assumptions, a basic `simplify`, summation, differential equations)
 | Rational exponents printed as `1//3`, so output pastes back (SymPy #5458) | left (2026-11-16) | tempting later, for round trips at the command line |
 | `expand` idempotent where radicals merge into a sum (SymPy #5743) | dropped (2026-11-16) | every fix tried made checking an ODE system's solution 5× slower |
 | An inference barrier at `show` (the precompile "exceeding 2501 frames" line) | not in (2026-11-15) | it makes Julia 1.14-beta1's precompile of SymJ run past 15 minutes |
-| Inference barriers against the re-inference after ForwardDiff loads (first `sin(x)` 6 s, after the type and boxed-capture fixes) | not in (2026-11-27) | barriers in `_sign_of_difference` and `_add_equality!` made precompile run past 25 minutes; loading ForwardDiff first avoids most of it |
+| Inference barriers against the re-inference after ForwardDiff loads (first `sin(x)` 7 s, first `diff` 15–25 s) | not in (2026-11-27) | barriers in `_sign_of_difference` and `_add_equality!` made precompile run past 25 minutes |
+| A ForwardDiff extension rerunning the precompile workload (no re-inference with SymJ loaded first) | not in (2026-11-27) | about 1.5 minutes of compiling in every environment with ForwardDiff, for a rare combination: a docs notice instead |
 | Julia LTS support | Julia ≥ 1.12 (2026-11-21) | RischIntegrate needs Julia 1.12 |
 
 ### Open from the SymPy issue audit
