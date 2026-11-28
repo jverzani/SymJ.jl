@@ -984,7 +984,7 @@ end
 
 # bottom-up: the parts first (numeric coefficients and constants among them), then the
 # node built from them; an unchanged node is kept as it is
-function _replace_walk(f, e::Sym)
+function _replace_walk(f, e::Sym)::Sym
     e2 = _replace_parts(t -> _replace_walk(f, t), e)
     v = f(e2)
     v === nothing ? e2 : Sym(v)

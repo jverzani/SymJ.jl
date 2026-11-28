@@ -1441,7 +1441,7 @@ _erfc_to_erf(x::Sym) = _replace_walk(x) do t
     t.kind == FN && t.name === :erfc && length(t.args) == 1 ? 1 - apply_function(:erf, Sym[t.args[1]]) : nothing
 end
 
-function _simplify_const(e::Sym, A::Assumptions)
+function _simplify_const(e::Sym, A::Assumptions)::Sym
     # large powers of sums of radicals expanded first: expand reduces √2² = 2 as it goes,
     # the rest (cancel over √2 as a generator) would not, at degree 2012 (SymPy #25109)
     if _bigpower(e)
@@ -1906,7 +1906,7 @@ expand_trig(ex) = _expand_trig(Sym(ex))
 
 # for simplify's candidates: e unchanged when a circular function's argument has an
 # integer multiple beyond _CIRC_MAX_MULTIPLE (a polynomial of that degree; SymPy #27293)
-function _expand_trig_small(e::Sym)
+function _expand_trig_small(e::Sym)::Sym
     big = Ref(false)
     _replace_walk(e) do t
         if !big[] && t.kind == FN && length(t.args) == 1 && t.name in _CIRCFNS
@@ -1919,7 +1919,7 @@ function _expand_trig_small(e::Sym)
 end
 
 # top down: a function is expanded on its argument as it is, then inside what remains
-function _expand_trig(e::Sym)
+function _expand_trig(e::Sym)::Sym
     isempty(e.args) && return e
     if e.kind == FN && length(e.args) == 1
         for M in (_TRIGMODE, _HYPMODE)
@@ -1932,7 +1932,7 @@ end
 
 # f(u) expanded: u a sum is split into its first term and the rest, an integer multiple
 # k*h of h written through f(h)
-function _expand_circ(f::Symbol, u::Sym, M::_Circ)
+function _expand_circ(f::Symbol, u::Sym, M::_Circ)::Sym
     s, c, t, ct, se, cs = M.fns
     σ = M.hyp ? 1 : -1                       # cos(a + b) = cos cos + σ sin sin, …
     f === se && return 1 / _expand_circ(c, u, M)
@@ -2460,7 +2460,7 @@ _realval(b::Sym) = (v = try _evalc(b) catch; return nothing end; iszero(imag(v))
 # cbrt(a + b sqrt(c)) = p + q sqrt(c) with p, q rational (SymPy #27082): then
 # n = p^2 - q^2 c is the rational cube root of a^2 - b^2 c, and s = 2p a rational root of
 # s^3 - 3n s - 2a (s the sum of the cube root and its conjugate, whose product is n)
-function _denest_cbrt(u::Sym; recurse::Bool = true)
+function _denest_cbrt(u::Sym; recurse::Bool = true)::Union{Nothing,Sym}
     t = _quadratic_surd(u)
     t === nothing && return nothing
     a, b, c = t
@@ -2950,7 +2950,7 @@ function _pw_eq_subs(e::Sym)
     end
 end
 
-function _split_positive_radicals(e::Sym, A::Assumptions)
+function _split_positive_radicals(e::Sym, A::Assumptions)::Sym
     function split(b::Sym, q::Sym)
         (q.kind == NUMBER && isexact(q.num) && !isone(_denominator(q.num))) || return nothing
         f = b.kind == ADD && _hassymbol(b) ? (try factor(b) catch err; err isa InterruptException && rethrow(); b end) : b
