@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Solving equations — SymJ.jl</title>
-  <link rel="stylesheet" href="../../assets/materialdocs.css?v=71e7066d">
+  <link rel="stylesheet" href="../../assets/materialdocs.css?v=993ac978">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <meta name="title" content="Solving equations — SymJ.jl">
   <meta property="og:title" content="Solving equations — SymJ.jl">
@@ -81,7 +81,7 @@
 <div class="md-docstring" id="CommonSolve.solve-Tuple{Relation, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>CommonSolve.solve</code> — <span class="md-docstring-sig">Tuple{Relation, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/3bc052c67b3611fb28f327e29d3b0f78de3f11f8/src/solve.jl#L22-L126" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/3eb32304ae71fb1354cec669394607f171624e35/src/solve.jl#L22-L126" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -136,7 +136,7 @@ solve([2x + 4y ~ -3], [x, y]; assume = (x ∈ ℤ, y ∈ ℤ))      # [] (no int
 <div class="md-docstring" id="SymJ.fsolve">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.fsolve</code> — <span class="md-docstring-sig">Union{Tuple{Relation, Sym}, Tuple{Relation, Sym, Tuple{Any, Any}}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/3bc052c67b3611fb28f327e29d3b0f78de3f11f8/src/fsolve.jl#L6-L34" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/3eb32304ae71fb1354cec669394607f171624e35/src/fsolve.jl#L6-L34" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -159,7 +159,7 @@ SymJ.fsolve(x^5 - x + 1 ~ 0, x; domain = ℂ)      # five roots</code></pre>
 <div class="md-docstring" id="SymJ.fsolve-2">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.fsolve</code> — <span class="md-docstring-sig">Union{Tuple{AbstractVector{&lt;:Relation}, AbstractVector}, Tuple{AbstractVector{&lt;:Relation}, AbstractVector, Any}}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/3bc052c67b3611fb28f327e29d3b0f78de3f11f8/src/fsolve.jl#L99-L125" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/3eb32304ae71fb1354cec669394607f171624e35/src/fsolve.jl#L99-L125" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -181,7 +181,7 @@ SymJ.fsolve([x^3 + y^3 ~ 1, x^2 + y ~ 3], [x, y])                      # all its
 <div class="md-docstring" id="SymJ.linear_eq_to_matrix-Tuple{Any, Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.linear_eq_to_matrix</code> — <span class="md-docstring-sig">Tuple{Any, Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/3bc052c67b3611fb28f327e29d3b0f78de3f11f8/src/linsolve.jl#L539-L554" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/3eb32304ae71fb1354cec669394607f171624e35/src/linsolve.jl#L539-L554" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -200,7 +200,7 @@ A, b = SymJ.linear_eq_to_matrix([x + 2y ~ 3, a*x - y ~ 1], [x, y])
 <div class="md-docstring" id="SymJ.SymInterval">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymInterval</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/3bc052c67b3611fb28f327e29d3b0f78de3f11f8/src/intervals.jl#L10-L15" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/3eb32304ae71fb1354cec669394607f171624e35/src/intervals.jl#L10-L15" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -213,7 +213,7 @@ A, b = SymJ.linear_eq_to_matrix([x + 2y ~ 3, a*x - y ~ 1], [x, y])
 <div class="md-docstring" id="SymJ.SymSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SymSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/3bc052c67b3611fb28f327e29d3b0f78de3f11f8/src/intervals.jl#L23-L30" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/3eb32304ae71fb1354cec669394607f171624e35/src/intervals.jl#L23-L30" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -226,7 +226,7 @@ A, b = SymJ.linear_eq_to_matrix([x + 2y ~ 3, a*x - y ~ 1], [x, y])
 <div class="md-docstring" id="SymJ.CylindricalSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.CylindricalSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/3bc052c67b3611fb28f327e29d3b0f78de3f11f8/src/ineqsystems.jl#L13-L25" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/3eb32304ae71fb1354cec669394607f171624e35/src/ineqsystems.jl#L13-L25" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -240,7 +240,7 @@ A, b = SymJ.linear_eq_to_matrix([x + 2y ~ 3, a*x - y ~ 1], [x, y])
 <div class="md-docstring" id="SymJ.ConditionSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.ConditionSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/3bc052c67b3611fb28f327e29d3b0f78de3f11f8/src/solveset.jl#L19-L24" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/3eb32304ae71fb1354cec669394607f171624e35/src/solveset.jl#L19-L24" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -253,7 +253,7 @@ A, b = SymJ.linear_eq_to_matrix([x + 2y ~ 3, a*x - y ~ 1], [x, y])
 <div class="md-docstring" id="SymJ.ImageSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.ImageSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/3bc052c67b3611fb28f327e29d3b0f78de3f11f8/src/solveset.jl#L6-L12" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/3eb32304ae71fb1354cec669394607f171624e35/src/solveset.jl#L6-L12" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -266,7 +266,7 @@ A, b = SymJ.linear_eq_to_matrix([x + 2y ~ 3, a*x - y ~ 1], [x, y])
 <div class="md-docstring" id="SymJ.SolutionSet">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.SolutionSet</code></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/3bc052c67b3611fb28f327e29d3b0f78de3f11f8/src/solveset.jl#L31-L41" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/3eb32304ae71fb1354cec669394607f171624e35/src/solveset.jl#L31-L41" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -279,7 +279,7 @@ A, b = SymJ.linear_eq_to_matrix([x + 2y ~ 3, a*x - y ~ 1], [x, y])
 <div class="md-docstring" id="SymJ.solveset-Tuple{Relation, Sym}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.solveset</code> — <span class="md-docstring-sig">Tuple{Relation, Sym}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/3bc052c67b3611fb28f327e29d3b0f78de3f11f8/src/solveset.jl#L53-L83" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/3eb32304ae71fb1354cec669394607f171624e35/src/solveset.jl#L53-L83" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -303,7 +303,7 @@ SymJ.solveset(x*exp(x) ~ 1, x; domain = ℂ)   # {lambertw(1, n) | n ∈ ℤ}</c
 <div class="md-docstring" id="SymJ.ChebZeros.cheb_all_zeros-Tuple{Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.ChebZeros.cheb_all_zeros</code> — <span class="md-docstring-sig">Tuple{Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/3bc052c67b3611fb28f327e29d3b0f78de3f11f8/src/chebzeros.jl#L500-L526" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/3eb32304ae71fb1354cec669394607f171624e35/src/chebzeros.jl#L500-L526" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -328,7 +328,7 @@ cheb_all_zeros(f; kwargs...)        # whole real line</code></pre>
 <div class="md-docstring" id="SymJ.ChebZeros.cheb_zeros-Tuple{Any}">
 <div class="md-docstring-header">
 <h4 class="md-docstring-binding"><code>SymJ.ChebZeros.cheb_zeros</code> — <span class="md-docstring-sig">Tuple{Any}</span></h4>
-<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/3bc052c67b3611fb28f327e29d3b0f78de3f11f8/src/chebzeros.jl#L299-L335" title="View source">source</a>
+<a class="md-docstring-source" href="https://github.com/jverzani/SymJ.jl/blob/3eb32304ae71fb1354cec669394607f171624e35/src/chebzeros.jl#L299-L335" title="View source">source</a>
 </div>
 <div class="md-docstring-content">
 <div class="md-code-block">
@@ -385,6 +385,6 @@ cheb_zeros(f; kwargs...)             # whole real line, same as cheb_zeros(f, -I
   <script>hljs.highlightAll();</script>
   <script src="../../siteinfo.js"></script>
   <script src="../../../versions.js"></script>
-  <script src="../../assets/materialdocs.js?v=71e7066d"></script>
+  <script src="../../assets/materialdocs.js?v=993ac978"></script>
 </body>
 </html>
