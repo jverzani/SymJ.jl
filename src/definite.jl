@@ -413,7 +413,7 @@ end
 # simple poles, ω real and nonzero: 2πi Σ Res over the upper half-plane for ω > 0, -2πi Σ
 # Res over the lower for ω < 0 (Jordan's lemma); cos(ωx) and sin(ωx) through e^(±iωx).
 # ∫ℝ cos x/(1 + x²) dx = π/e (SymPy #6136, #6348). nothing when it does not apply.
-function _fourier_residues(f::Sym, x::Sym, lo::Sym, hi::Sym, A::Assumptions)
+function _fourier_residues(f::Sym, x::Sym, lo::Sym, hi::Sym, A::Assumptions)::Union{Nothing,Sym}
     (_isinfpt(lo) && _infsign(lo) < 0 && _isinfpt(hi) && _infsign(hi) > 0) || return nothing
     fs = f.kind == MUL ? [(u, q) for (u, q) in zip(f.args, f.exps)] : f.kind == POW ? [(f.args[1], f.args[2])] : [(f, ONE)]
     R = f.kind == MUL ? Sym(f.num) : ONE
@@ -476,7 +476,7 @@ end
 # Gaussian integrals, for a > 0 (decided by cases): ∫ℝ e^(-ax² + bx + c) dx =
 # √(π/a) e^(b²/4a + c), and with b = 0, ∫₀^∞ xⁿ e^(-ax²) dx = Γ((n+1)/2)/(2a^((n+1)/2))
 # (over ℝ twice that for even n, 0 for odd n). SymPy #28485.
-function _gaussian_definite(f::Sym, x::Sym, lo::Sym, hi::Sym, A::Assumptions)
+function _gaussian_definite(f::Sym, x::Sym, lo::Sym, hi::Sym, A::Assumptions)::Union{Nothing,Sym}
     whole = _isinfpt(lo) && _infsign(lo) < 0 && _isinfpt(hi) && _infsign(hi) > 0
     half = iszero(lo) && _isinfpt(hi) && _infsign(hi) > 0
     (whole || half) || return nothing
@@ -1188,7 +1188,7 @@ end
 # on [0, ∞) with finite limits; f among functions that are (atan, tanh, erf, e^(-t))
 # (∫₀^∞ (atan 4x - atan 2x)/x = π log(2)/2; SymPy #17058). nothing otherwise.
 const _FRULLANI_FNS = (:atan, :tanh, :erf, :exp)
-function _frullani(g::Sym, x::Sym)
+function _frullani(g::Sym, x::Sym)::Union{Nothing,Sym}
     h = expand(g * x)
     (h.kind == ADD && iszero(h.num) && length(h.args) == 2) || return nothing
     c1, c2 = h.coefs

@@ -456,7 +456,7 @@ function _decisions_consistent(B::Assumptions, d::Dict{Any,Bool})
     true
 end
 
-function _case_tree(run, A::Assumptions, decided::Dict{Any,Bool}, count::Ref{Int})
+function _case_tree(run, A::Assumptions, decided::Dict{Any,Bool}, count::Ref{Int})::Vector{Pair{Vector{Any},Any}}
     need = try
         v = with(() -> run(A), _DECIDED => decided)
         # an answer by cases of its own (one for each root of a degenerate factor): its
@@ -536,8 +536,13 @@ function _merge_cases(kids)
         end
     end
     out = Pair{Vector{Any},Any}[]
+    # (the conditions built as a Vector{Any}: an abstractly typed pair pushed goes through
+    # convert(::Type{Vector{Any}}, ::AbstractArray), which loading ForwardDiff invalidates,
+    # and with it most of SymJ)
     for (cond, ls) in ks, l in ls
-        push!(out, vcat(Any[cond], l.first) => l.second)
+        c = Any[cond]
+        append!(c, l.first)
+        push!(out, Pair{Vector{Any},Any}(c, l.second))
     end
     out
 end

@@ -170,7 +170,7 @@ subs(x^2 * log(x)^2, x * log(x) => w)     # w^2
 subs(f(g(x)), f => sin)                   # sin(g(x)): an unknown function by a function
 ```
 """
-function subs(ex::Sym, ps::Pair...)
+function subs(ex::Sym, ps::Pair...)::Sym
     # an unknown function replaced by a function: each call f(args…) by g(args…), and the
     # held derivatives of it then taken (subs(f(g(x)), f => sin); SymPy #23759)
     if any(p -> p.first isa SymFunction, ps)
@@ -214,11 +214,11 @@ function _subs_functions(ex::Sym, fs)
 end
 _has_unknown_fn(e::Sym) = (e.kind == FN && !haskey(FUNCTION_RULES, e.name)) || any(_has_unknown_fn, e.args) ||
     (e.kind == MUL && any(_has_unknown_fn, e.exps))
-subs(ex::Sym, d::AbstractDict) = _subs_top(ex, Dict{Sym,Sym}(Sym(k) => Sym(v) for (k, v) in d))
+subs(ex::Sym, d::AbstractDict)::Sym = _subs_top(ex, Dict{Sym,Sym}(Sym(k) => Sym(v) for (k, v) in d))
 subs(ex::Number, args...) = Sym(ex)
 
 # whole nodes, unless a target is a power, a sum or a product, also matched algebraically
-function _subs_top(ex::Sym, d::Dict{Sym,Sym})
+function _subs_top(ex::Sym, d::Dict{Sym,Sym})::Sym
     # x => x is no substitution: dropped, as a bound variable took it for a value
     # (subs(Derivative(f(x), x), x => x) was f'(x) at the point x, Derivative(f(x), x, x))
     any(((k, v),) -> _eq(k, v), d) && (d = Dict{Sym,Sym}(k => v for (k, v) in d if !_eq(k, v)))
@@ -238,7 +238,7 @@ _subs_compound(k::Sym) = k.kind == POW || k.kind == ADD ||
 
 # A node none of whose parts change is returned as it is (no rebuilding, so a
 # substitution that misses most of a large expression allocates little).
-function _subs(ex::Sym, d::Dict{Sym,Sym})
+function _subs(ex::Sym, d::Dict{Sym,Sym})::Sym
     v = get(d, ex, nothing)
     v === nothing || return v
     k = ex.kind
@@ -357,7 +357,7 @@ function _subs_alg(ex::Sym, d::Dict{Sym,Sym}, ck)
 end
 
 # the node r with the target K => w matched algebraically, or r
-function _subs_node(r::Sym, K::Sym, w::Sym)
+function _subs_node(r::Sym, K::Sym, w::Sym)::Sym
     _eq(r, K) && return w
     if K.kind == POW
         r.kind == POW && return something(_subs_pow(r.args[1], r.args[2], K, w), r)
@@ -852,9 +852,10 @@ end
 Base.showerror(io::IO, e::HugeArgumentError) = print(io, "HugeArgumentError: ", e.name,
     " of a number about 2^", exponent(real(e.v)), ": its value needs that many bits of the argument, too many to compute")
 
-# (not specialized: inferred through sqrt(complex(::Real)), loading ForwardDiff
-# invalidated _evpow and the evaluation code above it)
-_sqrt_complex(@nospecialize(v)) = sqrt(complex(v))
+# (called behind an inference barrier: inferred as sqrt(complex(::Real)), loading
+# ForwardDiff invalidated _evpow and the evaluation code above it; a leaf, so the barrier
+# costs nothing at precompile)
+_sqrt_complex(v) = sqrt(complex(v))
 
 function _evpow(b::Sym, e::Sym, a, F, var)
     b === E && return exp(_ev(e, a, F, var))      # exp(x) is stored as ℯ^x
@@ -865,7 +866,7 @@ function _evpow(b::Sym, e::Sym, a, F, var)
             return k >= 0 ? bv^k : inv(bv)^(-k)
         end
         if e.num == SymNumber(1 // 2)
-            return bv isa Real && bv < 0 ? _sqrt_complex(bv) : sqrt(bv)
+            return bv isa Real && bv < 0 ? Base.inferencebarrier(_sqrt_complex)(bv) : sqrt(bv)
         end
         ev = convert(F === nothing ? Float64 : F, _jlnum(e.num))
     else
@@ -883,7 +884,7 @@ end
 Distribute products and positive integer powers over sums. Expressions that are
 polynomials with numeric coefficients in their symbols are expanded through [`Poly`](@ref).
 """
-function expand(ex::Sym)
+function expand(ex::Sym)::Sym
     if ex.kind == MUL || ex.kind == POW || ex.kind == ADD
         r = _expand_poly(ex)
         r === nothing || return r
@@ -915,7 +916,7 @@ function _numpoly_symbols!(gs::Set{Sym}, ex::Sym)
     false
 end
 
-function _expand_generic(ex::Sym)
+function _expand_generic(ex::Sym)::Sym
     k = ex.kind
     if k == ADD
         return _add_many(Iterators.flatten(((Sym(ex.num),),

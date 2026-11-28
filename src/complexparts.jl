@@ -106,7 +106,7 @@ _realconst(e::Sym) = !_hassymbol(e) && (p = _const_parts(e); p !== nothing && is
 _isfn1(e::Sym, f::Symbol) = e.kind == FN && e.name === f && length(e.args) == 1
 
 # real(u) or imag(u) (part = 1, 2): linear over sums and real coefficients
-function _part(u::Sym, part::Int)
+function _part(u::Sym, part::Int)::Union{Nothing,Sym}
     p = _const_parts(u)
     p === nothing || return p[part]
     f = part == 1 ? :real : :imag
@@ -154,7 +154,7 @@ function _part(u::Sym, part::Int)
     nothing
 end
 
-function _conj(u::Sym)
+function _conj(u::Sym)::Union{Nothing,Sym}
     p = _const_parts(u)
     p === nothing || return expand(p[1] - IM * p[2])
     k = u.kind
@@ -188,7 +188,7 @@ function _conj(u::Sym)
     nothing
 end
 
-function _angle(u::Sym)
+function _angle(u::Sym)::Union{Nothing,Sym}
     p = _const_parts(u)
     p === nothing && return nothing
     re, im = expand(p[1]), expand(p[2])

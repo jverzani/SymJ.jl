@@ -114,8 +114,8 @@ cancel(1/x + 1/x^2)                        # (x + 1)/x^2
 cancel((sin(x)^2 - 1)/(sin(x) + 1))        # sin(x) - 1
 ```
 """
-cancel(ex::Sym; gcd_method::Symbol = :auto) = _with_widening(_cancel, ex; gcd_method)
-function _cancel(ex::Sym; gcd_method::Symbol = :auto)
+cancel(ex::Sym; gcd_method::Symbol = :auto)::Sym = _with_widening(_cancel, ex; gcd_method)
+function _cancel(ex::Sym; gcd_method::Symbol = :auto)::Sym
     _check_gcd_method(gcd_method)
     # a piecewise function: each piece cancelled (SymPy #7022)
     if ex.kind == FN && ex.name === :piecewise
@@ -171,7 +171,7 @@ gives `(x^2 + 3x + 1)/(x^2 + x)`). The numerator is expanded. Identical factors 
 as in any product, so `1/x + 1/(x*(x - 1))` is `1/(x - 1)` either way. Function arguments
 are left as they are. Not exported.
 """
-function together(ex::Sym)
+function together(ex::Sym)::Sym
     r = _together_lcm(ex)
     if r === nothing                                # (a denominator not factored)
         n, d = numer_denom(ex)

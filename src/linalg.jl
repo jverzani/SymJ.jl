@@ -1135,7 +1135,7 @@ function _eig_roots(f::Sym, λ::Sym)
     _solve_generic(f ~ 0, λ)
 end
 # u with e == u^2 (a square of a polynomial times a rational square), else nothing
-function _square_root(e::Sym)
+function _square_root(e::Sym)::Union{Nothing,Sym}
     _hassymbol(e) || return nothing
     q = factor(e)
     fs = q.kind == MUL ? collect(zip(q.args, q.exps)) : q.kind == POW ? [(q.args[1], q.args[2])] : [(q, ONE)]

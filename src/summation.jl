@@ -677,7 +677,7 @@ end
 # Σ_{k=0}^{n} binomial(n, k) p(k) x^k = p(θ)(1 + t)^n at t = x, θ = t d/dt (x free of k,
 # possibly 1; p a polynomial): (1 + x)^n for p = 1, n x (1 + x)^(n-1) for p = k. Exact
 # for every n ≥ 0 (Σ binomial(n, k) (-1)^(n-k) is 0^n, 1 at n = 0)
-function _binomial_theorem(f::Sym, k::Sym, n::Sym)
+function _binomial_theorem(f::Sym, k::Sym, n::Sym)::Union{Nothing,Sym}
     fs = f.kind == MUL ? [(b^p) for (b, p) in zip(f.args, f.exps)] : [f]
     i = findfirst(u -> u.kind == FN && u.name === :binomial && _eq(u.args[1], n) && _eq(u.args[2], k), fs)
     i === nothing && return nothing
@@ -880,7 +880,7 @@ end
 
 ## antidifferences
 
-function _antidifference(f::Sym, k::Sym)
+function _antidifference(f::Sym, k::Sym)::Union{Nothing,Sym}
     P = try Poly{Sym}(expand(f), [k]) catch; nothing end
     P === nothing || return _poly_antidifference(P, k)
     _gosper(f, k)
@@ -911,7 +911,7 @@ _bernoulli_poly(n::Int, x::Sym) = _add_many(Sym(SymNumber(binomial(big(n), j) * 
 
 # f(k+1)/f(k) as a rational function of k, factor by factor, or nothing when f is not a
 # hypergeometric term in k
-function _hyper_ratio(f::Sym, k::Sym)
+function _hyper_ratio(f::Sym, k::Sym)::Union{Nothing,Sym}
     has(f, k) || return ONE
     fs = f.kind == MUL ? collect(zip(f.args, f.exps)) : [(f, ONE)]
     f.kind == POW && (fs = [(f.args[1], f.args[2])])
@@ -933,7 +933,7 @@ function _hyper_ratio(f::Sym, k::Sym)
     cancel(r)
 end
 
-function _factor_ratio(b::Sym, k::Sym)
+function _factor_ratio(b::Sym, k::Sym)::Union{Nothing,Sym}
     if b.kind == FN && length(b.args) <= 2
         u = b.args[end]
         if b.name in (:factorial, :gamma) && length(b.args) == 1
@@ -1458,7 +1458,7 @@ end
 
 # a constant p/q as re + im i with real denominators ((a + bi)/(c + di)), so that sums
 # of such constants cancel under expand; e itself otherwise
-function _complex_rationalized(e::Sym)
+function _complex_rationalized(e::Sym)::Sym
     _hassymbol(e) && return e
     p, q = numer_denom(e)
     a, b = something(_const_parts(p), (nothing, nothing))
@@ -1473,7 +1473,7 @@ end
 # ψ(1 - u) - ψ(u) = π cot(πu) and ψ(x + 1) = ψ(x) + 1/x:
 #   ψ(u) - ψ(s - u) = -π cot(πu) - (ψ(s - u) - ψ(1 - u)),
 # the last a finite sum; cot(iπb) = -i coth(πb)
-function _digamma_reflect(e::Sym)
+function _digamma_reflect(e::Sym)::Sym
     _hasfn(e, :digamma) || return e
     r = _replace_walk(e) do t
         t.kind == ADD || return nothing
@@ -1533,7 +1533,7 @@ _digamma_factor(t::Sym) = _isfn1(t, :digamma) ? t : t.kind == MUL ?
 # H(n + 2) = H(n + 1) + 1/(n + 2)
 # Σ_{k=a}^{b} f for f a sum of pairs c g(k + j) - c g(k), j = 1, …, 4: c (Σ_{i=1}^{j}
 # g(b + i) - Σ_{i=0}^{j-1} g(a + i)); nothing unless every term pairs off
-function _telescope(f::Sym, k::Sym, a::Sym, b::Sym)
+function _telescope(f::Sym, k::Sym, a::Sym, b::Sym)::Union{Nothing,Sym}
     iszero(f.num) || return nothing
     ts = collect(zip(f.coefs, f.args))
     length(ts) >= 2 && iseven(length(ts)) || return nothing
@@ -1691,7 +1691,7 @@ _horder(h::Sym) = length(h.args) == 2 ? h.args[2] : ONE
 # βⱼ, aⱼ free of k: convergent when A + Σ βⱼaⱼ = 0, and then, from
 # Σ_{k≥1} (c/k - log(1 + c/k)) = γc + log Γ(1 + c), the value -Σ βⱼ(γaⱼ + log Γ(1 + aⱼ)),
 # γ = -ψ(1), less the terms below a; nothing otherwise
-function _log_gamma_sum(f::Sym, k::Sym, a::Sym)
+function _log_gamma_sum(f::Sym, k::Sym, a::Sym)::Union{Nothing,Sym}
     (a.kind == NUMBER && _isint(a.num) && a.num >= N1 && a.num <= SymNumber(50)) || return nothing
     e = expand(f)
     terms = e.kind == ADD ? [(Sym(c), t) for (c, t) in zip(e.coefs, e.args)] : [(ONE, e)]

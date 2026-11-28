@@ -119,7 +119,7 @@ function _lap_unknown(term::Sym, t::Sym, s::Sym)
     cf * prod((b^q for (j, (b, q)) in enumerate(fs) if j != i); init = ONE) * out
 end
 
-function _lap_term(term::Sym, t::Sym, s::Sym)
+function _lap_term(term::Sym, t::Sym, s::Sym)::Sym
     r = _lap_unknown(term, t, s)
     r === nothing || return r
     fs, cf = _lap_factors(term)
@@ -363,7 +363,7 @@ end
 # terms c atan(a/(s - α)) (e^(αt) sin(at)/t) and c (s - α)^(-m), m symbolic
 # (t^(m-1) e^(αt) c/Γ(m), the gamma functions simplified: factorial(n)/(s + a)^(n + 1)
 # is tⁿ e^(-at); SymPy #21372); the rest a rational function
-function _ilap_special(R::Sym, s::Sym, t::Sym)
+function _ilap_special(R::Sym, s::Sym, t::Sym)::Sym
     sympow(b, q) = has(b, s) && _hassymbol(q) && !has(q, s)
     special(x) = _hasfn(x, :atan) || _has_node(x, u -> (u.kind == POW && sympow(u.args...)) ||
                                                        (u.kind == MUL && any(i -> sympow(u.args[i], u.exps[i]), eachindex(u.args))))
@@ -378,7 +378,7 @@ function _ilap_special(R::Sym, s::Sym, t::Sym)
     end
     out + (iszero(rest) ? ZERO : _ilap_rational(rest, s, t))
 end
-function _ilap_special_term(x::Sym, s::Sym, t::Sym)
+function _ilap_special_term(x::Sym, s::Sym, t::Sym)::Union{Nothing,Sym}
     fs, cf = _lap_factors(x)
     i = findfirst(((b, p),) -> has(b, s) || has(p, s), fs)
     i === nothing && return nothing
@@ -404,7 +404,7 @@ function _ilap_special_term(x::Sym, s::Sym, t::Sym)
     q * t^(m - 1) * exp(α * t)
 end
 
-function _ilap_float(F::Sym, s::Sym, t::Sym)
+function _ilap_float(F::Sym, s::Sym, t::Sym)::Union{Nothing,Sym}
     all(v -> _eq(v, s), free_symbols(F)) || return nothing
     _has_epow(F) && return nothing
     n, d = numer_denom(cancel(F))
@@ -438,7 +438,7 @@ end
 
 # g(a), or its limit there for a removable singularity (sin(4π(t - 1))/(t - 1) at 1;
 # SymPy #25293)
-function _lap_value_at(g::Sym, t::Sym, a::Sym)
+function _lap_value_at(g::Sym, t::Sym, a::Sym)::Sym
     v = try subs(g, t => a) catch err; _isdivzero(err) || rethrow(); nothing end
     v === nothing || !_finite_value(v) || return v
     l = limit(g, t => a)

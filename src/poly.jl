@@ -467,7 +467,7 @@ function _mul_dense(p::Poly, q::Poly, pc::Vector{Int128}, qc::Vector{Int128}, ::
     offset(m) = (o = 0; for i in 2:n; o = o * (degs[i] + 1) + _exponent(m, L, n, i); end; o)
     po, qo = Int[offset(m) for m in p.monos], Int[offset(m) for m in q.monos]
     # the range of terms with exponent e of gens[1], for each e
-    ranges(P, d) = (r = fill(1:0, d + 1);
+    ranges(P::Poly, d::Integer) = (r = fill(1:0, d + 1);
                     for (k, m) in enumerate(P.monos); e = _exponent(m, L, n, 1) + 1;
                         r[e] = isempty(r[e]) ? (k:k) : (first(r[e]):k); end; r)
     rp, rq = ranges(p, dp[1]), ranges(q, dq[1])
