@@ -378,7 +378,7 @@ function _solve_inequality_continuous(r::Relation, x::Sym, atoms)
         zs = try _solve_eq(b ~ 0, x) catch err; err isa ArgumentError || rethrow(); continue end
         zs isa AbstractVector && append!(pts, [q for q in _real_roots(zs) if !_hassymbol(q)])
     end
-    rel = _REL_INFO[r.op][2]
+    op = r.op
     S = _set_from(unique(pts), (v, atpoint) -> begin
         w = v isa Sym ? v : Sym(v)
         val = try N(subs(e, x => w)) catch err; err isa Union{DivisionByZero,DomainError,ArgumentError} || rethrow(); return false end
@@ -386,7 +386,7 @@ function _solve_inequality_continuous(r::Relation, x::Sym, atoms)
         val isa Complex && (abs(imag(val)) <= 1e-12 * max(1, abs(val)) ? (val = real(val)) : return false)
         isfinite(val) || return false
         atpoint && abs(val) <= 1e-12 && (val = 0.0)
-        rel(val, 0)
+        _rel_cmp(op, val, 0)
     end)
     SymSet(S.intervals, x)
 end

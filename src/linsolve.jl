@@ -351,7 +351,7 @@ function _solve_float_constants(eqs, vars::Vector{Sym})
             cr = Relation(c.op, subs(c.lhs, back...), subs(c.rhs, back...))
             d = expand(cr.lhs - cr.rhs)
             if !_hassymbol(d)
-                holds = _REL_INFO[cr.op][2](_csign(d) === nothing ? sign(real(N(d))) : _csign(d), 0)
+                holds = _rel_cmp(cr.op, _csign(d) === nothing ? sign(real(N(d))) : _csign(d), 0)
                 holds || (keep = false; break)
             else
                 push!(cs2, cr)

@@ -50,8 +50,8 @@ end
 # a relation: a function giving the comparison of its sides' values (SymPy #11248)
 function _lambdify(r::Relation, vars::Vector{Sym})
     f = _lambdify((r.lhs, r.rhs), vars)
-    cmp = _REL_INFO[r.op][2]
-    (args...) -> cmp(f(args...)...)
+    op = r.op
+    (args...) -> _rel_cmp(op, f(args...)...)
 end
 
 function _lambdify(ex, vars::Vector{Sym})

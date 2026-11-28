@@ -85,13 +85,13 @@ function refine(r::Relation; assume = nothing)
             if !_has_node(f, _isinfpt) && _isreal(f, A) === true
                 s = Float64(inf.num) > 0 ? 1 : -1
                 fl, fr = _isinfpt(rr) ? (0.0, s * Inf) : (s * Inf, 0.0)   # f stands for 0
-                return _REL_INFO[r.op][2](fl, fr)
+                return _rel_cmp(r.op, fl, fr)
             end
         end
         (_hassymbol(l) || _hassymbol(rr)) && return Relation(r.op, l, rr)
         a, b = _evalc(l), _evalc(rr)
         (isreal(a) && isreal(b)) || return r.op === :eq ? a == b : r.op === :ne ? a != b : Relation(r.op, l, rr)
-        return _REL_INFO[r.op][2](real(a), real(b))
+        return _rel_cmp(r.op, real(a), real(b))
     end
     v = _holds(Relation(r.op, expand(l - rr), ZERO), A)
     v === nothing || return v
@@ -101,7 +101,7 @@ function refine(r::Relation; assume = nothing)
     if g isa Relation && !(g.op === r.op && _eq(expand(g.lhs - g.rhs), expand(l - rr)))
         if !_hassymbol(g.lhs) && !_hassymbol(g.rhs)
             a, b = _evalc(g.lhs), _evalc(g.rhs)
-            isreal(a) && isreal(b) && return _REL_INFO[g.op][2](real(a), real(b))
+            isreal(a) && isreal(b) && return _rel_cmp(g.op, real(a), real(b))
         else
             w = _holds(Relation(g.op, expand(g.lhs - g.rhs), ZERO), A)
             w === nothing || return w
